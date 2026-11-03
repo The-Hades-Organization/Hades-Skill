@@ -14,6 +14,7 @@ import { exec, shlexQuote } from "./exec.ts";
 import type { PanelEnv } from "./env.ts";
 import { BadRequest, send as respond } from "./http.ts";
 import { type ChatEvent, type Tokens, chatEvents, pyDumpsUtf8 } from "./chat-events.ts";
+import { ATTACH_CODES, ATTACH_MAX_FILES, ATTACH_STATUS, AttachRefused, type AttachCode, attachBodyLimit, attachLimitBytes, createAttachments } from "./chat-attach.ts";
 
 type Dict = Record<string, unknown>;
 
@@ -36,6 +37,17 @@ const PRIVATE_FILE = 0o600;
 
 /** Resposta em andamento ou teto de sessões simultâneas (409). */
 export class ChatBusy extends Error {}
+
+/** `draft`: id de uma pasta de anexos criada antes da primeira mensagem (vira o id da sessão); `files`: nomes guardados pelo attach. */
+export interface SendOptions { draft?: string; files?: string[] }
+
+/** `draft` e `files` do corpo do /api/claude/send, validados na fronteira (texto e lista de texto, com teto). */
+export function sendOptions(body: Record<string, unknown>): SendOptions {
+  const files = Array.isArray(body.files) && body.files.every((f) => typeof f === "string") ? (body.files as string[]) : [];
+  if (files.length > ATTACH_MAX_FILES) throw new BadRequest(`no máximo ${ATTACH_MAX_FILES} anexos por mensagem`);
+  const draft = typeof body.draft === "string" ? body.draft : undefined;
+  return { draft: draft || undefined, files };
+}
 
 export interface SessionMeta {
   id: string;
@@ -64,7 +76,9 @@ export interface ChatDeps {
 
 export interface Chat {
   overview(remote: boolean): Promise<Dict>;
-  send(sid: string, text: string, remote: boolean): Promise<string>;
+  send(sid: string, text: string, remote: boolean, opts?: SendOptions): Promise<string>;
+  /** POST /api/claude/attach: o arquivo (JSON com base64) vai para a pasta da sessão; devolve o caminho. */
+  attach(req: Request, remote: boolean): Promise<Response>;
   stop(sid: string): Promise<void>;
   remove(sid: string): Promise<void>;
   /** SSE da sessão a partir de um offset; 404 se a sessão não existe */
@@ -117,6 +131,7 @@ export function createChat(deps: ChatDeps): Chat {
   const logFile = join(env.dir, "logs", "claude-chat.log");
   const registryFile = join(dir, "sessions.json");
   const locked = createMutex();
+  const attachments = createAttachments(dir);
   mkdirSync(dir, { recursive: true, mode: PRIVATE_DIR });
 
   const outFile = (sid: string): string => join(dir, `${sid}.jsonl`);
@@ -258,7 +273,7 @@ export function createChat(deps: ChatDeps): Chat {
       clone: clone ? clone.slice(clone.lastIndexOf("/") + 1) : null, notify: cfg.HADES_NOTIFY === "1",
       sessions: items.map((m) => ({
         id: m.id, title: m.title ?? null, created: m.created ?? null, updated: m.updated ?? null, remote: Boolean(m.remote), cost: m.cost ?? 0,
-        tokens: m.tokens ?? null, turns: m.turns ?? 0, running: running.has(m.id),
+        tokens: m.tokens ?? null, turns: m.turns ?? 0, running: running.has(m.id), claudeSession: m.claudeSession ?? null,
       })),
     };
   }
@@ -270,7 +285,7 @@ export function createChat(deps: ChatDeps): Chat {
     }).catch((error: unknown) => console.warn(`aviso remoto do chat falhou: ${error instanceof Error ? error.message : String(error)}`));
   }
 
-  async function sendUnlocked(sid: string, rawText: string, remote: boolean): Promise<{ sid: string; notify: boolean }> {
+  async function sendUnlocked(sid: string, rawText: string, remote: boolean, opts: SendOptions): Promise<{ sid: string; notify: boolean }> {
     const cfg = deps.config();
     if (cfg.HADES_CHAT !== "1") throw new BadRequest("a página Claude está desligada (Configurações → Sessão Claude)");
     const text = rawText.trim();
@@ -282,6 +297,18 @@ export function createChat(deps: ChatDeps): Chat {
     const clone = await chatClone();
     if (!clone || !existsSync(clone)) throw new BadRequest("clone principal do repositório não encontrado");
     const meta = load();
+    if (!sid && opts.draft && meta[opts.draft]) throw new BadRequest("rascunho já virou conversa");
+    const id = sid || opts.draft || randomBytes(4).toString("hex");
+    // a mensagem cita o caminho dos anexos: é assim que o Claude Code lê arquivo
+    let sent = text;
+    if (opts.files?.length) {
+      try {
+        sent = `${text}\n\nArquivos anexados (leia pelo caminho):\n${attachments.resolveFiles(id, opts.files).map((p) => `- ${p}`).join("\n")}`;
+      } catch (error) {
+        if (error instanceof AttachRefused) throw new BadRequest(error.message);
+        throw error;
+      }
+    }
     let running = await active();
     if (sid) {
       if (!meta[sid]) throw new BadRequest("sessão desconhecida");
@@ -293,7 +320,6 @@ export function createChat(deps: ChatDeps): Chat {
     running = await active();
     if (running.size >= limit) throw new ChatBusy(`já há ${limit} sessões respondendo; espere uma terminar ou aumente o limite nas Configurações`);
     const created = !sid;
-    const id = sid || randomBytes(4).toString("hex");
     if (created) meta[id] = { id, title: titleOf(text), created: nowS(), remote, off: 0, cost: 0, tokens: {}, turns: 0 };
     const m = meta[id] as SessionMeta;
     m.updated = nowS();
@@ -306,9 +332,9 @@ export function createChat(deps: ChatDeps): Chat {
     const out = outFile(id);
     const input = inFile(id);
     // a mensagem entra pelo stdin: no argv, um texto começando com "-" viraria opção do claude
-    writeFileSync(input, text);
+    writeFileSync(input, sent);
     chmodSync(input, PRIVATE_FILE);
-    append(id, { type: "hds_user", text, remote, ts: nowS() });
+    append(id, { type: "hds_user", text: sent, remote, ts: nowS() });
     chmodSync(out, PRIVATE_FILE);
     const script = `"$@"; rc=$?; printf '{"type":"hds_end","rc":%s}\\n' "$rc" >> ${shlexQuote(out)}; exit $rc`;
     const launch = manager.transientArgv({
@@ -331,8 +357,8 @@ export function createChat(deps: ChatDeps): Chat {
     return { sid: id, notify };
   }
 
-  async function send(sid: string, text: string, remote: boolean): Promise<string> {
-    const done = await locked(() => sendUnlocked(sid, text, remote));
+  async function send(sid: string, text: string, remote: boolean, opts: SendOptions = {}): Promise<string> {
+    const done = await locked(() => sendUnlocked(sid, text, remote, opts));
     if (done.notify) notifyRemote(done.sid);
     return done.sid;
   }
@@ -353,7 +379,59 @@ export function createChat(deps: ChatDeps): Chat {
       delete meta[sid];
       save(meta);
       for (const p of [outFile(sid), inFile(sid)]) if (existsSync(p)) unlinkSync(p);
+      attachments.remove(sid);
     });
+
+  const refuse = (code: AttachCode, error: string): Response => respond(ATTACH_STATUS[code], { error, code });
+
+  /** Lê o corpo até `max` bytes (sem ler o resto); undefined se passa. */
+  async function readCapped(req: Request, max: number): Promise<Uint8Array | undefined> {
+    const declared = Number.parseInt(req.headers.get("content-length") ?? "", 10);
+    if (Number.isFinite(declared) && declared > max) return undefined;
+    const reader = req.body?.getReader();
+    if (!reader) return new Uint8Array(0);
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > max) {
+        await reader.cancel();
+        return undefined;
+      }
+      chunks.push(value);
+    }
+    return Buffer.concat(chunks);
+  }
+
+  async function attach(req: Request, remote: boolean): Promise<Response> {
+    if (deps.config().HADES_CHAT !== "1") return refuse(ATTACH_CODES.disabled, "a página Claude está desligada (Configurações → Sessão Claude)");
+    const limit = attachLimitBytes(deps.config().HADES_CHAT_ATTACH_MB);
+    const raw = await readCapped(req, attachBodyLimit(limit));
+    if (raw === undefined) return refuse(ATTACH_CODES.tooLarge, `arquivo acima de ${Math.floor(limit / (1 << 20))} MB`);
+    let body: unknown;
+    try {
+      body = JSON.parse(new TextDecoder().decode(raw));
+    } catch {
+      return refuse(ATTACH_CODES.badRequest, "corpo inválido");
+    }
+    const b = typeof body === "object" && body !== null && !Array.isArray(body) ? (body as Dict) : undefined;
+    if (!b || typeof b.name !== "string" || typeof b.data !== "string") return refuse(ATTACH_CODES.badRequest, "informe name e data (base64)");
+    const given = typeof b.id === "string" ? b.id : "";
+    try {
+      // sessão existente ou rascunho já começado; sem id, nasce um rascunho (vira a sessão no primeiro envio)
+      const id = given || randomBytes(4).toString("hex");
+      if (given && !(load()[given] || attachments.exists(given))) return refuse(ATTACH_CODES.unknownSession, "sessão desconhecida");
+      const stored = attachments.save(id, b.name, b.data, limit);
+      record(id, remote, `anexo nome=${stored.name} bytes=${stored.bytes} tipo=${stored.kind}`);
+      attachments.sweep((d) => d in load(), Date.now());
+      return respond(200, { id, draft: !load()[id], file: stored.file, name: stored.name, bytes: stored.bytes, kind: stored.kind, path: stored.path });
+    } catch (error) {
+      if (error instanceof AttachRefused) return refuse(error.code, error.message);
+      throw error;
+    }
+  }
 
   /** Eventos novos a partir de `off`: [(offset_depois, evento)] e o novo offset. Deltas de texto só a partir de `deltaFrom`
    *  (a mensagem em curso); o resto da história vem pelos eventos de texto completos. */
@@ -449,5 +527,5 @@ export function createChat(deps: ChatDeps): Chat {
     });
   }
 
-  return { overview, send, stop, remove, stream, isId: (sid) => CHAT_ID.test(sid) };
+  return { overview, send, attach, stop, remove, stream, isId: (sid) => CHAT_ID.test(sid) };
 }

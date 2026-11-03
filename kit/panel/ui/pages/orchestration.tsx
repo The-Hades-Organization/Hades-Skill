@@ -3,7 +3,7 @@
  * consolidações e as decisões tomadas sozinho. */
 (() => {
 const { useState, useEffect, I, cn, dur, getJSON, Button, Dot, Card, CardHeader, CardContent, Skeleton, Mono, Tip,
-  Empty, Sheet, Fio, LinhaDeEstado, renderMd, Loading, CopyButton, useTourPreview, ExampleSeal } = HadesCore;
+  Empty, Sheet, Fio, LinhaDeEstado, renderMd, Loading, CopyButton, useTourPreview, ExampleSeal, OpenTerminalButton } = HadesCore;
 
 // estado do agente em palavras, o ponto e o fio (trabalhando fia; esperando você é o fio frouxo)
 const AGENT_LIVE = { working: ['trabalhando', 'busy', 'fiando'], idle: ['ocioso', 'ok', 'parado'], blocked: ['espera por você', 'warn', 'frouxo'],
@@ -100,10 +100,11 @@ function AgentCard({ a, show, example }) {
           {FILE_LABEL[f]}
         </Button>)}
         <span className="ml-auto flex items-center gap-1">
-          {a.pane ? <a href={'#/herdr?pane=' + encodeURIComponent(a.pane)} className="inline-flex h-7 items-center gap-1 px-2 t-meta-em hover:bg-accent outline-none focus-visible:outline-2 focus-visible:outline-ring">
+          {a.pane ? <a href={'#/herdr?pane=' + encodeURIComponent(a.pane)} className="inline-flex h-7 max-md:min-h-11 items-center gap-1 px-2 t-meta-em hover:bg-accent outline-none focus-visible:outline-2 focus-visible:outline-ring">
             Abrir no Herdr
             <I.ArrowUpRight className="size-3" aria-hidden="true" />
           </a> : null}
+          <OpenTerminalButton cwd={a.worktree} />
           {a.live !== 'fora' ? <Tip text="Terminal do agente">
             <Button variant="ghost" size="icon-sm" aria-label="Terminal do agente" icon={I.SquareTerminal} onClick={() => show(a.name, 'terminal')} />
           </Tip> : null}

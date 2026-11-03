@@ -140,6 +140,17 @@ describe("nó terminal: dados, tema e alvos (node-terminal.tsx)", () => {
   });
 });
 
+describe("nó legível usa o xterm, nó distante fica no resumo leve", () => {
+  test("dado o zoom e o tamanho do nó, então só o que dá para ler vira xterm", async () => {
+    const { ArgosNodeTerminal: NT, ArgosNodeTty: Tty } = await load();
+    const frame = { cols: 80, rows: 24 };
+    const drawingAt = (zoom: number, w: number, h: number) => Tty.ttyDrawing(NT.ttyHeaderOnly(zoom, NT.ttyScaleOf(w, h, frame)));
+    expect(drawingAt(1, 800, 520)).toBe("xterm");
+    expect(drawingAt(0.2, 800, 520)).toBe("summary");
+    expect(drawingAt(1, 300, 200)).toBe("summary");
+  });
+});
+
 describe("terminal não corta as linhas de baixo (node-tty.tsx)", () => {
   test("dado texto com mais linhas que o quadro anuncia, então a grade mostra todas; vazias do fim não contam", async () => {
     const { ArgosNodeTty: Tty } = await load();

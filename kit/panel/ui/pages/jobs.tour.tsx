@@ -34,6 +34,13 @@ HadesCore.registerTour('jobs', {
       side: 'bottom',
     },
     {
+      id: 'jobs-terminal',
+      title: 'Abrir terminal',
+      body: 'Abre um shell na pasta onde a execução rodou e leva você à página Herdr com ele na mesa. Só aparece se a pasta estiver entre as permitidas do terminal; com HADES_TERMINAL desligada, o botão mostra como ligar.',
+      fallback: 'O botão só existe com uma execução escolhida e a pasta dela dentro das raízes do terminal.',
+      side: 'left',
+    },
+    {
       id: 'jobs-interromper',
       title: 'Interromper',
       body: 'Para a execução que está rodando (systemctl --user stop da unit). Só aparece enquanto ela roda.',

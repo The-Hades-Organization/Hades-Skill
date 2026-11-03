@@ -21,6 +21,8 @@ export interface Job {
   cmd: string;
   exclusive: boolean;
   started: number;
+  /** Pasta onde a execução roda (a do `workdir` da unit); aditivo: execução antiga não tem. */
+  cwd?: string;
   state?: JobState;
   rc?: number | string;
   ended?: number;
@@ -48,7 +50,7 @@ export function createJobs(env: PanelEnv): Jobs {
     const id = `${localStamp(new Date())}-${randomBytes(2).toString("hex")}`;
     const log = join(dir, `${id}.log`);
     const rc = join(dir, `${id}.rc`);
-    const meta: Job = { id, action, title, cmd: script, exclusive, started: Date.now() / 1000 };
+    const meta: Job = { id, action, title, cmd: script, exclusive, started: Date.now() / 1000, cwd: env.dir };
     writeFileSync(join(dir, `${id}.json`), pyJsonDumps(meta));
     writeFileSync(log, `$ ${script}\n`);
     const wrapped = `${script}\nrc=$?; echo $rc > ${shlexQuote(rc)}; exit $rc`;

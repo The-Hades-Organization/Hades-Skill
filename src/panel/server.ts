@@ -33,7 +33,7 @@ import { CaronteRouteError, createCaronteRoutes } from "./caronte.ts";
 import { loadWorkEnv } from "../lib/work.ts";
 import { registriesOf } from "./argos-graph.ts";
 import { createMoiraiRoutes, MoiraiError } from "./moirai.ts";
-import { ChatBusy, createChat } from "./chat.ts";
+import { ChatBusy, createChat, sendOptions } from "./chat.ts";
 import { createJobs } from "./jobs.ts";
 import { createOrchestration } from "./orchestration.ts";
 import { createThanatosRoutes } from "./thanatos.ts";
@@ -48,6 +48,9 @@ import { log } from "./log.ts";
 import * as core from "./routes-core.ts";
 import { CANVAS_HARNESS_HTML, createCanvasModuleBundler, createUiTranspiler } from "./ui-transpile.ts";
 import { TOURS_MARKER, tourScriptTags } from "./ui-tours.ts";
+import { createTerm } from "./term.ts";
+import { createTermHttp, type TermSocketData } from "./term-http.ts";
+import { TERM_PATHS } from "./term-protocol.ts";
 
 const AUTH_DELAY_MS = 1000;
 const NOTIFY_APPLY_TIMEOUT_MS = 30_000;
@@ -202,6 +205,21 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     onRegistryChange: () => canvasHub.publishRegistry(),
     canvasPanes: () => canvas.terminalPanes(),
   });
+  // terminal de verdade (reference/panel.md §Terminal): PTYs sob a unit do painel, desligado por padrão (HADES_TERMINAL)
+  const term = createTerm({
+    dataDir: env.dir,
+    config: () => core.configValues(env),
+    roots: () => [env.worktree, ...agentWorktrees(registriesOf(env.locks, env.locks ? dirname(dirname(env.locks)) : workRoot(process.env, home())).map((r) => r.orch)), env.dir],
+    defaultCwd: env.worktree,
+    notify: async (what, state) => {
+      await exec(
+        ["bash", join(env.dir, "notify.sh"), "send", "herdr", "warn", what, "--obj", "terminal", "--state", state],
+        { timeoutMs: NOTIFY_APPLY_TIMEOUT_MS, env: { ...process.env, HADES_DATA: env.dir } },
+      );
+    },
+    log,
+  });
+  const termHttp = createTermHttp({ term, auth, port });
   // supervisor do canvas (reference/argos.md §Supervisor): só lê o pane (a leitura do /api/herdr/read) e as notas
   const supervisor = createSupervisorRoutes({
     dir: env.dir,
@@ -329,6 +347,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     if (path === "/api/gates") return send(200, gatewatch.detail());
     if (path === "/api/claude") return send(200, await chat.overview(remote));
     if (path === "/api/claude/stream") return chat.stream(req, query.id ?? "", query.offset);
+    if (path === TERM_PATHS.list) return termHttp.list();
     if (path === "/api/journal/stream") return misc.journal.stream(req, query);
     if (path === "/api/herdr/stream") return herdrStream.open(req, query);
     if (path.startsWith("/api/argos/")) {
@@ -534,6 +553,8 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     // o anexo do compositor lê o próprio corpo (teto de anexo, maior que o dos demais POST)
     const composerAttachment = method === "POST" ? canvasFiles.post(path, req, { remote }) : undefined;
     if (composerAttachment) return composerAttachment;
+    // o anexo do chat também lê o próprio corpo (JSON com base64, teto de HADES_CHAT_ATTACH_MB)
+    if (method === "POST" && path === "/api/claude/attach") return chat.attach(req, remote);
     const body = await readJsonBody(req);
     if (body === undefined) return send(400, { error: "json" });
     // confere só os cabeçalhos da URL do nó portal; a origem do painel, como o navegador do chamador a vê, vem do Host já validado pelo hostOk
@@ -544,6 +565,8 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     // o ip é só para o log do Argos; quem decide o acesso remoto é o auth acima, nunca o cabeçalho
     const terminalsWrite = argosTerminals.post(path, body, { remote });
     if (terminalsWrite) return terminalsWrite;
+    const termWrite = await termHttp.post(path, body, remote);
+    if (termWrite) return termWrite;
     // supervisor do canvas: consulta e resumo das notas pelo claude -p (D1 pelo acesso remoto)
     const supervisorWrite = supervisor.post(path, body, { remote });
     if (supervisorWrite) return supervisorWrite;
@@ -619,7 +642,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
       const sid = pyStr(body.id || "");
       if (sid && !chat.isId(sid)) throw new BadRequest("sessão inválida");
       try {
-        if (path.endsWith("/send")) return send(200, { id: await chat.send(sid, pyStr(body.text || ""), remote) });
+        if (path.endsWith("/send")) return send(200, { id: await chat.send(sid, pyStr(body.text || ""), remote, sendOptions(body)) });
         if (!sid) throw new BadRequest("sessão inválida");
         await (path.endsWith("/stop") ? chat.stop(sid) : chat.remove(sid));
         return send(200, { ok: true });
@@ -634,6 +657,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
       herdrStream.nudge(target.session, target.pane);
       return send(200, { ok: true });
     }
+    if (path === "/api/herdr/admin") return send(200, await herdrPage.admin(body, remote));
     if (path === "/api/herdr/session") return send(200, await herdrPage.sessionAct(body, remote));
     if (path === "/api/onboard") return send(200, await misc.onboardApply(body, remote));
     if (path === "/api/config/preview") return send(200, core.configPreview(env, body, remote));
@@ -663,10 +687,15 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
 
   // a primeira amostra sai antes de atender, como no original: o primeiro /api/snapshot já vem cheio
   await sampler.sample();
-  const server = Bun.serve({
+  const server = Bun.serve<TermSocketData>({
     hostname: "127.0.0.1",
     port,
+    websocket: termHttp.websocket,
     async fetch(req, srv) {
+      // o WebSocket do terminal confere host, chave, Origin e a chave HADES_TERMINAL antes de trocar de protocolo
+      if (req.method === "GET" && termHttp.isSocketPath(new URL(req.url).pathname)) {
+        return widgetScopeRefused(req) ?? termHttp.upgrade(req, srv);
+      }
       // o Bun corta em 10 s a requisição sem resposta; criar ou trocar o papel de um terminal espera o shell e o agente subirem
       if (req.method === "POST" && new URL(req.url).pathname.startsWith(TERMINALS_PATH)) srv.timeout(req, TERMINAL_REQUEST_TIMEOUT_S);
       try {
@@ -681,6 +710,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
   });
   sampler.start();
   gatewatch.start();
+  term.start();
   const widgetListener = widget.serve();
-  return { stop: () => { sampler.stop(); gatewatch.stop(); pluginHost.stop(); widgetListener?.stop(); herdrStream.stop(); void server.stop(true); }, port: server.port ?? port, token };
+  return { stop: () => { sampler.stop(); gatewatch.stop(); term.stop(); pluginHost.stop(); widgetListener?.stop(); herdrStream.stop(); void server.stop(true); }, port: server.port ?? port, token };
 }

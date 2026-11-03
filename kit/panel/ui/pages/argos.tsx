@@ -37,6 +37,7 @@ const DROP_STEP = 24;
 const DROP_TYPES = Object.freeze(['Files', 'text/uri-list']);
 // comandos montados aqui que entram no menu do nó, por tipo (o menu do tipo fica como está; o que já está nele não repete)
 const MOUNTED_NODE_MENU = Object.freeze({
+  agent: Object.freeze([L.TERM_OPEN_SHELL, L.TERM_OPEN_CLIENT]),
   [NT.TERMINAL_TYPE]: Object.freeze(['tty:link']),
   [M.note.NOTE_TYPE]: Object.freeze(['term:connections', 'tty:link', 'tty:close']),
 });
@@ -385,6 +386,11 @@ function Argos() {
     // comando da leitura com atalho já tomado (RegistryError): fica de fora e o resto da página segue
     for (const def of L.readingCommandDefs()) {
       try { made.commands.register(def); } catch (e) { console.error('argos: comando da leitura recusado', def.id, e && e.code); }
+    }
+    // "Abrir terminal" / "Abrir cliente do herdr" no menu do agente: abre a sessão e leva à página Herdr
+    const termOpenPort = { node: (id) => L.validNodes(graphRef.current).find((n) => n.id === id), open: (spec) => host.current.openTerminal(spec) };
+    for (const def of L.termOpenCommandDefs(termOpenPort)) {
+      try { made.commands.register(def); } catch (e) { console.error('argos: comando de abrir terminal recusado', def.id, e && e.code); }
     }
     const hiddenPort = { targets: (id) => host.current.hideTargets(id), hide: (ids) => host.current.hideNodes(ids),
       unhideAll: () => host.current.unhideNodes(host.current.hiddenIds()), count: () => host.current.hiddenIds().length, openList: () => host.current.openHiddenList() };
@@ -1483,6 +1489,7 @@ function Argos() {
     selectIds: (ids) => { selectionRef.current = ids.length ? [...ids] : NO_NODES; onSelectionChange(ids); },
     select, commitOp, opFailed, copyText, ask: askOwner,
     hideTargets: (id) => HID.hideTargets(engineSelection, id), hideNodes, unhideNodes,
+    openTerminal: (spec) => { void HadesCore.TermOpen.openAndGo(spec, { toast, go }); },
     hiddenIds: () => cstateRef.current?.doc.hidden ?? NO_NODES, openHiddenList: () => { setHiddenWanted(true); setFiltersOpen(true); },
     notify: ({ level, text }) => toast({ kind: NOTE_LEVEL_TOAST[level] || 'info', title: text }),
     filteredIds: () => shown.nodes.map((n) => n.id),

@@ -50,9 +50,17 @@ HadesCore.registerTour('claude', {
       side: 'top',
     },
     {
+      id: 'claude-modo',
+      title: 'Chat ou Terminal',
+      body: 'O seletor troca a mesa: o chat (claude -p) ou o Claude Code de verdade num terminal, na pasta que você escolher e retomando uma conversa. "Continuar no terminal" leva a conversa atual; uma ferramenta barrada no chat oferece "Abrir no terminal para aprovar".',
+      ref: 'panel.md › Claude',
+      fallback: 'O seletor só existe com a conversa ligada. O modo terminal também precisa de HADES_TERMINAL=1 (Configurações → Terminal), e a página explica isso quando está desligado.',
+      side: 'bottom',
+    },
+    {
       id: 'claude-envio',
       title: 'Mensagem para o Claude',
-      body: 'Escreva e envie; durante a resposta o botão vira Parar. Uma resposta por vez em cada sessão.',
+      body: 'Escreva e envie; durante a resposta o botão vira Parar. O clipe anexa uma imagem ou um arquivo de texto (o Claude lê pelo caminho que a mensagem cita). Uma resposta por vez em cada sessão.',
       fallback: 'A barra de envio só aparece com a conversa ligada.',
       side: 'top',
     },

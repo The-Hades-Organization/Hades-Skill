@@ -413,7 +413,7 @@ function SidePanel({ node, detail, moirai, detailError, events, live, now, onFil
         <Facts rows={[['Registro', node.registry === '_skill' ? '_skill (a própria skill)' : node.registry], ['Modo', node.mode], ['Fase', node.phase], ['Branch', node.branch && <Mono>{node.branch}</Mono>], ['Base', node.base && <Mono>{node.base}</Mono>],
           ['Último evento', node.lastEventTs ? <span className="tnum">{hms(node.lastEventTs)} · há {agoMs(node.lastEventTs, now)}</span> : null],
           ['No herdr', h ? `${stateUi(h.status)}${h.pane ? ` · terminal ${h.pane}` : ''}` : detail ? 'fora do herdr' : null]]} />
-        {h?.pane ? <a className="inline-flex items-center gap-1.5 justify-self-start t-body underline underline-offset-3 hover:no-underline" href={`#/herdr?pane=${encodeURIComponent(h.pane)}`}>
+        {h?.pane ? <a className="inline-flex max-md:min-h-11 items-center gap-1.5 justify-self-start t-body underline underline-offset-3 hover:no-underline" href={`#/herdr?pane=${encodeURIComponent(h.pane)}`}>
           <I.SquareTerminal className="size-4" aria-hidden="true" />Abrir no Herdr</a> : null}
         {detailError ? <p className="t-body text-bad" role="alert">Detalhe indisponível: {detailError}. Tentando de novo a cada 10 s.</p> : null}
       </div>

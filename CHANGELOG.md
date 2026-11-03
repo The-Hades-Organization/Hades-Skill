@@ -4,6 +4,43 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.2.0 — 2026-11-03
+
+Terminal completo no painel e páginas Claude e Herdr de primeira classe no celular (issue #3).
+
+- **Servidor do terminal** (`src/panel/term.ts`, `term-ring.ts`, `term-protocol.ts`, `term-http.ts`). Sessões PTY com o PTY nativo
+  do Bun (sem `node-pty`) servidas por WebSocket: `shell`, `claude` (novo ou `--resume`, sempre em auto mode) e `herdr-client`
+  (`herdr --session`; o herdr 0.8.2 não anexa a um pane sozinho). Resize, anel de saída com offset absoluto para retomar sem
+  perder nem repetir, uma tela por sessão (a segunda fecha a primeira com 4001), teto de sessões e inatividade. Protocolo e
+  códigos de recusa em `reference/panel.md` §Terminal.
+- **Segurança do terminal.** `HADES_TERMINAL` nasce desligada e as quatro chaves `HADES_TERMINAL*` só mudam pelo painel local
+  (o mesmo bloqueio de `HADES_CHAT`, também no import). O upgrade do WebSocket confere host, chave remota e `Origin` (pelo túnel,
+  sem `Origin` recusa); a pasta é resolvida por `realpath` e só vale dentro do clone principal, das worktrees de agente e de `$D`;
+  argv em lista; o grupo de processos morre ao fechar, expirar ou parar o painel. Aviso ao dono a cada sessão aberta de fora **e**
+  no primeiro anexo remoto a uma sessão aberta no local; `logs/panel-term.log` (0600) só com ação, tipo, pasta, origem e id,
+  nunca o que foi digitado nem a saída. Os PTYs ficam no cgroup da unit do painel (fora do slice `hades`, como o painel).
+- **Interface do terminal.** xterm.js 6.0.0 e addon-fit 0.11.0 vendorizados (integrity conferido, MIT em `THIRD_PARTY_NOTICES.md`).
+  `HadesCore.PtyTerminal` (o nome `Terminal` segue sendo o visualizador de log das Execuções) reconecta com recuo e retoma pelo
+  offset, trata os códigos de fechamento e as recusas pelo `code`; `HadesCore.createXterm` dá o mesmo tema ao terminal e ao Argos.
+- **Página Herdr** refeita: abas de sessão (shell, Claude Code, cliente do herdr) na pasta escolhida, lado a lado na mesa, sessões
+  vivas, e **gerência do herdr** pelo painel (`POST /api/herdr/admin`): criar, renomear e fechar workspace, aba e painel, dividir
+  painel e iniciar agente, com argv validado e confirmação por nome nas destrutivas.
+- **Argos:** o nó de agente é desenhado pelo xterm (só leitura de saída; nós distantes ficam no resumo leve). **"Abrir terminal"**
+  na Orquestração, no menu do nó do Argos e nas Execuções (a meta da execução ganha `cwd`, aditivo).
+- **Página Claude:** modo Terminal ao lado do Chat (Claude Code de verdade, novo ou "Continuar no terminal"); no chat, o bloqueio de
+  ferramenta ganha "Abrir no terminal para aprovar" (o `claude -p` não aceita aprovação no meio da resposta) e o anexo de imagem
+  ou texto vai para `$D/claude/attach/<sessão>` (`HADES_CHAT_ATTACH_MB`, 20 por conversa, apagado com a sessão).
+- **Celular:** Claude e Herdr mostram uma coisa por vez e o voltar do sistema desce um nível; barra de teclas acima do teclado
+  virtual (Esc, Tab, Ctrl fixo, setas, colar, copiar e as respostas do Claude Code: 1/2/3, y/n, Shift+Tab, Ctrl+C), configurável
+  por `HADES_TERMINAL_KEYS`; o terminal acompanha o `visualViewport` e tem "Ir ao fim"; o agente esperando você abre o painel dele
+  com as respostas rápidas.
+- Correção: `HADES_CHAT_BIN` inexistente no terminal responde 422 `term_kind_unavailable`, não 500.
+- Armadilhas medidas: o xterm não lê `oklch` (tokens resolvidos em RGB); o Bun derruba o socket com quadro acima de `maxPayload`
+  (o cliente vê 1006); o eco do tty vem com `\r` antes da saída; o xterm não seleciona por toque (Copiar leva a seleção ou a tela);
+  `navigator.clipboard.readText` só em HTTPS/localhost; `agent start` do herdr só entra em painel de shell livre.
+- Limites: Safari iOS e Chrome de celular não foram testados (só Firefox com viewport de celular); "Ir ao fim" não foi visto no
+  navegador sem tela.
+
 ## 6.1.2 — 2026-11-03
 
 - **Busca do seletor de arquivos cede o laço de eventos de verdade.** O `readdir` assíncrono do Bun pode resolver sem

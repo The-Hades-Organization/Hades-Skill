@@ -9,6 +9,7 @@
 <!-- instalável no celular: o manifest é buscado sem cookie por padrão, e pelo túnel o /ui/* exige o da sessão -->
 <link rel="manifest" href="/ui/manifest.webmanifest" crossorigin="use-credentials">
 <link rel="apple-touch-icon" href="/ui/brand/apple-touch-icon.png">
+<link rel="stylesheet" href="/ui/vendor/xterm.css">
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f9f2eb">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#12090e">
 <meta name="mobile-web-app-capable" content="yes">
@@ -344,9 +345,14 @@ body:not(.ready) #root { opacity: 0; }
 <script src="/ui/vendor/htm.js"></script>
 <script src="/ui/vendor/marked.js"></script>
 <script src="/ui/vendor/tailwind.js"></script>
+<script src="/ui/vendor/xterm.js"></script>
+<script src="/ui/vendor/xterm-addon-fit.js"></script>
 <script src="/ui/tour-logic.js"></script>
 <script src="/ui/select-logic.js"></script>
+<script src="/ui/term-logic.js"></script>
 <script src="/ui/app.js"></script>
+<script src="/ui/term.js"></script>
+<script src="/ui/mobile-term.js"></script>
 <script src="/ui/fx/hold-button.js"></script>
 <script src="/ui/fx/lazy.js"></script>
 <script src="/ui/fx/intro.js"></script>

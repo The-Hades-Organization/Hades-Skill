@@ -157,6 +157,13 @@ interface HadesCoreApi extends HadesPanelApi {
   Legend: PanelComponent;
   PrPicker: PanelComponent;
   Terminal: PanelComponent;
+  /** Terminal PTY (xterm.js): props `id` | `open`, `onExit`, `onState`, `onOpened`, `className`, `fontSize`. Contrato: reference/panel.md §Terminal › Interface. */
+  PtyTerminal: PanelComponent;
+  /** Celular (mobile-term.tsx): ganchos de nível e viewport, barra de teclas e terminal em tela cheia. Contrato: reference/panel.md §Layout no celular. */
+  Mobile: { useIsMobile: () => boolean; useMobileLevel: () => { level: "list" | "detail"; enter: () => void; leave: () => void };
+    useViewBox: (active: boolean) => { top: number; left: number; width: number; height: number; keyboard: boolean };
+    TermKeyBar: PanelComponent; MobileTermScreen: PanelComponent };
+  copyText: (text: string) => void;
   LogViewer: PanelComponent;
   ExampleSeal: PanelComponent;
   registerTour(id: string, tour: PanelTour): void;
@@ -170,6 +177,10 @@ interface Window {
   __TOKEN: string;
   HadesPanel: HadesPanelApi;
   HadesCore: HadesCoreApi;
+  /** Regra pura do terminal (term-logic.tsx) e as bibliotecas do xterm (vendor/), carregadas antes do term.js. */
+  TermLogic: Record<string, unknown>;
+  Terminal: new (options?: Record<string, unknown>) => unknown;
+  FitAddon: { FitAddon: new () => unknown };
   HadesFx?: Record<string, FC<Record<string, unknown>> | undefined>;
 }
 declare const HadesCore: HadesCoreApi;

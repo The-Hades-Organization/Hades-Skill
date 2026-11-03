@@ -555,6 +555,29 @@ function makeArgosLogic() {
       run: (ctx) => ctx.handlers.saveView() },
   ];
 
+  /** Comandos do menu do nó de agente que abrem terminal: shell na worktree dele e o cliente do herdr da sessão dele. */
+  const TERM_OPEN_GROUP = "Terminal";
+  const TERM_OPEN_SHELL = "agent:open-terminal";
+  const TERM_OPEN_CLIENT = "agent:open-herdr-client";
+  const SESSION_NAME = /^[A-Za-z0-9._-]{1,64}$/;
+  /** Pasta do shell do agente: a worktree do nó, se for caminho absoluto; senão nada (o comando fica de fora do menu). */
+  const worktreeOfNode = (node: { worktree?: unknown } | undefined): string | null =>
+    typeof node?.worktree === "string" && node.worktree.startsWith("/") ? node.worktree : null;
+  /** Sessão do herdr do nó, só se o nome é seguro para ir ao cliente. */
+  const herdrSessionOfNode = (node: { herdr?: { session?: unknown } } | undefined): string | null => {
+    const s = node?.herdr?.session;
+    return typeof s === "string" && SESSION_NAME.test(s) ? s : null;
+  };
+  interface TermOpenPort { node(id: string): { worktree?: unknown; herdr?: { session?: unknown } } | undefined; open(spec: { kind: string; cwd?: string; session?: string }): void }
+  const termOpenCommandDefs = (port: TermOpenPort): ReadingCommandDef[] => [
+    { id: TERM_OPEN_SHELL, label: "Abrir terminal na worktree", hint: "um shell na pasta do agente, na página Herdr", group: TERM_OPEN_GROUP, surfaces: ["node-menu"],
+      when: (ctx) => ctx.reading.nodeId !== null && worktreeOfNode(port.node(ctx.reading.nodeId)) !== null,
+      run: (ctx) => { const cwd = ctx.reading.nodeId === null ? null : worktreeOfNode(port.node(ctx.reading.nodeId)); if (cwd !== null) port.open({ kind: "shell", cwd }); } },
+    { id: TERM_OPEN_CLIENT, label: "Abrir cliente do herdr", hint: "a sessão do herdr deste agente, na página Herdr", group: TERM_OPEN_GROUP, surfaces: ["node-menu"],
+      when: (ctx) => ctx.reading.nodeId !== null && herdrSessionOfNode(port.node(ctx.reading.nodeId)) !== null,
+      run: (ctx) => { const session = ctx.reading.nodeId === null ? null : herdrSessionOfNode(port.node(ctx.reading.nodeId)); if (session !== null) port.open({ kind: "herdr-client", session }); } },
+  ];
+
   // ---- montagem na página: registros, texto dos nós do usuário e política do portal
 
   const MOUNT_GROUP = "Nó";
@@ -682,7 +705,7 @@ function makeArgosLogic() {
 
   return {
     EMPHASIS_ALPHA, SEARCH_FILES_MAX, SLICE_STEPS_MAX, PINS_MAX, READING_GROUP, READING_NODE_MENU,
-    emphasisFor, filterNodes, searchItems, neighborMap, withPositions, changedPlacements, movedIds, sliceSteps, frameBox, readPins, readLayout, readingCommandDefs,
+    emphasisFor, filterNodes, searchItems, neighborMap, withPositions, changedPlacements, movedIds, sliceSteps, frameBox, readPins, readLayout, readingCommandDefs, termOpenCommandDefs, worktreeOfNode, herdrSessionOfNode, TERM_OPEN_SHELL, TERM_OPEN_CLIENT,
     NODE_W, NODE_H, ACTION_GROUP, STALL_MS, EVENTS_CAP, TEXT_MAX, HERDR_KEYS, STATE_FILTERS, ERROR_TEXT, ACTIONS, actionFailTitle, GRAPH_RETRY_S, SAVE_RETRY_S, SAVE_LOUD_AFTER, graphErrorText, saveBadgeOf,
     needsAttention, isStalled, severity, matchesState, validNodes, filterOptions, filterGraph, filterKey,
     neighbor, needsConfirm, confirmMatches, questionIds, availableActions, validateArgs, buildBody, errorText, mergeEvents, eventTone,

@@ -1,13 +1,14 @@
 /* Terminal do nó de agente no canvas (#/argos), a parte que desenha e coleta: o quadro ANSI que o herdr entrega
- * (`{ pane, revision, cols, rows, ansi }`) vira linhas de spans (src/lib/term-ansi.ts, window.CanvasModel.termAnsi), escalado
- * para caber no nó; com o foco, as teclas e a colagem viram `{ text?, keys? }` para `onInput`. Não abre conexão nem monta no
+ * (`{ pane, revision, cols, rows, ansi }`) é escrito como tela inteira numa instância do xterm (HadesCore.createXterm, de
+ * term.tsx: só leitura, sem scrollback, o histórico é a janela do /api/herdr/scrollback), escalado para caber no nó; com o foco, as teclas e a colagem viram `{ text?, keys? }` para `onInput`. Não abre conexão nem monta no
  * nó: quem o usa entrega o quadro e leva a entrada ao herdr. A grade é a do quadro: o componente nunca pede resize.
  * Limite do herdr 0.8.2: não há API que fixe cols×rows de um pane (`pane.resize` só move a divisória entre panes), então o
  * tamanho do nó só muda a escala do quadro (`fitScale`); sobra ou corte vêm da proporção do nó, não de uma medida errada.
  * A área é medida por `clientWidth/clientHeight` (tamanho de layout, em unidades do mundo): `getBoundingClientRect` inclui o
  * zoom do canvas, que a camada HTML já aplica, e a escala saía multiplicada por ele.
  * Teclas de TTY_GLOBAL_KEYS não são consumidas (sobem ao canvas). Ouvinte de documento só existe enquanto `focused`.
- * Script clássico, carregado depois de ui/argos/node-terminal.js. Expõe window.ArgosNodeTty. */
+ * O xterm só existe com o nó legível (`headerOnly` falso); distante, fica o cabeçalho e o xterm é descartado.
+ * Script clássico, carregado depois de ui/argos/node-terminal.js e de term.js. Expõe window.ArgosNodeTty. */
 (() => {
 const { useState, useEffect, useRef, cn } = HadesCore;
 const T = window.CanvasModel.termAnsi;
@@ -20,6 +21,8 @@ const PAD = 6;
 const HEADER_H = 28;
 const MIN_COLS = 20;
 const MIN_ROWS = 6;
+// altura de linha por tamanho de fonte que o xterm usa na tela (o DOM do xterm arredonda para cima): calibra o lineHeight
+const LINE_RATIO = 1.17;
 const FIT_MIN = 0.2;
 const FIT_MAX = 2;
 const MAX_COLS = 1000;
@@ -161,6 +164,9 @@ function selectedText(grid) {
   return inside(sel.anchorNode) && inside(sel.focusNode) ? sel.toString() : '';
 }
 
+/** Seleção do nó: a do xterm quando há, senão a do navegador dentro da grade. */
+const selectionOf = (term, grid) => (term && term.hasSelection() ? term.getSelection() : selectedText(grid));
+
 /** Tecla de uma composição em curso (o `textarea` a trata): nem o terminal nem o compositor do canvas a consomem. */
 const isCompositionKey = (e) => e.isComposing === true || e.keyCode === 229 || e.key === 'Process' || e.key === 'Dead';
 
@@ -211,19 +217,6 @@ const NOTICE = {
   [T.TERM_ERRORS.tooManyLines]: 'Quadro com linhas demais para desenhar',
 };
 
-/** CSS de um span: cores do quadro (ou as do tema do terminal), negrito, itálico, sublinhado; inverso troca frente e fundo. */
-function spanStyle(style) {
-  const fg = style.fg ? T.colorCss(style.fg) : 'var(--term-foreground)';
-  const bg = style.bg ? T.colorCss(style.bg) : null;
-  const css = {};
-  if (style.inverse) { css.color = bg || 'var(--term)'; css.backgroundColor = fg; }
-  else { css.color = fg; if (bg) css.backgroundColor = bg; }
-  if (style.bold) css.fontWeight = 700;
-  if (style.italic) css.fontStyle = 'italic';
-  if (style.underline) css.textDecoration = 'underline';
-  return css;
-}
-
 const FOCUS_RING = 'outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
 
 /**
@@ -244,17 +237,32 @@ function rowsToShow(rows, lines) {
   return Math.max(rows, n);
 }
 
-function Grid({ lines, cols, rows, scale, cursor = null }) {
-  const blank = Array.from({ length: Math.max(0, rows - lines.length) }, () => []);
-  return <div data-tty-grid className="relative select-text"
-    style={{ width: cols * CELL_W, height: rows * CELL_H, transform: `scale(${scale})`, transformOrigin: '0 0', fontFamily: 'var(--font-mono)', fontSize: FONT_PX, lineHeight: `${CELL_H}px`, fontVariantLigatures: 'none' }}>
-    {[...lines.slice(0, rows), ...blank].map((line, y) => <div key={y} style={{ height: CELL_H, whiteSpace: 'pre', overflow: 'hidden' }}>
-      {line.map((span, i) => <span key={i} style={spanStyle(span.style)}>{span.text}</span>)}
-    </div>)}
-    {/* lista vazia sem cursor: a grade segue com um filho por linha */}
-    {cursor ? [<span key="cursor" data-tty-cursor aria-hidden="true" className="pointer-events-none absolute mix-blend-difference"
-      style={{ left: cursor.col * CELL_W, top: cursor.row * CELL_H, width: CELL_W, height: CELL_H, background: 'var(--term-foreground)' }} />] : []}
-  </div>;
+/**
+ * Texto que desenha o quadro como tela inteira: atributos zerados, cursor ao canto e tela limpa (sem apagar scrollback, que não
+ * existe), as linhas separadas por CRLF, e o cursor do quadro (se vier) posicionado e visível. Nunca termina em quebra de linha:
+ * a última linha da grade não rola a tela.
+ */
+function screenOf(ansi, cursor = null) {
+  const body = String(ansi).split(/\r?\n/);
+  while (body.length > 1 && body[body.length - 1] === '') body.pop();
+  const place = cursor ? `\x1b[${cursor.row + 1};${cursor.col + 1}H\x1b[?25h` : '';
+  return `\x1b[?25l\x1b[0m\x1b[H\x1b[2J${body.join('\r\n')}\x1b[0m${place}`;
+}
+
+/** O que o nó desenha para o nível de detalhe: o xterm (texto legível) ou o resumo leve (só o cabeçalho). */
+const ttyDrawing = (headerOnly) => (headerOnly ? 'summary' : 'xterm');
+
+/** Quadro grande demais para escrever no xterm: o aviso, ou `null`. */
+function oversize(ansi) {
+  if (ansi.length > T.TERM_LIMITS.bytes) return NOTICE[T.TERM_ERRORS.tooManyBytes];
+  let n = 1;
+  for (let i = ansi.indexOf('\n'); i !== -1; i = ansi.indexOf('\n', i + 1)) if (++n > T.TERM_LIMITS.lines) return NOTICE[T.TERM_ERRORS.tooManyLines];
+  return null;
+}
+
+/** Linhas do quadro que o xterm mostra: as do quadro, ou as do texto quando ele traz mais (sem as vazias do fim além do quadro). */
+function screenRows(rows, ansi) {
+  return rowsToShow(rows, String(ansi).split(/\r?\n/));
 }
 
 /* frame = { pane, revision, cols, rows, ansi }. `scale` fixa a escala (1 = tamanho natural); sem ela o quadro se ajusta ao
@@ -262,7 +270,8 @@ function Grid({ lines, cols, rows, scale, cursor = null }) {
 function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, headerOnly = false }) {
   const root = useRef(null);
   const area = useRef(null);
-  const parsed = useRef(null);
+  const xt = useRef(null);
+  const host = useRef(null);
   const entry = useRef(null);
   const live = useRef(null);
   const pressing = useRef(null);
@@ -274,7 +283,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   const fixed = validScale(scale);
   const problem = frameProblem(frame);
 
-  live.current = { onInput, setNotice, focused, onWheel: null };
+  live.current = { onInput, setNotice, focused, onWheel: null, paint: () => {} };
   // a composição precisa de um campo de texto: com o foco do teclado no nó, ele vai para o `textarea` escondido
   if (textIn.current === null) {
     textIn.current = createTextInput({
@@ -284,10 +293,11 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   }
   // com o ponteiro apertado, ou com texto selecionado na grade, o foco do campo espera: focá-lo desfaria a seleção
   const gridOf = () => (root.current ? root.current.querySelector('[data-tty-grid]') : null);
+  const selection = () => selectionOf(xt.current && xt.current.term, gridOf());
   const focusEntry = () => {
     const el = entry.current || root.current;
     if (!live.current.focused || !el || document.activeElement === el) return;
-    if (pressing.current || selectedText(gridOf())) return;
+    if (pressing.current || selection()) return;
     el.focus({ preventScroll: true });
   };
   useEffect(() => { focusEntry(); }, [focused]);
@@ -320,21 +330,43 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
     };
   }, [fixed, headerOnly]);
 
-  let lines = [];
+  let shownAnsi = '';
   let drawError = problem;
   if (!problem && !headerOnly) {
     // em modo histórico a tela é a janela do histórico; o quadro ao vivo volta com "ir ao fim"
-    const shownAnsi = history ? historyWindow(history.lines, frame.rows, history.offset).join('\r\n') : frame.ansi;
-    if (!parsed.current || parsed.current.ansi !== shownAnsi) {
-      try { parsed.current = { ansi: shownAnsi, lines: T.parseAnsi(shownAnsi), error: '' }; }
-      catch (err) {
-        if (!(err instanceof T.TermAnsiError)) throw err;
-        parsed.current = { ansi: shownAnsi, lines: [], error: NOTICE[err.code] || err.message };
-      }
-    }
-    lines = parsed.current.lines;
-    drawError = parsed.current.error || null;
+    shownAnsi = history ? historyWindow(history.lines, frame.rows, history.offset).join('\r\n') : frame.ansi;
+    drawError = oversize(shownAnsi);
   }
+  const drawing = !problem && ttyDrawing(headerOnly) === 'xterm' && !drawError;
+  const shownRows = problem ? 0 : screenRows(frame.rows, shownAnsi);
+  const cursor = history ? null : cursorOf(frame);
+  const screen = drawing ? screenOf(shownAnsi, cursor) : null;
+  const cols = problem ? 0 : frame.cols;
+
+  // o xterm vive enquanto o nó é legível; o dono do recurso é este efeito (descarta o terminal, o observador de tema e o relógio)
+  useEffect(() => {
+    if (!drawing || !host.current || !HadesCore.createXterm) return undefined;
+    let dead = false;
+    const make = async () => {
+      try { await document.fonts?.load('13px "Geist Mono"'); } catch (e) { /* fonte do sistema serve */ }
+      if (dead || !host.current) return;
+      const made = HadesCore.createXterm(host.current, { fontSize: FONT_PX, scrollback: 0, readOnly: true, lineHeight: CELL_H / (FONT_PX * LINE_RATIO) });
+      // o xterm só desenha: nenhuma tecla é dele, todas sobem ao nó (que as traduz) e ao canvas
+      made.term.attachCustomKeyEventHandler(() => false);
+      xt.current = made;
+      live.current.paint();
+    };
+    void make();
+    return () => { dead = true; if (xt.current) xt.current.dispose(); xt.current = null; };
+  }, [drawing]);
+  // cada quadro novo é uma tela inteira: sem acumular linhas que o herdr já apagou
+  live.current.paint = () => {
+    const made = xt.current;
+    if (!made || screen === null) return;
+    if (made.term.cols !== cols || made.term.rows !== shownRows) made.term.resize(cols, shownRows);
+    made.term.write(screen);
+  };
+  useEffect(() => { live.current.paint(); }, [screen, cols, shownRows]);
 
   const send = (e, input) => {
     e.preventDefault();
@@ -391,7 +423,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
       void pasteFromClipboard();
       return;
     }
-    const selected = selectedText(gridOf());
+    const selected = selection();
     if (clipboardIntent(e, selected !== '') === 'copy') {
       e.preventDefault();
       e.stopPropagation();
@@ -416,7 +448,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   };
   // copiar pelo menu do navegador: o texto vem da grade, não do campo escondido
   const onCopy = (e) => {
-    const selected = selectedText(gridOf());
+    const selected = selection();
     if (!selected || !e.clipboardData) return;
     e.preventDefault();
     e.clipboardData.setData('text/plain', selected);
@@ -446,8 +478,6 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   };
 
   const label = problem ? 'Terminal' : `Terminal ${frame.pane}`;
-  // texto com mais linhas que o quadro anuncia (pane que acabou de crescer) não perde as de baixo: a grade mostra todas
-  const shownRows = problem ? 0 : rowsToShow(frame.rows, lines);
   const factor = fixed !== null ? fixed : fit && !problem ? fitScale(fit, { cols: frame.cols, rows: shownRows }) : 1;
   const message = notice || drawError;
   return <div ref={root} role="region" aria-label={label} tabIndex={0} data-tty-wheel data-tty-focused={focused ? 'true' : 'false'}
@@ -463,7 +493,9 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
       onCompositionStart={() => textIn.current.compositionStart()} onCompositionEnd={(e) => textIn.current.compositionEnd(e.data)}
       onInput={(e) => textIn.current.input(e.nativeEvent && e.nativeEvent.isComposing === true)} />}
     {headerOnly ? null : <div ref={area} className="relative min-h-0 flex-1 overflow-hidden" style={{ padding: PAD }}>
-      {!drawError ? <Grid lines={lines} cols={frame.cols} rows={shownRows} scale={factor} cursor={cursorOf(frame)} /> : null}
+      {/* texto com mais linhas que o quadro anuncia (pane que acabou de crescer) não perde as de baixo: o xterm mostra todas */}
+      {drawing ? <div ref={host} data-tty-grid data-tty-engine="xterm" data-tty-cols={cols} data-tty-rows={shownRows} className="relative select-text"
+        style={{ width: cols * CELL_W, height: shownRows * CELL_H, transform: `scale(${factor})`, transformOrigin: '0 0', overflow: 'hidden' }} /> : null}
       {message ? <span role="status" className="absolute right-2 bottom-2 left-2 t-meta text-term-warn">{message}</span> : null}
       {history ? <button type="button" data-tty-to-end className="absolute right-2 bottom-2 cursor-pointer border border-border bg-term px-2 py-0.5 t-meta text-term-foreground outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
         aria-label="Ir ao fim do terminal" onClick={() => setHistory(null)}>↓ ir ao fim</button> : null}
@@ -471,5 +503,5 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   </div>;
 }
 
-window.ArgosNodeTty = { NodeTty, TTY_GLOBAL_KEYS, TTY_CANVAS_KEYS, minSize, translateKey, clipboardIntent, clipboardAction, selectedText, wheelIntent, historyLinesOf, historyWindow, clampOffset, wheelLines, createTextInput, isCompositionKey, fitScale, areaBox, fitForNode, rowsToShow, spanStyle, cursorOf };
+window.ArgosNodeTty = { NodeTty, TTY_GLOBAL_KEYS, TTY_CANVAS_KEYS, minSize, translateKey, clipboardIntent, clipboardAction, selectedText, wheelIntent, historyLinesOf, historyWindow, clampOffset, wheelLines, createTextInput, isCompositionKey, fitScale, areaBox, fitForNode, rowsToShow, cursorOf, screenOf, screenRows, ttyDrawing, oversize, selectionOf };
 })();

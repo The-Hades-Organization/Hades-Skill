@@ -18,7 +18,7 @@ A unit fica **fora** do slice `hades` (~40 MB): não conta no teto e segue no ar
 
 **Usar o painel:** §Início automático · §Páginas (§Navegação lateral, §Topo) · §Ações · §Visão geral (§Versão nova, §Disco, §Serviços sob demanda) · §Seletor de PRs · §Loop · §Orquestração · §Revisões · §Fila de gates · §Consumo · §Claude · §Herdr · §Notificações · §Acesso remoto · §Cerberus · §Thanatos · §Tour por página · §Caronte · §Onboarding · §Página Plugins · §Instalar como app (PWA)
 
-**APIs e contratos:** §API do diário · §API do Argos · §Widget Android (§Baixar o APK) · §Plugin: páginas, rotas e ações (§Host do plugin) · §Segurança local
+**APIs e contratos:** §API do diário · §API do Argos · §Terminal · §Widget Android (§Baixar o APK) · §Plugin: páginas, rotas e ações (§Host do plugin) · §Segurança local
 
 **Desenvolver a tela:** §Estrutura da tela · §Tema e ícone · §Layout no celular (390 px) · §Tipografia · §Linguagem de componentes · §Select · §Componentes do painel (fx) · §Armadilhas
 
@@ -45,13 +45,13 @@ A unit fica **fora** do slice `hades` (~40 MB): não conta no teto e segue no ar
 | Visão geral (§Visão geral) | a frase de estado com o número que importa; leituras de serviços, memória do slice, infra e erros; **Agora** (o que está rodando: execuções, gates e agentes, com o fio de cada um); **Atenção**; **Última hora** (memória ou saúde); **Ambiente** em gavetas: endereços, diagnóstico e disco | subir (`run-hades`), retomar ou atualizar (a ação primária muda com o estado), pausar, dados, STATUS; gaveta **Diagnóstico**: "Rodar" (`doctor.sh --json`, `reference/doctor.md`) |
 | Branch e PRs (§Seletor de PRs) | a base remota (commits novos, último fetch), branch atual, PRs aplicadas | fetch; escolher só a base ou a base + PRs |
 | Loop | escalações, entregas, ações em 24 h, PRs, agentes e locks (`reference/loop/`) | só leitura |
-| Orquestração (§Orquestração) | agentes do orquestrador, perguntas ao dono, relatórios, PRs de consolidação e as decisões autônomas | ver a seção |
+| Orquestração (§Orquestração) | agentes do orquestrador, perguntas ao dono, relatórios, PRs de consolidação e as decisões autônomas | ver a seção; Abrir terminal por agente (shell na worktree dele) |
 | Revisões (§Revisões) | a frase de estado (rodando, publicadas, custo), as revisões em curso, seletor de PRs, histórico das 20 últimas: PR, comando, modelo · esforço, estado, veredito 🔴/🟡/in-line, publicado, custo e duração | revisar até 6 PRs com `/review-pr` ou `/review-agents`, Opus/Sonnet, esforço low/medium/high, publicar ou não; abrir relatório e execução |
 | Fila de gates (§Fila de gates) | a fila do gate-lock em detalhe | — |
 | Consumo (§Consumo) | tokens por papel, agente e dia, a linha de base e o Estimado × real | ver a seção |
 | Claude (§Claude) | conversa com o Claude Code no clone principal, em streaming | enviar, parar, nova sessão, apagar do registro; ligada por padrão (`HADES_CHAT`) |
-| Herdr (§Herdr) | workspaces e agentes do herdr da máquina inteira, de qualquer sessão, dentro ou fora do Hades | prompt, texto, teclas, renomear agente, parar/apagar sessão |
-| Execuções | ações do painel, com log ao vivo (§Ações) | interromper |
+| Herdr (§Herdr) | terminal de verdade no navegador (abas, lado a lado; §Terminal) e workspaces e agentes do herdr da máquina inteira, de qualquer sessão, dentro ou fora do Hades | abrir/fechar sessões de terminal, prompt, texto, teclas, renomear agente, parar/apagar sessão, criar/renomear/fechar workspace, aba e painel, dividir painel, iniciar agente |
+| Execuções | ações do painel, com log ao vivo (§Ações) | interromper; Abrir terminal (shell na pasta da execução, só dentro das raízes do terminal) |
 | Logs | serviços, builds e ciclos, processos (units), containers, documentos | filtrar, seguir, copiar; log de serviço parado que ainda não existe oferece Subir; tour de seis passos sem prévia (`ui/pages/logs.tour.tsx`) |
 | Notificações (§Notificações) | o vigia `hds-notify` e as 50 últimas notificações | ver a seção |
 | Acesso remoto (§Acesso remoto) | túnel do painel, chave de acesso e token do widget Android (§Widget Android) | publicar, parar, reler URL, trocar a chave, gerar/revogar o token do widget |
@@ -93,7 +93,7 @@ Cada botão chama o **script do kit instalado** como unit transitória `hds-pjob
 
 Ações de ciclo não rodam em paralelo: o servidor recusa com 409 se outra estiver rodando, ou se houver um script da skill vivo vindo de outro lugar (terminal, agente), detectado no `/proc`. A ação `doctor` (card Diagnóstico) roda `doctor.sh --json` e grava `$D/doctor.json`; não é de ciclo. São ações de ciclo: subir, atualizar, pausar, retomar, dados, infra, ligar serviço, seleção de PRs e fetch.
 
-Tour da página Execuções (§Tour por página): sete passos (a página, resumo, histórico, a execução escolhida, interromper, o fio e o
+Tour da página Execuções (§Tour por página): oito passos (a página, resumo, histórico, a execução escolhida, abrir terminal, interromper, o fio e o
 log); sem prévia, porque o log é lido de uma execução real por id; os passos que dependem de execução ou de tela larga levam
 `fallback`. Código: `ui/pages/jobs.tour.tsx`.
 
@@ -232,8 +232,8 @@ transcripts inteiros e as seguintes só o acréscimo.
 
 ## Claude
 
-Página de chat com uma sessão do Claude Code, no navegador e no celular (PWA). É um chat, não um terminal: mensagem,
-resposta em streaming, uso de ferramenta em bloco recolhível. Ligada por padrão; para desligar: Configurações → **Sessão Claude** →
+Página de chat com uma sessão do Claude Code, no navegador e no celular (PWA): mensagem, resposta em streaming, uso de
+ferramenta em bloco recolhível. Ao lado do chat há o **modo terminal** (o Claude Code de verdade; abaixo). Ligada por padrão; para desligar: Configurações → **Sessão Claude** →
 *Ligar a página Claude* (`HADES_CHAT=0`, só pelo painel local; a página desligada mostra o botão).
 
 **Como roda.** Cada mensagem é um `claude -p --output-format stream-json --verbose --include-partial-messages
@@ -275,21 +275,54 @@ chave de acesso), e quem passa por elas tem um Claude Code em auto mode no clone
   (desktop e celular, `HADES_NOTIFY_EV_CHAT`) com a hora e "sessão remota", nunca o texto. Só sai com `HADES_NOTIFY=1`; a
   página lembra disso quando as notificações estão desligadas.
 - Registro em `$D/logs/claude-chat.log`: hora, sessão, `local`/`remoto`, custo. Sem o texto.
-- Fora do escopo: terminal real, aprovar ferramenta na tela, escolher a pasta, anexar arquivos.
+- Fora do escopo: aprovar ferramenta na própria tela do chat (o terminal é o caminho) e escolher a pasta do chat (o modo terminal escolhe).
+
+**Modo terminal.** O seletor *Chat | Terminal* do cabeçalho troca a mesa. O modo terminal abre o `claude` num `PtyTerminal`
+(`kind: "claude"` do §Terminal: sempre `--permission-mode auto`), numa pasta entre as `roots` de `GET /api/term` (padrão: o
+clone principal), novo ou retomando uma sessão (`resume`) escolhida na lista de conversas que a página já conhece. O overview
+`GET /api/claude` passa a trazer `claudeSession` (o id do Claude Code; aditivo) em cada sessão, e o botão **Continuar no
+terminal** do cabeçalho abre a conversa atual com esse id (desligado enquanto ela responde: a mesma sessão em dois
+processos se pisaria). A sessão do terminal sobrevive à troca de aba (`sessionStorage` `hades-claude-term`) e **Encerrar**
+a fecha (`POST /api/term/close`). Com `HADES_TERMINAL` desligada o modo mostra o aviso de como ligar (pelo `code`
+`term_disabled`, texto do `TermLogic.refusal`) e o chat segue como sempre. Pelo acesso remoto valem as regras do §Terminal
+(aviso ao dono, 12 aberturas por minuto).
+
+**Aprovar ferramenta: o terminal é o caminho.** O `claude -p` em stream-json só avisa do bloqueio (`tool_result` com
+`is_error` e o `permission_denials` do `result`); não há pergunta no meio da resposta. O `--permission-prompt-tool` exigiria
+um servidor MCP próprio do Hades que decidisse em nome do dono e devolvesse a resposta ao processo em curso: um segundo canal
+de aprovação por fora do hook `hades guard`, sem como provar aqui que ele não abre mais do que o auto mode fecha. Por isso o
+chat **não simula aprovação**: o aviso de recusa ganha **Abrir no terminal para aprovar**, que retoma a mesma sessão no modo
+terminal, onde a aprovação é a nativa do Claude Code.
+
+**Anexar arquivo.** O clipe do compositor escolhe imagens (png, jpg, gif, webp, conferidas pela assinatura) ou texto (lista
+de extensões, sem byte nulo) e manda `POST /api/claude/attach {id?, name, data}` (JSON, `data` em base64, mesmo token e mesma
+autenticação do resto, remoto incluído). Vai para `$D/claude/attach/<sessão>/<4 hex>-<nome saneado>` (700/600), **nunca dentro
+do repositório do projeto**; o nome perde pasta, `..` e tudo fora de `[A-Za-z0-9._-]`, o caminho resolvido é conferido dentro
+da pasta da sessão. Limite por arquivo `HADES_CHAT_ATTACH_MB` (5; o corpo da requisição tem o teto próprio de 4/3 disso) e 20
+arquivos por conversa. Sem `id`, nasce um **rascunho** (8 hex) que o primeiro `send {draft, files}` promove a id da sessão;
+rascunho sem dono por 24 h é varrido no anexo seguinte. O `send {files}` aceita só nomes que existem na pasta da sessão e
+acrescenta à mensagem `Arquivos anexados (leia pelo caminho):` com os caminhos absolutos, que é como o Claude Code lê arquivo.
+Recusas `{error, code}` com `attach_disabled` 403 · `attach_bad_request` 400 · `attach_too_large` 413 · `attach_bad_type`
+415 · `attach_too_many` 429 · `attach_unknown_session` 404. O log registra só nome, tamanho e tipo. Apagar a sessão apaga
+a pasta dos anexos.
 
 **Testar sem gastar sessão.** Aponte `HADES_CHAT_BIN` para um script que lê o prompt do stdin e imprime o stream-json
 (system/init, assistant, user/tool_result, result) e use `HADES_CHAT_UNIT=skilldev-chat` no ambiente do painel de teste, para
 as units não se misturarem com as reais (`hds-chat-*`). Uma prova real custa centavos com `HADES_MODEL_CHAT=claude-haiku-5-5`
 e `HADES_EFFORT_CHAT=low`.
 
-Tour da página (§Tour por página): sete passos (a página, a conversa ligada ou desligada, a lista de conversas, o cabeçalho, a
+Tour da página (§Tour por página): oito passos (a página, a conversa ligada ou desligada, a lista de conversas, o cabeçalho, o seletor Chat|Terminal, a
 introdução, a conversa e o envio); sem prévia, porque a conversa é um fluxo ao vivo com gasto real; passos de card condicional
 levam `fallback`. Código: `ui/pages/claude.tour.tsx`.
 
+
+### Claude no celular
+Lista de conversas em tela cheia (com "Claude Code no terminal" no topo); tocar numa conversa, em "Nova" ou nesse botão abre o detalhe, que cobre a tela e acompanha o `visualViewport` (o campo de mensagem sobe com o teclado). No modo Terminal a **barra de teclas** (abaixo) fica colada no teclado com as respostas rápidas na frente (1/2/3, y/n, Shift+Tab, Ctrl+C), porque o que o Claude Code pede quase sempre é uma delas.
+
 ## Herdr
 
-Página **Herdr** (grupo Operação, depois de Claude): acompanha e gerencia o herdr ativo na máquina, não só os agentes do
-Hades. Funciona igual pelo acesso remoto. Ícone de terminal e badge na sidebar: nº de agentes `working` da sessão
+Página **Herdr** (grupo Operação, depois de Claude): acompanha e **gerencia** o herdr ativo na máquina (decisão do dono:
+o painel cria, renomeia e fecha a estrutura do herdr, não só observa), não só os agentes do Hades. Funciona igual pelo acesso remoto. Ícone de terminal e badge na sidebar: nº de agentes `working` da sessão
 `default` e um ponto quando algum está `blocked` (esperando o dono).
 
 - **Árvore** sessão → workspace → aba → painel, vinda de um único `herdr api snapshot` (cache de 3 s; a tela atualiza a
@@ -310,18 +343,57 @@ Hades. Funciona igual pelo acesso remoto. Ícone de terminal e badge na sidebar:
 - **Sessões:** `session stop` e `session delete` (só de sessão parada) pedem para **digitar o nome**; o aviso mostra
   quantos agentes estão trabalhando e destaca a sessão `default` (a Orquestração e o loop vivem nela) e a sessão onde o
   próprio painel roda (`HERDR_SOCKET_PATH`). O servidor também exige o nome na requisição.
+- **Terminais (xterm.js):** a página abre na visão **Terminais** quando `HADES_TERMINAL` está ligada (alternador *Terminais /
+  Workspaces do herdr*; `#/herdr?pane|state|session|sessions=` abre direto nos workspaces). Abas de sessão (**Novo terminal**:
+  shell, Claude Code novo ou com `--resume <id>`, cliente do herdr numa sessão; pasta entre as `roots` de `GET /api/term`),
+  **Lado a lado** (só na mesa, ≥ 1024 px; a segunda sessão se escolhe no cabeçalho dela), **Soltar** (tira da mesa, a
+  sessão segue) e **Fechar** (confirmação; mata o grupo de processos). **Sessões (n)** lista todas as sessões vivas do
+  servidor, inclusive as abertas em outra tela ou pelo acesso remoto, com *Anexar aqui* (tira a sessão da outra tela) e
+  *Fechar sessão*. A mesa fica em `sessionStorage` (`hades-herdr-term`, só ids de 32 hex): recarregar anexa de novo e
+  retoma pelo offset; id que sumiu do servidor sai da mesa. A lista vem de `GET /api/term` a cada 4 s. Só as sessões
+  visíveis têm socket (trocar de aba reanexa e reenvia o anel). Os workspaces ganham **Abrir cliente no terminal**.
+  A 390 px a mesa é uma coluna (sem lado a lado; teclado virtual e barra de teclas são da fase do celular).
+- **Chave desligada:** a página abre nos workspaces, com o aviso de como ligar (só no painel local) e o link para as
+  Configurações; a lista e todas as ações do herdr seguem. Código: `ui/pages/herdr.tsx` (`Herdr` > `TermDesk`/`HerdrManage`),
+  contrato do componente em §Terminal › Interface.
 - **Estado vazio:** sem o binário `herdr` ou com o servidor da sessão fora do ar a página explica, sem erro 500.
 - **Terminal ao vivo (nó de agente do Argos):** `GET /api/herdr/stream?session=&panes=` (SSE com `frame`, `status`,
   `exited`, `error`; uma assinatura do herdr por sessão, ~10 quadros/s por pane no máximo) e `POST /api/herdr/input`
   `{ session, pane, text?, keys? }` (`pane.send_input`; teclas de hoje mais Backspace, Shift+Tab e Ctrl+A..Ctrl+Z).
   Detalhe e armadilhas em `reference/argos.md` §Fluxo do terminal (servidor).
-- **Fora do escopo (decisão do dono):** criar/fechar workspace, aba ou painel, split, iniciar agente.
+- **Gerenciar** (`POST /api/herdr/admin`, corpo `{ session?, action, ...alvo }`; a tela usa um `Dialog` por ação e o `Select`
+  para direção e tipo de agente). O alvo (`workspace`, `tab`, `pane`) só vale se existir no retrato atual da sessão; o ID
+  que a tela mandou nunca é confiado. Cada ação roda o `herdr` com argv em lista (sem `--focus`: nada rouba o foco do dono):
+
+  | `action` | campos | CLI |
+  |---|---|---|
+  | `workspace-create` | `label?`, `cwd?` (absoluto, existente, dentro do `$HOME`) | `workspace create --no-focus [--label] [--cwd]` |
+  | `workspace-rename` / `-close` | `workspace`, `label` / `confirm` | `workspace rename <id> <label>` / `workspace close <id>` |
+  | `tab-create` | `workspace`, `label?` | `tab create --workspace <id> --no-focus [--label]` |
+  | `tab-rename` / `-close` | `tab`, `label` / `confirm` | `tab rename <id> <label>` / `tab close <id>` |
+  | `pane-split` | `pane`, `direction` (`right`\|`down`) | `pane split <id> --direction <d> --no-focus` |
+  | `pane-rename` / `-close` | `pane`, `label` / `confirm` | `pane rename <id> <label>` / `pane close <id>` |
+  | `agent-start` | `pane` (shell sem agente), `name`, `kind`, `args?` | `agent start <nome> --kind <k> --pane <id> [-- <args>]` |
+
+  `name` segue `[a-z][a-z0-9_-]{0,31}` e não pode já existir; `kind` vem de `AGENT_KINDS` (`claude`, `codex`, `gemini`);
+  `args` é lista de até 16 tokens (`[\w@%+=:,./[\]-]`, até 200 caracteres, sem espaço, aspas nem quebra de linha) e vai depois
+  do `--`; o `agent start` espera o agente ficar pronto (teto de 60 s aqui). `label` tem 1 a 64 caracteres, uma linha e não
+  começa por `-` (a CLI leria como opção).
+- **Destrutivas:** `workspace-close`, `tab-close` e `pane-close` (sempre, não só com agente vivo) exigem `confirm` igual
+  ao nome do alvo, que **o servidor calcula** do retrato (rótulo do workspace/aba; nome do agente ou ID do painel; o ID
+  quando não há rótulo): na tela o diálogo pede digitar o nome e segurar 1,2 s. **Parar a sessão** continua em
+  `POST /api/herdr/session` (`stop`/`delete`, `confirm` = nome da sessão), na gaveta Sessões.
+- **O que a CLI do herdr 0.8.2 não permite:** limpar o rótulo de um painel (`pane rename` sem rótulo ou com `--clear` não
+  é documentado, então a ação exige nome); `agent start` só entra em painel de shell livre (não cria nem divide: por isso
+  *Dividir* e *Iniciar agente* são botões separados); não há "mover" nem "reordenar" nesta fase.
 
 **Escrita e remoto.** Toda escrita é POST com o token do painel (`post()` com retry). O `herdr` roda sempre com argumentos
 em lista (nunca shell); o painel/pane vem validado contra a listagem atual e as teclas contra uma lista fechada.
 - Pelo acesso remoto cada ação dispara o evento `herdr` do notify (`HADES_NOTIFY_EV_HERDR`): hora, ação e alvo (painel
   ou sessão), nunca o texto; um aviso por ação e alvo a cada 60 s. Só sai com `HADES_NOTIFY=1`.
-- Registro em `$D/logs/panel-herdr.log`: hora, ação, alvo, sessão, `local`/`remoto` e `ok`/`erro`. Sem o texto.
+- Registro em `$D/logs/panel-herdr.log`: hora, ação, alvo, sessão, `local`/`remoto` e `ok`/`erro`. Sem o texto. Na
+  gerência o alvo é o ID do herdr (o do que acabou de nascer, nas criações); nome digitado, pasta, argumentos e `confirm`
+  nunca entram no log nem no aviso.
 - **Armadilhas medidas (herdr 0.8.2):** `agent prompt` não aceita `--` e trata texto iniciado em `-` como opção (o painel
   antepõe um espaço); `pane send-text` aceita `-x` direto e entrega `--` **literal** ao terminal; `agent prompt` recusa
   com `agent_not_ready` se o agente não é mais o processo em primeiro plano; `pane read --source recent*` vem vazio num
@@ -334,6 +406,158 @@ em lista (nunca shell); o painel/pane vem validado contra a listagem atual e as 
 Tour da página (§Tour por página): doze passos (a página, o aviso de herdr fora do ar, resumo, sessões, filtros, workspaces, terminal, saída, envio, teclas e
 renomear); sem prévia, porque a página espelha terminais vivos e um exemplo seria enganoso; os passos do terminal escolhido
 levam `fallback`. Código: `ui/pages/herdr.tour.tsx`.
+
+
+### Herdr no celular
+Aba Terminais: lista das sessões abertas; tocar em uma abre o terminal em tela cheia com a barra de teclas. Aba Workspaces: lista de painéis; tocar abre o painel do agente em tela cheia (saída, teclas, prompt). **Agente pedindo você** (selo "espera por você" do herdr, Orquestração, Argos): o toque leva a `#/herdr?pane=<id>`, que no celular abre direto o painel dele; com o agente em `blocked` a primeira linha são as respostas **1 / 2 / 3 / y / n** (texto sem Enter pelo `herdr pane send-text`, sem servidor novo). "Abrir o cliente do herdr" e "Abrir terminal na pasta" (só dentro das raízes permitidas) abrem a sessão PTY na hora e levam ao terminal em tela cheia; desligado o `HADES_TERMINAL`, o aviso diz como ligar.
+
+## Terminal
+
+Terminal de verdade no painel: sessões PTY (o PTY nativo do Bun, sem `node-pty`) servidas por WebSocket. Esta seção é o
+**contrato da interface** (xterm.js, unidade term-ui): rotas, mensagens, códigos de recusa, retomada por offset e limites.
+Código: `src/panel/term.ts` (sessões), `term-ring.ts` (anel), `term-http.ts` (rotas e socket), `term-protocol.ts`
+(constantes e códigos: a interface importa daqui, não repete número).
+
+### Tipos de sessão
+| `kind` | comando (argv em lista, nunca string de shell) | extras |
+|---|---|---|
+| `shell` | o `$SHELL` do painel (absoluto e executável; senão `/bin/sh`) | — |
+| `claude` | `HADES_CHAT_BIN` ou o `claude` do `PATH`, sempre com `--permission-mode auto` | `resume`: id da sessão do claude (`--resume <id>`), `[A-Za-z0-9_-]{1,64}` |
+| `herdr-client` | `herdr --session <session>` (o herdr 0.8.2 anexa à sessão inteira, não a um pane) | `session` (padrão `default`) |
+
+### Rotas HTTP
+Mesma autenticação das demais rotas (host, chave remota por cookie); os POST levam `x-panel-token` e JSON, como sempre.
+| Rota | Corpo / resposta |
+|---|---|
+| `GET /api/term` | `{enabled, max, idleMin, scrollbackKb, active, roots[], sessions[]}`. Sessão: `{id, kind, cwd, startedAt, lastUsedAt, origin: local\|remote, state: running\|exited, cols, rows, attached}`. Nunca conteúdo. Responde também com a chave desligada (`enabled:false`). |
+| `POST /api/term/open` | `{kind, cwd?, cols?, rows?, resume?, session?}` → a sessão (acima). `cwd` ausente = o clone principal. |
+| `POST /api/term/close` | `{id}` → `{ok:true}`. Mata o grupo de processos. |
+
+Recusa: `{error, code}` com o status de `TERM_STATUS`. **Ramifique pelo `code`**, nunca pelo texto (só ganham valores):
+`term_disabled` 403 (chave desligada; a mensagem diz como ligar) · `term_bad_request` 400 · `term_forbidden_cwd` 403 ·
+`term_kind_unavailable` 422 (binário do tipo não instalado) · `term_max_sessions` 429 · `term_rate_limited` 429 (com
+`Retry-After`; só pedidos de fora) · `term_unknown_session` 404 · `term_origin` 403 · `term_spawn_failed` 500 (detalhe só
+no log do painel). No upgrade do WebSocket a recusa é a resposta HTTP (antes de trocar de protocolo): 401 (sem cookie
+pelo túnel), 403 `host`, e os de cima.
+
+### WebSocket `GET /api/term/ws?id=<id>[&offset=<n>]`
+Protocolo v1. O `id` (32 hex, 128 bits) só existe depois do `open`; sem Origin permitido, sem upgrade.
+- **Cliente → servidor.** Quadro **binário** = entrada crua do terminal (teclas, colar, UTF-8 partido entre quadros: os
+  bytes vão como vieram). Quadro **texto** = controle JSON: `{"t":"resize","cols":C,"rows":R}`, `{"t":"close"}`,
+  `{"t":"ping"}`. Texto que não é JSON de objeto, tipo desconhecido ou resize fora dos limites vira `warn`
+  `term_bad_message` e a sessão segue.
+- **Servidor → cliente.** Quadro **binário** = saída crua (até 32 KiB por quadro). Quadro **texto** = JSON:
+  `{"t":"hello","v":1,id,kind,cwd,cols,rows,offset,start,end,state}` (sempre o primeiro),
+  `{"t":"warn",code,message,offset?,requested?,lost?}`, `{"t":"exit",code,signal}` (depois da última saída; em seguida o
+  servidor fecha com 1000), `{"t":"pong"}`.
+- **Retomada por offset.** A saída tem um offset absoluto em bytes. `hello.offset` é o offset do primeiro byte binário que
+  vem a seguir; o cliente soma os bytes binários recebidos e guarda `offset = hello.offset + recebidos`. Reconectando com
+  `&offset=<esse valor>` recebe só o que faltava, sem perder nem repetir. Sem `offset`: tudo o que o anel guarda
+  (`hello.start` até `hello.end`). Offset antes do anel: `warn term_offset_truncated` (`requested`, `offset` novo, `lost`)
+  e segue do mais antigo guardado; offset à frente do fim: `warn term_offset_ahead` e segue do fim. Um `warn` com
+  `offset` (também `term_output_truncated`, quando um cliente lento deixa o anel passar por ele) **zera a contagem**: o
+  próximo byte binário está nesse offset.
+- **Uma tela por sessão.** Um segundo cliente anexado fecha o primeiro com **4001**. Sair do socket não mata a sessão: ela
+  segue (e o anel guarda a saída) até fechar, expirar ou o processo sair. Processo que sai sozinho: a sessão fica listada
+  como `exited` por 60 s e dá para anexar e ler o fim.
+- **Códigos de fechamento:** 1000 processo saiu · 4001 trocado por outro cliente · 4002 fechada (`close`/rota) · 4003
+  expirou por inatividade · 4004 painel parando · 1009 quadro de entrada acima de 64 KiB (o Bun derruba o socket).
+- **Contrapressão.** Com mais de 1 MiB na fila do socket o servidor para de empurrar e retoma no `drain`, lendo do anel.
+
+### Limites
+Entrada ≤ 64 KiB por quadro; controle ≤ 4 KiB; `cols` 20–500 (80), `rows` 5–200 (24); anel `HADES_TERMINAL_SCROLLBACK_KB`
+(256); `HADES_TERMINAL_MAX` sessões vivas (4); 12 aberturas por minuto pelo acesso remoto; inatividade
+`HADES_TERMINAL_IDLE_MIN` (30; 0 = sem limite) conta **entrada, resize e conexão do cliente**, não saída nem ping. Chave
+desligada fecha as sessões abertas (o vigia passa a cada 15 s). Parar o painel fecha todas.
+
+### Modelo de segurança
+O terminal executa comando como o dono; é o maior risco do painel. Por isso:
+- **`HADES_TERMINAL` desligada por padrão**, e as quatro chaves (`HADES_TERMINAL*`) **só mudam pelo painel local**, pelo
+  mesmo mecanismo de `HADES_CHAT`/`HADES_CHAT_BIN` (`remoteConfigRefusal` e `CONFIG_LOCAL_ONLY` em `routes-core.ts`,
+  que também barra o import). Ligada, quem tem a chave de acesso remoto abre um shell nesta máquina: ligue sabendo disso.
+- **Camadas do WebSocket:** o upgrade passa por `hostOk` e `authed` (pelo túnel valem a conta dona do devtunnel e o
+  cookie da chave) e confere `Origin`: só o próprio painel (`http://127.0.0.1:<porta>`, `localhost`) ou, pelo túnel,
+  `https://<host do túnel>`. Pelo túnel Origin ausente é recusado; no painel local um cliente de script sem Origin passa
+  (mesmo grau de confiança de quem lê `/api/token`). Outro site no navegador sempre manda Origin e cai em `term_origin`.
+  Token não viaja na query: o `id` aleatório de 128 bits (só dado pelo `open`, que exige o token do painel) é o segredo
+  da sessão.
+- **Pasta:** `cwd` só vale dentro das raízes permitidas (o clone principal, as worktrees de agente registradas e `$D`),
+  depois de `realpath` (`..` e symlink não escapam); relativa é `term_bad_request`.
+- **Aviso:** toda sessão aberta pelo acesso remoto dispara o `notify` (tipo, pasta e hora; nunca conteúdo). A sessão
+  aberta no local e anexada pelo acesso remoto avisa também, no primeiro anexo remoto (uma vez por sessão; a aberta de
+  fora já avisou ao abrir): o anexo dá o mesmo shell.
+- **`$D/logs/panel-term.log`** (0600), uma linha JSON por evento: `t` (UTC), `action` (`abrir`/`anexar`/`fechar`/
+  `expirar`/`recusar`; `anexar` leva a origem de cada anexo, local ou remota), `kind`, `cwd`, `origin`, `id` e, nas recusas, `code`. Nunca o que foi digitado nem a saída (teste em
+  `painel-term.test.ts`).
+- **Processos:** argv em lista, sem `eval` nem shell montado. Cada PTY é líder de sessão e de grupo; ao fechar, expirar,
+  sair ou parar o painel o grupo recebe SIGTERM e, 1,5 s depois, SIGKILL (sem órfão, nem job em segundo plano).
+- **Slice:** a unit do painel fica **fora** do slice `hades` (§Início automático), então o PTY não está nele: está no
+  cgroup da própria unit `hds-panel` (provado: `/proc/<pid>/cgroup` do filho = o do painel; `KillMode` padrão, o
+  `systemctl stop` leva as sessões junto). Não conta no teto de memória do Hades.
+
+### Interface
+Código: `kit/panel/ui/term.tsx` (componente), `term-logic.tsx` (regra pura, `window.TermLogic`, testada em
+`painel-term-ui.test.ts`), `vendor/xterm.js` + `xterm.css` + `xterm-addon-fit.js` (xterm.js 6.0.0 e fit 0.11.0, UMD sem
+bundler; versões, sha256 e licença MIT em `THIRD_PARTY_NOTICES.md`). O `index.html` carrega css, xterm, addon e
+`term-logic.js` antes do `app.js`, e o `term.js` logo depois dele (as páginas vêm por último).
+
+**"Abrir terminal"** (Orquestração por agente, menu do nó no Argos, Execuções): `HadesCore.OpenTerminalButton` (`term.tsx`) abre
+um shell em `cwd` (`POST /api/term/open`), acrescenta a sessão à mesa que a página Herdr guarda em `sessionStorage`
+(`hades-herdr-term`) e navega para `#/herdr`. Em Execuções o `cwd` é o campo aditivo `cwd` da execução (`jobs.ts`) e o botão só
+aparece com a pasta dentro das `roots` de `GET /api/term`; nas outras a recusa `term_forbidden_cwd` vira aviso. Com a chave
+desligada o botão não some: o clique mostra o aviso de `term_disabled` (como ligar).
+`HadesCore.createXterm(el, {fontSize, scrollback, readOnly, lineHeight})` é o mínimo comum (tema do painel, fit, links) que o
+`PtyTerminal` e o nó do Argos usam.
+
+**Componente `PtyTerminal`**, em `HadesCore` e `HadesPanel` (o nome `Terminal` já é o visualizador de log das Execuções;
+o do terminal de verdade é `PtyTerminal`).
+| Prop | Efeito |
+|---|---|
+| `id` | anexa a uma sessão já aberta (`GET /api/term`) |
+| `open` | `{kind, cwd?, resume?, session?}`: abre (`POST /api/term/open`, com `cols`/`rows` medidos) e anexa. Sem `id`; a abertura acontece uma vez por montagem (reconectar não abre outra) |
+| `onOpened(sessão)` | depois do `open` (a sessão do servidor; guarde o `id` para anexar depois) |
+| `onExit({code, signal})` | o processo saiu (a sessão fica listada como `exited` por 60 s) |
+| `onState({kind, ...})` | cada mudança de fase: `opening`, `connecting`, `live`, `reconnecting` (`attempt`, `inMs`), `gaveup`, `ended` (`reason`: `exited`/`replaced`/`closed`/`expired`/`shutdown`/`protocol`), `refused` (`refusal`) |
+| `className`, `fontSize` | classes do contêiner (precisa de altura definida: o terminal preenche) e tamanho da fonte (13) |
+O contêiner expõe `data-term-phase` e `data-term-reason` (para teste). Ao desmontar, o componente encerra socket, timers e
+observadores e descarta o terminal; a sessão **não** é fechada (para isso, `POST /api/term/close`).
+
+**Comportamento (decisões em `term-logic.tsx`, nunca pelo texto do servidor).**
+- *Entrada:* teclas e colar vão como quadro binário; entrada acima de 64 KiB é partida em quadros de no máximo 64 KiB
+  (o servidor derruba o socket com 1009 acima disso). *Resize:* `addon-fit` + `ResizeObserver` (debounce de 80 ms),
+  `{"t":"resize"}` só quando o tamanho (preso a 20–500 × 5–200) muda; reenviado a cada `hello`. Ping a cada 25 s.
+- *Retomada:* guarda `hello.offset` e soma os bytes binários; um `warn` com `offset` zera a contagem. Fechamento fora da
+  lista abaixo (rede, 1005/1006, 1009) reconecta com `&offset=<n>` e recuo exponencial (500 ms, dobra, teto 15 s, ±25% de
+  jitter), até 8 tentativas, e então mostra "Reconectar". Volta na hora com o evento `online` ou ao voltar à aba. Queda
+  antes do `hello` confere `GET /api/term`: chave desligada ou sessão que sumiu viram recusa em vez de laço. Perda de saída
+  (`term_offset_truncated`, `term_output_truncated`) escreve uma linha apagada no terminal com quanto se perdeu.
+- *Fechamento:* 1000 (processo saiu, linha "processo terminou com código N") e 4002/4003/4004/4005 param e mostram o motivo
+  numa barra sob o terminal; **4001** (aberta em outra tela) para sem reconectar e mostra "Esta sessão foi aberta em outra
+  tela" com **Trazer para cá** (anexa de novo; a outra tela perde a sessão do mesmo jeito).
+- *Recusas pelo `code`* (só o código decide; sem `code` conhecido vale a recusa genérica com o status): `term_disabled`
+  mostra como ligar (Configurações → Terminal, só no painel local), `term_max_sessions`, `term_rate_limited` (com o
+  `Retry-After` em segundos), `term_forbidden_cwd`, `term_kind_unavailable`, `term_unknown_session`, `term_origin`,
+  `term_spawn_failed`.
+- *Aparência:* cores lidas dos tokens do painel (`--term`, `--term-foreground`, `--term-bad`, `--term-warn`, resolvidos
+  para RGB porque o xterm não lê `oklch`), refeitas quando o tema claro/escuro muda; fonte Geist Mono (a mesma do painel),
+  contraste mínimo 4,5. Copiar: seleção + Ctrl/Cmd+C (sem seleção, Ctrl+C segue como interrupção) ou Ctrl+Shift+C. Colar:
+  Ctrl/Cmd+V ou Ctrl+Shift+V (o xterm cuida do colar entre aspas). Link clicável **só `http(s)`** (também OSC 8): `javascript:`,
+  `data:`, `file:` nunca abrem; abre com `noopener`.
+- *Armadilhas medidas:* o `post()` da base não repassa o `Retry-After`, então o componente chama `open` com `fetch` próprio
+  (mesmo token e mesma renovação); o xterm 6 não traz o addon de links (o componente registra o seu provedor, uma linha
+  por vez, sem URL partida entre linhas); aba oculta mede 0 colunas e não manda resize.
+
+### Testar
+`SHELL=<script>` troca o shell; `HADES_CHAT_BIN` o claude. Use `cat`/bash falso (`stty raw -echo; exec cat` devolve os
+bytes idênticos). Nunca o claude nem o herdr reais. Painel de teste: `HADES_DATA=<D de teste> bun src/cli.ts panel serve
+--port <porta>`; ligue a chave pelo painel local (`POST /api/config {"values":{"HADES_TERMINAL":"1"}}`).
+
+
+#### Celular: barra de teclas, teclado virtual, seguir o fim
+- **Barra de teclas** (`TermKeyBar`) acima do teclado virtual, só com um terminal em tela cheia no celular. Lista e ordem vêm de `HADES_TERMINAL_KEYS` (`reference/config.md`; lida de `/api/config` uma vez por carga; id desconhecido derruba a lista inteira para o padrão e a tela avisa). Cada tecla manda os bytes pelo `apiRef` do `PtyTerminal` (`send`, `paste`, `focus`, `toBottom`, `appCursor`, `copyable`): Esc `1b`, Tab `09`, Enter `0d`, setas `1b [ A..D` (`1b O A..D` se o programa ligou o modo de cursor de aplicação), Shift+Tab `1b [ Z`, Ctrl+C `03`. **Ctrl** é fixo de um toque: a próxima tecla de um caractere (da barra ou do teclado do sistema, via `apiRef.filter`) vira o byte de controle (`a-z`, `@[\\]^_` → `& 1f`, espaço → `00`, `?` → `7f`). O toque usa `mousedown.preventDefault`, então o terminal mantém o foco e o teclado não fecha.
+- **Teclado virtual:** o terminal em tela cheia é `position: fixed` na caixa do `visualViewport` (`viewBox`: altura útil e deslocamento; no iOS o teclado desloca em vez de encolher a janela), a página trava a rolagem enquanto ele está aberto e o `ResizeObserver` do terminal refaz o fit e manda o tamanho novo ao servidor.
+- **Seguir o fim:** o xterm segue a saída enquanto a janela está na última linha; rolando para cima ele para (`isFollowing`) e aparece **Ir ao fim** (também na mesa); tocar volta a seguir.
+- **Colar e copiar no toque:** "Colar" lê `navigator.clipboard.readText()` (exige contexto seguro: o túnel é HTTPS, o `localhost` vale; sem permissão, aviso) e usa `term.paste` (respeita o bracketed paste, parte acima de 64 KiB). **Limite medido:** o xterm.js não seleciona por toque; "Copiar" leva a seleção (se houver, de mouse ou teclado) ou o texto visível na tela. Toque e segure no terminal para colar pelo menu do sistema depende do navegador. Safari/iOS real não foi testado.
 
 ## Notificações
 
@@ -741,6 +965,7 @@ Os nomes são os do shadcn, com o sentido do Hades:
 - **Sidebar** nos tokens `sidebar-*` e `--rail-muted`: o trilho é vinho `#391a2c` com tinta marfim nos dois temas.
 - **Card do slice** minimizável (botão com `aria-expanded`): estado em `localStorage` (`panel-sidebar-slice-min`), como o
   trilho e os grupos; sem chave no `config.tsv`. No trilho continua só o % e a barra.
+- **Claude e Herdr, uma coisa por vez** (`mobile-term.tsx`, `HadesCore.Mobile`): abaixo de 768 px a página tem dois níveis, **lista** (conversas; terminais abertos; workspaces) e **detalhe** (conversa, terminal ou painel de agente em tela cheia). Entrar no detalhe empilha uma entrada no histórico (`history.pushState`, mesma URL); o voltar do sistema e a seta do cabeçalho voltam à lista sem sair da página. O lado a lado da mesa não existe no celular (uma sessão por vez; trocar é voltar e escolher). Regra pura em `term-logic.tsx` (`navStep`, `isMobileWidth`). Limite: ao sair da página com o detalhe aberto sobra uma entrada de histórico (um voltar sem efeito).
 - **Ícone:** `ui/brand/hades.svg` (fundo quadrado incluso, serve aos dois temas) é favicon (`type="image/svg+xml"`),
   marca da sidebar e do trilho. Os PNG (`icon-192`, `icon-512`, `icon-maskable-512` com o glifo a 80% para a zona
   segura, `apple-touch-icon`, `favicon-32`) saem do SVG com `rsvg-convert -w <n> -h <n>`. `theme_color` e

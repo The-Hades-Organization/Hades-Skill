@@ -212,6 +212,7 @@ Pedido do dono → comando e referência, por tema. Na dúvida entre duas linhas
 | "instala o painel no celular" · "PWA" · "adicionar à tela inicial" | abrir a URL do túnel no celular e instalar (`reference/panel.md` §Instalar como app (PWA)); só funciona por HTTPS (túnel) ou localhost |
 | "conversa com o Claude pelo painel" · "abre uma sessão do Claude no celular" · "chat com o Claude" | painel → página **Claude** (ligada por padrão; desliga em Configurações → Sessão Claude, `HADES_CHAT=0`); `claude -p` em auto mode no clone principal, também pelo acesso remoto, que avisa o dono (`reference/panel.md` §Claude) |
 | "vê/gerencia o herdr pelo painel" · "o que os agentes do herdr estão fazendo" · "manda um prompt ao agente do finance" · "para a sessão do herdr" | painel → página **Herdr** (grupo Operação, também pelo acesso remoto, que avisa o dono): árvore workspace → aba → pane do herdr, de todas as sessões, saída do terminal, prompt/texto/teclas, renomear, parar/apagar sessão com o nome digitado; log em `$D/logs/panel-herdr.log` (`reference/panel.md` §Herdr) |
+| "liga o terminal no painel" · "abre um shell pelo painel" | Configurações → Terminal → `HADES_TERMINAL=1`, só pelo painel local; WebSocket e protocolo em `reference/panel.md` §Terminal |
 
 ### Widget e notificações
 

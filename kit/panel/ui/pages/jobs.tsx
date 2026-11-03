@@ -2,11 +2,12 @@
  * Cada execução é um fio; a escolhida mostra o comando, o fio na largura toda e o log no terminal. */
 (() => {
 const { useState, useEffect, I, cn, dur, dt, Button, Card, CardHeader, CardContent, Empty, useApp, JOB_ST, JobRow, jobFio, Fio, FIO_ESTADO,
-  LinhaDeEstado, Terminal, useWide } = HadesCore;
+  LinhaDeEstado, Terminal, useWide, OpenTerminalButton, useTermRoots } = HadesCore;
 
 const HOUR_S = 3600;
 function Selected({ j, d }) {
   const { stopJob } = useApp();
+  const term = useTermRoots();
   const st = JOB_ST[j.state] || JOB_ST.interrompido;
   const fio = jobFio(j, d.jobs);
   const took = dur((j.ended || d.t) - j.started);
@@ -20,6 +21,7 @@ function Selected({ j, d }) {
           {j.cmd.split('\n')[0]}
         </div>
       </div>
+      <span data-tour-step-id="jobs-terminal"><OpenTerminalButton cwd={j.cwd} term={term} size="sm" variant="outline" /></span>
       {j.state === 'rodando' ? <span data-tour-step-id="jobs-interromper"><Button size="sm" variant="ghost-destructive" icon={I.OctagonX} onClick={() => stopJob(j)}>Interromper</Button></span> : null}
     </div>
     <div data-tour-step-id="jobs-fio">

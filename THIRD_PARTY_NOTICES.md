@@ -16,12 +16,26 @@ no topo.
 | DOMPurify 3.4.12 (embutido no mermaid) | 3.4.12 | https://github.com/cure53/DOMPurify | Apache-2.0 ou MPL-2.0 (escolha: Apache-2.0) | `kit/panel/ui/vendor/mermaid.js` |
 | motion | versão não identificada no bundle | https://github.com/motiondivision/motion | MIT | `kit/panel/ui/vendor/motion.js` |
 | Tailwind CSS (`@tailwindcss/browser`) | 4.0.17 | https://github.com/tailwindlabs/tailwindcss | MIT | `kit/panel/ui/vendor/tailwind.js` |
+| xterm.js (`@xterm/xterm`) | 6.0.0 | https://github.com/xtermjs/xterm.js | MIT | `kit/panel/ui/vendor/xterm.js`, `kit/panel/ui/vendor/xterm.css` (licença em `xterm-LICENSE.txt`) |
+| xterm.js fit addon (`@xterm/addon-fit`) | 0.11.0 | https://github.com/xtermjs/xterm.js | MIT | `kit/panel/ui/vendor/xterm-addon-fit.js` |
 | Figtree | variável | https://github.com/erikdkennedy/figtree | SIL OFL 1.1 | `kit/panel/ui/vendor/Figtree-Variable.woff2` |
 | Geist Mono | variável | https://github.com/vercel/geist-font | SIL OFL 1.1 | `kit/panel/ui/vendor/GeistMono-Variable.woff2` |
 | Marcellus | 400 | https://github.com/astigmatic/marcellus | SIL OFL 1.1 | `kit/panel/ui/vendor/Marcellus-400.woff2` |
 | tour (tonghohin/tour), portado | n/d | https://github.com/tonghohin/tour | MIT | `kit/panel/ui/tour.tsx` |
 | Number Ticker (Magic UI), reinterpretado | versão não identificada no cabeçalho | https://github.com/magicuidesign/magicui | MIT | `kit/panel/ui/fx/number-ticker.tsx` |
 | shadcn/ui (padrão de componentes e nomes dos tokens de tema), adaptado | n/d | https://github.com/shadcn-ui/ui | MIT | `kit/panel/ui/app.tsx`, `kit/panel/ui/index.html` |
+
+Origem dos arquivos do xterm (cópias sem alteração, do `dist` UMD dos tarballs do npm, conferidos contra o `integrity` do
+`npm view`; a 6.0.0 traz `lib/xterm.js` UMD que roda sem bundler e expõe `window.Terminal`):
+
+| Arquivo | Pacote | sha256 do arquivo em `vendor/` |
+|---|---|---|
+| `xterm.js` | `@xterm/xterm@6.0.0` (`lib/xterm.js`) | `14903579ff54664cd72f8e8699e6961a6272c21863ec1c3b118cdc8af5d4a972` |
+| `xterm.css` | `@xterm/xterm@6.0.0` (`css/xterm.css`) | `854a7c0fb70e8b1a083c16797ab827299fb18744f5ad34f227b48337e33293c6` |
+| `xterm-addon-fit.js` | `@xterm/addon-fit@0.11.0` (`lib/addon-fit.js`) | `ba3ea256ce0620a0992a197d6c9baea64823fc93d8da07a9e366ca9943c18527` |
+
+`integrity` dos tarballs: `@xterm/xterm@6.0.0` `sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg==`;
+`@xterm/addon-fit@0.11.0` `sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==`.
 
 O `mermaid.js` embute ainda outras bibliotecas pequenas, com os avisos de direitos que o próprio arquivo mantém no
 topo do bundle (OpenJS Foundation, Jeremy Ashkenas e outros, Ralf S. Engelschall, Gaetan Renaudeau); todas sob MIT.
@@ -34,12 +48,13 @@ Os ícones, imagens e a marca de `kit/panel/ui/brand/` e `assets/` são da próp
 
 ## MIT
 
-React, React DOM, marked, mermaid, motion, Tailwind CSS, tour, Magic UI e shadcn/ui. Cada um com o seu aviso de copyright:
+React, React DOM, marked, mermaid, motion, xterm.js, Tailwind CSS, tour, Magic UI e shadcn/ui. Cada um com o seu aviso de copyright:
 
 - React e React DOM: Copyright (c) Meta Platforms, Inc. and affiliates.
 - marked: Copyright (c) 2011-2024, Christopher Jeffrey (e 2018+, MarkedJS).
 - mermaid: Copyright (c) 2014 - 2022 Knut Sveidqvist.
 - motion: Copyright (c) 2024 Motion B.V. (https://motion.dev).
+- xterm.js: Copyright (c) 2017-2019, The xterm.js authors; Copyright (c) 2014-2016, SourceLair Private Company (texto completo em `kit/panel/ui/vendor/xterm-LICENSE.txt`). O fit addon: Copyright (c) 2019, The xterm.js authors.
 - Tailwind CSS: Copyright (c) Tailwind Labs, Inc.
 - tour (tonghohin/tour): Copyright (c) 2025 Hin (como no cabeçalho de `kit/panel/ui/tour.tsx`).
 - Magic UI: Copyright (c) Magic UI.

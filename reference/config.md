@@ -121,7 +121,13 @@ vão inteiras, para o grep achar.
 ### Sessão Claude
 | Chaves | Aplicar |
 |---|---|
-| `HADES_CHAT` (1), `HADES_MODEL_CHAT` (claude-opus-5-5), `HADES_EFFORT_CHAT` (high), `HADES_CHAT_MAX` (2), `HADES_CHAT_BIN` (vazio = `claude` do PATH) | na hora: o painel lê a cada requisição; modelo e esforço valem na próxima mensagem. `HADES_CHAT` e `HADES_CHAT_BIN` só mudam pelo painel local (`reference/panel.md` §Claude). É o grupo da página Claude |
+| `HADES_CHAT` (1), `HADES_MODEL_CHAT` (claude-opus-5-5), `HADES_EFFORT_CHAT` (high), `HADES_CHAT_MAX` (2), `HADES_CHAT_BIN` (vazio = `claude` do PATH), `HADES_CHAT_ATTACH_MB` (5) | na hora: o painel lê a cada requisição; modelo e esforço valem na próxima mensagem. `HADES_CHAT` e `HADES_CHAT_BIN` só mudam pelo painel local (`reference/panel.md` §Claude). É o grupo da página Claude; `HADES_CHAT_ATTACH_MB` é o teto de cada anexo do chat |
+
+### Terminal
+| Chaves | Aplicar |
+|---|---|
+| `HADES_TERMINAL` (0), `HADES_TERMINAL_MAX` (4), `HADES_TERMINAL_IDLE_MIN` (30; 0 = sem limite), `HADES_TERMINAL_SCROLLBACK_KB` (256) | na hora: o painel lê a cada requisição; o anel vale na próxima sessão aberta. **As quatro só mudam pelo painel local** (`reference/panel.md` §Terminal), inclusive no import. |
+| `HADES_TERMINAL_KEYS` (esc,tab,ctrl,up,down,left,right,enter,pipe,tilde,slash,dash,paste,copy,1,2,3,y,n,shift-tab,ctrl-c) | ao recarregar a página: lista de ids da barra de teclas do celular (`reference/panel.md` §Terminal › Interface). Id desconhecido invalida a lista: cai no padrão e a tela avisa. Não é da lista "só painel local": só muda a barra, não abre acesso. |
 
 ### Cerberus
 | Chaves | Aplicar |

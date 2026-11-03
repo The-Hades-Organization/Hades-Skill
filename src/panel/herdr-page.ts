@@ -1,7 +1,9 @@
 // A página Herdr: visão geral de todas as sessões, leitura de painel, ações validadas contra a listagem atual e ações de
 // sessão. O texto de prompt nunca vai ao log nem ao notify; só hora, ação e alvo.
-import { appendFileSync, mkdirSync, readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { appendFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, normalize, sep } from "node:path";
+import { AGENT_KINDS } from "../lib/argos-roles.ts";
 import { readText } from "../lib/fs.ts";
 import { which } from "../lib/proc.ts";
 import { exec } from "./exec.ts";
@@ -39,6 +41,22 @@ const ACT_TIMEOUT_MS = 20_000;
 const SESSION_ACT_TIMEOUT_MS = 30_000;
 const GIT_TIMEOUT_MS = 3000;
 const NOTIFY_TIMEOUT_MS = 30_000;
+// gerência (reference/panel.md §Herdr): o `agent start` espera o agente ficar pronto (o padrão do herdr é 30 s)
+const AGENT_START_TIMEOUT_MS = 60_000;
+const LABEL_MAX = 64;
+const PATH_MAX = 4096;
+const AGENT_ARGS_MAX = 16;
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
+// nome de agente do herdr (`herdr --skill`): `[a-z][a-z0-9_-]{0,31}`
+const AGENT_START_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
+// argumento do agente depois do `--`: um token só, sem espaço, aspas nem quebra de linha
+const AGENT_ARG = /^[\w@%+=:,./[\]-]{1,200}$/;
+export const ADMIN_ACTIONS = [
+  "workspace-create", "workspace-rename", "workspace-close", "tab-create", "tab-rename", "tab-close",
+  "pane-split", "pane-rename", "pane-close", "agent-start",
+] as const;
+export type AdminAction = (typeof ADMIN_ACTIONS)[number];
+export const SPLIT_DIRECTIONS = ["right", "down"] as const;
 
 const rows = (value: unknown): Dict[] => (Array.isArray(value) ? (value as Dict[]) : []);
 const countStatus = (agents: Dict[], status: string): number => agents.filter((a) => a.agent_status === status).length;
@@ -75,6 +93,8 @@ export interface HerdrPage {
   scrollback(session: string | undefined, pane: string | undefined, lines: string | undefined): Promise<Dict>;
   act(body: Dict, remote: boolean): Promise<Dict>;
   sessionAct(body: Dict, remote: boolean): Promise<Dict>;
+  /** Gerência da estrutura (`POST /api/herdr/admin`): criar, fechar, renomear, split e `agent start`; alvo conferido no retrato atual. */
+  admin(body: Dict, remote: boolean): Promise<Dict>;
   /** Entrada direta (`POST /api/herdr/input`): texto e/ou teclas pelo `pane.send_input`; devolve o alvo validado. */
   input(body: Dict, remote: boolean): Promise<{ session: string; pane: string }>;
   /** Socket da API da sessão, pela listagem atual; undefined se a sessão não existe ou não está rodando. */
@@ -92,6 +112,139 @@ export function inputParams(pane: string, body: Dict): Dict {
   const named = ((keys ?? []) as string[]).map((k) => KEYS[k] as string);
   if (!text && named.length === 0) throw new BadRequest("nada a enviar: texto ou teclas");
   return { pane_id: pane, ...(text ? { text } : {}), ...(named.length ? { keys: named } : {}) };
+}
+
+// `os.homedir()` do Bun não relê o HOME depois da subida; o painel e os testes mudam o HOME do processo
+const homeDir = (): string => process.env.HOME || homedir();
+
+/** Rótulo de workspace, aba ou painel: uma linha, aparado, sem controle e sem começar por `-` (a CLI o leria como opção). */
+export function adminLabel(raw: unknown, required: boolean): string | undefined {
+  const label = textOf(raw).trim();
+  if (!label) {
+    if (required) throw new BadRequest("nome obrigatório");
+    return undefined;
+  }
+  if (label.length > LABEL_MAX || CONTROL.test(label) || label.startsWith("-")) throw new BadRequest(`nome inválido (até ${LABEL_MAX} caracteres, uma linha, sem "-" no começo)`);
+  return label;
+}
+
+/** Diretório de trabalho do workspace novo: absoluto, existente e dentro do home de quem roda o painel. */
+export function adminCwd(raw: unknown, home: string = homeDir()): string | undefined {
+  const value = textOf(raw).trim();
+  if (!value) return undefined;
+  if (value.length > PATH_MAX || CONTROL.test(value) || !isAbsolute(value)) throw new BadRequest("pasta inválida: use um caminho absoluto");
+  const path = normalize(value).replace(new RegExp(`${sep}+$`), "") || sep;
+  const base = normalize(home);
+  if (path !== base && !path.startsWith(base + sep)) throw new BadRequest("pasta fora do home");
+  let isDir = false;
+  try {
+    isDir = statSync(path).isDirectory();
+  } catch {
+    isDir = false;
+  }
+  if (!isDir) throw new BadRequest("a pasta não existe");
+  return path;
+}
+
+interface AdminPlan {
+  argv: string[];
+  /** alvo para o log e o aviso: um ID do herdr, nunca texto digitado */
+  target: string;
+  /** destrutiva: o corpo traz `confirm` com este nome */
+  confirmName?: string;
+  timeoutMs: number;
+}
+
+/** Procura o ID na lista do retrato; o ID que a tela mandou só vale se existir agora. */
+function inSnapshot(list: Dict[], key: string, value: unknown, what: string): Dict {
+  const id = textOf(value);
+  const found = typeof value === "string" ? list.find((row) => row[key] === id) : undefined;
+  if (!found) throw new BadRequest(`${what} inexistente: atualize a lista`);
+  return found;
+}
+
+/** Decisão pura: valida o corpo contra o retrato da sessão e monta o argv do herdr (sem rodar nada). */
+export function adminPlan(what: AdminAction, body: Dict, snap: Dict, home: string = homeDir()): AdminPlan {
+  const timeoutMs = ACT_TIMEOUT_MS;
+  const workspace = (): Dict => inSnapshot(rows(snap.workspaces), "workspace_id", body.workspace, "workspace");
+  const tab = (): Dict => inSnapshot(rows(snap.tabs), "tab_id", body.tab, "aba");
+  const pane = (): Dict => inSnapshot(rows(snap.panes), "pane_id", body.pane, "painel");
+  const named = (row: Dict, key: string): string => textOf(row.label) || textOf(row[key]);
+  switch (what) {
+    case "workspace-create": {
+      const label = adminLabel(body.label, false);
+      const cwd = adminCwd(body.cwd, home);
+      return { argv: ["workspace", "create", "--no-focus", ...(label ? ["--label", label] : []), ...(cwd ? ["--cwd", cwd] : [])], target: "novo", timeoutMs };
+    }
+    case "workspace-rename": {
+      const w = workspace();
+      return { argv: ["workspace", "rename", textOf(w.workspace_id), adminLabel(body.label, true) as string], target: textOf(w.workspace_id), timeoutMs };
+    }
+    case "workspace-close": {
+      const w = workspace();
+      return { argv: ["workspace", "close", textOf(w.workspace_id)], target: textOf(w.workspace_id), confirmName: named(w, "workspace_id"), timeoutMs };
+    }
+    case "tab-create": {
+      const w = workspace();
+      const label = adminLabel(body.label, false);
+      return { argv: ["tab", "create", "--workspace", textOf(w.workspace_id), "--no-focus", ...(label ? ["--label", label] : [])], target: textOf(w.workspace_id), timeoutMs };
+    }
+    case "tab-rename": {
+      const t = tab();
+      return { argv: ["tab", "rename", textOf(t.tab_id), adminLabel(body.label, true) as string], target: textOf(t.tab_id), timeoutMs };
+    }
+    case "tab-close": {
+      const t = tab();
+      return { argv: ["tab", "close", textOf(t.tab_id)], target: textOf(t.tab_id), confirmName: named(t, "tab_id"), timeoutMs };
+    }
+    case "pane-split": {
+      const p = pane();
+      const direction = textOf(body.direction);
+      if (!(SPLIT_DIRECTIONS as readonly string[]).includes(direction)) throw new BadRequest("direção inválida (right ou down)");
+      return { argv: ["pane", "split", textOf(p.pane_id), "--direction", direction, "--no-focus"], target: textOf(p.pane_id), timeoutMs };
+    }
+    case "pane-rename": {
+      const p = pane();
+      return { argv: ["pane", "rename", textOf(p.pane_id), adminLabel(body.label, true) as string], target: textOf(p.pane_id), timeoutMs };
+    }
+    case "pane-close": {
+      const p = pane();
+      const agent = rows(snap.agents).find((a) => a.pane_id === p.pane_id);
+      return { argv: ["pane", "close", textOf(p.pane_id)], target: textOf(p.pane_id), confirmName: textOf(agent?.name) || textOf(p.pane_id), timeoutMs };
+    }
+    case "agent-start": {
+      const p = pane();
+      const name = textOf(body.name);
+      const kind = textOf(body.kind);
+      if (!AGENT_START_NAME.test(name)) throw new BadRequest("nome do agente inválido (minúsculas, números, _ e -; até 32)");
+      if (!Object.hasOwn(AGENT_KINDS, kind)) throw new BadRequest("tipo de agente desconhecido");
+      if (p.agent || rows(snap.agents).some((a) => a.pane_id === p.pane_id)) throw new BadRequest("este painel já tem agente");
+      if (rows(snap.agents).some((a) => a.name === name)) throw new BadRequest("já existe um agente com esse nome");
+      const args = body.args === undefined ? [] : body.args;
+      if (!Array.isArray(args) || args.length > AGENT_ARGS_MAX || args.some((a) => typeof a !== "string" || !AGENT_ARG.test(a))) {
+        throw new BadRequest(`argumentos inválidos (até ${AGENT_ARGS_MAX}, sem espaço nem aspas)`);
+      }
+      return { argv: ["agent", "start", name, "--kind", kind, "--pane", textOf(p.pane_id), ...(args.length ? ["--", ...(args as string[])] : [])], target: textOf(p.pane_id), timeoutMs: AGENT_START_TIMEOUT_MS };
+    }
+    default: {
+      const unreachable: never = what;
+      throw new BadRequest(`ação inválida: ${String(unreachable)}`);
+    }
+  }
+}
+
+/** ID do que o herdr acabou de criar (`workspace`, `tab` ou `pane` na resposta), para a tela selecionar. */
+function createdIdOf(out: string): string | undefined {
+  try {
+    const result = ((JSON.parse(out) as Dict).result ?? {}) as Dict;
+    for (const [key, idKey] of [["workspace", "workspace_id"], ["tab", "tab_id"], ["pane", "pane_id"]] as const) {
+      const id = (result[key] as Dict | undefined)?.[idKey];
+      if (typeof id === "string") return id;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 
 export function createHerdrPage(env: PanelEnv, herdr: Herdr, socket: HerdrSocket = createHerdrSocket()): HerdrPage {
@@ -319,6 +472,23 @@ export function createHerdrPage(env: PanelEnv, herdr: Herdr, socket: HerdrSocket
     return { ok: true };
   }
 
+  async function admin(body: Dict, remote: boolean): Promise<Dict> {
+    const what = textOf(body.action);
+    if (!(ADMIN_ACTIONS as readonly string[]).includes(what)) throw new BadRequest("ação inválida");
+    const session = await sessionOf(textOf(body.session) || undefined);
+    const snap = await herdr.snap(session);
+    if (!snap) throw new BadRequest("servidor herdr desta sessão fora do ar");
+    const plan = adminPlan(what as AdminAction, body, snap);
+    if (plan.confirmName !== undefined && body.confirm !== plan.confirmName) throw new BadRequest("digite o nome para confirmar");
+    const r = await herdr.call(session, plan.argv, plan.timeoutMs);
+    const created = r.rc === 0 ? createdIdOf(r.out) : undefined;
+    record(session, what, created ?? plan.target, remote, r.rc === 0);
+    if (r.rc !== 0) throw new BadRequest(r.err || "o herdr recusou");
+    if (remote) fireNotice(what, created ?? plan.target);
+    herdr.forget();
+    return { ok: true, ...(created ? { created } : {}) };
+  }
+
   async function socketOf(session: string): Promise<string | undefined> {
     const found = (await sessions()).find((s) => s.name === session && s.running);
     return typeof found?.socket_path === "string" && found.socket_path ? found.socket_path : undefined;
@@ -343,5 +513,5 @@ export function createHerdrPage(env: PanelEnv, herdr: Herdr, socket: HerdrSocket
     return { session, pane: id };
   }
 
-  return { overview, read, scrollback, act, sessionAct, input, socketOf };
+  return { overview, read, scrollback, act, sessionAct, admin, input, socketOf };
 }

@@ -2364,9 +2364,16 @@ canvas:focus" e "esconder controles na página").
 ## Terminal do nó (renderização)
 
 O herdr entrega o terminal de um agente como **quadro pronto** (`pane.read source=visible format=ansi`), não como fluxo de bytes;
-por isso não há biblioteca de terminal: `src/lib/term-ansi.ts` (puro, vai ao navegador em `window.CanvasModel.termAnsi`) converte
-o quadro em linhas de spans, e `kit/panel/ui/argos/node-tty.tsx` (`window.ArgosNodeTty`) o desenha e coleta a entrada. Esta
-unidade só renderiza: não monta no nó `agent`, não abre conexão e não pede resize (a grade é a do quadro).
+por isso o nó **escreve cada quadro como tela inteira numa instância do xterm.js** (decisão nova: antes o nó usava um renderizador
+ANSI próprio, sem biblioteca de terminal). `kit/panel/ui/argos/node-tty.tsx` (`window.ArgosNodeTty`) cria o xterm por
+`HadesCore.createXterm` (`term.tsx`: o mesmo tema do painel, claro e escuro, que o `PtyTerminal` usa), só leitura e sem scrollback
+(o histórico continua sendo a janela do `/api/herdr/scrollback`), e coleta a entrada, que segue por `POST /api/herdr/input`.
+`screenOf(ansi, cursor?)` monta a tela: atributos zerados, cursor ao canto, tela limpa, linhas por CRLF, sem quebra no fim;
+cada quadro redesenha tudo, então não sobra scrollback falso. O xterm não consome tecla nenhuma (o nó as traduz e as globais
+sobem ao canvas). **Só o nó legível tem xterm**: com o zoom baixo ou o nó pequeno (`headerOnly`, `ttyDrawing`) fica o resumo leve
+(cabeçalho) e o xterm é descartado; com muitos nós, só os ampliados o bastante para ler pagam o custo. `src/lib/term-ansi.ts`
+deixou de ser usado pelo nó (só os limites de tamanho do quadro); o conversor segue testado em `term-ansi.test.ts`. Esta
+unidade não pede resize: a grade do xterm é a do quadro (`term.resize(cols, linhas)`), escalada por transform.
 
 **O que o conversor suporta** (`parseAnsi(ansi)` → `TermLine[]`, cada linha uma lista de `{ text, style }`)
 
@@ -2422,7 +2429,7 @@ o aviso "grande demais" e não desenha.
 - **Acessibilidade.** A raiz é `role="region"` com `aria-label="Terminal <pane>"` e `tabIndex=0`; avisos (quadro grande demais,
   colagem grande demais) saem em `role="status"`.
 
-**Limites conhecidos** (decisão em vigor: sem biblioteca de terminal, enquanto o quadro bastar): o quadro do herdr não traz
+**Limites conhecidos** (o nó desenha com o xterm.js desde a term-argos): o quadro do herdr não traz
 posição de cursor, então não há cursor desenhado; caracteres largos (CJK) e combinantes contam como uma célula e o navegador
 decide a largura real; a largura da célula é a constante `0,6 em`, o que difere de fonte mono que não a cumpra.
 
@@ -2458,6 +2465,15 @@ Acréscimos ao contrato acima; onde divergem das linhas anteriores, estes valem.
   "↓ ir ao fim" (`data-tty-to-end`) ou qualquer tecla enviada ao pane retorna ao quadro ao vivo. `lines` vai de 1 a 2000
   (fora disso a rota recusa, não trunca; padrão 500; o nó pede 1000); erro de leitura responde genérico. O `NodeTty` usa
   `frame.session` e, sem ele, a sessão padrão.
+
+### Abrir terminal a partir do nó
+
+O menu do nó de agente (botão direito) tem **Abrir terminal na worktree** (`agent:open-terminal`, só com `worktree` absoluta) e
+**Abrir cliente do herdr** (`agent:open-herdr-client`, só com a sessão do herdr conhecida e de nome seguro). Os dois abrem a
+sessão (`POST /api/term/open`, `kind: shell` com `cwd`, ou `herdr-client` com `session`), põem o id na mesa da página Herdr
+(`sessionStorage`) e levam a ela (`HadesCore.TermOpen.openAndGo`). Com `HADES_TERMINAL` desligada o servidor recusa com
+`term_disabled` e o aviso diz como ligar; pasta fora das raízes volta `term_forbidden_cwd` (a decisão é do servidor, esconder o
+botão não é controle). Prova: `argos-abrir-terminal.test.ts`.
 
 ## Fluxo do terminal (servidor)
 

@@ -12,8 +12,10 @@ import type { PanelEnv } from "./env.ts";
 
 type Json = Record<string, unknown>;
 
+/** O terminal é execução de comando: ligar, teto, inatividade e anel só mudam pelo painel local (reference/panel.md §Terminal). */
+const TERMINAL_KEYS = ["HADES_TERMINAL", "HADES_TERMINAL_MAX", "HADES_TERMINAL_IDLE_MIN", "HADES_TERMINAL_SCROLLBACK_KB"];
 /** Chaves que o acesso remoto não muda (a porta e o início automático do painel); o import respeita o mesmo bloqueio. */
-export const CONFIG_LOCAL_ONLY = ["HADES_PANEL_PORT", "HADES_WIDGET_PORT", "HADES_PANEL_AUTOSTART", "HADES_CHAT", "HADES_CHAT_BIN"];
+export const CONFIG_LOCAL_ONLY = ["HADES_PANEL_PORT", "HADES_WIDGET_PORT", "HADES_PANEL_AUTOSTART", "HADES_CHAT", "HADES_CHAT_BIN", ...TERMINAL_KEYS];
 const CERBERUS_PREFIX = "HADES_CERBERUS_";
 const EXC_TTL_KEY = "HADES_CERBERUS_EXC_TTL_H";
 const HOUR_SECONDS = 3600;
@@ -53,6 +55,7 @@ export function configExport(env: PanelEnv, query: Record<string, string>, remot
 export function remoteConfigRefusal(keys: string[]): string | undefined {
   if (keys.includes("HADES_PANEL_PORT")) return "a porta do painel só se muda pelo painel local";
   if (keys.some((k) => k === "HADES_CHAT" || k === "HADES_CHAT_BIN")) return "ligar a página Claude e o caminho do claude só se mudam pelo painel local";
+  if (keys.some((k) => TERMINAL_KEYS.includes(k))) return "o terminal do painel (HADES_TERMINAL e seus limites) só se muda pelo painel local";
   if (keys.includes("HADES_PANEL_AUTOSTART")) return "o início automático do painel só se muda pelo painel local";
   if (keys.some((k) => k === "HADES_ORCH_AUTONOMY" || k === "HADES_ORCH_AUTO_START")) return "o nível de autonomia e a auto-alocação só se mudam pelo painel local";
   if (keys.some((k) => k.startsWith(CERBERUS_PREFIX))) return "o Cerberus só se configura pelo painel local";

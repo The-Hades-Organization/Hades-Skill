@@ -1159,32 +1159,52 @@ describe("terminal do nó (ArgosNodeTty)", () => {
     expect([...api.TTY_GLOBAL_KEYS]).toEqual(["Ctrl+Shift+A", ...Array.from({ length: 9 }, (_, i) => `Alt+${i + 1}`), "Alt", "Ctrl+]"]);
   });
 
-  test("o quadro vira uma região de terminal com o rótulo do painel e uma linha por linha da grade", async () => {
+  test("o quadro vira uma região de terminal com o rótulo do painel e o espaço do xterm do tamanho da grade", async () => {
     const { render } = await load();
     const t = render({ frame: frame() });
     expect(root(t).props["aria-label"]).toBe("Terminal w1:p1");
     expect(text(t)).toContain("20×4");
     const g = grid(t) as El;
-    expect(g.kids).toHaveLength(4);
-    expect(text(g.kids[0])).toBe("falha ok");
-    expect(text(g.kids[1])).toBe("laranja");
-    expect(text(g.kids[3])).toBe("");
+    expect(g.props["data-tty-engine"]).toBe("xterm");
+    expect([g.props["data-tty-cols"], g.props["data-tty-rows"]]).toEqual([20, 4]);
   });
 
-  test("cada span leva as cores e os atributos do quadro; sem cor, as do tema do terminal", async () => {
-    const { render } = await load();
-    const spans = all(grid(render({ frame: frame() })), (e) => e.tag === "span");
-    expect(spans[0]!.props.style).toEqual({ color: "#cd0000", fontWeight: 700 });
-    expect(spans[1]!.props.style).toEqual({ color: "var(--term-foreground)" });
-    expect(spans[2]!.props.style).toEqual({ color: "#d77757" });
-  });
-
-  test("inverso troca frente e fundo, com as cores do tema quando faltam", async () => {
+  test("o quadro é escrito como tela inteira: zera atributos, limpa a tela e separa as linhas por CRLF", async () => {
     const { api } = await load();
-    const base = { fg: null, bg: null, bold: false, italic: false, underline: false };
-    expect(api.spanStyle({ ...base, inverse: true })).toEqual({ color: "var(--term)", backgroundColor: "var(--term-foreground)" });
-    expect(api.spanStyle({ ...base, inverse: true, fg: { kind: "rgb", r: 255, g: 0, b: 0 }, bg: { kind: "palette", index: 4 } })).toEqual({ color: "#0000ee", backgroundColor: "#ff0000" });
-    expect(api.spanStyle({ ...base, italic: true, underline: true })).toEqual({ color: "var(--term-foreground)", fontStyle: "italic", textDecoration: "underline" });
+    const out = api.screenOf("\x1b[1;31mfalha\x1b[0m ok\r\nlaranja\r\n");
+    expect(out).toBe("\x1b[?25l\x1b[0m\x1b[H\x1b[2J\x1b[1;31mfalha\x1b[0m ok\r\nlaranja\x1b[0m");
+    expect(out.endsWith("\n")).toBe(false);
+  });
+
+  test("o cursor do quadro, quando vem, é posicionado (base 1) e mostrado; sem ele a tela o esconde", async () => {
+    const { api } = await load();
+    expect(api.screenOf("a", { row: 2, col: 5 })).toMatch(/\x1b\[3;6H\x1b\[\?25h$/);
+    expect(api.screenOf("a")).not.toContain("?25h");
+  });
+
+  test("dois quadros seguidos escrevem cada um a tela inteira, sem depender do anterior", async () => {
+    const { api } = await load();
+    const first = api.screenOf("um\r\ndois");
+    const second = api.screenOf("tres");
+    expect(second.startsWith("\x1b[?25l\x1b[0m\x1b[H\x1b[2J")).toBe(true);
+    expect(second).not.toContain("dois");
+    expect(first).not.toBe(second);
+  });
+
+  test("quadro com bytes ou linhas demais não vai ao xterm: o nó avisa", async () => {
+    const { render, api } = await load();
+    expect(api.oversize("a\r\nb")).toBeNull();
+    expect(api.oversize("x".repeat(1_048_577))).toMatch(/grande demais/);
+    expect(api.oversize("\n".repeat(600))).toMatch(/linhas demais/);
+    const t = render({ frame: frame({ ansi: "\n".repeat(600) }) });
+    expect(grid(t)).toBeUndefined();
+    expect(text(status(t) as El)).toMatch(/linhas demais/);
+  });
+
+  test("escala do nó escolhe o desenho: legível usa o xterm, distante fica no resumo leve", async () => {
+    const { api } = await load();
+    expect(api.ttyDrawing(false)).toBe("xterm");
+    expect(api.ttyDrawing(true)).toBe("summary");
   });
 
   test("headerOnly desenha o cabeçalho e nenhum texto do quadro", async () => {

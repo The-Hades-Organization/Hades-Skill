@@ -55,7 +55,7 @@ HadesCore.registerTour('orchestration', {
     {
       id: 'orchestration-agente',
       title: 'O cartão do agente',
-      body: 'Nome, modo, card, a branch e a PR, perguntas abertas e se o relatório está pronto. Os botões abrem Brief, Perguntas, Relatório e Handoff na lateral; o ícone abre o terminal do agente, e "Abrir no Herdr" leva ao painel dele.',
+      body: 'Nome, modo, card, a branch e a PR, perguntas abertas e se o relatório está pronto. Os botões abrem Brief, Perguntas, Relatório e Handoff na lateral; o ícone abre o terminal do agente, e "Abrir no Herdr" leva ao painel dele. "Abrir terminal" abre um shell na worktree do agente e leva à página Herdr.',
       command: 'hades agent list',
       fallback: 'O cartão vem com o agente: aloque o primeiro com hades agent new.',
       side: 'right',

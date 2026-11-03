@@ -2,7 +2,7 @@
  * Leitura primeiro: a conversa numa coluna de 70ch, as sessões como lista com rótulo, a Prompt Bar embaixo. */
 (() => {
 const { useState, useEffect, useRef, useMemo, useCallback, I, cn, dur, dt, post, getJSON, Button, Dot, Card, CardHeader,
-  CardContent, Skeleton, Empty, Sheet, Tip, CopyButton, Kbd, Fio, modelLabel, ago, useApp } = HadesCore;
+  CardContent, Skeleton, Empty, Tip, CopyButton, Kbd, Fio, modelLabel, ago, useApp, Segmented, Select, PtyTerminal, useTermRoots } = HadesCore;
 
 // ================================================================== Claude (chat com o claude -p)
 // Markdown da resposta: instância própria do marked (HTML cru vira texto, imagem vira o alt, link só http/https/mailto)
@@ -119,7 +119,7 @@ function Aviso({ icon: Icon, tone, children }) {
 }
 
 // `copy` é o texto da resposta inteira do turno (as falas do Claude desde a pergunta), para copiar de uma vez
-function ChatItem({ x, copy }) {
+function ChatItem({ x, copy, onApprove }) {
   if (x.k === 'user') return <div className="mt-3 flex flex-col items-end gap-1 first:mt-0">
     <div className="max-w-[88%] whitespace-pre-wrap break-words bg-muted px-3.5 py-2.5 t-prose leading-6">
       {x.text}
@@ -153,6 +153,7 @@ function ChatItem({ x, copy }) {
       {x.denials.map((d, i) => <div key={i} className="truncate t-data text-muted-foreground">
         {d.tool + ' · ' + d.input}
       </div>)}
+      {onApprove ? <Button size="xs" variant="outline" icon={I.SquareTerminal} className="mt-2" onClick={onApprove}>Abrir no terminal para aprovar</Button> : null}
     </Aviso> : null}
     {!x.ok ? <Aviso icon={I.CircleX} tone="bad">
       <span className="whitespace-pre-wrap break-words">
@@ -234,6 +235,93 @@ function Intro({ ov }) {
   </div>;
 }
 
+// ================================================================== Modo terminal (Claude Code de verdade num PtyTerminal)
+const SESSION_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const TERM_STORE = 'hades-claude-term';
+const baseName = (p) => p.slice(p.lastIndexOf('/') + 1) || p;
+// o servidor devolve o `code`; a dica de "como ligar" vem do TermLogic (um texto só para o painel inteiro)
+const refusalOf = (d, status) => window.TermLogic.refusal(d && d.code, status);
+
+function TermMode({ ov, resume, onResume, term, mobile }) {
+  const api = useRef({ filter: null });
+  const [cwd, setCwd] = useState('');
+  const [err, setErr] = useState(null);
+  const [tid, setTid] = useState(() => { try { return sessionStorage.getItem(TERM_STORE) || null; } catch (e) { return null; } });
+  const [spec, setSpec] = useState(null);
+  const [exited, setExited] = useState(false);
+  const known = ov.sessions.filter((s) => s.claudeSession);
+  const roots = term?.roots || [];
+  const dir = cwd || roots[0] || '';
+  const keep = (id) => { setTid(id); try { id ? sessionStorage.setItem(TERM_STORE, id) : sessionStorage.removeItem(TERM_STORE); } catch (e) { /* aba privada: a mesa não lembra */ } };
+
+  const start = useCallback((r) => { setErr(null); setExited(false); keep(null); setSpec({ kind: 'claude', ...(dir ? { cwd: dir } : {}), ...(r ? { resume: r } : {}) }); }, [dir]);
+  // "continuar no terminal" / "aprovar": a página manda o id e a sessão abre sozinha
+  useEffect(() => { if (resume && term?.enabled) { start(resume); onResume(null); } }, [resume, term]);
+  const close = useCallback(async () => {
+    const id = tid;
+    keep(null); setSpec(null); setExited(false);
+    if (id) try { await post('/api/term/close', { id }); } catch (e) { /* já fechada */ }
+  }, [tid]);
+
+  if (!term) return <div className="grid flex-1 place-content-center t-meta text-muted-foreground" aria-busy="true">Consultando o terminal…</div>;
+  if (!term.enabled) {
+    const r = refusalOf({ code: 'term_disabled' }, 403);
+    return <div className="grid flex-1 place-content-center justify-items-center gap-3 p-6 text-center" role="status" data-claude-term="disabled">
+      <I.SquareTerminal className="size-6 text-muted-foreground" aria-hidden="true" />
+      <div className="t-section">{r.title}</div>
+      <p className="max-w-md t-body text-muted-foreground">{r.hint}</p>
+      <a className="t-body text-info hover:underline" href="#/config">Abrir Configurações</a>
+    </div>;
+  }
+  const live = tid || spec;
+  return <div className="flex min-h-0 flex-1 flex-col" data-claude-term="on">
+    <div className="flex flex-wrap items-end gap-3 border-b px-4 py-2.5 max-md:px-2">
+      <div className="grid min-w-0 gap-1 t-meta text-muted-foreground">
+        Pasta
+        <Select label="Pasta" value={dir} disabled={!!live} onChange={setCwd} className="max-w-64" items={roots.map((r) => ({ value: r, label: baseName(r) }))} />
+      </div>
+      <div className="grid min-w-0 gap-1 t-meta text-muted-foreground">
+        Sessão
+        <Select label="Retomar uma sessão" value={spec?.resume || resume || ''} disabled={!!live} onChange={(v) => onResume(v || null)} className="max-w-64"
+          items={[{ value: '', label: 'Nova sessão' }, ...known.map((s) => ({ value: s.claudeSession, label: s.title }))]} />
+      </div>
+      {live ? <Button size="sm" variant="outline" icon={I.X} onClick={close}>{exited ? 'Fechar' : 'Encerrar'}</Button>
+        : <Button size="sm" icon={I.SquareTerminal} onClick={() => start(resume && SESSION_RE.test(resume) ? resume : null)}>Abrir o Claude Code</Button>}
+      <span className="min-w-0 flex-1 truncate t-meta text-muted-foreground max-md:hidden">auto mode · aprovações no próprio terminal</span>
+    </div>
+    {err ? <div className="px-4 py-3"><Aviso icon={I.TriangleAlert} tone="warn"><div className="font-medium">{err.title}</div><div className="t-body text-muted-foreground">{err.hint}</div></Aviso></div> : null}
+    {live ? <PtyTerminal key={spec ? JSON.stringify(spec) : tid} className="min-h-0 flex-1" id={spec ? undefined : tid} open={spec || undefined}
+      apiRef={api} onOpened={(sess) => keep(sess.id)} onExit={() => setExited(true)}
+      onState={(ph) => { if (ph.kind === 'refused') { setErr(ph.refusal); if (ph.refusal.kind !== 'disabled') { keep(null); setSpec(null); } } }} />
+      : <div className="grid flex-1 place-content-center p-6 t-body text-muted-foreground">Escolha a pasta e a sessão e abra o Claude Code aqui.</div>}
+    {live && mobile ? <HadesCore.Mobile.TermKeyBar api={api} attention /> : null}
+  </div>;
+}
+
+// ================================================================== Anexos (imagem ou texto, para $D/claude/attach/<sessão>)
+const ATTACH_ACCEPT = 'image/png,image/jpeg,image/gif,image/webp,.txt,.md,.json,.log,.csv,.tsv,.yaml,.yml,.toml,.ini,.diff,.patch,.ts,.tsx,.js,.jsx,.mjs,.py,.sh,.rs,.go,.java,.kt,.c,.h,.cpp,.css,.html,.sql,.xml,.env';
+function fileBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] || '');
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+const kb = (n) => n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+// o `post` da base lança Error com a mensagem; o upload usa o dele só para repassar o token e ler o `code`
+async function uploadAttachment(body) {
+  const go = (token) => fetch('/api/claude/attach', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Panel-Token': token }, body: JSON.stringify(body) });
+  let r = await go(window.__TOKEN);
+  let d = await r.json().catch(() => ({}));
+  if (r.status === 403 && d.error === 'token') {
+    const t = await fetch('/api/token', { cache: 'no-store' }).then((x) => x.json()).catch(() => ({}));
+    if (t.token && t.token !== window.__TOKEN) { window.__TOKEN = t.token; r = await go(t.token); d = await r.json().catch(() => ({})); }
+  }
+  if (!r.ok) throw new Error(d.error || 'falha no envio do arquivo');
+  return d;
+}
+
 function Claude() {
   const { toast, confirm } = useApp();
   const [ov, setOv] = useState(null);
@@ -241,7 +329,16 @@ function Claude() {
   const [st, dispatch] = React.useReducer(chatReduce, CHAT0);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
-  const [listOpen, setListOpen] = useState(false);
+  const mobile = HadesCore.Mobile.useIsMobile();
+  const nav = HadesCore.Mobile.useMobileLevel();
+  const detailOn = mobile && nav.level === 'detail';
+  const vbox = HadesCore.Mobile.useViewBox(detailOn);
+  const [mode, setMode] = useState('chat');
+  const [resume, setResume] = useState(null);
+  const [files, setFiles] = useState([]);
+  const [draft, setDraft] = useState(null);
+  const pick_ = useRef(null);
+  const term = useTermRoots();
   const es = useRef(null), off = useRef(0), box = useRef(null), stick = useRef(true), area = useRef(null);
 
   const loadOv = useCallback(() => getJSON('/api/claude').then(setOv).catch(() => {}), []);
@@ -260,10 +357,12 @@ function Claude() {
   }, [close, loadOv]);
   useEffect(() => close, [close]);
 
-  const pick = useCallback((id) => { setListOpen(false); setSid(id); dispatch({ t: 'reset' }); stick.current = true; open(id, 0); }, [open]);
+  const pick = useCallback((id) => { setFiles([]); setDraft(null); setMode('chat'); setSid(id); dispatch({ t: 'reset' }); stick.current = true; open(id, 0); if (mobile) nav.enter(); }, [open, mobile, nav.enter]);
   // link direto: #/claude?s=<id> abre a sessão (a notificação e o atalho do celular usam)
   useEffect(() => { const m = /[?&]s=([0-9a-f]{8})/.exec(location.hash); if (m) pick(m[1]); }, []);
-  const fresh = useCallback(() => { setListOpen(false); close(); setSid(null); dispatch({ t: 'reset' }); setText(''); area.current?.focus(); }, [close]);
+  const fresh = useCallback(() => { close(); setSid(null); setFiles([]); setDraft(null); dispatch({ t: 'reset' }); setText(''); area.current?.focus(); }, [close]);
+  // celular: "Nova" e "Terminal" abrem o detalhe em tela cheia
+  const startNew = useCallback((terminal) => { fresh(); setMode(terminal ? 'terminal' : 'chat'); if (mobile) nav.enter(); }, [fresh, mobile, nav.enter]);
   const del = useCallback(async (s) => {
     if (!(await confirm({ title: 'Apagar a conversa do registro?', description: `${s.title}\n\nSai só do registro do Hades; o transcript fica em ~/.claude/projects.`, danger: true, icon: I.Trash2, confirmLabel: 'Apagar' }))) return;
     try { await post('/api/claude/delete', { id: s.id }); if (s.id === sid) fresh(); loadOv(); } catch (e) { toast({ kind: 'bad', title: 'Falha ao apagar', desc: e.message }); }
@@ -274,14 +373,24 @@ function Claude() {
     if (!t || sending || st.running) return;
     setSending(true);
     try {
-      const r = await post('/api/claude/send', { id: sid || undefined, text: t });
-      setText('');
+      const r = await post('/api/claude/send', { id: sid || undefined, text: t, ...(files.length ? { files: files.map((f) => f.file) } : {}), ...(!sid && draft ? { draft } : {}) });
+      setText(''); setFiles([]); setDraft(null);
       stick.current = true;
       if (!sid) { setSid(r.id); dispatch({ t: 'reset' }); open(r.id, 0); } else open(r.id, off.current);
       loadOv();
     } catch (e) { toast({ kind: 'bad', title: 'Falha ao enviar', desc: e.message }); }
     setSending(false);
-  }, [text, sending, st.running, sid, open, loadOv, toast]);
+  }, [text, sending, st.running, sid, files, draft, open, loadOv, toast]);
+  const attach = useCallback(async (list) => {
+    for (const f of list) {
+      try {
+        const d = await uploadAttachment({ name: f.name, data: await fileBase64(f), ...((sid || draft) ? { id: sid || draft } : {}) });
+        if (d.draft) setDraft(d.id);
+        setFiles((prev) => [...prev, d]);
+      } catch (e) { toast({ kind: 'bad', title: 'Anexo recusado', desc: `${f.name}: ${e.message}` }); }
+    }
+  }, [sid, draft, toast]);
+  const toTerminal = useCallback((claudeSession) => { setMode('terminal'); setResume(claudeSession); }, []);
   const PromptBar = window.HadesFx.use('PromptBar');
   const stop = useCallback(async () => {
     try { await post('/api/claude/stop', { id: sid }); } catch (e) { toast({ kind: 'bad', title: 'Falha ao parar', desc: e.message }); }
@@ -308,18 +417,18 @@ function Claude() {
   const cur = ov.sessions.find((s) => s.id === sid);
   const busy = st.running || !!cur?.running;
   const how = [ov.model ? modelLabel(ov.model) : null, ov.effort ? 'esforço ' + (EFFORT[ov.effort] || ov.effort) : null, 'auto mode'].filter(Boolean).join(' · ');
-  return <div className="flex h-[calc(100dvh-14rem)] min-h-[420px] gap-6">
+  return <div className={cn('flex gap-6 max-md:[&_button]:min-h-11 max-md:[&_button]:min-w-11', !mobile && 'h-[calc(100dvh-14rem)] min-h-[420px]')} data-claude-mobile={mobile ? nav.level : undefined}>
     <aside className="hidden w-72 shrink-0 flex-col md:flex">
-      <SessionList ov={ov} sid={sid} onPick={pick} onNew={fresh} onDelete={del} />
+      <SessionList ov={ov} sid={sid} onPick={pick} onNew={() => startNew(false)} onDelete={del} />
     </aside>
-    <Sheet open={listOpen} onClose={() => setListOpen(false)} side="left" title="Conversas">
-      <div className="flex h-full flex-col">
-        <SessionList ov={ov} sid={sid} onPick={pick} onNew={fresh} onDelete={del} />
-      </div>
-    </Sheet>
-    <section aria-label="Conversa" className="flex min-w-0 flex-1 flex-col overflow-hidden border">
+    {mobile && !detailOn ? <div className="flex min-w-0 flex-1 flex-col gap-3">
+      <Button icon={I.SquareTerminal} variant="outline" onClick={() => startNew(true)}>Claude Code no terminal</Button>
+      <SessionList ov={ov} sid={sid} onPick={pick} onNew={() => startNew(false)} onDelete={del} />
+    </div> : null}
+    {mobile && !detailOn ? null : <section aria-label="Conversa" style={detailOn ? { top: vbox.top, left: vbox.left, width: vbox.width, height: vbox.height } : undefined}
+      className={cn('flex min-w-0 flex-1 flex-col overflow-hidden border', detailOn && 'fixed z-40 flex-none border-0 bg-background')}>
       <header className="flex min-h-14 items-center gap-3 border-b px-4 py-2.5 max-md:px-2" data-tour-step-id="claude-cabecalho">
-        <Button variant="ghost" size="icon-sm" className="md:hidden" aria-label="Conversas" icon={I.PanelLeft} onClick={() => setListOpen(true)} />
+        <Button variant="ghost" size="icon-sm" className="md:hidden" aria-label="Voltar às conversas" icon={I.ArrowLeft} onClick={nav.leave} />
         <div className="min-w-0 flex-1">
           <h2 className="truncate t-section leading-6">
             {cur?.title || 'Nova conversa'}
@@ -329,6 +438,10 @@ function Claude() {
             {' · ' + how}
           </div>
         </div>
+        <span data-tour-step-id="claude-modo"><Segmented label="Modo" value={mode} onChange={setMode} items={[{ value: 'chat', label: 'Chat', icon: I.MessageSquare }, { value: 'terminal', label: 'Terminal', icon: I.SquareTerminal }]} /></span>
+        {mode === 'chat' && cur?.claudeSession ? <Tip text={busy ? 'Espere a resposta terminar' : 'Abre esta conversa no Claude Code de verdade'}>
+          <span><Button size="xs" variant="outline" icon={I.SquareTerminal} disabled={busy} onClick={() => toTerminal(cur.claudeSession)} className="max-md:hidden">Continuar no terminal</Button></span>
+        </Tip> : null}
         {busy ? <span className="flex shrink-0 items-center gap-1.5 t-label" role="status">
           <Dot kind="busy" pulse />
           respondendo
@@ -336,10 +449,11 @@ function Claude() {
           {`${ov.active} de ${ov.max} conversas respondendo agora`}
         </span> : null}
       </header>
+      {mode === 'terminal' ? <TermMode ov={ov} resume={resume} onResume={setResume} term={term} mobile={mobile} /> : <>
       <div ref={box} onScroll={(e) => { const b = e.currentTarget; stick.current = b.scrollHeight - b.scrollTop - b.clientHeight < 80; }} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 scrollbar-thin max-md:px-3">
         <div className={cn(COLUNA, 'grid content-start gap-4')} data-tour-step-id="claude-conversa" aria-live="polite" aria-busy={busy || undefined}>
           {!st.items.length && !st.live ? <Intro ov={ov} /> : null}
-          {st.items.map((x, i) => <ChatItem key={i} x={x} copy={x.k === 'result' ? turnText(st.items, i) : undefined} />)}
+          {st.items.map((x, i) => <ChatItem key={i} x={x} copy={x.k === 'result' ? turnText(st.items, i) : undefined} onApprove={x.k === 'result' && cur?.claudeSession && !busy ? () => toTerminal(cur.claudeSession) : undefined} />)}
           {st.live ? <div className="min-w-0">
             <ChatMd text={st.live} />
           </div> : null}
@@ -351,6 +465,18 @@ function Claude() {
       </div>
       <div className="border-t px-4 py-3 max-md:px-2 max-md:py-2" data-tour-step-id="claude-envio">
         <div className={COLUNA}>
+          {files.length ? <ul className="mb-2 flex flex-wrap gap-1.5" aria-label="Anexos desta mensagem">
+            {files.map((f) => <li key={f.file} className="flex items-center gap-1.5 border px-2 py-1 t-meta">
+              <I.Paperclip className="size-3" aria-hidden="true" />
+              <span className="max-w-48 truncate font-mono">{f.name}</span>
+              <span className="text-muted-foreground tnum">{kb(f.bytes)}</span>
+              <button type="button" aria-label={`Tirar o anexo ${f.name}`} onClick={() => setFiles((p) => p.filter((x) => x.file !== f.file))} className="cursor-pointer outline-none focus-visible:outline-2 focus-visible:outline-ring"><I.X className="size-3" aria-hidden="true" /></button>
+            </li>)}
+          </ul> : null}
+          <div className="flex items-end gap-2">
+          <input ref={pick_} type="file" multiple accept={ATTACH_ACCEPT} className="hidden" onChange={(e) => { attach([...e.target.files]); e.target.value = ''; }} />
+          <Button type="button" variant="outline" size="icon" icon={I.Paperclip} aria-label="Anexar arquivo (imagem ou texto)" title="Anexar arquivo (imagem ou texto)" disabled={busy} onClick={() => pick_.current?.click()} />
+          <div className="min-w-0 flex-1">
           {PromptBar ? <PromptBar width={4000} radius={0} busy={busy} placeholder={busy ? 'Respondendo…' : 'Mensagem para o Claude'}
             sources={[]} commands={[]} models={[]} efforts={[]}
             background="var(--card)" color="var(--foreground)" menuBackground="var(--popover)" sparkColor="var(--primary)"
@@ -359,9 +485,12 @@ function Claude() {
             {busy ? <Button type="button" variant="destructive" icon={I.Square} onClick={stop}>Parar</Button>
               : <Button type="submit" icon={I.SendHorizontal} loading={sending} disabled={!text.trim()}>Enviar</Button>}
           </form>}
+          </div>
+          </div>
         </div>
       </div>
-    </section>
+      </>}
+    </section>}
   </div>;
 }
 

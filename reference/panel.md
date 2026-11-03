@@ -20,7 +20,7 @@ A unit fica **fora** do slice `hades` (~40 MB): não conta no teto e segue no ar
 
 **APIs e contratos:** §API do diário · §API do Argos · §Widget Android (§Baixar o APK) · §Plugin: páginas, rotas e ações (§Host do plugin) · §Segurança local
 
-**Desenvolver a tela:** §Estrutura da tela · §Tema e ícone · §Layout no celular (390 px) · §Tipografia · §Linguagem de componentes · §Componentes do painel (fx) · §Armadilhas
+**Desenvolver a tela:** §Estrutura da tela · §Tema e ícone · §Layout no celular (390 px) · §Tipografia · §Linguagem de componentes · §Select · §Componentes do painel (fx) · §Armadilhas
 
 ## Início automático
 
@@ -753,7 +753,7 @@ Os nomes são os do shadcn, com o sentido do Hades:
 A tela é conferida a **390 px** (celular) e a **1440 px** (desktop); abaixo de 768 px (`md:`) a sidebar vira gaveta. Regras para página nova:
 - **Sem rolagem horizontal da página.** Fila de botões usa `flex-wrap`; item de grid já encolhe (`:where(.grid) > *`); texto longo leva `truncate` ou `min-w-0`.
 - **Tabela larga:** `Table` já rola dentro do próprio card (`overflow-x-auto`); lista densa vira cartão empilhado (`grid` de uma coluna no celular, colunas só de `sm:` para cima).
-- **Alvo de toque:** `Button`, `Input` e o `select` do `Choice` têm 44 px no celular (`max-md:h-11`); botão cru, `select`, link da navegação e link externo ganham piso de 40 px pela regra `@media (max-width: 767px), (pointer: coarse)` do `index.html`. Chave, caixa e fechar mantêm o desenho e só ampliam a área (`::after`).
+- **Alvo de toque:** `Button`, `Input` e o `Select` têm 44 px no celular (`max-md:h-11`); botão cru, `select`, link da navegação e link externo ganham piso de 40 px pela regra `@media (max-width: 767px), (pointer: coarse)` do `index.html`. Chave, caixa e fechar mantêm o desenho e só ampliam a área (`::after`).
 - **Diálogo** limita a altura a `100dvh − 2rem` e rola por dentro; a busca Ctrl K gruda no topo no celular, para o teclado não cobri-la.
 - **Cabeçalho:** o estado geral vira só o ponto; o texto fica para `sm:` (leitor de tela e tooltip mantêm).
 
@@ -783,7 +783,7 @@ Uma página nova usa estes, na ordem em que a leitura pede: estado primeiro, dep
 - **Linhas:** item de lista com `border-b`; selecionado com `border-l-2 border-l-foreground bg-accent/40`; o link
   estica pela linha (`after:absolute after:inset-0`) e as ações aparecem no hover/foco sem mudar a altura.
 - **Controles:** `Button` (h-8, `outline` com `border-strong`, foco em contorno de 2 px `ring`), `Segmented`, e
-  `Choice` (`Segmented` na mesa, `select` no celular; a largura vem de `useWide(px)`), `Legend` com traço, `Empty` em
+  `Choice` (`Segmented` na mesa, `Select` no celular; a largura vem de `useWide(px)`), `Legend` com traço, `Empty` em
   uma linha com a ação que resolve, `Progress` reto. `PrPicker` (`sel`, `toggle`, `applied`, `inSet`, `onItems`
   opcional) é o seletor de PRs de qualquer página: cada PR é um checkbox, o erro do `gh` sai em palavras.
 - **Escalas:** `niceTicks(max, n)` dá passos redondos até `max`; `niceTicksCovering(max, n)` passa de `max` quando a
@@ -793,6 +793,44 @@ Uma página nova usa estes, na ordem em que a leitura pede: estado primeiro, dep
 - **Movimento:** com sentido (fio correndo, ponto descendo, óbolo deslizando, número contando); nada de entrada
   escalonada. Efeito decorativo só por `HadesFx.use`, respeitando `prefers-reduced-motion` e `saveData`.
 - `Kpi`, `QuickAction`, `JobRow`, `Svc` e `TunnelCard` continuam exportados para plugins.
+
+## Select
+O `Select` (`app.tsx`, em `HadesCore` e `window.HadesPanel`) substitui o select nativo: gatilho e lista saem do painel, com os
+tokens do tema, igual em qualquer navegador e dispositivo. Regra do teclado e da busca em `ui/select-logic.tsx` (função pura,
+`window.SelectLogic`, carregada antes do `app.js`; testada em `loop/test/ts/painel-select.test.ts`).
+
+| prop | |
+|---|---|
+| `value`, `onChange(value)` | sempre texto, como no nativo (número: `value={String(n)}`, `onChange={(v) => setN(+v)}`) |
+| `items` | `{ value, label, count?, icon?, hint?, disabled?, group? }[]`; `count` aparece no gatilho como `rótulo (n)` |
+| `label` | `aria-label` do gatilho e da lista (e título da folha no celular) |
+| `size` | `sm` (h-8, toolbar) ou o padrão (h-11); abaixo de `md` (768 px) é sempre h-11 |
+| `placeholder` | texto do gatilho quando `value` não casa com nenhuma opção (inclui `value=""`) |
+| `disabled`, `className`, `id`, `autoFocus` | repassados ao gatilho |
+| `ref` | encaminhado ao gatilho (`ref.current.focus()`) |
+
+- **Mesa:** popover fixo no `body` (portal, não é cortado por `overflow` nem por diálogo), abre para cima se faltar espaço
+  embaixo; fecha ao clicar fora, rolar a página ou redimensionar. **Celular** (< 768 px): `Sheet side="bottom"` com opções de 44 px.
+- **Grupos:** `group` no item; itens do mesmo grupo ficam juntos (ordem da primeira aparição) sob um cabeçalho. Sem `group`, sem cabeçalho.
+- **Busca:** campo no topo da lista quando há mais de 10 opções (`SEARCH_MIN_OPTIONS`); casa rótulo, dica e grupo sem acento nem caixa.
+- **Teclado** (combobox/listbox da WAI-ARIA): no gatilho, setas/Enter/Espaço/Home/End abrem; na lista, setas andam (sem dar a
+  volta, pulando as desabilitadas), Home/End/PageUp/PageDown, Enter ou Espaço escolhem, Tab escolhe e segue, Esc fecha e devolve o
+  foco ao gatilho (sem fechar o diálogo em volta). Digitar pula para a opção que começa pelo texto (pausa de 700 ms zera;
+  letra repetida percorre). Com busca, o texto e o Espaço vão ao campo.
+- **Guarda** (`src/panel/select-guard.ts`, no `loop/test/ts/painel-select.test.ts`, que o `skill-release.sh check` já roda):
+  falha se aparecer o elemento nativo em `kit/panel/ui/` fora de `vendor/`, a menos que o arquivo esteja em `SELECT_PENDING`; e
+  falha se um arquivo da lista não tiver mais o nativo (a lista não mente). A migração está feita: `SELECT_PENDING` está vazia. `SELECT_REQUIRE_EMPTY=1` exige a lista vazia. É busca
+  de texto (comentário e string contam): em prosa escreva "select nativo". Plugins ficam de fora; usam `HadesPanel.Select`.
+
+**Roteiro de conversão** (guia para código novo ou vindo de fora: nativo → `Select`):
+1. `options` viram `items`: `<option value="x">Rótulo</option>` → `{ value: 'x', label: 'Rótulo' }`; `disabled` da opção vai no item.
+2. `onChange={(e) => f(e.target.value)}` → `onChange={f}`. `aria-label` vira `label`. `className` de altura/borda sai (o tamanho é
+   `size`); fica só largura (`min-w-0`, `w-full`).
+3. **`value=""` com opção "escolha…":** apague a opção vazia e passe `placeholder` ("Ir para a seção"); o `Select` mostra o placeholder
+   enquanto o valor não casa e chama `onChange` com a opção escolhida (a página zera o estado depois, como já fazia).
+4. **`optgroup`:** `group: 'Nome'` em cada item do grupo.
+5. **`ref`/foco:** `ref={ref}` vai direto ao gatilho (`first.current?.focus()` continua valendo).
+6. **Valor numérico:** converta na borda (`String(n)` / `+v`). **`disabled`:** igual; o gatilho já tem estilo.
 
 ## Componentes do painel (`panel/ui/fx/`)
 Escritos para o painel em `.tsx` sobre o React do `vendor/`, um arquivo por componente, sem bundler

@@ -4,6 +4,22 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.1.0 — 2026-11-03
+
+- **Painel: `Select` próprio no lugar do select nativo** (issue #2). `HadesCore.Select` e `HadesPanel.Select` (para plugins):
+  mesmo desenho em qualquer navegador e dispositivo, lista em portal na mesa (não é cortada por `overflow` nem por diálogo) e
+  folha inferior no celular (`Sheet side="bottom"`, opções de 44 px). Grupos, contagem, ícone, dica e opção desabilitada; busca
+  acima de 10 opções; teclado combobox/listbox da WAI-ARIA (setas, Home/End, PageUp/PageDown, digitar para pular, Esc fecha só a
+  lista). Os 14 selects do painel migraram: `Choice` no celular, "últimas N" do visualizador de logs, Caronte, Cerberus (guarda
+  agrupada por cabeça), Documentação, Configurações ("Ir para a seção"), criação de terminal, barra de leitura e ações do Argos.
+  A guarda `src/panel/select-guard.ts` (no `check`) reprova select nativo novo em `kit/panel/ui/` fora de `vendor/`. Referência e
+  roteiro de conversão em `reference/panel.md` §Select.
+- **Teste do doctor isolado da rede.** Com o repositório da skill público, o GET anônimo da checagem de versão responde e o
+  `doctor --json` do `bun-kit2` ganhava o aviso `versao-nova`; o teste agora desliga a checagem (`HADES_VERSION_CHECK_HOURS=0`).
+- Armadilhas medidas: o `Dialog` tem `transform`, que prende `position: fixed` (por isso o portal no `body`); o `value`/`onChange`
+  do `Select` é sempre texto (número se converte na borda); a regra de teclado e busca é pura (`ui/select-logic.tsx`,
+  `window.SelectLogic`) e testada sem navegador.
+
 ## 6.0.0 — 2026-11-03
 
 Primeiro release público, sob a licença MIT. O repositório recomeça aqui, e este arquivo também: o resumo abaixo é o que

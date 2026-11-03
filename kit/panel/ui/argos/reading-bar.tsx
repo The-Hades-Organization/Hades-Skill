@@ -2,7 +2,7 @@
  * o popover de filtros com contagem, os chips dos filtros ligados, a troca de layout (livre ou automático), a busca e as vistas salvas. Só desenha e coleta: a regra é de argos/logic.tsx e dos modelos de src/lib (canvas-filters,
  * canvas-search, canvas-urlstate); o executor das forças é argos/reading-runner.tsx. Carregado antes de pages/argos.js. */
 (() => {
-const { useState, useEffect, useRef, I, cn, Button, Input, Segmented } = HadesCore;
+const { useState, useEffect, useRef, I, cn, Button, Input, Segmented, Select } = HadesCore;
 const L = window.ArgosLogic;
 const M = window.CanvasModel;
 
@@ -152,11 +152,9 @@ function ViewsBar({ views, ask, onApply, onSave, onRename, onRemove }) {
     </form>;
   }
   return <div className="flex flex-wrap items-center gap-1">
-    {views.length ? <select aria-label="Vistas salvas" value={current} onChange={(e) => { setCurrent(e.target.value); if (e.target.value) onApply(e.target.value); }}
-      className="h-8 min-w-0 max-w-48 cursor-pointer border border-border-strong bg-background px-2 t-control max-md:h-11">
-      <option value="">Vistas salvas…</option>
-      {views.map((v) => <option key={v.name} value={v.name}>{v.name}</option>)}
-    </select> : null}
+    {views.length ? <Select size="sm" label="Vistas salvas" value={current} placeholder="Vistas salvas…" className="min-w-0 max-w-48"
+      onChange={(v) => { setCurrent(v); if (v) onApply(v); }}
+      items={views.map((v) => ({ value: v.name, label: v.name }))} /> : null}
     <Button variant="outline" size="sm" icon={I.Bookmark} title="Guarda a posição da câmera com um nome (os filtros têm o próprio salvar, na paleta)" onClick={() => open('save')}>Salvar vista</Button>
     {current ? <>
       <Button variant="ghost" size="icon-sm" icon={I.Pencil} aria-label={`Renomear a vista ${current}`} title="Renomear" onClick={() => open('rename')} />

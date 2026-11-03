@@ -4,7 +4,7 @@
 (() => {
 const { useState, useEffect, useRef, useCallback, I, cn, gb, mb, post, getJSON, Button, Dot, Card, CardHeader,
   CardContent, Switch, Input, Mono, Tip, Empty, Dialog, DialogHeader, DialogFooter, useApp, route, useActions,
-  Segmented, Checkbox, CFG_APPLY, modelLabel, cfgNorm, slugify, Loading } = HadesCore;
+  Segmented, Checkbox, CFG_APPLY, modelLabel, cfgNorm, slugify, Loading, Select } = HadesCore;
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 // o modo de aplicar vem do registro (CFG_APPLY, que plugins estendem); modo sem registro aparece pelo nome
@@ -202,10 +202,8 @@ function CfgIndex({ groups }) {
         </li>)}
       </ul>
     </nav>
-    <select aria-label="Ir para a seção" value="" onChange={(e) => goTo(e.target.value)} className="h-11 w-full border border-border-strong bg-background px-3 t-body cursor-pointer lg:hidden">
-      <option value="" disabled>{`Ir para a seção (${groups.length})`}</option>
-      {groups.map((x) => <option key={x.id} value={x.id}>{`${x.g} (${x.n})`}</option>)}
-    </select>
+    <Select label="Ir para a seção" value="" onChange={goTo} className="w-full lg:hidden" placeholder={`Ir para a seção (${groups.length})`}
+      items={groups.map((x) => ({ value: x.id, label: x.g, count: x.n }))} />
   </>;
 }
 

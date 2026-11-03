@@ -3,7 +3,7 @@
  * pelo navegador (reference/caronte.md). */
 (() => {
 const { useState, useEffect, useCallback, useRef, I, getJSON, post, useApp, Button, HoldConfirm, Card, CardHeader, CardContent, CopyButton,
-  Mono, Empty, Skeleton, Loading, Dot, Fio, Regua, Leitura, LinhaDeEstado, ago, cn, useWide, useTourPreview, ExampleSeal } = HadesCore;
+  Mono, Empty, Skeleton, Loading, Dot, Fio, Regua, Leitura, LinhaDeEstado, ago, cn, useWide, useTourPreview, ExampleSeal, Select } = HadesCore;
 
 // prontidão do agente para o pack: estacionado e encerrado atravessam; trabalhando ainda segura o barco
 const READINESS = { parked: ['estacionado', 'ok'], ended: ['encerrado', 'idle'], working: ['trabalhando', 'busy'] };
@@ -194,9 +194,7 @@ function Caronte() {
           Plano
           {exemplo ? <> <ExampleSeal /></> : null}
         </span>
-        <select value={selected} onChange={(e) => setCur(e.target.value)} className="h-11 min-w-0 cursor-pointer border border-border-strong bg-background px-3 t-body">
-          {data.plans.map((p) => <option key={p.name} value={p.name}>{planItem(p)}</option>)}
-        </select>
+        <Select value={selected} onChange={setCur} label="Plano" className="w-full min-w-0" items={data.plans.map((p) => ({ value: p.name, label: planItem(p) }))} />
       </label>}
       {plan ? <div className="grid min-w-0 gap-10">
         <div className="grid gap-4">

@@ -135,6 +135,8 @@ interface HadesCoreApi extends HadesPanelApi {
   Table: PanelComponent;
   Segmented: PanelComponent;
   Choice: PanelComponent;
+  /** Substitui o select nativo: `value`/`onChange(value)` em texto, `items`, `label`, `size` (sm|md), `placeholder`, `ref` no gatilho. */
+  Select: PanelComponent;
   useWide(px: number): boolean;
   niceTicks(max: number, n: number): number[];
   niceTicksCovering(max: number, n: number): number[];

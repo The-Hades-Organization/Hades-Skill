@@ -3,7 +3,7 @@
  * `/api/argos/roles*`, `/api/argos/presets*`); aqui só se monta o corpo, se lê a resposta e se pede a confirmação do dono.
  * Script clássico carregado sob demanda pela página (lista fechada em pages/argos.tsx). Expõe window.ArgosTerminalCreate. */
 (() => {
-const { useState, useEffect, I, cn, Button, Input, Dialog, DialogHeader, DialogFooter, Segmented } = HadesCore;
+const { useState, useEffect, I, cn, Button, Input, Dialog, DialogHeader, DialogFooter, Segmented, Select } = HadesCore;
 const NT = () => window.ArgosNodeTerminal;
 
 /** Códigos de erro das rotas (contrato do servidor) mais os do cliente; quem consome ramifica por eles, nunca pelo texto. */
@@ -281,18 +281,14 @@ function TerminalDialog({ open, mode = 'create', tab: initialTab = 'details', in
       <Segmented label="Aba" value={tab} onChange={setTab} items={[{ value: 'details', label: 'Detalhes' }, { value: 'appearance', label: 'Aparência' }]} />
       {tab === 'details' ? <div className="grid gap-3">
         {create ? <Row label="Predefinição" hint="Sugere agente, modelo, esforço, papel e aparência.">
-          <select value={form.preset} onChange={(e) => pickPreset(e.target.value)} className={cn(FIELD, 'cursor-pointer')}>
-            <option value="">Nenhuma</option>
-            {presets.map((p) => <option key={p.slug} value={p.slug}>{p.name}</option>)}
-          </select>
+          <Select size="sm" label="Predefinição" className="w-full min-w-0" value={form.preset} onChange={pickPreset}
+            items={[{ value: '', label: 'Nenhuma' }, ...presets.map((p) => ({ value: p.slug, label: p.name }))]} />
         </Row> : null}
         <Row label="Nome"><Input autoFocus value={form.name} onInput={text('name')} maxLength={NT().TERMINAL_NAME_MAX} aria-label="Nome" /></Row>
         {create ? <Row label="Papel" hint="Instruções injetadas quando o agente inicia.">
           <div className="flex gap-2">
-            <select value={form.role} onChange={text('role')} className={cn(FIELD, 'cursor-pointer')}>
-              <option value="">Sem papel</option>
-              {roles.map((r) => <option key={r.slug} value={r.slug}>{r.name}</option>)}
-            </select>
+            <Select size="sm" label="Papel" className="w-full min-w-0" value={form.role} onChange={set('role')}
+              items={[{ value: '', label: 'Sem papel' }, ...roles.map((r) => ({ value: r.slug, label: r.name }))]} />
             {onManageRoles ? <Button type="button" size="sm" variant="outline" onClick={onManageRoles}>Papéis…</Button> : null}
           </div>
         </Row> : null}
@@ -324,10 +320,8 @@ function TerminalDialog({ open, mode = 'create', tab: initialTab = 'details', in
           <Row label="Texto"><ColorPicker label="Texto" value={form.themeFg} onChange={set('themeFg')} allowDefault={false} /></Row>
         </div> : null}
         <Row label="Fonte" hint="A grade conta 0,6 em por célula: fonte que não cumpre isso desalinha.">
-          <select value={form.font} onChange={text('font')} className={cn(FIELD, 'cursor-pointer')}>
-            <option value="">Padrão</option>
-            {Object.keys(NT().TERMINAL_FONTS).map((f) => <option key={f} value={f}>{NT().TERMINAL_FONT_LABELS[f]}</option>)}
-          </select>
+          <Select size="sm" label="Fonte" className="w-full min-w-0" value={form.font} onChange={set('font')}
+            items={[{ value: '', label: 'Padrão' }, ...Object.keys(NT().TERMINAL_FONTS).map((f) => ({ value: f, label: NT().TERMINAL_FONT_LABELS[f] }))]} />
         </Row>
         <Preview form={form} />
       </div>}

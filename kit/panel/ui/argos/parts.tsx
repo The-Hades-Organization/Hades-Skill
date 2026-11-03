@@ -2,7 +2,7 @@
  * (window.ArgosLogic); aqui só se desenha e se coleta. Carregado antes de pages/argos.js. */
 (() => {
 const { useState, useEffect, useRef, useMemo, useCallback, I, cn, getJSON, Button, Dot, Mono, Empty, Dialog, DialogHeader, DialogFooter, Sheet, Input,
-  Skeleton, HoldConfirm, CardHeader, Fio, Tracos, Progress, Menu } = HadesCore;
+  Skeleton, HoldConfirm, CardHeader, Fio, Tracos, Progress, Menu, Select } = HadesCore;
 const L = window.ArgosLogic;
 // cor, forma, ícone e indicadores dos nós: a regra e as tabelas moram em src/lib/canvas-argos.ts (pacote do modelo)
 const A = window.CanvasModel.argos;
@@ -536,10 +536,8 @@ function ActionDialog({ node, action, detail, onClose, onRun }) {
           onSend={(t) => { const v = L.validateArgs(action, { ...vals, [f.name]: t }); if (!v.ok) { setErr(v.reason); return; } onRun(action, v.args, typed); onClose(); }} />
           : f.kind === 'textarea' ? <textarea ref={i === 0 ? first : undefined} rows={4} value={vals[f.name] || ''} onInput={(e) => set(f.name, e.target.value)}
           className="min-h-24 max-h-60 resize-y border border-border-strong bg-background px-3 py-2 text-base outline-none focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-ring md:text-sm" />
-          : f.kind === 'select' ? <select ref={i === 0 ? first : undefined} value={vals[f.name] || ''} onChange={(e) => set(f.name, e.target.value)}
-            className="h-8 cursor-pointer border border-border-strong bg-background px-2 text-base max-md:h-11 md:text-sm">
-            {options(f).map((o) => <option key={o} value={o}>{KEY_LABEL[o] || o}</option>)}
-          </select>
+          : f.kind === 'select' ? <Select ref={i === 0 ? first : undefined} size="sm" label={f.label} value={vals[f.name] || ''} onChange={(v) => set(f.name, v)}
+            items={options(f).map((o) => ({ value: o, label: KEY_LABEL[o] || o }))} />
           : <Input autoFocus={i === 0} value={vals[f.name] || ''} maxLength={f.max} onInput={(e) => set(f.name, e.target.value)} />}
       </label>)}
       {destructive ? <Input value={typed} onInput={(e) => setTyped(e.target.value)} placeholder={node.label} aria-label="Nome do agente" autoFocus /> : null}
@@ -574,10 +572,8 @@ function AskDialog({ ask, onDone }) {
     <form onSubmit={submit} className="grid gap-4">
       <DialogHeader icon={ask.kind === 'confirm' ? I.CircleAlert : I.Pencil} tone={ask.phrase ? 'danger' : undefined} title={ask.title} description={ask.text || undefined} />
       {ask.kind === 'text' ? <Input autoFocus value={value} onInput={(e) => setValue(e.target.value)} aria-label={ask.title} />
-        : ask.kind === 'choose' ? <select autoFocus value={value} onChange={(e) => setValue(e.target.value)} aria-label={ask.title}
-          className="h-8 cursor-pointer border border-border-strong bg-background px-2 text-base max-md:h-11 md:text-sm">
-          {(ask.options || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
+        : ask.kind === 'choose' ? <Select autoFocus size="sm" label={ask.title} value={value} onChange={setValue}
+          items={(ask.options || []).map((o) => ({ value: o.value, label: o.label }))} />
         : ask.phrase ? <label className="grid gap-1.5 t-body"><span>Digite {ask.phrase} para confirmar</span>
           <Input autoFocus value={value} onInput={(e) => setValue(e.target.value)} placeholder={ask.phrase} /></label> : null}
       <DialogFooter>

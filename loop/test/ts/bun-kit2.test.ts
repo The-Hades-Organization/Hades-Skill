@@ -748,6 +748,8 @@ describe("doctor", () => {
     mkd(d); rmSync(`${d}.home`, { recursive: true, force: true }); rmSync(`${d}/plugin`, { recursive: true, force: true }); mk(`${d}.home/.claude/hades/instances`, `${d}/plugin`);
     for (const f of ["config.tsv", "lib-checks.sh"]) copyFileSync(`${K}/${f}`, `${d}/${f}`); wr(`${d}/kit.version`, "4.0.0\n");
     wr(`${d}.home/.claude/hades/instance`, `${d}\n`); wr(`${d}.home/.claude/hades/work-root`, `${d}.work\n`); wr(`${d}.ss`, "total  0\n");
+    // o repo da skill é público: sem desligar a checagem, o doctor consulta o GitHub de verdade e o aviso versao-nova entra no golden
+    appendFileSync(`${d}/env.sh`, "export HADES_VERSION_CHECK_HOURS=0\n");
     for (const x of kv) appendFileSync(`${d}/env.sh`, `export ${x}\n`);
   };
   /** A versão e o caminho da skill são desta máquina e desta versão: saem do texto. */

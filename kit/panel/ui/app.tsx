@@ -29,6 +29,8 @@ const STAGE = {};
 const pluginList = (k) => Array.isArray(PLUGIN.manifest[k]) ? PLUGIN.manifest[k] : [];
 // tour por página (tour-logic.tsx, carregado antes): registro, prévia de exemplo e progresso
 const TL = window.TourLogic;
+// regra do Select (select-logic.tsx, carregado antes): lista com grupos, teclado, digitar para pular e busca
+const SL = window.SelectLogic;
 
 // ------------------------------------------------------------------ formato
 const GB = 1024 ** 3, MB = 1024 ** 2;
@@ -316,7 +318,7 @@ function Sheet({ open, onClose, side = 'right', title, description, icon: Icon, 
   if (!open) return null;
   return ReactDOM.createPortal(<div className="fixed inset-0 z-50">
     <div className="absolute inset-0 bg-black/40 animate-fade-in" onClick={onClose} />
-    <aside role="dialog" aria-modal="true" aria-label={title} className={cn('fixed inset-y-0 flex w-full flex-col gap-0 border bg-background shadow-xl', side === 'right' ? 'right-0 border-l animate-slide-in-right' : 'left-0 border-r animate-slide-in-left', rail && 'border-sidebar-border bg-sidebar text-sidebar-foreground', wide ? 'sm:max-w-4xl' : 'sm:max-w-sm')}>
+    <aside role="dialog" aria-modal="true" aria-label={title} className={cn('fixed flex w-full flex-col gap-0 border bg-background shadow-xl', side === 'bottom' ? 'inset-x-0 bottom-0 max-h-[75dvh] border-x-0 border-b-0 animate-fade-in' : side === 'right' ? 'inset-y-0 right-0 border-l animate-slide-in-right' : 'inset-y-0 left-0 border-r animate-slide-in-left', rail && 'border-sidebar-border bg-sidebar text-sidebar-foreground', side === 'bottom' ? '' : wide ? 'sm:max-w-4xl' : 'sm:max-w-sm')}>
       {title ? <header className="flex items-start gap-3 border-b p-4 pr-12">
         {Icon ? <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" /> : null}
         <div className="min-w-0 flex-1">
@@ -1087,6 +1089,8 @@ const Segmented = ({ value, onChange, items, className, label }) => {
   </button>)}
 </div>;
 };
+// quantas linhas o LogViewer pede ao servidor (o "últimas N")
+const LOG_TAILS = [300, 800, 2000, 5000].map((v) => ({ value: String(v), label: String(v) }));
 // largura da janela acima de um ponto de quebra (px), viva: troca a forma de um controle, não só o estilo
 function useWide(px) {
   const [w, setW] = useState(() => matchMedia(`(min-width: ${px}px)`).matches);
@@ -1098,15 +1102,124 @@ function useWide(px) {
   }, [px]);
   return w;
 }
-// alternância na mesa, select no celular (abas não cabem em 390 px)
+// alternância na mesa, Select no celular (abas não cabem em 390 px)
 function Choice({ wide, value, onChange, items, label, className }) {
   if (wide) return <Segmented label={label} value={value} onChange={onChange} items={items} />;
-  return <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} className={cn('h-11 min-w-0 border border-border-strong bg-background px-3 t-body cursor-pointer', className)}>
-    {items.map((it) => <option key={it.value} value={it.value}>
-      {it.label + (it.count != null ? ` (${it.count})` : '')}
-    </option>)}
-  </select>;
+  return <Select value={value} onChange={onChange} items={items} label={label} className={cn('min-w-0', className)} />;
 }
+
+// Select: no lugar do select nativo. Gatilho e lista desenhados com os tokens do tema; lista em popover na mesa e em folha de
+// baixo no celular. `value` e `onChange(value)` são sempre texto, como no nativo. Regra do teclado e da busca: select-logic.tsx.
+const SELECT_SIZE = { sm: 'h-8 px-2 max-md:h-11 max-md:px-3', md: 'h-11 px-3' };
+const SELECT_MIN_WIDTH = 176;
+const SELECT_MAX_HEIGHT = 320;
+const SELECT_EDGE = 8;
+const SELECT_BREAKPOINT = 768;
+const Select = React.forwardRef(function Select({ value = '', onChange, items = [], label, size = 'md', disabled, className, placeholder, autoFocus, id }: any, ref) {
+  const wide = useWide(SELECT_BREAKPOINT);
+  const uid = 'sel' + useId().replace(/:/g, '');
+  const trigger = useRef(null);
+  const focusEl = useRef(null);
+  const setTrigger = (el) => { trigger.current = el; if (typeof ref === 'function') ref(el); else if (ref) ref.current = el; };
+  const [st, setSt] = useState(() => SL.initial());
+  const [query, setQuery] = useState('');
+  const [pos, setPos] = useState(null);
+  const hasSearch = SL.searchable(items);
+  const visible = SL.ordered(SL.filter(items, query));
+  const picked = items.find((it) => it.value === value);
+  const optId = (i) => `${uid}-o${i}`;
+
+  const measure = () => {
+    const r = trigger.current.getBoundingClientRect();
+    const width = Math.max(r.width, SELECT_MIN_WIDTH);
+    const left = Math.max(SELECT_EDGE, Math.min(r.left, innerWidth - width - SELECT_EDGE));
+    const below = innerHeight - r.bottom - SELECT_EDGE * 2, above = r.top - SELECT_EDGE * 2;
+    const up = below < 200 && above > below;
+    return { left, width, maxHeight: Math.min(SELECT_MAX_HEIGHT, up ? above : below), ...(up ? { bottom: innerHeight - r.top + 4 } : { top: r.bottom + 4 }) };
+  };
+  const begin = (next) => { setPos(measure()); setQuery(''); setSt(next); };
+  const close = (refocus) => { setSt((s) => ({ ...s, open: false })); setQuery(''); if (refocus) trigger.current?.focus(); };
+  const choose = (v) => { close(true); onChange?.(v); };
+  const toggle = () => st.open ? close(true) : begin({ ...st, open: true, active: SL.initialActive(visible, value) });
+
+  const onKey = (e) => {
+    const ev = { key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey };
+    if (!st.open && hasSearch && e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      setPos(measure()); setQuery(e.key);
+      setSt({ ...st, open: true, active: SL.afterFilter(SL.ordered(SL.filter(items, e.key)), value) });
+      return;
+    }
+    const step = SL.keyStep(visible, value, st, ev, Date.now(), hasSearch);
+    if (step.handled) { e.preventDefault(); if (st.open) e.stopPropagation(); }
+    if (step.state.open && !st.open) begin(step.state); else setSt(step.state);
+    if (st.open && !step.state.open) {
+      setQuery('');
+      if (e.key === 'Tab' || e.key === 'Escape' || step.pick !== undefined) trigger.current?.focus();
+    }
+    if (step.pick !== undefined) onChange?.(step.pick);
+  };
+  const onSearch = (e) => {
+    setQuery(e.target.value);
+    setSt((s) => ({ ...s, active: SL.afterFilter(SL.ordered(SL.filter(items, e.target.value)), value) }));
+  };
+
+  useEffect(() => { if (st.open) focusEl.current?.focus({ preventScroll: true }); }, [st.open]);
+  useEffect(() => { if (st.open) document.getElementById(optId(st.active))?.scrollIntoView({ block: 'nearest' }); }, [st.open, st.active]);
+  useEffect(() => {
+    if (!st.open || !wide) return;
+    const away = (e) => { if (!e.target.closest?.('[data-select-pop]') && !trigger.current?.contains(e.target)) close(false); };
+    const scrolled = (e) => { if (!e.target.closest?.('[data-select-pop]')) close(false); };
+    const shut = () => close(false);
+    addEventListener('pointerdown', away); addEventListener('scroll', scrolled, true); addEventListener('resize', shut);
+    return () => { removeEventListener('pointerdown', away); removeEventListener('scroll', scrolled, true); removeEventListener('resize', shut); };
+  }, [st.open, wide]);
+
+  const rowH = wide ? 'py-1.5' : 'min-h-11 py-2';
+  const body = <>
+    {hasSearch ? <div className="flex items-center gap-2 border-b border-border px-2">
+      <I.Search className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <input ref={focusEl} type="text" role="combobox" aria-expanded="true" aria-controls={uid} aria-activedescendant={st.active >= 0 ? optId(st.active) : undefined} aria-label={`Buscar${label ? ' em ' + label : ''}`} autoComplete="off" placeholder="Buscar…" value={query} onChange={onSearch} className={cn('min-w-0 flex-1 bg-transparent t-body text-foreground outline-none placeholder:text-muted-foreground', wide ? 'h-9' : 'h-11')} />
+    </div> : null}
+    <div id={uid} role="listbox" aria-label={label} ref={hasSearch ? undefined : focusEl} tabIndex={hasSearch ? undefined : -1} aria-activedescendant={!hasSearch && st.active >= 0 ? optId(st.active) : undefined} className="min-h-0 flex-1 overflow-y-auto p-1 outline-none scrollbar-thin">
+      {visible.length === 0 ? <div className="px-2 py-3 t-body text-muted-foreground">Nenhum resultado</div> : SL.rows(visible).map((r, k) => {
+        if (r.kind === 'group') return <div key={'g' + k} role="presentation" className="px-2 pt-2 pb-1 t-label text-muted-foreground">{r.label}</div>;
+        const it = r.item, on = it.value === value, act = r.index === st.active;
+        return <div key={it.value} id={optId(r.index)} role="option" aria-selected={on} aria-disabled={it.disabled || undefined}
+          onMouseMove={() => { if (!it.disabled && !act) setSt((s) => ({ ...s, active: r.index })); }}
+          onClick={() => { if (!it.disabled) choose(it.value); }}
+          className={cn('flex w-full cursor-pointer items-center gap-2 px-2 t-body select-none', rowH, act && 'bg-accent', it.disabled && 'cursor-not-allowed opacity-50', on && 'font-medium')}>
+          {it.icon ? <it.icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" /> : null}
+          <span className="min-w-0 flex-1 truncate">
+            {it.label}
+            {it.hint ? <span className="ml-2 t-meta text-muted-foreground">{it.hint}</span> : null}
+          </span>
+          {it.count != null ? <span className="shrink-0 t-meta text-muted-foreground tnum">{it.count}</span> : null}
+          {on ? <I.Check className="size-4 shrink-0" aria-hidden="true" /> : <span className="size-4 shrink-0" aria-hidden="true" />}
+        </div>;
+      })}
+    </div>
+  </>;
+
+  return <>
+    <button ref={setTrigger} id={id} type="button" role="combobox" aria-haspopup="listbox" aria-expanded={st.open} aria-controls={st.open ? uid : undefined} aria-label={label} disabled={disabled} autoFocus={autoFocus} onClick={toggle} onKeyDown={onKey}
+      className={cn('inline-flex items-center justify-between gap-2 border border-border-strong bg-background t-body text-foreground cursor-pointer select-none outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50', SELECT_SIZE[size] || SELECT_SIZE.md, className)}>
+      {picked?.icon ? <picked.icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" /> : null}
+      <span className={cn('min-w-0 flex-1 truncate text-left', !picked && 'text-muted-foreground')}>
+        {picked ? picked.label + (picked.count != null ? ` (${picked.count})` : '') : (placeholder ?? '')}
+      </span>
+      <I.ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+    </button>
+    {st.open && wide && pos ? ReactDOM.createPortal(<div data-select-pop style={pos} onKeyDown={onKey} className="fixed z-[60] flex flex-col overflow-hidden border border-border-strong bg-popover text-popover-foreground shadow-lg animate-fade-in">
+      {body}
+    </div>, document.body) : null}
+    {!wide ? <Sheet open={st.open} side="bottom" title={label} onClose={() => close(true)}>
+      <div data-select-pop onKeyDown={onKey} className="flex max-h-[60dvh] flex-col">
+        {body}
+      </div>
+    </Sheet> : null}
+  </>;
+});
 function Checkbox({ checked, onChange, label }) {
   return <button type="button" role="checkbox" aria-checked={checked} aria-label={label} onClick={(e) => { e.stopPropagation(); onChange(!checked); }} className={cn('relative grid size-4 shrink-0 place-items-center border transition-colors cursor-pointer outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring', checked ? 'border-primary bg-primary text-primary-foreground' : 'border-border-strong')}>
     {checked ? <I.Check className="size-3.5" strokeWidth={3} aria-hidden="true" /> : null}
@@ -1367,11 +1480,7 @@ function LogViewer({ src, title, className, flow, missing }) {
       <Input icon={I.TextSearch} className="md:max-w-56 max-md:basis-full" aria-label="Filtrar linhas" placeholder="Filtrar linhas…" value={find} onInput={(e) => setFind(e.target.value)} />
       {!src?.startsWith('doc:') ? <label className="flex items-center gap-1.5 t-label text-muted-foreground">
         últimas
-        <select value={n} onChange={(e) => setN(+e.target.value)} className="h-8 border border-border-strong bg-background px-2 t-body text-foreground tnum cursor-pointer max-md:h-11">
-          {[300, 800, 2000, 5000].map((v) => <option key={v} value={v}>
-            {v}
-          </option>)}
-        </select>
+        <Select size="sm" label="Últimas linhas" value={String(n)} onChange={(v) => setN(+v)} items={LOG_TAILS} className="tnum" />
       </label> : null}
       {!src?.startsWith('doc:') ? <Button size="sm" variant={follow ? 'secondary' : 'outline'} aria-pressed={follow} icon={follow ? I.Pause : I.Play} onClick={() => setFollow(!follow)}>
         {follow ? 'Seguindo' : 'Seguir'}
@@ -1843,7 +1952,7 @@ window.HadesPanel = {
   React, html, I, cn, gb, mb, dur, pct, dt, hhmm, post, getJSON, CARD_SCROLL,
   Button, Badge, Card, CardHeader, CardContent, Table, Th, Td, Tr, Menu, Tip, Empty, Input, Progress, StateBadge, Switch, Mono,
   CopyButton, Dot, Field, Dialog, DialogHeader, DialogFooter, Kpi, QuickAction, Svc, TunnelCard, svcState, unitState, useApp, useActions,
-  Fio, Regua, Leitura, LinhaDeEstado, Num, Tracos,
+  Fio, Regua, Leitura, LinhaDeEstado, Num, Tracos, Select,
   registerPage(id, Comp, opts = {}) {
     if (typeof id !== 'string' || typeof Comp !== 'function') throw new TypeError('registerPage(id, Componente)');
     // plugin que troca uma página do núcleo sem trazer o tour dela: o tour do núcleo apontaria para cards que não existem
@@ -1894,7 +2003,7 @@ window.HadesCore = { useState, useEffect, useRef, useMemo, useCallback, useId, I
   gb, mb, dur, dt, pct, post, getJSON, Button, HoldConfirm, Badge, Dot, CARD_SCROLL, Card, CardHeader, CardContent, Switch, Field,
   Input, Progress, Skeleton, Kbd, Mono, Tip, CopyButton, Empty, Table, Th, Td, Tr, Menu, Dialog, DialogHeader, DialogFooter,
   Sheet, useWidth, AreaChart, niceTicks, niceTicksCovering, Legend, OVERALL, svcState, StateBadge, useApp, route, useActions, Kpi, QuickAction,
-  JOB_ST, JobRow, jobFio, ago, Segmented, Choice, useWide, Checkbox, PrPicker, Terminal, LogViewer, slugify, renderMd, CFG_ICON, CFG_APPLY,
+  JOB_ST, JobRow, jobFio, ago, Segmented, Choice, Select, useWide, Checkbox, PrPicker, Terminal, LogViewer, slugify, renderMd, CFG_ICON, CFG_APPLY,
   modelLabel, cfgNorm, Loading, Fio, FIO_ESTADO, Regua, Leitura, LinhaDeEstado, Num, Tracos, liveThreads, get NAV() { return NAV; },
   registerPage: window.HadesPanel.registerPage,
   registerTour: (id, def) => TL.register(id, def), hasTour: (id) => TL.has(id), startPageTour, useTourPreview, ExampleSeal, TL };

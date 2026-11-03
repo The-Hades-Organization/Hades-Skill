@@ -2,7 +2,7 @@
  * Leitura: o texto numa medida de 70ch (código e tabelas podem passar dela), o índice do grupo e os tópicos ao lado. */
 (() => {
 const { useState, useEffect, useRef, useMemo, useCallback, I, cn, getJSON, Button, Card, CardHeader, CardContent, Input,
-  Skeleton, Mono, Empty, ago, Segmented, slugify, renderMd, Loading } = HadesCore;
+  Skeleton, Mono, Empty, ago, Segmented, slugify, renderMd, Loading, Select } = HadesCore;
 
 function topics(text) {
   const out = []; let fence = false;
@@ -18,7 +18,6 @@ const plain = (t) => t.replace(/`/g, '');
 // elemento segue a própria fonte, e o título (20 px) ficaria mais largo que o parágrafo. 41rem ≈ 70ch do corpo (15 px)
 const PROSA = '[&>*:not(pre,table)]:max-w-[68ch] max-md:[&>h1]:t-kpi';
 const ROW = 'relative block w-full border-l-2 py-1.5 pr-2 text-left t-body transition-colors cursor-pointer outline-none hover:bg-accent/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
-const SELECT = 'h-8 w-full min-w-0 border border-border-strong bg-background px-2 t-body text-foreground cursor-pointer max-md:h-11';
 
 function Topicos({ shown, total, active, go, q, setQ }) {
   return <div className="grid gap-2">
@@ -82,11 +81,8 @@ function Docs() {
       <Segmented value={g?.title} onChange={pickGroup} className="max-xl:hidden" items={idx.groups.map((x) => ({ value: x.title, label: x.title, count: x.items.length > 1 ? x.items.length : null }))} />
       <label className="grid min-w-0 flex-1 gap-1.5 t-label text-muted-foreground md:max-w-xs xl:hidden">
         Grupo
-        <select value={g?.title} onChange={(e) => pickGroup(e.target.value)} className={SELECT}>
-          {idx.groups.map((x) => <option key={x.title} value={x.title}>
-            {x.title + (x.items.length > 1 ? ` (${x.items.length})` : '')}
-          </option>)}
-        </select>
+        <Select size="sm" value={g?.title} onChange={pickGroup} label="Grupo" className="w-full min-w-0"
+          items={idx.groups.map((x) => ({ value: x.title, label: x.title, count: x.items.length > 1 ? x.items.length : undefined }))} />
       </label>
       <span data-tour-step-id="docs-origem" className="ml-auto t-meta text-muted-foreground max-md:basis-full">
         {idx.version ? <span className="tnum">{'versão ' + idx.version + ' · '}</span> : null}
@@ -122,11 +118,8 @@ function Docs() {
       <div className="grid min-w-0 gap-4 lg:hidden">
         {many ? <label className="grid gap-1.5 t-label text-muted-foreground md:max-w-md">
           Documento
-          <select value={cur} onChange={(e) => pickDoc(e.target.value)} className={SELECT}>
-            {g.items.map((it) => <option key={it.id} value={it.id}>
-              {plain(it.title)}
-            </option>)}
-          </select>
+          <Select size="sm" value={cur} onChange={pickDoc} label="Documento" className="w-full min-w-0"
+            items={g.items.map((it) => ({ value: it.id, label: plain(it.title) }))} />
         </label> : null}
         {toc.length ? <details className="group border-y">
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 t-label outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">

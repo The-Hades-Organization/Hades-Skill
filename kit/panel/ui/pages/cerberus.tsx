@@ -4,7 +4,7 @@
 (() => {
 const { useState, useEffect, useCallback, useMemo, I, cn, post, getJSON, Button, Dot, Card, CardHeader, CardContent,
   Mono, Tip, Empty, Table, Th, Td, Tr, Dialog, DialogHeader, DialogFooter, Choice, useWide, useApp, ago, Loading, CFG_ICON,
-  LinhaDeEstado, Tracos, useTourPreview, ExampleSeal } = HadesCore;
+  LinhaDeEstado, Tracos, useTourPreview, ExampleSeal, Select } = HadesCore;
 
 CFG_ICON.Cerberus ??= I.Cerberus;   // ícone do grupo Cerberus em Configurações
 
@@ -303,21 +303,13 @@ function OpenException({ x, open, onClose, onDone }) {
     <div className="grid gap-4">
       <label className="grid gap-1.5 t-body">
         <span className="font-medium">Guarda</span>
-        <select className={CTL} value={gk} onChange={(e) => setGk(e.target.value)}>
-          <option value="">Escolha a guarda…</option>
-          {x.cabecas.map((c) => <optgroup key={c.id} label={c.nome}>
-            {guards.filter((it) => it.cabeca === c.id).map((it) => <option key={it.id} value={`${it.cabeca}/${it.id}`}>
-              {`${it.titulo} (${it.id})`}
-            </option>)}
-          </optgroup>)}
-        </select>
+        <Select size="sm" label="Guarda" className="w-full min-w-0" value={gk} onChange={setGk} placeholder="Escolha a guarda…"
+          items={x.cabecas.flatMap((c) => guards.filter((it) => it.cabeca === c.id).map((it) => ({ value: `${it.cabeca}/${it.id}`, label: `${it.titulo} (${it.id})`, group: c.nome })))} />
       </label>
       <label className="grid gap-1.5 t-body">
         <span className="font-medium">Momento</span>
-        <select className={CTL} value={momento} disabled={!g} onChange={(e) => setMomento(e.target.value)}>
-          {g ? null : <option value="">Escolha a guarda primeiro</option>}
-          {(g ? g.momentos : []).map((m) => <option key={m} value={m}>{CB_MOMENTO[m] ? `${CB_MOMENTO[m]} (${m})` : m}</option>)}
-        </select>
+        <Select size="sm" label="Momento" className="w-full min-w-0" value={momento} disabled={!g} onChange={setMomento} placeholder="Escolha a guarda primeiro"
+          items={(g ? g.momentos : []).map((m) => ({ value: m, label: CB_MOMENTO[m] ? `${CB_MOMENTO[m]} (${m})` : m }))} />
       </label>
       <label className="grid gap-1.5 t-body">
         <span className="font-medium">

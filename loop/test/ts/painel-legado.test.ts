@@ -145,6 +145,8 @@ describe("servidor", () => {
     // docker falso e mudo: o /api/snapshot listaria os containers vivos da máquina (o projeto compose `hades` do dono)
     const fakeDocker = `${T}/bp-docker`;
     mkdirSync(fakeDocker, { recursive: true }); writeFileSync(`${fakeDocker}/docker`, "#!/bin/sh\nexit 0\n"); chmodSync(`${fakeDocker}/docker`, 0o755);
+    // qrencode falso: o `qr` do /api/notify diz se a ferramenta existe no PATH, e o golden foi gravado com ela; sem o stub o resultado seguiria a máquina
+    writeFileSync(`${fakeDocker}/qrencode`, "#!/bin/sh\nexit 0\n"); chmodSync(`${fakeDocker}/qrencode`, 0o755);
     pn = freePort();
     procs.push(Bun.spawn([BUN, `${SKILL}/src/cli.ts`, "panel", "serve", "--port", pn], { env: { ...r.env0, PATH: `${fakeDocker}:${r.env0.PATH}`, HADES_SKILL_DIR: SKILL, HADES_DATA: DS }, stdout: "ignore", stderr: "ignore" }));
     for (let i = 0; i < 40; i++) { if (curl(pn, ["-o", "/dev/null", "localhost:@P@/auth"]).rc === 0) break; Bun.sleepSync(250); }

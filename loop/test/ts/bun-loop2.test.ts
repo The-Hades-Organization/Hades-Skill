@@ -2,7 +2,7 @@
 // saída (stderr junto, caminhos normalizados), código de saída e arquivos de estado com o que foi gravado em
 // golden/legado/bun-loop2.json.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { homedir } from "node:os";
+import { homedir, userInfo } from "node:os";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { legado } from "./lib/legado";
 import { BUN, FX, Rig, SKILL, type Env } from "./lib/rig";
@@ -22,9 +22,9 @@ const editJson = (p: string, f: (j: any) => void) => { try { const j = JSON.pars
 
 type Seed = (d: string) => void;
 
-/** bl2_state: lista e soma dos arquivos da pasta, sem o ruído de tempo nem o caminho da skill (o prompt leva o cartão do papel) */
-const STATE = String.raw`cd "$1" && find . -type f -not -path '*/.git/*' -not -path './.bun/*' -not -path './.cache/*' -not -path '*/journal/*' -not -name '*.log' | sort | while read -r f; do printf '%s %s\n' "$f" "$(grep -av '^herdr --version$' "$f" | sed -E "s#$3#<S>#g; s#$1#<D>#g; s#$2#<T>#g; s/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z/<T>/g; s/\"avaliacao\": \"[0-9a-f]{12}\"/<ID>/g" | md5sum | cut -c1-12)"; done`;
-const state = (d: string) => r.X(["bash", "-c", STATE, "_", d, T, SKILL]).out;
+/** bl2_state: lista e soma dos arquivos da pasta, sem o ruído de tempo nem o caminho da skill (o prompt leva o cartão do papel). Dado da máquina fica fora da soma: o usuário de quem aprovou o plano (`<U>`) e o conteúdo de hooks/ e objects/ de repositório git (modelos de hook e compressão dependem da versão do git; os nomes dos objetos, que são o hash do conteúdo, continuam na lista). */
+const STATE = String.raw`cd "$1" && find . -type f -not -path '*/.git/*' -not -path './.bun/*' -not -path './.cache/*' -not -path '*/journal/*' -not -name '*.log' | sort | while read -r f; do case "$f" in *.git/hooks/*|*.git/objects/*) h=-;; *) h=$(grep -av '^herdr --version$' "$f" | sed -E "s#$3#<S>#g; s#$1#<D>#g; s#$2#<T>#g; s/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z/<T>/g; s/\"avaliacao\": \"[0-9a-f]{12}\"/<ID>/g; s/\"user\": \"$4\"/\"user\": \"<U>\"/" | md5sum | cut -c1-12);; esac; printf '%s %s\n' "$f" "$h"; done`;
+const state = (d: string) => r.X(["bash", "-c", STATE, "_", d, T, SKILL, userInfo().username]).out;
 
 function seedStack(d: string): void {
   mk(`${d}/repo/.github/workflows`, `${d}/go`, `${d}/rs`, `${d}/py`, `${d}/vazio`, `${d}/semscripts`, `${d}/pnpm`);
@@ -91,8 +91,10 @@ const unitMolds = (s: string) => new Set(s.split("\n").filter((l) => !l.includes
 /** o commit da base (`base main em <sha>`) é o HEAD do repo da máquina, não do comportamento */
 const semHash = (s: string) => s.replace(/(base \S+ em )[0-9a-f]{7,40}/g, "$1<H>");
 /** bl2: a CLI numa pasta própria; saída, código e estado iguais ao gravado. `@D@` vira a pasta. */
-/** O cabeçalho do `npm run` e o carimbo do update-notifier mudam com a versão do npm da máquina: fora do golden. */
-const npmQuiet = (s: string): string => s.replace(/^npm notice run .*\n/gm, "").replace(/^\n?> .*\n(?:> .*\n)*\n?/gm, "").replace(/^\.\/\.npm\/_update-notifier-last-checked .*\n/gm, "");
+/** O cabeçalho do `npm run`, o carimbo do update-notifier e a frase de comando inexistente do `sh` e a de "fora de repositório" do git mudam com a máquina (versão do npm, sh = dash ou bash, git novo ou antigo, /tmp no mesmo sistema de arquivos que /): fora do golden. */
+const npmQuiet = (s: string): string => s.replace(/^npm notice run .*\n/gm, "").replace(/^\n?> .*\n(?:> .*\n)*\n?/gm, "").replace(/^\.\/\.npm\/_update-notifier-last-checked .*\n/gm, "")
+  .replace(/^fatal: not a git repository \(or any of the parent directories\): \.git$/gm, "fatal: not a git repository (or any parent up to mount point /)\nStopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).")
+  .replace(/^sh: (?:line )?1: (\S+): (?:command )?not found$/gm, "sh: line 1: $1: command not found"); // o dash (ubuntu) e o bash escrevem "não achou" de jeitos diferentes
 
 function bl2(lbl: string, cmd: string, args: string[], c: Ctx): void {
   test(lbl, () => {

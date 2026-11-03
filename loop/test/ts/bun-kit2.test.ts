@@ -132,9 +132,10 @@ exit 0
     wr(`${d}.docker/containers`, "c1 sha256:img-used\nc2 sha256:img-used2\n");
     wr(`${d}.docker/images`, ["aaa|sha256:img-used|app:1|1000|1", "bbb|sha256:img-free|app:2|2048|1", "ccc|sha256:img-compose|app:3|500|0", "ddd|sha256:img-notag||300|1", "eee|sha256:img-used2|app:5|700|1"].join("\n") + "\n");
     wr(`${d}.docker/compose-images`, "app:3 app:missing\n");
+    // O tamanho de cada worktree entra na saída do clean: sem modelos de hook e com objetos sem compressão ele não depende da versão do git nem da zlib.
     for (let k = 1; k <= 5; k++) { // 1 mergeada limpa, 2 fechada suja, 3 aberta, 4 sem estado do gh, 5 sem diretório
       const w = `${T}/b2-wts/${d.split("/").pop()}-${k}`; rmSync(w, { recursive: true, force: true }); mk(w);
-      if (k !== 5) { r.git(w, "init", "-q", "-b", "main"); wr(`${w}/f`, "a\n"); r.git(w, "add", "-A"); r.git(w, "commit", "-qm", "i"); }
+      if (k !== 5) { r.git(w, "init", "-q", "--template=", "-b", "main"); wr(`${w}/f`, "a\n"); r.git(w, "-c", "core.looseCompression=0", "add", "-A"); r.git(w, "-c", "core.looseCompression=0", "commit", "-qm", "i"); }
       if (k === 2) wr(`${w}/sujo`, "dirty\n");
       wr(`${d}.work/orchestration/agents/ag${k}.json`, `{"worktree": "${w}", "pr": ${k + 100}}\n`);
     }
@@ -203,7 +204,7 @@ exit 0
   // apply: as units gravadas e as chamadas ao systemctl
   describe("apply", () => {
     const hn = `${T}/b2-hn`;
-    const units = (d: string, h: string) => unitNorm(r.X(["bash", "-c", 'cat "$1"/.config/systemd/user/* "$2.sc/calls.log" 2>&1 | grep -v "^--version" | sed "s#$2#<D>#g;s#$1#<H>#g"', "_", h, d]).out);
+    const units = (d: string, h: string) => unitNorm(r.X(["bash", "-c", '{ cat "$1"/.config/systemd/user/* 2>&1; cat "$2.sc/calls.log" 2>&1; } | grep -v "^--version" | sed "s#$2#<D>#g;s#$1#<H>#g"', "_", h, d]).out);
     beforeAll(() => {
       mkd(DN);
     });
@@ -518,6 +519,8 @@ describe("notify", () => {
   let srv: ReturnType<typeof Bun.spawn>, NTURL = "", NCFG: string[] = [];
   beforeAll(() => {
     exe(`${BIN}/notify-send`, '#!/usr/bin/env bash\nprintf \'%s\\n\' "$*" >> "${FAKE_NS_LOG:?}"\n');
+    // `qr` do notify status diz se o qrencode existe no PATH; o golden foi gravado com ele, então a presença vira fixa aqui
+    exe(`${BIN}/qrencode`, '#!/usr/bin/env bash\nexit 0\n');
     for (const f of [NTL, NTP, NTS]) rmSync(f, { force: true });
     wr(NTS, "200\n");
     srv = Bun.spawn(["python3", "-c", `import http.server, sys
@@ -741,6 +744,8 @@ describe("onboard", () => {
 describe("doctor", () => {
   beforeAll(() => {
     exe(`${BIN}/ss`, '#!/usr/bin/env bash\ncat "${FAKE_SS:-/dev/null}"\nexit "${FAKE_SS_RC:-0}"\n');
+    // o doctor confere o bwrap pela presença e pela --version, e o golden foi gravado com ele instalado; a presença real seguiria a máquina
+    exe(`${BIN}/bwrap`, '#!/usr/bin/env bash\n[[ $1 == --version ]] && echo "bubblewrap 0.0.0"\n');
     // O espaço livre real do /tmp muda com a máquina e muda a linha de disco (e o nível) do golden: 7 GB fixos, em KiB como o df -Pk.
     exe(`${BIN}/df`, '#!/usr/bin/env bash\nprintf "Filesystem 1024-blocks Used Available Capacity Mounted\\n"\nprintf "fake 8388608 1048576 %s 13%% %s\\n" "${FAKE_DF_AVAIL_KIB:-7340032}" "${!#}"\n'); });
   /** mkdoc: $D com config.tsv real, versão do kit, instance e as chaves pedidas */
@@ -757,7 +762,8 @@ describe("doctor", () => {
   const both = (...kv: string[]) => {
     mkdoc(DN, ...kv);
   };
-  const ddN = (d: string, argv: string[]) => { const o = kx(d, ["doctor", ...argv], { HOME: `${d}.home`, FAKE_SS: `${d}.ss`, FAKE_DEVTUNNEL: `${d}.devtunnel`, TZ: "UTC" }); return dnorm(`${o.out.replace(/"time": [0-9]+/g, '"time": N')}rc=${o.rc}`, d); };
+  /** O doctor completo consulta a versão publicada pela rede (`version-check --refresh`): porta fechada, para o resultado não depender de haver versão nova no GitHub. */
+  const ddN = (d: string, argv: string[]) => { const o = kx(d, ["doctor", ...argv], { HOME: `${d}.home`, FAKE_SS: `${d}.ss`, FAKE_DEVTUNNEL: `${d}.devtunnel`, TZ: "UTC", HADES_VERSION_CHECK_RAW_BASE: "http://127.0.0.1:1" }); return dnorm(`${o.out.replace(/"time": [0-9]+/g, '"time": N')}rc=${o.rc}`, d); };
   /** dcmp: o mesmo diagnóstico: saída, código e (JSON) tudo igual ao gravado, menos a hora */
   const dcmp = (label: string, argv: string[], pre?: () => void) => test(`doctor ${label}: saída e código iguais aos gravados`, () => {
     pre?.(); const atual = ddN(DN, argv); g.fix(`doctor ${label}`, atual); expect(atual).toBe(g.get<string>(`doctor ${label}`));

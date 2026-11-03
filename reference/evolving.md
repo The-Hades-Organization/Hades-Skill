@@ -101,6 +101,16 @@ agente em `reference/loop/skill-dev-contract.md`).
 
 Regrave com `LEGADO_REGRAVA=1 bun test loop/test/ts/<arquivo>.test.ts` (golden em `loop/test/golden/legado/<arquivo>.json`, via `g.fix`/`g.confere`) e confira no diff que mudou só o que a sua mudança explica; diferença fora disso é defeito, não regrave.
 
+## Golden que depende da máquina
+
+O golden não pode guardar dado da máquina que o gravou (usuário, caminho, versão do git, ferramenta instalada, rede). Três saídas, nesta ordem:
+
+- **Normalizar antes de comparar ou de gravar o hash**, como `<D>`/`@D@`: `STATE` do `bun-loop2.test.ts` troca o usuário de `plan.json` por `<U>` e não soma o conteúdo de `hooks/` e `objects/` de repositório git (os nomes dos objetos, que são o hash do conteúdo, ficam); `npmQuiet` reduz a frase de "comando não achado" do `sh` (dash × bash) e a de "fora de repositório" do git (git novo × antigo, `/tmp` no mesmo sistema de arquivos) à forma gravada.
+- **Fixar a presença da ferramenta com um stub no `BIN` do teste**, quando o golden foi gravado com ela: `qrencode` (`"qr"` do `notify status` e de `/api/notify`) e `bwrap` (linha do doctor). Sem o stub o resultado seguiria o PATH da máquina.
+- **Tornar a fonte determinística**: worktrees de teste do `clean` nascem com `git init --template=` e objetos sem compressão (`core.looseCompression=0`), porque o tamanho em bytes sai na tela; o doctor completo roda com `HADES_VERSION_CHECK_RAW_BASE` numa porta fechada, para não ler a versão publicada.
+
+Teste que precisa da ferramenta de verdade (bwrap funcional, docker) é pulado por condição de ambiente, com o motivo no nome; nunca removido nem com asserção mais fraca. Antes de regravar, reproduza num container limpo (`ubuntu:24.04`, bun da versão do `bun.lock`, node, sem herdr/docker/systemd/notify-send) e confira no diff do golden que mudou só o valor normalizado.
+
 ## Nunca
 
 - Publicar a skill em lugar versionado do repo: ela é global, em `~/.claude/skills/hades`, e serve qualquer clone.

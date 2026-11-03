@@ -4,6 +4,14 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.1.2 — 2026-11-03
+
+- **Busca do seletor de arquivos cede o laço de eventos de verdade.** O `readdir` assíncrono do Bun pode resolver sem
+  passar pelo laço; a busca agora cede a vez explicitamente a cada pasta, e o painel não trava os terminais durante uma
+  busca grande. Quem achou foi o teste que já cobria isso, que falhava só no runner do CI.
+- Teste do `notify restart` com ordem determinística entre o aviso do `cat` e o registro de chamadas (as duas leituras
+  em sequência, não num `cat` só).
+
 ## 6.1.1 — 2026-11-03
 
 - **Suíte portável para o CI público.** Os golden deixam de guardar dado da máquina que os gravou, e a suíte

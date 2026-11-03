@@ -201,7 +201,10 @@ function readDir(dir: string): DirEntry[] {
 /** Como `readDir`, sem segurar o laço de eventos: a busca lê milhares de pastas e o painel serve os terminais. */
 async function readDirAsync(dir: string): Promise<DirEntry[]> {
   try {
-    return (await readdir(dir, { withFileTypes: true })).map(toEntry);
+    const found = (await readdir(dir, { withFileTypes: true })).map(toEntry);
+    // o readdir do Bun pode resolver sem passar pelo laço; ceder a vez por pasta é o que garante isso
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    return found;
   } catch (error) {
     if (unreadable(error)) return [];
     throw error;

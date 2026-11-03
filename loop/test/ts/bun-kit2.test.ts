@@ -607,7 +607,7 @@ echo "-- ntfy"; sed -E "s#/hades-[A-Za-z0-9_-]{24} #/<T> #; s/[0-9][0-9]:[0-9][0
   // restart e apply: as units gravadas e as chamadas ao systemctl
   describe("apply e restart", () => {
     const hn = `${T}/b2-hn`;
-    const unitsX = (d: string, h: string) => unitNorm(r.X(["bash", "-c", 'cat "$1"/.config/systemd/user/* "$2.sc/calls.log" 2>&1 | grep -v "^--version" | sed "s#$2#<D>#g;s#$1#<H>#g"', "_", h, d]).out);
+    const unitsX = (d: string, h: string) => unitNorm(r.X(["bash", "-c", '{ cat "$1"/.config/systemd/user/* 2>&1; cat "$2.sc/calls.log" 2>&1; } | grep -v "^--version" | sed "s#$2#<D>#g;s#$1#<H>#g"', "_", h, d]).out);
     beforeAll(reset(...NCFG));
     for (const [i, ap] of ["apply", "apply", "restart", "mudou", "off"].entries()) {
       test(`notify ${ap}: saída, código, unit gravada e chamadas ao systemctl iguais aos gravados`, () => {

@@ -1,0 +1,10 @@
+{
+  "titulo": "Estado do loop fora do repositório",
+  "momentos": [
+    "done"
+  ],
+  "tipo": "regra",
+  "dono": "vigilia",
+  "origem": "SKILL.md §Invariantes de segurança",
+  "descricao": "Estado, lock, checklist e relatório de execução nunca dentro do repo."
+}

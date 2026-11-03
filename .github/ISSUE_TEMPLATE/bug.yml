@@ -1,0 +1,76 @@
+name: Defeito
+description: Algo da Hades não funciona como a documentação diz.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Vulnerabilidade não entra aqui: reporte em privado pelo GitHub, como diz o SECURITY.md.
+        Antes de colar logs, tire caminhos, nomes de projeto, URLs de túnel, tokens e chaves.
+  - type: input
+    id: versao
+    attributes:
+      label: Versão da skill
+      description: Conteúdo do arquivo `VERSION` (`cat ~/.claude/skills/hades/VERSION`).
+      placeholder: "5.14.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Painel
+        - Loop de engenharia (deliver, inbox, review, cascade, orchestrate, consolidate)
+        - Ambiente local (run-hades, serviços, infra, túnel)
+        - Fila de gates e hook (gate-lock, guard)
+        - Cerberus
+        - Instalação e onboarding
+        - CLI (outro subcomando)
+        - Outra
+    validations:
+      required: true
+  - type: input
+    id: sistema
+    attributes:
+      label: Sistema
+      description: SO e distribuição, versão do Bun e do Claude Code.
+      placeholder: "Arch Linux 6.x, bun 1.x, Claude Code 2.x"
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Passos para reproduzir
+      description: O comando exato (`/hades …` ou `hades …`) e o que veio antes.
+      placeholder: |
+        1. `hades env up --no-tunnel`
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: Esperado
+    validations:
+      required: true
+  - type: textarea
+    id: obtido
+    attributes:
+      label: Obtido
+      description: A mensagem de erro e o código de saída, se houver.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostico
+    attributes:
+      label: Diagnóstico
+      description: Saída de `hades doctor --json` e de `hades deps --json`.
+      render: json
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: O trecho relevante de `$D/logs/` ou do terminal.
+      render: text

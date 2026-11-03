@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# npx falso da regressão: o prep_worktree chama npx husky; o de verdade baixaria pacote.
+echo "npx $*" >> "${FAKE_NPX_LOG:-/dev/null}"
+exit 0

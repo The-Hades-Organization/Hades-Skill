@@ -1,0 +1,16 @@
+$ install.sh (perfil sem env.pack)
+aviso: o projeto de <T>/wt-install não declara env.pack: instala
+kit instalado em <T>/d-sem (worktree <T>/wt-inst
+svc.sh: não · config.sh: sim
+$ install.sh (com env.pack)
+kit instalado em <T>/d-com (plugin: <T>/d-com/plugin)
+assets: ausente
+reference: ausente
+post-install.sh: ausente
+config.sh
+infra/gen.sh
+post.out
+svc.sh
+web.paths
+post-install: wt=wt-install asset=pacote.zip
+config.env: HADES_CLEAN_PRIO_LOGS=aa-*,bb

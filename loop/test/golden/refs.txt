@@ -1,0 +1,37 @@
+$ hades project pack
+<T>/packs-refs/example-monorepo
+
+rc=0
+$ hades project ref invariants
+<T>/packs-refs/example-monorepo/loop/invariants.md
+rc=0
+$ hades project ref review
+<T>/packs-refs/example-monorepo/loop/review.md
+rc=0
+$ hades project ref gates
+rc=1
+$ hades project get pr.labels
+["backend","extra"]
+rc=0
+$ hades project get card.create
+bin/card-create.sh
+rc=0
+$ hades project ref invariants (repo sem perfil)
+rc=1
+$ validate
+ok  <T>/packs-refs/example-monorepo/profile.json
+rc=0
+$ validate (ref ausente)
+✗  <T>/bad/example-monorepo/profile.json
+     $.refs.gates: 'loop/falta.md' não é arquivo do pacote
+rc=1
+$ hades agent new impl-r --role impl --branch svc/feat/SOFTWARE-777-x --new-card Titulo --tags a,b --desc Descricao
+  brief: <T>/agents/impl-r/.design-sync-reports/brief.md (complete Item e Contexto antes do prompt)
+
+agente impl-r: worktree <T>/agents/impl-r · branch svc/feat/SOFTWARE-777-x · card SOFTWARE-777 · lock deliver-SOFTWARE-777.lock · painel w1:p1
+1. complete o brief (<T>/agents/impl-r/.design-sync-reports/brief.md): Item e Contexto
+2. o dono inicia (o classificador recusa quando é o orquestrador) — papel impl:
+   ! herdr agent start impl-r --kind claude --pane w1:p1 -- --permission-mode auto --model modelo-impl --effort alto
+3. depois: hades agent prompt impl-r
+rc=0
+card-create: Titulo|a,b|Descricao|assignee=42

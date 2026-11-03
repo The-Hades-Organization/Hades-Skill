@@ -1,0 +1,22 @@
+gate-lock: sem systemd-run --user --scope: rodando sem teto de memoria
+step rc=0
+hades: etapa 'node-nx:nada' não existe nas stacks instaladas
+gate-lock: etapa desconhecida: 'node-nx:nada' (<stack>:<etapa>, stacks instaladas)
+etapa-ruim rc=2
+gate-lock: sem systemd-run --user --scope: rodando sem teto de memoria
+custo-explicito rc=0
+gate-lock: sem systemd-run --user --scope: rodando sem teto de memoria
+sem-origin rc=0
+orcamento 8 GB | reserva 0 GB | MemAvailable <MB> | PSI <P>
+nenhum gate na fila nem rodando
+# journal do projeto
+enqueue	test	st-a	4	<T>/clone/stk-nx
+admit	test	st-a	4	<T>/clone/stk-nx	waited=<S>	avail=<MB>
+done	test	st-a	4	<T>/clone/stk-nx	rc=0	dur=<S>	cmd=true	step=node-nx:test
+enqueue	test	st-c	1	<T>/clone/stk-nx
+admit	test	st-c	1	<T>/clone/stk-nx	waited=<S>	avail=<MB>
+done	test	st-c	1	<T>/clone/stk-nx	rc=0	dur=<S>	cmd=true	step=node-nx:test
+# journal da maquina
+enqueue	lint	sem-origin	2	<T>/nogit
+admit	lint	sem-origin	2	<T>/nogit	waited=<S>	avail=<MB>
+done	lint	sem-origin	2	<T>/nogit	rc=0	dur=<S>	cmd=true

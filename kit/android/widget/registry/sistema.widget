@@ -1,0 +1,5 @@
+# Widget sistema. Só label e cells são obrigatórios; o resto tem padrão derivado do id:
+#   layout=widget_sistema   renderer=SistemaWidgetView   provider=SistemaWidgetProvider (gerado no build)
+#   resize=horizontal|vertical (ou none, horizontal, vertical)
+label=Hades Sistema
+cells=4x2

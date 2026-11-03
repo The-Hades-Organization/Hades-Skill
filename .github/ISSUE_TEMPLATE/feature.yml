@@ -1,0 +1,46 @@
+name: Melhoria
+description: Algo que a Hades ainda não cobre ou poderia fazer melhor.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Problema
+      description: O que você tentou fazer e onde a Hades não ajudou. Descreva a situação, não a solução.
+    validations:
+      required: true
+  - type: textarea
+    id: proposta
+    attributes:
+      label: Proposta
+      description: Como você imagina o pedido ou o comando (`/hades …`, `hades …`, página do painel).
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Painel
+        - Loop de engenharia (deliver, inbox, review, cascade, orchestrate, consolidate)
+        - Ambiente local (run-hades, serviços, infra, túnel)
+        - Fila de gates e hook (gate-lock, guard)
+        - Cerberus
+        - Instalação e onboarding
+        - CLI (outro subcomando)
+        - Outra
+    validations:
+      required: true
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas
+      description: O que você faz hoje no lugar e o que mais considerou.
+  - type: checkboxes
+    id: escopo
+    attributes:
+      label: Escopo
+      options:
+        - label: Serve a qualquer projeto, não só ao meu (pedido de um projeto só vai para o pacote ou plugin dele).
+          required: true

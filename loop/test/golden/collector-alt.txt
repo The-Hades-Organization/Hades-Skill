@@ -1,0 +1,5 @@
+flags: D=draft S=empilhada (base != main: sem ci.yml)
+api graphql checkN=40 commentN=30 q=repo:example/monorepo is:pr is:open author:dev-a reviewN=40 searchN=60 threadN=100 [GH_TOKEN=tok-zn]
+api user [GH_TOKEN=tok-zn]
+pr list --repo example/monorepo --state open --limit 200 --json number,mergeStateStatus,mergeable,labels [GH_TOKEN=tok-zn]
+repo view --json nameWithOwner [GH_TOKEN=tok-zn]

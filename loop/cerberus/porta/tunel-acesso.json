@@ -1,0 +1,15 @@
+{
+  "titulo": "Túnel exige autenticação e usa host permitido",
+  "momentos": [
+    "tunel"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "porta/tunel-acesso"
+  ],
+  "timeoutS": 30,
+  "origem": "src/lib/cerberus-porta.ts (hades cerberus-check); reference/cerberus/porta.md",
+  "descricao": "Compara o host com HADES_CERBERUS_PORTA_TUNEL_HOSTS e confere que o acesso é autenticado (--ctx acesso= ou tunel=)."
+}

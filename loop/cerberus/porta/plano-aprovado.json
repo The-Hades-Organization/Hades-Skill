@@ -1,0 +1,16 @@
+{
+  "titulo": "Ok do dono registrado: plano aprovado e íntegro",
+  "momentos": [
+    "release",
+    "consolidacao"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "porta/plano-aprovado"
+  ],
+  "timeoutS": 20,
+  "origem": "src/lib/cerberus-porta.ts (hades cerberus-check); reference/cerberus/porta.md",
+  "descricao": "Lê orchestration/plan.json (ou --ctx plano=), confere que o plano existe e o hash bate com o da aprovação."
+}

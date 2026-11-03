@@ -1,0 +1,27 @@
+# caso	evento	onde	fundo	sessão	comando (Pre, \n = quebra) ou tokens de contexto (Post)
+# onde: main = clone principal do repo da fixture · wt = worktree dele · agent = worktree de agente registrado ·
+#       plain = clone principal de um repo sem perfil · nogit = pasta fora de git
+nx-test-cru	Pre	main	0	s1	npx nx test app-alarms
+nx-test-na-fila	Pre	main	0	s1	"$GL" run test --label x -- npx nx test app-alarms
+npm-lint-na-fila	Pre	main	0	s1	~/.claude/skills/hades/kit/gate/gate-lock.sh run lint --label x -- npm run lint -- web
+npm-build-cru	Pre	main	0	s1	npm run build -- app-x
+jest-cru	Pre	wt	0	s1	npx jest src/a.spec.ts
+npm-test-fora-de-git	Pre	nogit	0	s1	npm run test
+nx-affected-sem-perfil	Pre	plain	0	s1	nx affected -t build
+nx-em-heredoc	Pre	main	0	s1	cat <<'EOF' > f.md\nnpx nx test a\nEOF
+sleep-longo	Pre	main	0	s1	sleep 30
+sleep-longo-fundo	Pre	main	1	s1	sleep 30
+sleep-curto	Pre	main	0	s1	sleep 2
+laco-com-sleep	Pre	agent	0	s1	until [ -f x ]; do sleep 1; done
+tail-f	Pre	main	0	s1	tail -f a.log
+ci-watch	Pre	main	0	s1	gh pr checks 12 --watch
+sleep-em-heredoc	Pre	main	0	s1	cat <<'EOF' > f.sh\nsleep 60\nEOF
+checagem-1	Pre	main	0	s1	gh pr checks 12
+checagem-repetida	Pre	main	0	s1	gh pr checks 12
+checagem-outra-sessao	Pre	main	0	s2	gh pr checks 12
+ls	Pre	nogit	0	s1	ls
+ctx-orquestrador	Post	main	0	p1	260000
+ctx-orquestrador-de-novo	Post	main	0	p1	270000
+ctx-worktree	Post	wt	0	p2	260000
+ctx-agente	Post	agent	0	p3	210000
+ctx-fora-de-git	Post	nogit	0	p4	310000

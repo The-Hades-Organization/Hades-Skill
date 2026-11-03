@@ -1,0 +1,10 @@
+{
+  "titulo": "Sem editar gerado nem comando destrutivo de banco",
+  "momentos": [
+    "done"
+  ],
+  "tipo": "regra",
+  "dono": "vigilia",
+  "origem": "SKILL.md §Invariantes de segurança (lista do projeto em refs.invariants)",
+  "descricao": "A lista vem do pacote do projeto."
+}

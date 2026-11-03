@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget PRs, tamanho regular: contadores e uma linha por PR (CI e review como ícone). Ids root e refresh obrigatórios. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:paddingBottom="4dp"
+    android:paddingEnd="6dp"
+    android:paddingStart="15dp"
+    android:paddingTop="2dp">
+    <include layout="@layout/widget_prs_head" />
+    <include layout="@layout/widget_prs_summary" />
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="3dp"
+        android:layout_marginBottom="1dp"
+        android:layout_marginEnd="9dp"
+        android:background="@drawable/divider" />
+    <LinearLayout
+        android:id="@+id/pr_0"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginTop="1dp">
+        <ImageView
+            android:id="@+id/pr_0_ci"
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_state_idle" />
+        <TextView
+            android:id="@+id/pr_0_number"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+        <TextView
+            android:id="@+id/pr_0_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="12sp" />
+        <ImageView
+            android:id="@+id/pr_0_review"
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_review"
+            android:layout_marginEnd="6dp"
+            android:layout_marginStart="6dp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/pr_1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginTop="1dp">
+        <ImageView
+            android:id="@+id/pr_1_ci"
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_state_idle" />
+        <TextView
+            android:id="@+id/pr_1_number"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+        <TextView
+            android:id="@+id/pr_1_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="12sp" />
+        <ImageView
+            android:id="@+id/pr_1_review"
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_review"
+            android:layout_marginEnd="6dp"
+            android:layout_marginStart="6dp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/pr_2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginTop="1dp">
+        <ImageView
+            android:id="@+id/pr_2_ci"
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_state_idle" />
+        <TextView
+            android:id="@+id/pr_2_number"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+        <TextView
+            android:id="@+id/pr_2_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="12sp" />
+        <ImageView
+            android:id="@+id/pr_2_review"
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_review"
+            android:layout_marginEnd="6dp"
+            android:layout_marginStart="6dp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/pr_3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginTop="1dp">
+        <ImageView
+            android:id="@+id/pr_3_ci"
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_state_idle" />
+        <TextView
+            android:id="@+id/pr_3_number"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+        <TextView
+            android:id="@+id/pr_3_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="12sp" />
+        <ImageView
+            android:id="@+id/pr_3_review"
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_review"
+            android:layout_marginEnd="6dp"
+            android:layout_marginStart="6dp" />
+    </LinearLayout>
+    <TextView
+        android:id="@+id/prs_info"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:visibility="gone"
+        android:textColor="@color/hades_muted_foreground"
+        android:textSize="10sp" />
+    <include layout="@layout/widget_status_line" />
+</LinearLayout>

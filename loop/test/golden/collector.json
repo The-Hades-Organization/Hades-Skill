@@ -1,0 +1,1227 @@
+{
+  "login": "dev-a",
+  "prs": [
+    {
+      "author": "dev-a",
+      "awaitingReviewer": [],
+      "baseRefName": "develop",
+      "cardIds": [
+        "SOFTWARE-101"
+      ],
+      "checks": {
+        "failing": [
+          {
+            "name": "lint",
+            "url": "https://ci.example.invalid/lint"
+          }
+        ],
+        "passing": 1,
+        "pending": [],
+        "state": "FAILURE",
+        "total": 2,
+        "verdict": "red"
+      },
+      "ciEligible": true,
+      "ciReviewSummary": null,
+      "claudeEligible": true,
+      "headRefName": "svc/fix/SOFTWARE-101-ci",
+      "headRefOid": "0101aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "isDraft": false,
+      "labels": [
+        "backend"
+      ],
+      "lastClaudeTrigger": null,
+      "lastPushAt": "2026-10-20T10:00:00Z",
+      "lastReviewAt": "2026-10-20T12:00:00Z",
+      "lastSeenReviewAt": "2026-10-20T12:00:00Z",
+      "live": [],
+      "mergeStateStatus": "CLEAN",
+      "mergeable": "MERGEABLE",
+      "number": 101,
+      "reviewDecision": "REVIEW_REQUIRED",
+      "reviewedSincePush": true,
+      "reviews": [
+        {
+          "author": "rev-b",
+          "fromBot": false,
+          "hasBody": false,
+          "state": "COMMENTED",
+          "submittedAt": "2026-10-20T12:00:00Z"
+        }
+      ],
+      "specIds": [],
+      "stackDepth": 0,
+      "stackParent": null,
+      "stacked": false,
+      "state": "ci-red",
+      "threadTotal": 0,
+      "threads": [],
+      "title": "SOFTWARE-101 - [Svc] CI vermelho",
+      "topLevel": [],
+      "topLevelLive": [],
+      "triage": [],
+      "unresolved": 0,
+      "unseenReviewSincePush": false,
+      "url": "https://github.example.invalid/example/monorepo/pull/101"
+    },
+    {
+      "author": "dev-a",
+      "awaitingReviewer": [],
+      "baseRefName": "develop",
+      "cardIds": [
+        "SOFTWARE-102"
+      ],
+      "checks": {
+        "failing": [],
+        "passing": 2,
+        "pending": [],
+        "state": "SUCCESS",
+        "total": 2,
+        "verdict": "green"
+      },
+      "ciEligible": true,
+      "ciReviewSummary": null,
+      "claudeEligible": true,
+      "headRefName": "svc/fix/SOFTWARE-102-conflito",
+      "headRefOid": "0102aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "isDraft": false,
+      "labels": [],
+      "lastClaudeTrigger": null,
+      "lastPushAt": "2026-10-20T10:00:00Z",
+      "lastReviewAt": "2026-10-20T12:00:00Z",
+      "lastSeenReviewAt": "2026-10-20T12:00:00Z",
+      "live": [],
+      "mergeStateStatus": "DIRTY",
+      "mergeable": "CONFLICTING",
+      "number": 102,
+      "reviewDecision": "REVIEW_REQUIRED",
+      "reviewedSincePush": true,
+      "reviews": [
+        {
+          "author": "rev-b",
+          "fromBot": false,
+          "hasBody": false,
+          "state": "COMMENTED",
+          "submittedAt": "2026-10-20T12:00:00Z"
+        }
+      ],
+      "specIds": [],
+      "stackDepth": 0,
+      "stackParent": null,
+      "stacked": false,
+      "state": "conflict",
+      "threadTotal": 0,
+      "threads": [],
+      "title": "SOFTWARE-102 - [Svc] Conflito",
+      "topLevel": [],
+      "topLevelLive": [],
+      "triage": [],
+      "unresolved": 0,
+      "unseenReviewSincePush": false,
+      "url": "https://github.example.invalid/example/monorepo/pull/102"
+    },
+    {
+      "author": "dev-a",
+      "awaitingReviewer": [],
+      "baseRefName": "develop",
+      "cardIds": [
+        "SOFTWARE-103"
+      ],
+      "checks": {
+        "failing": [],
+        "passing": 2,
+        "pending": [],
+        "state": "SUCCESS",
+        "total": 2,
+        "verdict": "green"
+      },
+      "ciEligible": true,
+      "ciReviewSummary": null,
+      "claudeEligible": true,
+      "headRefName": "svc/feat/SOFTWARE-103-vivo",
+      "headRefOid": "0103aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "isDraft": false,
+      "labels": [
+        "backend"
+      ],
+      "lastClaudeTrigger": null,
+      "lastPushAt": "2026-10-20T10:00:00Z",
+      "lastReviewAt": "2026-10-20T12:00:00Z",
+      "lastSeenReviewAt": "2026-10-20T12:00:00Z",
+      "live": [
+        {
+          "author": "rev-b",
+          "awaitingReviewer": false,
+          "commentCount": 1,
+          "commentId": 1001,
+          "createdAt": "2026-10-20T12:00:00Z",
+          "excerpt": "🔴 **B1** — falta validação de entrada",
+          "fromBot": false,
+          "handled": false,
+          "id": "T103-live",
+          "isOutdated": false,
+          "isResolved": false,
+          "lastReplyAt": "2026-10-20T12:00:00Z",
+          "lastReplyAuthor": "rev-b",
+          "lastReplyFromMe": false,
+          "line": 10,
+          "path": "apps/svc/src/a.ts",
+          "reopened": false,
+          "ruleCode": "B1",
+          "verdict": null,
+          "verdictAt": null
+        }
+      ],
+      "mergeStateStatus": "CLEAN",
+      "mergeable": "MERGEABLE",
+      "number": 103,
+      "reviewDecision": "REVIEW_REQUIRED",
+      "reviewedSincePush": true,
+      "reviews": [
+        {
+          "author": "rev-b",
+          "fromBot": false,
+          "hasBody": false,
+          "state": "COMMENTED",
+          "submittedAt": "2026-10-20T12:00:00Z"
+        }
+      ],
+      "specIds": [],
+      "stackDepth": 0,
+      "stackParent": null,
+      "stacked": false,
+      "state": "needs-response",
+      "threadTotal": 2,
+      "threads": [
+        {
+          "author": "rev-b",
+          "awaitingReviewer": false,
+          "commentCount": 1,
+          "commentId": 1001,
+          "createdAt": "2026-10-20T12:00:00Z",
+          "excerpt": "🔴 **B1** — falta validação de entrada",
+          "fromBot": false,
+          "handled": false,
+          "id": "T103-live",
+          "isOutdated": false,
+          "isResolved": false,
+          "lastReplyAt": "2026-10-20T12:00:00Z",
+          "lastReplyAuthor": "rev-b",
+          "lastReplyFromMe": false,
+          "line": 10,
+          "path": "apps/svc/src/a.ts",
+          "reopened": false,
+          "ruleCode": "B1",
+          "verdict": null,
+          "verdictAt": null
+        },
+        {
+          "author": "rev-b",
+          "awaitingReviewer": false,
+          "commentCount": 1,
+          "commentId": 1002,
+          "createdAt": "2026-10-20T12:00:00Z",
+          "excerpt": "`V3` nome fora do padrão",
+          "fromBot": false,
+          "handled": true,
+          "id": "T103-applied",
+          "isOutdated": false,
+          "isResolved": false,
+          "lastReplyAt": "2026-10-20T12:00:00Z",
+          "lastReplyAuthor": "rev-b",
+          "lastReplyFromMe": false,
+          "line": 20,
+          "path": "apps/svc/src/a.ts",
+          "reopened": false,
+          "ruleCode": "V3",
+          "verdict": "applied",
+          "verdictAt": "2026-10-20T13:00:00Z"
+        }
+      ],
+      "title": "SOFTWARE-103 - [Svc] Achado vivo",
+      "topLevel": [],
+      "topLevelLive": [],
+      "triage": [],
+      "unresolved": 1,
+      "unseenReviewSincePush": false,
+      "url": "https://github.example.invalid/example/monorepo/pull/103"
+    },
+    {
+      "author": "dev-a",
+      "awaitingReviewer": [],
+      "baseRefName": "develop",
+      "cardIds": [
+        "SOFTWARE-104"
+      ],
+      "checks": {
+        "failing": [],
+        "passing": 2,
+        "pending": [],
+        "state": "SUCCESS",
+        "total": 2,
+        "verdict": "green"
+      },
+      "ciEligible": true,
+      "ciReviewSummary": {
+        "author": "claude",
+        "commentId": 1009,
+        "createdAt": "2026-10-20T12:00:00Z",
+        "excerpt": "## Resumo do review",
+        "fromBot": true,
+        "handled": false,
+        "ruleCode": null,
+        "verdict": null
+      },
+      "claudeEligible": true,
+      "headRefName": "web/feat/SOFTWARE-104-top",
+      "headRefOid": "0104aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "isDraft": false,
+      "labels": [],
+      "lastClaudeTrigger": {
+        "at": "2026-10-19T09:00:00Z",
+        "head": "0104"
+      },
+      "lastPushAt": "2026-10-20T10:00:00Z",
+      "lastReviewAt": "2026-10-20T12:00:00Z",
+      "lastSeenReviewAt": "2026-10-20T12:00:00Z",
+      "live": [],
+      "mergeStateStatus": "CLEAN",
+      "mergeable": "MERGEABLE",
+      "number": 104,
+      "reviewDecision": "REVIEW_REQUIRED",
+      "reviewedSincePush": true,
+      "reviews": [
+        {
+          "author": "rev-b",
+          "fromBot": false,
+          "hasBody": false,
+          "state": "COMMENTED",
+          "submittedAt": "2026-10-20T12:00:00Z"
+        }
+      ],
+      "specIds": [],
+      "stackDepth": 0,
+      "stackParent": null,
+      "stacked": false,
+      "state": "needs-response",
+      "threadTotal": 0,
+      "threads": [],
+      "title": "SOFTWARE-104 - [Web] Top-level",
+      "topLevel": [
+        {
+          "author": "rev-b",
+          "commentId": 1003,
+          "createdAt": "2026-10-20T12:00:00Z",
+          "excerpt": "RF-12: botão sem i18n",
+          "fromBot": false,
+          "handled": false,
+          "ruleCode": "RF-12",
+          "verdict": null
+        },
+        {
+          "author": "rev-b",
+          "commentId": 10402,
+          "createdAt": "2026-10-20T12:00:00Z",
+          "excerpt": "CMT-X10 o comentário narra o fix",
+          "fromBot": false,
+          "handled": true,
+          "ruleCode": "CMT-X10",
+          "verdict": "applied"
+        },
+        {
+          "author": "claude",
+          "commentId": 1009,
+          "createdAt": "2026-10-20T12:00:00Z",
+          "excerpt": "## Resumo do review",
+          "fromBot": true,
+          "handled": false,
+          "ruleCode": null,
+          "verdict": null
+        }
+      ],
+      "topLevelLive": [
+        {
+          "author": "rev-b",
+          "commentId": 1003,
+          "createdAt": "2026-10-20T12:00:00Z",
+          "excerpt": "RF-12: botão sem i18n",
+          "fromBot": false,
+          "handled": false,
+          "ruleCode": "RF-12",
+          "verdict": null
+        }
+      ],
+      "triage": [],
+      "unresolved": 0,
+      "unseenReviewSincePush": false,
+      "url": "https://github.example.invalid/example/monorepo/pull/104"
+    },
+    {
+      "author": "dev-a",
+      "awaitingReviewer": [],
+      "baseRefName": "develop",
+      "cardIds": [
+        "SOFTWARE-105"
+      ],
+      "checks": {
+        "failing": [],
+        "passing": 2,
+        "pending": [],
+        "state": "SUCCESS",
+        "total": 2,
+        "verdict": "green"
+      },
+      "ciEligible": true,
+      "ciReviewSummary": null,
+      "claudeEligible": true,
+      "headRefName": "svc/feat/SOFTWARE-105-review",
+      "headRefOid": "0105aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "isDraft": false,
+      "labels": [
+        "backend"
+      ],
+      "lastClaudeTrigger": null,
+      "lastPushAt": "2026-10-20T10:00:00Z",
+      "lastReviewAt": "2026-10-20T12:00:00Z",
+      "lastSeenReviewAt": "2026-10-19T09:00:00Z",
+      "live": [],
+      "mergeStateStatus": "CLEAN",
+      "mergeable": "MERGEABLE",
+      "number": 105,
+      "reviewDecision": "APPROVED",
+      "reviewedSincePush": true,
+      "reviews": [
+        {
+          "author": "rev-b",
+          "fromBot": false,
+          "hasBody": false,
+          "state": "APPROVED",
+          "submittedAt": "2026-10-20T12:00:00Z"
+        }
+      ],
+      "specIds": [],
+      "stackDepth": 0,
+      "stackParent": null,
+      "stacked": false,
+      "state": "needs-response",
+      "threadTotal": 0,
+      "threads": [],
+      "title": "SOFTWARE-105 - [Svc] Review não visto",
+      "topLevel": [],
+      "topLevelLive": [],
+      "triage": [],
+      "unresolved": 0,
+      "unseenReviewSincePush": true,
+      "url": "https://github.example.invalid/example/monorepo/pull/105"
+    },
+    {
+      "author": "dev-a",
+      "awaitingReviewer": [],
+      "baseRefName": "develop",
+      "cardIds": [
+        "SOFTWARE-9",
+        "SOFTWARE-4242",
+        "AT26-77"
+      ],
+      "checks": {
+        "failing": [],
+        "passing": 2,
+        "pending": [],
+        "state": "SUCCESS",
+        "total": 2,
+        "verdict": "green"
+      },
+      "ciEligible": true,
+      "ciReviewSummary": null,
+      "claudeEligible": true,
+      "headRefName": "alarms/fix/AT26-77-reabre",
+      "headRefOid": "0114aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "isDraft": false,
+      "labels": [],
+      "lastClaudeTrigger": null,
+      "lastPushAt": "2026-10-20T10:00:00Z",
+      "lastReviewAt": "2026-10-20T12:00:00Z",
+      "lastSeenReviewAt": "2026-10-20T12:00:00Z",
+      "live": [
+        {
+          "author": "rev-b",
+          "awaitingReviewer": false,
+          "commentCount": 3,
+          "commentId": 1014,
+          "createdAt": "2026-10-20T12:00:00Z",
+          "excerpt": "V10 nome de evento fora do padrão",
+          "fromBot": false,
+          "handled": false,
+          "id": "T114-reopened",
+          "isOutdated": false,
+          "isResolved": false,
+          "lastReplyAt": "2026-10-20T14:00:00Z",
+          "lastReplyAuthor": "rev-b",
+          "lastReplyFromMe": false,
+          "line": 10,
+          "path": "apps/svc/src/a.ts",
+          "reopened": true,
+          "ruleCode": "V10",
+          "verdict": "applied",
+          "verdictAt": "2026-10-20T13:00:00Z"
+        }
+      ],
+      "mergeStateStatus": "CLEAN",
+      "mergeable": "MERGEABLE",
+      "number": 114,
+      "reviewDecision": "REVIEW_REQUIRED",
+      "reviewedSincePush": true,
+      "reviews": [
+        {
+          "author": "rev-b",
+          "fromBot": false,
+          "hasBody": false,
+          "state": "COMMENTED",
+          "submittedAt": "2026-10-20T12:00:00Z"
+        }
+      ],
+      "specIds": [
+        "UC-12",
+        "ATOM-7a",
+        "CROSS-301"
+      ],
+      "stackDepth": 0,
+      "stackParent": null,
+      "stacked": false,
+      "state": "needs-response",
+      "threadTotal": 1,
+      "threads": [
+        {
+          "author": "rev-b",
+          "awaitingReviewer": false,
+          "commentCount": 3,
+          "commentId": 1014,
+          "createdAt": "2026-10-20T12:00:00Z",
+          "excerpt": "V10 nome de evento fora do padrão",
+          "fromBot": false,
+          "handled": false,
+          "id": "T114-reopened",
+          "isOutdated": false,
+          "isResolved": false,
+          "lastReplyAt": "2026-10-20T14:00:00Z",
+          "lastReplyAuthor": "rev-b",
+          "lastReplyFromMe": false,
+          "line": 10,
+          "path": "apps/svc/src/a.ts",
+          "reopened": true,
+          "ruleCode": "V10",
+          "verdict": "applied",
+          "verdictAt": "2026-10-20T13:00:00Z"
+        }
+      ],
+      "title": "software-9 SOFTWARE-4242 - [Alarms] Reaberta",
+      "topLevel": [],
+      "topLevelLive": [],
+      "triage": [],
+      "unresolved": 1,
+      "unseenReviewSincePush": false,
+      "url": "https://github.example.invalid/example/monorepo/pull/114"
+    },
+    {
+      "author": "dev-a",
+      "awaitingReviewer": [],
+      "baseRefName": "develop",
+      "cardIds": [
+        "SOFTWARE-106"
+      ],
+      "checks": {
+        "failing": [],
+        "passing": 2,
+        "pending": [],
+        "state": "SUCCESS",
+        "total": 2,
+        "verdict": "green"
+      },
+      "ciEligible": true,
+      "ciReviewSummary": null,
+      "claudeEligible": true,
+      "headRefName": "svc/feat/SOFTWARE-106-triagem",
+      "headRefOid": "0106aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "isDraft": false,
+      "labels": [],
+      "lastClaudeTrigger": null,
+      "lastPushAt": "2026-10-20T10:00:00Z",
+      "lastReviewAt": "2026-10-20T12:00:00Z",
+      "lastSeenReviewAt": "2026-10-20T12:00:00Z",
+      "live": [],
+      "mergeStateStatus": "CLEAN",
+      "mergeable": "MERGEABLE",
+      "number": 106,
+      "reviewDecision": "REVIEW_REQUIRED",
+      "reviewedSincePush": true,
+      "reviews": [
+        {
+          "author": "rev-b",
+          "fromBot": false,
+          "hasBody": false,
+          "state": "COMMENTED",
+          "submittedAt": "2026-10-20T12:00:00Z"
+        }
+      ],
+      "specIds": [],
+      "stackDepth": 0,
+      "stackParent": null,
+      "stacked": false,
+      "state": "needs-triage",
+      "threadTotal": 1,
+      "threads": [
+        {
+          "author": "rev-b",
+          "awaitingReviewer": false,
+          "commentCount": 1,
+          "commentId": 1010,
+          "createdAt": "2026-10-19T09:00:00Z",
+          "excerpt": "`RB-31a` handler sem log",
+          "fromBot": false,
+          "handled": false,
+          "id": "T106-out",
+          "isOutdated": true,
+          "isResolved": false,
+          "lastReplyAt": "2026-10-19T09:00:00Z",
+          "lastReplyAuthor": "rev-b",
+          "lastReplyFromMe": false,
+          "line": 42,
+          "path": "apps/svc/src/a.ts",
+          "reopened": false,
+          "ruleCode": "RB-31a",
+          "verdict": null,
+          "verdictAt": null
+        }
+      ],
+      "title": "SOFTWARE-106 - [Svc] Só triagem",
+      "topLevel": [],
+      "topLevelLive": [],
+      "triage": [
+        {
+          "author": "rev-b",
+          "awaitingReviewer": false,
+          "commentCount": 1,
+          "commentId": 1010,
+          "createdAt": "2026-10-19T09:00:00Z",
+          "excerpt": "`RB-31a` handler sem log",
+          "fromBot": false,
+          "handled": false,
+          "id": "T106-out",
+          "isOutdated": true,
+          "isResolved": false,
+          "lastReplyAt": "2026-10-19T09:00:00Z",
+          "lastReplyAuthor": "rev-b",
+          "lastReplyFromMe": false,
+          "line": 42,
+          "path": "apps/svc/src/a.ts",
+          "reopened": false,
+          "ruleCode": "RB-31a",
+          "verdict": null,
+          "verdictAt": null
+        }
+      ],
+      "unresolved": 1,
+      "unseenReviewSincePush": false,
+      "url": "https://github.example.invalid/example/monorepo/pull/106"
+    },
+    {
+      "author": "dev-a",
+      "awaitingReviewer": [],
+      "baseRefName": "develop",
+      "cardIds": [
+        "SOFTWARE-107"
+      ],
+      "checks": {
+        "failing": [],
+        "passing": 2,
+        "pending": [],
+        "state": "SUCCESS",
+        "total": 2,
+        "verdict": "green"
+      },
+      "ciEligible": true,
+      "ciReviewSummary": null,
+      "claudeEligible": true,
+      "headRefName": "svc/feat/SOFTWARE-107-behind",
+      "headRefOid": "0107aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "isDraft": false,
+      "labels": [
+        "backend"
+      ],
+      "lastClaudeTrigger": null,
+      "lastPushAt": "2026-10-20T10:00:00Z",
+      "lastReviewAt": "2026-10-20T12:00:00Z",
+      "lastSeenReviewAt": "2026-10-20T12:00:00Z",
+      "live": [],
+      "mergeStateStatus": "BEHIND",
+      "mergeable": "MERGEABLE",
+      "number": 107,
+      "reviewDecision": "REVIEW_REQUIRED",
+      "reviewedSincePush": true,
+      "reviews": [
+        {
+          "author": "rev-b",
+          "fromBot": false,
+          "hasBody": false,
+          "state": "COMMENTED",
+          "submittedAt": "2026-10-20T12:00:00Z"
+        }
+      ],
+      "specIds": [],
+      "stackDepth": 0,
+      "stackParent": null,
+      "stacked": false,
+      "state": "stale-base",
+      "threadTotal": 0,
+      "threads": [],
+      "title": "SOFTWARE-107 - [Svc] Base atrás",
+      "topLevel": [],
+      "topLevelLive": [],
+      "triage": [],
+      "unresolved": 0,
+      "unseenReviewSincePush": false,
+      "url": "https://github.example.invalid/example/monorepo/pull/107"
+    },
+    {
+      "author": "dev-a",
+      "awaitingReviewer": [],
+      "baseRefName": "develop",
+      "cardIds": [
+        "SOFTWARE-108"
+      ],
+      "checks": {
+        "failing": [],
+        "passing": 0,
+        "pending": [],
+        "state": "NONE",
+        "total": 0,
+        "verdict": "none"
+      },
+      "ciEligible": false,
+      "ciReviewSummary": null,
+      "claudeEligible": true,
+      "headRefName": "svc/feat/SOFTWARE-108-draft",
+      "headRefOid": "0108aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "isDraft": true,
+      "labels": [],
+      "lastClaudeTrigger": null,
+      "lastPushAt": "2026-10-20T10:00:00Z",
+      "lastReviewAt": null,
+      "lastSeenReviewAt": null,
+      "live": [],
+      "mergeStateStatus": "DRAFT",
+      "mergeable": "MERGEABLE",
+      "number": 108,
+      "reviewDecision": "REVIEW_REQUIRED",
+      "reviewedSincePush": false,
+      "reviews": [],
+      "specIds": [],
+      "stackDepth": 0,
+      "stackParent": null,
+      "stacked": false,
+      "state": "draft",
+      "threadTotal": 0,
+      "threads": [],
+      "title": "SOFTWARE-108 - [Svc] Rascunho",
+      "topLevel": [],
+      "topLevelLive": [],
+      "triage": [],
+      "unresolved": 0,
+      "unseenReviewSincePush": false,
+      "url": "https://github.example.invalid/example/monorepo/pull/108"
+    },
+    {
+      "author": "dev-a",
+      "awaitingReviewer": [],
+      "baseRefName": "svc/feat/SOFTWARE-111-stacked",
+      "cardIds": [
+        "SOFTWARE-115"
+      ],
+      "checks": {
+        "failing": [],
+        "passing": 0,
+        "pending": [],
+        "state": "NONE",
+        "total": 0,
+        "verdict": "none"
+      },
+      "ciEligible": false,
+      "ciReviewSummary": null,
+      "claudeEligible": false,
+      "headRefName": "svc/feat/SOFTWARE-115-stack2",
+      "headRefOid": "0115aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "isDraft": true,
+      "labels": [
+        "backend"
+      ],
+      "lastClaudeTrigger": null,
+      "lastPushAt": "2026-10-20T10:00:00Z",
+      "lastReviewAt": null,
+      "lastSeenReviewAt": null,
+      "live": [],
+      "mergeStateStatus": "DRAFT",
+      "mergeable": "MERGEABLE",
+      "number": 115,
+      "reviewDecision": "REVIEW_REQUIRED",
+      "reviewedSincePush": false,
+      "reviews": [],
+      "specIds": [],
+      "stackDepth": 2,
+      "stackParent": 111,
+      "stacked": true,
+      "state": "draft",
+      "threadTotal": 0,
+      "threads": [],
+      "title": "SOFTWARE-115 - [Svc] Empilhada rascunho",
+      "topLevel": [],
+      "topLevelLive": [],
+      "triage": [],
+      "unresolved": 0,
+      "unseenReviewSincePush": false,
+      "url": "https://github.example.invalid/example/monorepo/pull/115"
+    },
+    {
+      "author": "dev-a",
+      "awaitingReviewer": [],
+      "baseRefName": "develop",
+      "cardIds": [
+        "SOFTWARE-109"
+      ],
+      "checks": {
+        "failing": [],
+        "passing": 2,
+        "pending": [
+          {
+            "name": "build",
+            "url": "https://ci.example.invalid/build"
+          }
+        ],
+        "state": "PENDING",
+        "total": 3,
+        "verdict": "pending"
+      },
+      "ciEligible": true,
+      "ciReviewSummary": null,
+      "claudeEligible": true,
+      "headRefName": "svc/feat/SOFTWARE-109-running",
+      "headRefOid": "0109aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "isDraft": false,
+      "labels": [
+        "backend"
+      ],
+      "lastClaudeTrigger": null,
+      "lastPushAt": "2026-10-20T10:00:00Z",
+      "lastReviewAt": "2026-10-20T12:00:00Z",
+      "lastSeenReviewAt": "2026-10-20T12:00:00Z",
+      "live": [],
+      "mergeStateStatus": "CLEAN",
+      "mergeable": "MERGEABLE",
+      "number": 109,
+      "reviewDecision": "REVIEW_REQUIRED",
+      "reviewedSincePush": true,
+      "reviews": [
+        {
+          "author": "rev-b",
+          "fromBot": false,
+          "hasBody": false,
+          "state": "COMMENTED",
+          "submittedAt": "2026-10-20T12:00:00Z"
+        }
+      ],
+      "specIds": [],
+      "stackDepth": 0,
+      "stackParent": null,
+      "stacked": false,
+      "state": "ci-running",
+      "threadTotal": 0,
+      "threads": [],
+      "title": "SOFTWARE-109 - [Svc] CI rodando",
+      "topLevel": [],
+      "topLevelLive": [],
+      "triage": [],
+      "unresolved": 0,
+      "unseenReviewSincePush": false,
+      "url": "https://github.example.invalid/example/monorepo/pull/109"
+    },
+    {
+      "author": "dev-a",
+      "awaitingReviewer": [],
+      "baseRefName": "develop",
+      "cardIds": [
+        "SOFTWARE-110"
+      ],
+      "checks": {
+        "failing": [],
+        "passing": 2,
+        "pending": [],
+        "state": "SUCCESS",
+        "total": 2,
+        "verdict": "green"
+      },
+      "ciEligible": true,
+      "ciReviewSummary": null,
+      "claudeEligible": true,
+      "headRefName": "svc/feat/SOFTWARE-110-awaiting",
+      "headRefOid": "0110aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "isDraft": false,
+      "labels": [],
+      "lastClaudeTrigger": null,
+      "lastPushAt": "2026-10-20T10:00:00Z",
+      "lastReviewAt": "2026-10-19T09:00:00Z",
+      "lastSeenReviewAt": null,
+      "live": [],
+      "mergeStateStatus": "CLEAN",
+      "mergeable": "MERGEABLE",
+      "number": 110,
+      "reviewDecision": "REVIEW_REQUIRED",
+      "reviewedSincePush": false,
+      "reviews": [
+        {
+          "author": "rev-b",
+          "fromBot": false,
+          "hasBody": false,
+          "state": "COMMENTED",
+          "submittedAt": "2026-10-19T09:00:00Z"
+        }
+      ],
+      "specIds": [],
+      "stackDepth": 0,
+      "stackParent": null,
+      "stacked": false,
+      "state": "awaiting-review",
+      "threadTotal": 0,
+      "threads": [],
+      "title": "SOFTWARE-110 - [Svc] Esperando review",
+      "topLevel": [],
+      "topLevelLive": [],
+      "triage": [],
+      "unresolved": 0,
+      "unseenReviewSincePush": false,
+      "url": "https://github.example.invalid/example/monorepo/pull/110"
+    },
+    {
+      "author": "dev-a",
+      "awaitingReviewer": [],
+      "baseRefName": "svc/feat/SOFTWARE-110-awaiting",
+      "cardIds": [
+        "SOFTWARE-111"
+      ],
+      "checks": {
+        "failing": [],
+        "passing": 0,
+        "pending": [],
+        "state": "NONE",
+        "total": 0,
+        "verdict": "none"
+      },
+      "ciEligible": false,
+      "ciReviewSummary": null,
+      "claudeEligible": false,
+      "headRefName": "svc/feat/SOFTWARE-111-stacked",
+      "headRefOid": "0111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "isDraft": false,
+      "labels": [
+        "backend"
+      ],
+      "lastClaudeTrigger": null,
+      "lastPushAt": "2026-10-20T10:00:00Z",
+      "lastReviewAt": "2026-10-20T12:00:00Z",
+      "lastSeenReviewAt": "2026-10-20T12:00:00Z",
+      "live": [],
+      "mergeStateStatus": "BLOCKED",
+      "mergeable": "MERGEABLE",
+      "number": 111,
+      "reviewDecision": "REVIEW_REQUIRED",
+      "reviewedSincePush": true,
+      "reviews": [
+        {
+          "author": "rev-b",
+          "fromBot": false,
+          "hasBody": false,
+          "state": "COMMENTED",
+          "submittedAt": "2026-10-20T12:00:00Z"
+        }
+      ],
+      "specIds": [],
+      "stackDepth": 1,
+      "stackParent": 110,
+      "stacked": true,
+      "state": "no-ci",
+      "threadTotal": 0,
+      "threads": [],
+      "title": "SOFTWARE-111 - [Svc] Empilhada sem CI",
+      "topLevel": [],
+      "topLevelLive": [],
+      "triage": [],
+      "unresolved": 0,
+      "unseenReviewSincePush": false,
+      "url": "https://github.example.invalid/example/monorepo/pull/111"
+    },
+    {
+      "author": "dev-a",
+      "awaitingReviewer": [],
+      "baseRefName": "develop",
+      "cardIds": [
+        "SOFTWARE-112"
+      ],
+      "checks": {
+        "failing": [],
+        "passing": 2,
+        "pending": [],
+        "state": "SUCCESS",
+        "total": 2,
+        "verdict": "green"
+      },
+      "ciEligible": true,
+      "ciReviewSummary": null,
+      "claudeEligible": true,
+      "headRefName": "svc/feat/SOFTWARE-112-pronta",
+      "headRefOid": "0112aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "isDraft": false,
+      "labels": [],
+      "lastClaudeTrigger": null,
+      "lastPushAt": "2026-10-20T10:00:00Z",
+      "lastReviewAt": "2026-10-20T12:00:00Z",
+      "lastSeenReviewAt": "2026-10-20T12:00:00Z",
+      "live": [],
+      "mergeStateStatus": "CLEAN",
+      "mergeable": "MERGEABLE",
+      "number": 112,
+      "reviewDecision": "APPROVED",
+      "reviewedSincePush": true,
+      "reviews": [
+        {
+          "author": "rev-b",
+          "fromBot": false,
+          "hasBody": false,
+          "state": "APPROVED",
+          "submittedAt": "2026-10-20T12:00:00Z"
+        }
+      ],
+      "specIds": [],
+      "stackDepth": 0,
+      "stackParent": null,
+      "stacked": false,
+      "state": "done-pending",
+      "threadTotal": 120,
+      "threads": [
+        {
+          "author": "rev-b",
+          "awaitingReviewer": false,
+          "commentCount": 1,
+          "commentId": 1011,
+          "createdAt": "2026-10-20T12:00:00Z",
+          "excerpt": "B4 retorno sem tipo",
+          "fromBot": false,
+          "handled": true,
+          "id": "T112-applied",
+          "isOutdated": false,
+          "isResolved": false,
+          "lastReplyAt": "2026-10-20T12:00:00Z",
+          "lastReplyAuthor": "rev-b",
+          "lastReplyFromMe": false,
+          "line": 10,
+          "path": "apps/svc/src/a.ts",
+          "reopened": false,
+          "ruleCode": "B4",
+          "verdict": "stale-fixed",
+          "verdictAt": "2026-10-20T13:00:00Z"
+        },
+        {
+          "author": "rev-b",
+          "awaitingReviewer": false,
+          "commentCount": 1,
+          "commentId": 1012,
+          "createdAt": "2026-10-20T12:00:00Z",
+          "excerpt": "nit: espaço",
+          "fromBot": false,
+          "handled": false,
+          "id": "T112-resolved",
+          "isOutdated": false,
+          "isResolved": true,
+          "lastReplyAt": "2026-10-20T12:00:00Z",
+          "lastReplyAuthor": "rev-b",
+          "lastReplyFromMe": false,
+          "line": 10,
+          "path": "apps/svc/src/a.ts",
+          "reopened": false,
+          "ruleCode": null,
+          "verdict": null,
+          "verdictAt": null
+        }
+      ],
+      "title": "SOFTWARE-112 - [Svc] Pronta",
+      "topLevel": [],
+      "topLevelLive": [],
+      "triage": [],
+      "unresolved": 0,
+      "unseenReviewSincePush": false,
+      "url": "https://github.example.invalid/example/monorepo/pull/112"
+    },
+    {
+      "author": "dev-a",
+      "awaitingReviewer": [
+        {
+          "author": "rev-b",
+          "awaitingReviewer": true,
+          "commentCount": 1,
+          "commentId": 1013,
+          "createdAt": "2026-10-20T12:00:00Z",
+          "excerpt": "**B7** transação aberta demais",
+          "fromBot": false,
+          "handled": false,
+          "id": "T113-rebutted",
+          "isOutdated": false,
+          "isResolved": false,
+          "lastReplyAt": "2026-10-20T12:00:00Z",
+          "lastReplyAuthor": "rev-b",
+          "lastReplyFromMe": false,
+          "line": 10,
+          "path": "apps/svc/src/a.ts",
+          "reopened": false,
+          "ruleCode": "B7",
+          "verdict": "rebutted",
+          "verdictAt": "2026-10-20T13:00:00Z"
+        }
+      ],
+      "baseRefName": "develop",
+      "cardIds": [
+        "SOFTWARE-113"
+      ],
+      "checks": {
+        "failing": [],
+        "passing": 2,
+        "pending": [],
+        "state": "SUCCESS",
+        "total": 2,
+        "verdict": "green"
+      },
+      "ciEligible": true,
+      "ciReviewSummary": null,
+      "claudeEligible": true,
+      "headRefName": "svc/feat/SOFTWARE-113-refutada",
+      "headRefOid": "0113aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "isDraft": false,
+      "labels": [],
+      "lastClaudeTrigger": null,
+      "lastPushAt": "2026-10-20T10:00:00Z",
+      "lastReviewAt": "2026-10-20T12:00:00Z",
+      "lastSeenReviewAt": "2026-10-20T12:00:00Z",
+      "live": [],
+      "mergeStateStatus": "UNKNOWN",
+      "mergeable": "MERGEABLE",
+      "number": 113,
+      "reviewDecision": "REVIEW_REQUIRED",
+      "reviewedSincePush": true,
+      "reviews": [
+        {
+          "author": "rev-b",
+          "fromBot": false,
+          "hasBody": false,
+          "state": "COMMENTED",
+          "submittedAt": "2026-10-20T12:00:00Z"
+        }
+      ],
+      "specIds": [],
+      "stackDepth": 0,
+      "stackParent": null,
+      "stacked": false,
+      "state": "needs-attention",
+      "threadTotal": 1,
+      "threads": [
+        {
+          "author": "rev-b",
+          "awaitingReviewer": true,
+          "commentCount": 1,
+          "commentId": 1013,
+          "createdAt": "2026-10-20T12:00:00Z",
+          "excerpt": "**B7** transação aberta demais",
+          "fromBot": false,
+          "handled": false,
+          "id": "T113-rebutted",
+          "isOutdated": false,
+          "isResolved": false,
+          "lastReplyAt": "2026-10-20T12:00:00Z",
+          "lastReplyAuthor": "rev-b",
+          "lastReplyFromMe": false,
+          "line": 10,
+          "path": "apps/svc/src/a.ts",
+          "reopened": false,
+          "ruleCode": "B7",
+          "verdict": "rebutted",
+          "verdictAt": "2026-10-20T13:00:00Z"
+        }
+      ],
+      "title": "SOFTWARE-113 - [Svc] Refutada",
+      "topLevel": [],
+      "topLevelLive": [],
+      "triage": [],
+      "unresolved": 1,
+      "unseenReviewSincePush": false,
+      "url": "https://github.example.invalid/example/monorepo/pull/113"
+    }
+  ],
+  "repo": "example/monorepo",
+  "requestedMissing": [],
+  "scope": "mine",
+  "stateSources": [
+    "<T>/work/example__monorepo/state/global.json",
+    "<T>/work/example__monorepo/state/pr-101.json",
+    "<T>/work/example__monorepo/state/pr-102.json",
+    "<T>/work/example__monorepo/state/pr-103.json",
+    "<T>/work/example__monorepo/state/pr-104.json",
+    "<T>/work/example__monorepo/state/pr-105.json",
+    "<T>/work/example__monorepo/state/pr-106.json",
+    "<T>/work/example__monorepo/state/pr-107.json",
+    "<T>/work/example__monorepo/state/pr-109.json",
+    "<T>/work/example__monorepo/state/pr-111.json",
+    "<T>/work/example__monorepo/state/pr-112.json",
+    "<T>/work/example__monorepo/state/pr-113.json",
+    "<T>/work/example__monorepo/state/pr-114.json"
+  ],
+  "stateVersion": 2,
+  "totals": {
+    "awaitingReviewer": 1,
+    "live": 2,
+    "topLevelLive": 1,
+    "triage": 1,
+    "unresolved": 4
+  },
+  "warnings": [
+    {
+      "detail": "20 PRs no escopo, 15 coletadas (teto 60)",
+      "impact": "ha PR acionavel fora do lote; suba --limit ou reduza o escopo",
+      "kind": "search-truncated"
+    },
+    {
+      "detail": "sem mergeStateStatus para 113 (teto de 200 PRs abertas)",
+      "impact": "conflict e stale-base nao sao detectaveis nessas PRs",
+      "kind": "merge-state-missing"
+    },
+    {
+      "detail": "45 checks, 2 lidos (teto 40)",
+      "impact": "check falhando fora da pagina fica invisivel",
+      "kind": "checks-truncated",
+      "pr": 101
+    },
+    {
+      "detail": "40 comentarios top-level, 8 lidos (teto 30)",
+      "impact": "pedido top-level antigo pode ficar fora da coleta",
+      "kind": "comments-truncated",
+      "pr": 104
+    },
+    {
+      "detail": "120 threads, 2 lidas (teto 100)",
+      "impact": "achado fora da pagina nao entra na contagem de vivos",
+      "kind": "threads-truncated",
+      "pr": 112
+    },
+    {
+      "detail": "50 reviews, 1 lidos (teto 40)",
+      "impact": "a data do ultimo review pode estar subestimada",
+      "kind": "reviews-truncated",
+      "pr": 112
+    }
+  ],
+  "workDir": "<T>/work/example__monorepo"
+}

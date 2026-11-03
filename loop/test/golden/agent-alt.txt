@@ -1,0 +1,22 @@
+$ hades agent new alt-a --role impl --branch feat/ZN-12-x --card ZN-12 --dry-run
+  [dry-run] herdr worktree create --branch feat/ZN-12-x --base origin/main --path <T>/agents/alt-a --label alt-a --no-focus
+  [dry-run] ln -s <T>/clone/monorepo/node_modules <T>/agents/alt-a/node_modules
+  [dry-run] git -C <T>/agents/alt-a branch --unset-upstream
+  [dry-run] mkdir -p <T>/agents/alt-a/.design-sync-reports
+  [dry-run] lock <T>/work/example__monorepo/locks/deliver-ZN-12.lock
+
+agente alt-a: worktree <T>/agents/alt-a · branch feat/ZN-12-x · card ZN-12 · lock deliver-ZN-12.lock · painel ?
+1. complete o brief (<T>/agents/alt-a/.design-sync-reports/brief.md): Item e Contexto
+2. o dono inicia (o classificador recusa quando é o orquestrador) — papel impl:
+   ! herdr agent start alt-a --kind claude --pane <pane> -- --permission-mode auto --model modelo-impl --effort alto
+3. depois: hades agent prompt alt-a
+rc=0
+$ hades agent new alt-b --role impl --card ZN-1
+hades: --branch <tipo>/ZN-NNN-<slug>
+rc=2
+$ hades agent new alt-c --branch feat/x
+hades: card é pré-condição da branch: --card ZN-N ou --new-card "<título>" --tags a,b
+rc=2
+$ hades agent new alt-d --branch feat/ZN-NOVO --new-card x --tags a
+hades: --new-card: o perfil não declara card.create (script do pacote que cria o card; card.provider: github)
+rc=2

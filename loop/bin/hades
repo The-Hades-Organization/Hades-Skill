@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# hades <subcomando> [args…]: a CLI da skill (src/cli.ts) pelo Bun. Caminho permanente do `hades` nos textos da skill
+# (`~/.claude/skills/hades/loop/bin/hades`); `reference/cli.md` lista os subcomandos.
+HADES_LIB_BUN_ONLY=1 source "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/lib.sh"
+hades_ts "$@"

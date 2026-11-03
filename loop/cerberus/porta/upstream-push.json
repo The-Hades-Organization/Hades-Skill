@@ -1,0 +1,16 @@
+{
+  "titulo": "Upstream confere com a branch da PR antes do push",
+  "momentos": [
+    "push",
+    "consolidacao"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "porta/upstream-push"
+  ],
+  "timeoutS": 30,
+  "origem": "src/lib/cerberus-porta.ts (hades cerberus-check); reference/cerberus/porta.md",
+  "descricao": "Compara o upstream da branch (git config branch.<b>.merge) com o headRefName da PR do contexto (--ctx head= ou pr=); branch sem upstream só passa com o mesmo nome da PR."
+}

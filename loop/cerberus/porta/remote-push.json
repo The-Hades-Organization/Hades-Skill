@@ -1,0 +1,16 @@
+{
+  "titulo": "Remote do push existe e não é no_push",
+  "momentos": [
+    "push",
+    "consolidacao"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "porta/remote-push"
+  ],
+  "timeoutS": 20,
+  "origem": "src/lib/cerberus-porta.ts (hades cerberus-check); reference/cerberus/porta.md",
+  "descricao": "Resolve o remote de push (pushRemote, pushDefault, remote do upstream) e recusa no_push ou remote sem url de push."
+}

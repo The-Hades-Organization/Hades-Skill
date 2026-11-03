@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tema escuro: o bloco escuro do painel (index.html), seguindo o modo do celular como prefers-color-scheme. -->
+<resources>
+    <color name="hades_background">#FF0C090C</color>
+    <color name="hades_foreground">#FFFAFAFA</color>
+    <color name="hades_card">#FF1D161E</color>
+    <color name="hades_primary">#FFA50036</color>
+    <color name="hades_primary_foreground">#FFFFF1F2</color>
+    <color name="hades_primary_text">#FFFF2056</color>
+    <color name="hades_muted">#FF2A212C</color>
+    <color name="hades_muted_foreground">#FFA89EA9</color>
+    <color name="hades_border">#1AFFFFFF</color>
+    <color name="hades_input">#26FFFFFF</color>
+    <color name="hades_ring">#FF79697B</color>
+    <color name="hades_ok">#FF22C373</color>
+    <color name="hades_warn">#FFF0B135</color>
+    <color name="hades_bad">#FFFF645F</color>
+    <color name="hades_info">#FF4BAEED</color>
+
+    <color name="hades_mark">#FFEDDECE</color>
+</resources>

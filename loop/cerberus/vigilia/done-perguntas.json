@@ -1,0 +1,17 @@
+{
+  "titulo": "Report em DONE sem pergunta aberta",
+  "momentos": [
+    "done",
+    "consolidacao"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "vigilia/auditoria",
+    "perguntas"
+  ],
+  "timeoutS": 20,
+  "origem": "reference/loop/roles/impl.md §Dúvidas do dono; reference/cerberus/vigilia.md",
+  "descricao": "questions.md sem \"## Qn\" aberto (sem \"(respondida)\" nem \"## Resposta do dono\") quando o report está em STATUS: DONE."
+}

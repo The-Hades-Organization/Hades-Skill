@@ -1,0 +1,21 @@
+$ save sem ok
+project-init: save só com o ok do dono (AskUserQuestion): passe --confirmed depois dele
+rc=2
+$ save schema inválido
+project-init: rascunho inválido: $.flow.kind: 'ambos' fora de ['pr', 'trunk']
+rc=1
+pacotes: 
+$ resolvedor antes
+rc=3
+$ save com ok
+<T>/packs-init/widget/profile.json
+resolvedor: código 0 (widget)
+rc=0
+resolvedor rc=0
+aviso: <T>/packs-init/widget/profile.json: sem `core` (faixa de versões do núcleo; reference/projects.md §Plugin)
+validate: ok
+pacote com git: sim
+$ save repo pequeno
+<T>/packs-init/tiny/profile.json
+resolvedor: código 0 (tiny)
+rc=0

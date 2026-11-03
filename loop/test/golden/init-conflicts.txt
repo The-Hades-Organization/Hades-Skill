@@ -1,0 +1,3 @@
+## Conflitos de qualidade
+
+- `ts.sem-any` (contradiz, projeto widget): a regra do projeto contraria este item ligado. Nota do projeto: .github/review-rules.md:7

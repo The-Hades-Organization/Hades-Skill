@@ -1,0 +1,16 @@
+{
+  "titulo": "Núcleo sem nome de projeto nem termo de domínio",
+  "momentos": [
+    "release",
+    "consolidacao"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "porta/nome-dominio"
+  ],
+  "timeoutS": 120,
+  "origem": "src/lib/cerberus-porta.ts (hades cerberus-check); reference/cerberus/porta.md",
+  "descricao": "Chama kit/skill-release.sh guard no repositório da skill; fora dele não se aplica."
+}

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Parado / sem CI: anel vazio. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path android:fillColor="@color/hades_muted_foreground" android:fillType="evenOdd" android:pathData="M12,5A7,7 0 1,1 11.99,5Z M12,8A4,4 0 1,0 12.01,8Z" />
+</vector>

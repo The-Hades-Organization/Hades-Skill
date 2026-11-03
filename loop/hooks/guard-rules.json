@@ -1,0 +1,88 @@
+{
+ "_": "Expressões do hook hades guard e do hades-usage (src/lib/guard-rules.ts): uma fonte só. flags: s = ponto casa quebra de linha.",
+ "fgPoll": [
+  {
+   "re": "(^|[;&|(\\s])sleep\\s+((1\\d|[2-9]\\d|\\d{3,})(\\.\\d+)?s?\\b|\\d+(\\.\\d+)?[mhd]\\b)",
+   "flags": "",
+   "what": "sleep de espera"
+  },
+  {
+   "re": "\\b(until|while)\\b[^\\n]*\\bdo\\b[^\\n]*\\bsleep\\b",
+   "flags": "s",
+   "what": "laço com sleep"
+  },
+  {
+   "re": "\\btail\\s+(-\\w*f|--follow)",
+   "flags": "",
+   "what": "tail -f"
+  },
+  {
+   "re": "(^|[;&|\\s])watch\\s+-",
+   "flags": "",
+   "what": "watch"
+  },
+  {
+   "re": "gh\\s+pr\\s+checks\\b[^\\n]*--watch|gh\\s+run\\s+watch",
+   "flags": "",
+   "what": "CI com --watch em primeiro plano"
+  },
+  {
+   "re": "herdr\\s+(agent|pane)\\s+wait\\b",
+   "flags": "",
+   "what": "herdr wait em primeiro plano"
+  },
+  {
+   "re": "hades\\s+wait\\b|hades-wait\\.sh",
+   "flags": "",
+   "what": "hades wait em primeiro plano (ele bloqueia até o evento)"
+  }
+ ],
+ "repeat": [
+  {
+   "re": "gh\\s+pr\\s+checks\\s+(\\d+)",
+   "flags": "",
+   "what": "ci"
+  },
+  {
+   "re": "gh\\s+pr\\s+view\\s+(\\d+)[^\\n]*(statusCheckRollup|mergeStateStatus|--json\\s+state)",
+   "flags": "",
+   "what": "pr-state"
+  },
+  {
+   "re": "gate-lock(?:\\.sh)?\\s+status",
+   "flags": "",
+   "what": "gate-status"
+  },
+  {
+   "re": "herdr\\s+agent\\s+read\\s+(\\S+)",
+   "flags": "",
+   "what": "agent-read"
+  },
+  {
+   "re": "herdr\\s+pane\\s+read\\s+(\\S+)",
+   "flags": "",
+   "what": "pane-read"
+  },
+  {
+   "re": "\\b(?:tail|cat)\\b[^\\n|;&]*?(\\S+\\.(?:log|out|summary|txt))\\b",
+   "flags": "",
+   "what": "log"
+  }
+ ],
+ "usageChecks": {
+  "re": "(^|[;&|\\s(/])(gh pr checks|gh run (watch|view)|herdr (agent|pane) (read|wait|list)|gate-lock(?:\\.sh)? status)\\b",
+  "flags": ""
+ },
+ "agentText": {
+  "re": "(hades(?:-agent\\.sh|\\s+agent)\\s+(?:answer|prompt|escalate|phase|resume)\\b)((?:\\s+(?:[^\\s\"\\'&;|]+|\"(?:\\\\.|[^\"\\\\])*\"|\\'[^\\']*\\'))*)",
+  "flags": ""
+ },
+ "quoted": {
+  "re": "\"(?:\\\\.|[^\"\\\\])*\"|\\'[^\\']*\\'",
+  "flags": ""
+ },
+ "heredoc": {
+  "re": "(<<-?\\s*['\\\"]?(\\w+)['\\\"]?[^\\n]*\\n).*?\\n\\s*\\2\\s*(?=\\n|$)",
+  "flags": "s"
+ }
+}

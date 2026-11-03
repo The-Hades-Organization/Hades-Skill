@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9; --surface: #ffffff; --text: #1b1f24; --muted: #5b6573; --line: #d8dde4; --accent: #2457c5;
+    --add-bg: #e3f6e8; --add-fg: #14612c; --del-bg: #fde7e7; --del-fg: #8f1d1d; --hunk-bg: #e8eefb; --hunk-fg: #2a3f73;
+    --code-bg: #f0f2f5; --bar-add: #2f9e55; --bar-del: #d1505a; --warn-bg: #fff4d6; --warn-fg: #6b4e00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151a; --surface: #1a1f26; --text: #e6e9ee; --muted: #9aa5b4; --line: #2c333d; --accent: #7fa6f5;
+      --add-bg: #12301c; --add-fg: #7fd69a; --del-bg: #3a1618; --del-fg: #f19a9f; --hunk-bg: #1b2744; --hunk-fg: #a9c0f2;
+      --code-bg: #232932; --bar-add: #4cc27a; --bar-del: #ef7882; --warn-bg: #3a2f10; --warn-fg: #f2d37a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 880px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { margin-bottom: 20px; }
+  h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 6px; overflow-wrap: anywhere; }
+  h2 { font-size: 1.05rem; margin: 0 0 10px; }
+  .meta { color: var(--muted); font-size: .875rem; }
+  section { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 0 0 14px; }
+  p { margin: 0 0 10px; overflow-wrap: anywhere; }
+  p:last-child { margin-bottom: 0; }
+  ul { margin: 0; padding-left: 20px; }
+  li { margin: 0 0 4px; overflow-wrap: anywhere; }
+  code, pre { font: .8125rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px; }
+  table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+  td { padding: 5px 0; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+  td.num { text-align: right; white-space: nowrap; padding-left: 12px; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: 0; }
+  .plus { color: var(--add-fg); } .minus { color: var(--del-fg); }
+  .diff { margin: 0; overflow-x: auto; background: var(--code-bg); border-radius: 8px; padding: 8px 0; }
+  .diff span { display: block; padding: 0 12px; white-space: pre; }
+  .diff .add { background: var(--add-bg); color: var(--add-fg); }
+  .diff .del { background: var(--del-bg); color: var(--del-fg); }
+  .diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  .diff .file { font-weight: 600; margin-top: 8px; }
+  .notice { background: var(--warn-bg); color: var(--warn-fg); border-radius: 10px; padding: 12px 16px; margin: 0 0 14px; font-size: .9375rem; }
+  svg { display: block; width: 100%; height: auto; max-width: 560px; }
+  svg text { fill: var(--text); font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  svg .bar-add { fill: var(--bar-add); } svg .bar-del { fill: var(--bar-del); }
+  footer { color: var(--muted); font-size: .8125rem; margin-top: 18px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>{{TITLE}}</h1>
+    <div class="meta">Contribuição para a skill Hades · destino <code>{{REPO}}</code> · partindo da versão {{VERSION}}</div>
+  </header>
+  <div class="notice">Nada foi enviado: este arquivo é para você mandar ao dono da skill pelo canal que preferir.</div>
+  <section><h2>O que é</h2>{{WHAT}}</section>
+  <section><h2>Problema</h2>{{WHY}}</section>
+  <section><h2>Ganhos</h2>{{GAINS}}</section>
+  <section><h2>Prova</h2>{{PROOF}}</section>
+  {{DIAGRAM}}
+  <section><h2>Arquivos tocados</h2>{{FILES}}</section>
+  {{LEFT}}
+  <section><h2>Diff</h2><pre class="diff">{{DIFF}}</pre></section>
+  <footer>Gerado por <code>hades contrib</code>. O diff já passou pela guarda de nome, domínio e segredo.</footer>
+</main>
+</body>
+</html>

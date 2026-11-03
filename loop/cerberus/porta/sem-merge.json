@@ -1,0 +1,11 @@
+{
+  "titulo": "O loop nunca faz merge",
+  "momentos": [
+    "push",
+    "consolidacao"
+  ],
+  "tipo": "regra",
+  "dono": "porta",
+  "origem": "SKILL.md §Invariantes de segurança",
+  "descricao": "O fluxo para em done-pending; merge é decisão do dono."
+}

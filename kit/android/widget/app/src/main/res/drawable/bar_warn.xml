@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Medidor horizontal (ProgressBar): trilho hades_muted e preenchimento warn; o nível escolhe qual das barras fica visível. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/hades_muted" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape android:shape="rectangle">
+                <solid android:color="@color/hades_warn" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>

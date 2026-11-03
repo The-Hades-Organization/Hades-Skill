@@ -1,0 +1,120 @@
+{
+ "json-merge3 fora do merge": "nada.json: ok\nrc=0",
+ "json-merge3: chave removida de um lado": "c.json: ok\nrc=0\n{\n  \"a\": 1,\n  \"n\": {\n    \"k\": 1\n  }\n}\n",
+ "json-merge3: chaves novas dos dois lados": "c.json: ok\nrc=0\n{\n  \"a\": 1,\n  \"c\": \"Ã§\",\n  \"z\": 0,\n  \"d\": {\n    \"x\": [\n      1,\n      2\n    ]\n  }\n}\n",
+ "json-merge3: mesma chave mudada de formas diferentes (conflito real)": "c.json: CONFLITO REAL em 1 chave(s): $.a\nrc=1\n{\n<<<<<<< HEAD\n  \"a\": 2,\n=======\n  \"a\": 3,\n>>>>>>> theirs\n  \"z\": 0\n}\n100644 8dbe5072706f983d5356e6c01dde735bb2a53da8 1;100644 fe8f73a277d5534802c0b803f29e4f0fd4142b2c 2;100644 942ec614941e19d5ba5d9a9e09f93a6cf9d89a37 3;",
+ "json-merge3: objeto aninhado mudado nos dois lados": "c.json: CONFLITO REAL em 1 chave(s): $.z.q\nrc=1\n{\n  \"a\": 1,\n<<<<<<< HEAD\n  \"z\": {\"p\": 1, \"q\": 2}\n=======\n  \"z\": {\"p\": 1, \"q\": 3}\n>>>>>>> theirs\n}\n100644 8dbe5072706f983d5356e6c01dde735bb2a53da8 1;100644 a6d5fab1157032cb47a817eef3ea5452f7efb611 2;100644 5ba0282200cdd30f42ffbf1fe80254eb6e8afba9 3;",
+ "keep-both": "0 a\num\ndois\nb\n1\n2\nfim\nc|sem conflito\nlinha\n",
+ "keep-both arquivo ausente: rc": 1,
+ "linger 0 state": {
+  "out": "no\nrc=0",
+  "st": "linger= mine=não antiga=não"
+ },
+ "linger 1 sync": {
+  "out": "rc=0",
+  "st": "linger= mine=não antiga=não"
+ },
+ "linger 10 ": {
+  "out": "Linger do systemd (user manager de pé sem login), do painel do Hades.\nPrecisa dele só o painel em modo boot (HADES_PANEL_AUTOSTART=boot). Uma marca só,\n$D/linger.mine: o Hades só desliga o linger que ele mesmo ligou, e só quando ninguém mais o pede.\nUso: linger.sh sync|state\n  sync    liga ou desliga conforme as Configurações (sai 1 se não conseguir ligar)\n  state   yes | no\nrc=2",
+  "st": "linger=no mine=não antiga=não"
+ },
+ "linger 2 boot sync": {
+  "out": "rc=0",
+  "st": "linger=yes mine=sim antiga=não"
+ },
+ "linger 3 boot state": {
+  "out": "yes\nrc=0",
+  "st": "linger=yes mine=sim antiga=não"
+ },
+ "linger 4 boot sync": {
+  "out": "rc=0",
+  "st": "linger=yes mine=sim antiga=não"
+ },
+ "linger 5 login sync": {
+  "out": "rc=0",
+  "st": "linger=no mine=não antiga=não"
+ },
+ "linger 6 login state": {
+  "out": "no\nrc=0",
+  "st": "linger=no mine=não antiga=não"
+ },
+ "linger 7 login sync": {
+  "out": "rc=0",
+  "st": "linger=no mine=não antiga=não"
+ },
+ "linger 8 boot-antiga sync": {
+  "out": "rc=0",
+  "st": "linger=no mine=não antiga=não"
+ },
+ "linger 9 zzz": {
+  "out": "Linger do systemd (user manager de pé sem login), do painel do Hades.\nPrecisa dele só o painel em modo boot (HADES_PANEL_AUTOSTART=boot). Uma marca só,\n$D/linger.mine: o Hades só desliga o linger que ele mesmo ligou, e só quando ninguém mais o pede.\nUso: linger.sh sync|state\n  sync    liga ou desliga conforme as Configurações (sai 1 se não conseguir ligar)\n  state   yes | no\nrc=2",
+  "st": "linger=no mine=não antiga=não"
+ },
+ "linger loginctl falha": "não foi possível ligar o linger (loginctl enable-linger regressao): o painel com a máquina fica só no login\nrc=1",
+ "logrotate --dry-run": "[dry-run] rotaciona a.log                                         3.0 MB  3 MB > teto 1 MB\n[dry-run] rotaciona b.log                                         2.0 MB  2 MB > teto 1 MB\n[dry-run] rotaciona cprio.log                                     1.4 MB  1 MB > teto 1 MB\n[dry-run] apaga     a.log.3.gz                                    0.0 MB  geração além do limite\nliberaria ~6.4 MB em 4 ação(ões)\nrc=0",
+ "logrotate --dry-run --json": "{\"actions\": [{\"file\": \"a.log\", \"action\": \"rotaciona\", \"bytes\": 3145728, \"why\": \"3 MB > teto 1 MB\"}, {\"file\": \"b.log\", \"action\": \"rotaciona\", \"bytes\": 2097152, \"why\": \"2 MB > teto 1 MB\"}, {\"file\": \"cprio.log\", \"action\": \"rotaciona\", \"bytes\": 1500000, \"why\": \"1 MB > teto 1 MB\"}, {\"file\": \"a.log.3.gz\", \"action\": \"apaga\", \"bytes\": 22, \"why\": \"gera\\u00e7\\u00e3o al\\u00e9m do limite\"}], \"skipped\": [], \"freed\": 6742902, \"dry\": true}\nrc=0",
+ "logrotate --dry-run --json disco": "a.log 3145728\na.log.1.gz 0120a4f9196a5f9eb9f523f31f914da7\na.log.2.gz e1c80488853d86ab9d6decfe30d8930f\na.log.3.gz 8a9fd7dfda802921fdc4079f9a528ce8\nb.log 2097152\ncprio.log 1500000\nd.log 100000\nsolto.txt 1",
+ "logrotate --dry-run disco": "a.log 3145728\na.log.1.gz 0120a4f9196a5f9eb9f523f31f914da7\na.log.2.gz e1c80488853d86ab9d6decfe30d8930f\na.log.3.gz 8a9fd7dfda802921fdc4079f9a528ce8\nb.log 2097152\ncprio.log 1500000\nd.log 100000\nsolto.txt 1",
+ "logrotate --json": "{\"actions\": [{\"file\": \"a.log\", \"action\": \"rotaciona\", \"bytes\": 3145728, \"why\": \"3 MB > teto 1 MB\"}, {\"file\": \"b.log\", \"action\": \"rotaciona\", \"bytes\": 2097152, \"why\": \"2 MB > teto 1 MB\"}, {\"file\": \"cprio.log\", \"action\": \"rotaciona\", \"bytes\": 1500000, \"why\": \"1 MB > teto 1 MB\"}, {\"file\": \"a.log.3.gz\", \"action\": \"apaga\", \"bytes\": 22, \"why\": \"gera\\u00e7\\u00e3o al\\u00e9m do limite\"}], \"skipped\": [], \"freed\": 6742902, \"dry\": false}\nrc=0",
+ "logrotate --json disco": "a.log 0\na.log.1.gz 6a11a8872b36343799a15617bea78cef\na.log.2.gz 0120a4f9196a5f9eb9f523f31f914da7\nb.log 0\nb.log.1.gz bee3e2a82b608d7f93fafe361b05b20f\ncprio.log 0\ncprio.log.1.gz e0676a6820a4fb354c3b29fb6f41324c\nd.log 100000\nsolto.txt 1",
+ "logrotate aberto sem O_APPEND": "rotaciona b.log                                         2.0 MB  2 MB > teto 1 MB\nrotaciona cprio.log                                     1.4 MB  1 MB > teto 1 MB\napaga     a.log.3.gz                                    0.0 MB  geração além do limite\npulado    a.log                                    aberto sem O_APPEND (pid N)\nliberou ~3.4 MB em 3 ação(ões)\n",
+ "logrotate política inválida: rc": 1,
+ "logrotate real": "rotaciona a.log                                         3.0 MB  3 MB > teto 1 MB\nrotaciona b.log                                         2.0 MB  2 MB > teto 1 MB\nrotaciona cprio.log                                     1.4 MB  1 MB > teto 1 MB\napaga     a.log.3.gz                                    0.0 MB  geração além do limite\nliberou ~6.4 MB em 4 ação(ões)\nrc=0",
+ "logrotate real disco": "a.log 0\na.log.1.gz 6a11a8872b36343799a15617bea78cef\na.log.2.gz 0120a4f9196a5f9eb9f523f31f914da7\nb.log 0\nb.log.1.gz bee3e2a82b608d7f93fafe361b05b20f\ncprio.log 0\ncprio.log.1.gz e0676a6820a4fb354c3b29fb6f41324c\nd.log 100000\nsolto.txt 1",
+ "logrotate sem logs/": "liberou ~0.0 MB em 0 ação(ões)\nrc=0",
+ "logrotate teto": "apaga     a.log.3.gz                                    0.0 MB  teto total 4 MB\napaga     a.log.2.gz                                    0.0 MB  teto total 4 MB\napaga     a.log.1.gz                                    0.0 MB  teto total 4 MB\nrotaciona a.log                                         3.0 MB  teto total 4 MB\nliberou ~3.0 MB em 4 ação(ões)\nrc=0",
+ "logrotate teto disco": "a.log 0\na.log.1.gz 6a11a8872b36343799a15617bea78cef\nb.log 2097152\ncprio.log 1500000\nd.log 100000\nsolto.txt 1",
+ "pr-set --heads": "10\t0010aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n11\t0011aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nrc=0",
+ "pr-set PR inexistente: rc": 1,
+ "pr-set prs.list 10\n10\n20\n": "pr-set: #11 entrou por ser base da stack de #20\n10\t0010aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\t-\tfeat-a\tPR 10 título\n11\t0011aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\t10\tfeat-b\tPR 11 título\n20\t0020aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\t11\tfeat-c\tçççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççç\nrc=0",
+ "pr-set prs.list 20 # comentário\n-10\n": "pr-set: #11 entrou por ser base da stack de #20\npr-set: #10 entrou por ser base da stack de #20\npr-set: #11 está empilhada sobre feat-a, que não está no conjunto: o merge traz os commits da base junto\n11\t0011aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\t-\tfeat-b\tPR 11 título\n20\t0020aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\t11\tfeat-c\tçççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççç\nrc=0",
+ "pr-set prs.list 30\n": "pr-set: #30 foi mergeada na branch da #11 — seguindo para ela\npr-set: #10 entrou por ser base da stack de #11\n10\t0010aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\t-\tfeat-a\tPR 10 título\n11\t0011aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\t10\tfeat-b\tPR 11 título\nrc=0",
+ "pr-set prs.list 50\n12\n": "pr-set: #50 está CLOSED (#50) — fora do Hades\n12\t0012aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\t-\tfeat-d\tPR 12 título\nrc=0",
+ "pr-set prs.list author:bob\nfoo\n-40\n": "pr-set: entrada ignorada: 'foo'\nrc=0",
+ "pr-set sem prs.list (@me)": "10\t0010aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\t-\tfeat-a\tPR 10 título\n11\t0011aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\t10\tfeat-b\tPR 11 título\nrc=0",
+ "prs 0 show": {
+  "out": "entradas: @me (padrão)\n  #10 0010aaaaaa base=- PR 10 título\n  #11 0011aaaaaa base=10 PR 11 título\nrc=0",
+  "list": ""
+ },
+ "prs 1 set 20 -10 @me": {
+  "out": "entradas: 20 -10 @me \npr-set: #11 está empilhada sobre feat-a, que não está no conjunto: o merge traz os commits da base junto\n  #11 0011aaaaaa base=- PR 11 título\n  #20 0020aaaaaa base=11 çççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççç\nrc=0",
+  "list": "20\n-10\n@me\n"
+ },
+ "prs 10 ": {
+  "out": "entradas: @me (padrão)\n  #10 0010aaaaaa base=- PR 10 título\n  #11 0011aaaaaa base=10 PR 11 título\nrc=0",
+  "list": ""
+ },
+ "prs 2 add 30 -12": {
+  "out": "entradas: 20 -10 @me 30 -12 \npr-set: #30 foi mergeada na branch da #11 — seguindo para ela\npr-set: #11 está empilhada sobre feat-a, que não está no conjunto: o merge traz os commits da base junto\n  #11 0011aaaaaa base=- PR 11 título\n  #20 0020aaaaaa base=11 çççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççç\nrc=0",
+  "list": "20\n-10\n@me\n30\n-12\n"
+ },
+ "prs 3 remove 30": {
+  "out": "entradas: 20 -10 @me -12 \npr-set: #11 está empilhada sobre feat-a, que não está no conjunto: o merge traz os commits da base junto\n  #11 0011aaaaaa base=- PR 11 título\n  #20 0020aaaaaa base=11 çççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççç\nrc=0",
+  "list": "20\n-10\n@me\n-12\n"
+ },
+ "prs 4 remove 20 -10": {
+  "out": "entradas: @me -12 \n  #10 0010aaaaaa base=- PR 10 título\n  #11 0011aaaaaa base=10 PR 11 título\nrc=0",
+  "list": "@me\n-12\n"
+ },
+ "prs 5 set": {
+  "out": "entradas:  \n  #10 0010aaaaaa base=- PR 10 título\n  #11 0011aaaaaa base=10 PR 11 título\nrc=0",
+  "list": "\n"
+ },
+ "prs 6 add": {
+  "out": "entradas:   \n  #10 0010aaaaaa base=- PR 10 título\n  #11 0011aaaaaa base=10 PR 11 título\nrc=0",
+  "list": "\n\n"
+ },
+ "prs 7 reset": {
+  "out": "entradas: @me (padrão)\n  #10 0010aaaaaa base=- PR 10 título\n  #11 0011aaaaaa base=10 PR 11 título\nrc=0",
+  "list": ""
+ },
+ "prs 8 show": {
+  "out": "entradas: @me (padrão)\n  #10 0010aaaaaa base=- PR 10 título\n  #11 0011aaaaaa base=10 PR 11 título\nrc=0",
+  "list": ""
+ },
+ "prs 9 zzz": {
+  "out": "Conjunto de PRs do Hades ($D/prs.list). Sem arquivo = \"@me\" (abertas não-draft do dono).\n  prs.sh show                 entradas + resolução (o que entraria agora, em ordem)\n  prs.sh set 4937 4959 @me    substitui a lista (números, @me, author:<login>, -<n> para excluir)\n  prs.sh add 5020 -4964       acrescenta entradas\n  prs.sh remove 5020          tira entradas\n  prs.sh reset                volta ao padrão (@me)\nDepois de mudar: $D/update.sh para aplicar.\nrc=2",
+  "list": ""
+ },
+ "prs show comentário": "entradas: 20 # c  10 \npr-set: #11 entrou por ser base da stack de #20\n  #10 0010aaaaaa base=- PR 10 título\n  #11 0011aaaaaa base=10 PR 11 título\n  #20 0020aaaaaa base=11 çççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççççç\nrc=0"
+}

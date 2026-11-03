@@ -1,0 +1,10 @@
+$ reinstala com o órfão do release anterior
+removido o antigo velho.sh (agora novo.sh)
+velho.sh: ausente
+novo.sh: presente
+solto.sh: presente
+root.env: presente
+svc.sh: presente
+fora do $D: intacto
+$ de novo (idempotente)
+removidos: 0

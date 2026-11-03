@@ -1,0 +1,37 @@
+$ hades agent new impl-b --role impl --branch svc/feat/sem-card
+hades: card é pré-condição da branch: --card SOFTWARE-N ou --new-card "<título>" --tags a,b
+rc=2
+$ hades agent new impl-b --branch svc/feat/SOFTWARE-9-x --card SOFTWARE-123
+hades: a branch tem de conter o card (SOFTWARE-123)
+rc=2
+$ hades agent new Nome_Ruim --branch x
+hades: nome curto: minúsculas, números e hífen
+rc=2
+$ hades agent new impl-c --for inbox
+hades: --for inbox pede --pr N
+rc=2
+$ hades agent new impl-d --role impl --card SOFTWARE-1
+hades: --branch <module>/<prefix>/SOFTWARE-NNNN-<slug>
+rc=2
+$ hades agent new impl-a --role impl --branch svc/feat/SOFTWARE-123-demo --card SOFTWARE-123 --specs UC-1,UC-2 --dry-run
+  [dry-run] herdr worktree create --branch svc/feat/SOFTWARE-123-demo --base origin/develop --path <T>/agents/impl-a --label impl-a --no-focus
+  [dry-run] ln -s <T>/clone/monorepo/node_modules <T>/agents/impl-a/node_modules
+  [dry-run] git -C <T>/agents/impl-a branch --unset-upstream
+  [dry-run] mkdir -p <T>/agents/impl-a/.design-sync-reports
+  [dry-run] lock <T>/work/example__monorepo/locks/deliver-SOFTWARE-123.lock
+
+agente impl-a: worktree <T>/agents/impl-a · branch svc/feat/SOFTWARE-123-demo · card SOFTWARE-123 · lock deliver-SOFTWARE-123.lock · painel ?
+1. complete o brief (<T>/agents/impl-a/.design-sync-reports/brief.md): Item e Contexto
+2. o dono inicia (o classificador recusa quando é o orquestrador) — papel impl:
+   ! herdr agent start impl-a --kind claude --pane <pane> -- --permission-mode auto --model modelo-impl --effort alto
+3. depois: hades agent prompt impl-a
+rc=0
+$ hades agent new impl-a (de verdade)
+  brief: <T>/agents/impl-a/.design-sync-reports/brief.md (complete Item e Contexto antes do prompt)
+
+agente impl-a: worktree <T>/agents/impl-a · branch svc/feat/SOFTWARE-123-demo · card SOFTWARE-123 · lock deliver-SOFTWARE-123.lock · painel w1:p1
+1. complete o brief (<T>/agents/impl-a/.design-sync-reports/brief.md): Item e Contexto
+2. o dono inicia (o classificador recusa quando é o orquestrador) — papel impl:
+   ! herdr agent start impl-a --kind claude --pane w1:p1 -- --permission-mode auto --model modelo-impl --effort alto
+3. depois: hades agent prompt impl-a
+rc=0

@@ -1,0 +1,17 @@
+{
+  "titulo": "Gate citado como verde tem registro rc=0 no gate-lock",
+  "momentos": [
+    "done",
+    "consolidacao"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "vigilia/auditoria",
+    "gates"
+  ],
+  "timeoutS": 30,
+  "origem": "SKILL.md §Invariantes de segurança; reference/loop/gates.md §3.2; reference/cerberus/vigilia.md",
+  "descricao": "Cada bloco do report que cita a fila (gate-lock, kind, pela fila) como verde precisa de linha done com rc=0 da worktree no gate-journal, desde a criação do agente, com o kind e o label citados; o último registro que casa decide."
+}

@@ -1,0 +1,12 @@
+{
+  "schema": "hades.profile/1",
+  "name": "example-monorepo",
+  "description": "Fixture: perfil com valores diferentes dos legados, para provar que o núcleo lê o perfil.",
+  "identity": {"repo": "example/monorepo", "gh": {"tokenEnv": "ZN_TOKEN"}},
+  "flow": {"kind": "trunk", "base": "main", "ci": {"workflow": "ci.yml", "bases": ["main", "develop"], "draft": true}},
+  "work": {"sources": ["queue"], "specIdPattern": "\\b(UC-[0-9]+)\\b"},
+  "rules": {"severity": {"codePattern": "^(B[0-9]|RF-[0-9]+)\\b", "vocabulary": [{"prefix": "B", "level": "alta"}]}},
+  "branch": {"format": "<tipo>/ZN-NNN-<slug>"},
+  "card": {"provider": "github", "idPattern": "\\b(AT26-[0-9]+)\\b", "newIdPattern": "ZN-[0-9]+", "example": "ZN-N"},
+  "stacks": ["pnpm-next"]
+}

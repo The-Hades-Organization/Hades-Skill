@@ -1,0 +1,10 @@
+#!/usr/bin/env bun
+// claude falso da regressão: anota argv e cwd em FAKE_CLAUDE_LOG, imprime o stream-json de FAKE_CLAUDE_OUT e sai com FAKE_CLAUDE_RC.
+const { appendFileSync, readFileSync } = require("node:fs");
+const { basename } = require("node:path");
+
+const log = process.env.FAKE_CLAUDE_LOG;
+if (log) appendFileSync(log, `cwd=${basename(process.cwd())} ${process.argv.slice(2).join(" | ").replaceAll("\n", "\\n")}\n`);
+const src = process.env.FAKE_CLAUDE_OUT;
+if (src) process.stdout.write(readFileSync(src, "utf8"));
+process.exit(Number(process.env.FAKE_CLAUDE_RC ?? "0"));

@@ -1,0 +1,42 @@
+#!/usr/bin/env bun
+// gh falso da regressão: responde do diretório FAKE_GH_DIR, anota cada chamada em FAKE_GH_LOG e nunca vai à rede.
+const { appendFileSync, readFileSync } = require("node:fs");
+const { join } = require("node:path");
+
+const dir = process.env.FAKE_GH_DIR ?? "";
+const a = process.argv.slice(2);
+const token = process.env.GH_TOKEN || "-";
+const rec = (line) => {
+  const log = process.env.FAKE_GH_LOG;
+  if (log) appendFileSync(log, `${line} [GH_TOKEN=${token}]\n`);
+};
+const out = (name) => process.stdout.write(readFileSync(join(dir, name), "utf8"));
+const is = (...head) => head.every((h, i) => a[i] === h);
+
+if (is("repo", "view")) {
+  rec(`repo view ${a.slice(2).join(" ")}`);
+  out("repo.json");
+} else if (is("api", "user")) {
+  rec("api user");
+  console.log(JSON.parse(readFileSync(join(dir, "user.json"), "utf8")).login);
+} else if (is("api", "graphql")) {
+  // o texto da query fica fora do registro: o que importa é o filtro de busca e os tetos de página
+  const fields = a.slice(2).filter((x) => x.includes("=") && !x.startsWith("query=")).sort();
+  rec(`api graphql ${fields.join(" ")}`);
+  out("graphql.json");
+} else if (is("pr", "view")) {
+  rec(`pr view ${a.slice(2).join(" ")}`);
+  out(a.includes("--jq") ? "pr-changed-files.txt" : "pr-view.json");
+} else if (a[0] === "api" && a[1]?.endsWith("/files")) {
+  rec(`api ${a.slice(1).join(" ")}`);
+  out("pr-files.json");
+} else if (is("pr", "list")) {
+  rec(`pr list ${a.slice(2).join(" ")}`);
+  out("pr-list.json");
+} else if (is("auth", "token")) {
+  rec(`auth token ${a.slice(2).join(" ")}`);
+  console.log(`fake-token-${a[a.length - 1]}`);
+} else {
+  console.error(`gh falso: chamada não prevista: [${a.map((x) => `'${x}'`).join(", ")}]`);
+  process.exit(1);
+}

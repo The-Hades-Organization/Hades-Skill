@@ -1,0 +1,9 @@
+{
+  "titulo": "Exceção e modo do Cerberus só pelo dono",
+  "momentos": [
+    "continuo"
+  ],
+  "tipo": "emitida",
+  "origem": "hades guard (PreToolUse); reference/cerberus.md §Exceção",
+  "descricao": "Barra, vindo das ferramentas do Claude: excecao abrir, /api/cerberus, escrita no diretório do Cerberus e troca de HADES_CERBERUS_*."
+}

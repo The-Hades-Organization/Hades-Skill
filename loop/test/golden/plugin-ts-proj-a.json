@@ -1,0 +1,86 @@
+[
+  [
+    "action",
+    "sample",
+    "snapshots"
+  ],
+  {
+    "snapshots": [
+      {
+        "id": "20260101-000000"
+      }
+    ],
+    "bytes": 7
+  },
+  [
+    "Snapshot dos bancos",
+    "bash <T>/pt-X/snapshot.sh take --label manual",
+    false
+  ],
+  [
+    "Apagar o snapshot 20260101-000000-x",
+    "bash <T>/pt-X/snapshot.sh rm 20260101-000000-x",
+    false
+  ],
+  [
+    "Restaurar o snapshot 20260101-000000",
+    "bash <T>/pt-X/snapshot.sh restore 20260101-000000",
+    true
+  ],
+  "recusa:id de snapshot inválido",
+  "recusa:valor fora da lista: 'apaga'",
+  "recusa:ação desconhecida: nao-existe",
+  [
+    "Simuladores: status",
+    "bash <T>/pt-X/sims.sh status",
+    false
+  ],
+  "recusa:valor fora da lista: 'status'",
+  [
+    "Regras SIM_* do simulador de alarmes",
+    "node <T>/pt-X/seed/alarm-sim-rules.mjs",
+    false
+  ],
+  [
+    "Simulador de alarmes: iniciar",
+    "systemd-run --user --quiet --unit=hds-demo-sim --slice=hades --working-directory=<T>/pt-X/seed -p Restart=on-failure -p RestartSec=10 -p StandardOutput=append:<T>/pt-X/logs/alarm-sim.log -p StandardError=append:<T>/pt-X/logs/alarm-sim.log node <T>/pt-X/seed/alarm-sim.mjs",
+    false
+  ],
+  [
+    "Carregar dados (sem topologia)",
+    "bash <T>/pt-X/bootstrap-data.sh --skip-topology",
+    true
+  ],
+  [
+    "Carregar dados",
+    "bash <T>/pt-X/bootstrap-data.sh",
+    true
+  ],
+  {
+    "sims": [
+      {
+        "state": "failed",
+        "mem": 10,
+        "name": "s1"
+      }
+    ],
+    "extras": {
+      "console": {
+        "state": "inactive",
+        "mem": null
+      },
+      "alarmSim": {
+        "state": "inactive",
+        "mem": null
+      },
+      "devBus": {
+        "state": "active",
+        "mem": 3
+      }
+    },
+    "mem": 13,
+    "logUnits": [
+      "hds-dev-s1"
+    ]
+  }
+]

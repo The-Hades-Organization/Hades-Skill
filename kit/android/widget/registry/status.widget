@@ -1,0 +1,7 @@
+# Widget de status do loop. provider/renderer/layout explícitos: o nome do componente HadesWidgetProvider é o que
+# mantém o widget já colocado na tela após atualizar o APK.
+label=Hades
+cells=4x2
+layout=widget
+renderer=StatusWidgetView
+provider=HadesWidgetProvider

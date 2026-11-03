@@ -1,0 +1,7 @@
+# casos que dependem do perfil (só valem depois do contrato multi-projeto); colunas como em cases.tsv
+nx-test-repo-sem-perfil	Pre	plain	0	q1	npx nx test app-alarms
+npm-build-fora-de-git	Pre	nogit	0	q1	npm run build
+pnpm-do-stack-instalado	Pre	plain	0	q1	pnpm next build
+pnpm-do-stack-na-fila	Pre	plain	0	q1	"$GL" run build --label x -- pnpm next build
+ctx-clone-sem-perfil	Post	plain	0	q2	260000
+ctx-clone-com-perfil	Post	main	0	q3	260000

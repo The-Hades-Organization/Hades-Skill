@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Prévia do seletor para launchers sem previewLayout (antes do Android 12): o cartão com a marca, um medidor e três pontos de estado. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/widget_bg" />
+    <item android:drawable="@drawable/ic_mark" android:gravity="top|start" android:height="18dp" android:left="20dp" android:top="14dp" android:width="18dp" />
+    <item android:drawable="@drawable/bar_ok" android:gravity="center_vertical|fill_horizontal" android:height="6dp" android:left="20dp" android:right="16dp" android:top="14dp" />
+    <item android:drawable="@drawable/ic_state_ok" android:gravity="bottom|start" android:height="18dp" android:left="20dp" android:bottom="14dp" android:width="18dp" />
+    <item android:drawable="@drawable/ic_state_warn" android:gravity="bottom|start" android:height="18dp" android:left="44dp" android:bottom="14dp" android:width="18dp" />
+    <item android:drawable="@drawable/ic_state_run" android:gravity="bottom|start" android:height="18dp" android:left="68dp" android:bottom="14dp" android:width="18dp" />
+</layer-list>

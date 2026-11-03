@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget de status, tamanho regular: contadores e a lista de agentes. Ids root e refresh obrigatórios. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:paddingBottom="4dp"
+    android:paddingEnd="6dp"
+    android:paddingStart="15dp"
+    android:paddingTop="4dp">
+    <include layout="@layout/widget_head" />
+    <include layout="@layout/widget_status_counters" />
+    <include layout="@layout/widget_status_line" />
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="3dp"
+        android:layout_marginBottom="2dp"
+        android:layout_marginEnd="9dp"
+        android:background="@drawable/divider" />
+    <LinearLayout
+        android:id="@+id/agent_0"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginTop="0dp">
+        <ImageView
+            android:id="@+id/agent_0_icon"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_state_idle" />
+        <TextView
+            android:id="@+id/agent_0_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/agent_0_age"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/agent_1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginTop="0dp">
+        <ImageView
+            android:id="@+id/agent_1_icon"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_state_idle" />
+        <TextView
+            android:id="@+id/agent_1_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/agent_1_age"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/agent_2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginTop="0dp">
+        <ImageView
+            android:id="@+id/agent_2_icon"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_state_idle" />
+        <TextView
+            android:id="@+id/agent_2_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/agent_2_age"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/agent_3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginTop="0dp">
+        <ImageView
+            android:id="@+id/agent_3_icon"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_state_idle" />
+        <TextView
+            android:id="@+id/agent_3_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/agent_3_age"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+    </LinearLayout>
+</LinearLayout>

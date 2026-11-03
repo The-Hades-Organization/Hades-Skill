@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/hades_background"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_mark" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="@string/app_name"
+                android:textColor="@color/hades_foreground"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            style="@style/Hades.Label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/config_subtitle" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/divider" />
+
+        <TextView
+            style="@style/Hades.Label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:labelFor="@+id/widget_url"
+            android:text="@string/config_widget_url_label" />
+
+        <EditText
+            android:id="@+id/widget_url"
+            style="@style/Hades.Field"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:autofillHints="url"
+            android:hint="@string/config_widget_url"
+            android:importantForAutofill="no"
+            android:inputType="textUri" />
+
+        <TextView
+            style="@style/Hades.Label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:labelFor="@+id/token"
+            android:text="@string/config_token_label" />
+
+        <EditText
+            android:id="@+id/token"
+            style="@style/Hades.Field"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:hint="@string/config_token"
+            android:importantForAutofill="no"
+            android:inputType="textPassword" />
+
+        <TextView
+            style="@style/Hades.Label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:labelFor="@+id/panel_url"
+            android:text="@string/config_panel_url_label" />
+
+        <EditText
+            android:id="@+id/panel_url"
+            style="@style/Hades.Field"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:hint="@string/config_panel_url"
+            android:importantForAutofill="no"
+            android:inputType="textUri" />
+
+        <Button
+            android:id="@+id/save"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="28dp"
+            android:background="@drawable/button_bg"
+            android:fontFamily="sans-serif-medium"
+            android:stateListAnimator="@null"
+            android:text="@string/config_save"
+            android:textAllCaps="false"
+            android:textColor="@color/hades_primary_foreground"
+            android:textSize="15sp" />
+    </LinearLayout>
+</ScrollView>

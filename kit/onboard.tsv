@@ -1,0 +1,31 @@
+# Catálogo do onboarding (onboard.sh, página Onboarding do painel, doctor): fonte única. Colunas separadas por TAB.
+# @<feature>  <rótulo>  <descrição>         define uma feature (a ordem daqui é a da tela)
+# <feature> <passo> <nome> <quem> <check> <interativo> <comando> <doc> <página> <detalhe>
+#   quem: dono (o onboarding só mostra o comando, nunca roda) | hades (onboard.sh run <passo> roda o comando, com ok do dono)
+#   check: nome da função check_<nome> do onboard.sh, senão o $D/checks/<nome>.sh do plugin (feito | pendente | na) · manual = o dono marca com onboard.sh done <passo>
+#   interativo: 1 = precisa de terminal/senha (sugerir o prefixo '! ' no Claude Code)
+#   comando: {D} vira a pasta de dados, {FW} o comando de firewall desta máquina · doc: arquivo em reference/ da skill, ou `ref env-<nome>` (texto do pacote do projeto: `hades project ref <nome>`)
+#   página: id da página do painel onde o passo se faz (remote, notify, config, services, support)
+# O plugin do projeto soma features e passos no $D/plugin/onboard.tsv (mesmo formato; id repetido, vale este).
+# Nada de segredo aqui (token, tópico do ntfy, chave de acesso, URL de túnel): o estado diz só feito/pendente.
+@remoto	Acesso remoto	Abrir o painel e o front fora da máquina, inclusive no celular.
+@notificacoes	Notificações	Avisos de gate, serviço caído e review, no desktop e no celular.
+@automatico	Início automático	O painel sobe sozinho no login ou com a máquina; a rede docker fica liberada no firewall.
+@contas	Contas e loop	Contas, orquestração e dados extras para o loop e os testes.
+remoto	devtunnel-login	Login do devtunnel	dono	devtunnel-login	1	devtunnel user login -g -d	reference/tunnel.md		Conta GitHub no devtunnel (código no navegador). Sem o CLI: {D}/tunnel.sh install.
+remoto	panel-tunnel	Túnel do painel	dono	panel-tunnel	0	{D}/tunnel.sh panel-start	reference/panel.md	remote	Em Acesso remoto, clique em Publicar painel (ou rode o comando). É acesso externo, por isso o passo é seu: só a sua conta do GitHub entra, e o painel ainda pede a chave de acesso.
+remoto	remote-key	Chave de acesso	dono	remote-key	0		reference/panel.md	remote	Nasce ao publicar o painel; só a página Acesso remoto do painel local a mostra.
+remoto	pwa	Instalar o painel como app no celular (PWA)	dono	manual	0		reference/panel.md	remote	No celular, abra a URL do túnel, entre com a conta, cole a chave e use Instalar app / Adicionar à Tela de Início. Marque aqui.
+remoto	android-widget	Widget Android	dono	manual	0	{D}/android/build.sh	reference/android-widget.md	remote	Gera o APK (Docker); copie para o celular, permita fonte desconhecida e informe a URL e o token de Acesso remoto. Marque aqui.
+remoto	chat	Página Claude	dono	chat	0		reference/panel.md	config	Chat com o Claude Code no clone principal, em auto mode, também pelo celular. Vem ligada; desligue em Configurações → Sessão Claude (só no painel local): quem tem a chave de acesso remoto ganha um Claude no seu clone.
+remoto	front-tunnel	Túnel do front	dono	front-tunnel	0	{D}/tunnel.sh publish-cmds	reference/tunnel.md	support	Mostra os 2 comandos que você roda: liberar o front sem login (qualquer pessoa com a URL abre, pela validade em Configurações → Túnel) e manter o túnel no ar como serviço. Depois, {D}/tunnel.sh url mostra a URL. Não vale com HADES_RUN_TUNNEL=0; e a guarda tunel-acesso do Cerberus pode barrar a publicação (reference/tunnel.md).
+notificacoes	notify-desktop	Notificações no desktop	hades	notify-desktop	0	{D}/config.sh set HADES_NOTIFY=1 HADES_NOTIFY_DESKTOP=1 && {D}/notify.sh apply	reference/notify.md	notify	Liga o vigia de notificações (hds-notify) com o canal do desktop.
+notificacoes	ntfy-on	ntfy ligado	hades	ntfy-on	0	{D}/config.sh set HADES_NOTIFY=1 HADES_NOTIFY_NTFY=1 && {D}/notify.sh apply	reference/notify.md	notify	Liga o canal do celular (ntfy) e cria o tópico (segredo: só o painel local o mostra).
+notificacoes	ntfy-subscribe	Assinar o tópico no celular	dono	manual	0		reference/notify.md	notify	No app ntfy, assine o tópico pelo QR ou pelo endereço em Configurações → Notificações (só no painel local). Marque aqui.
+notificacoes	notify-test	Enviar a notificação de teste	hades	manual	0	{D}/notify.sh test	reference/notify.md	notify	Testa todos os canais; feito quando a saída é 0.
+automatico	panel-autostart	Painel no login ou no boot	hades	panel-autostart	0	{D}/config.sh set HADES_PANEL_AUTOSTART=login && {D}/panel.sh autostart	reference/panel.md	config	O painel passa a subir sozinho ao entrar na sessão. Para subir com a máquina, sem login, escolha 'Com a máquina' em Configurações → Painel (isso pede o passo do linger). Grava a unit hds-panel.
+automatico	linger	Manter o systemd ativo sem login (linger)	hades	linger	0	{D}/linger.sh sync	reference/panel.md		Só com HADES_PANEL_AUTOSTART=boot: mantém o systemd do usuário sem login.
+automatico	firewall	Firewall docker → host	dono	firewall	1	{FW}	reference/run-hades.md		Sem a regra, os containers não alcançam o host. Pede sudo: passo seu; só se mede com a infra no ar.
+contas	gh-account	Conta do GitHub de trabalho	dono	gh	1	gh auth login	reference/config.md	config	Login do gh; com mais de uma conta, defina HADES_GH_USER em Configurações (Subida).
+contas	clickup	ClickUp	dono	clickup	0	/clickup-setup			Rode /clickup-setup no Claude Code: grava token e contexto em ~/.claude/clickup.
+contas	herdr	herdr para orquestração	dono	herdr	0	herdr --version	reference/loop/orchestrate.md		Só para /hades orchestrate; instale o herdr e confira o PATH.

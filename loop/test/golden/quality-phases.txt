@@ -1,0 +1,6 @@
+# deliver
+## Qualidade — regras ligadas: aplique ao escrever e confira antes do gate
+# inbox
+## Qualidade — regras ligadas: aplique ao resolver cada comentário
+# review
+## Qualidade — regras ligadas: confira o diff contra elas e cite o id no achado

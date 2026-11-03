@@ -1,0 +1,19 @@
+{
+  "titulo": "Sem segredo nas linhas que saem",
+  "momentos": [
+    "push",
+    "release",
+    "consolidacao",
+    "comentario",
+    "artefato"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "porta/segredo-diff"
+  ],
+  "timeoutS": 60,
+  "origem": "src/lib/cerberus-porta.ts (hades cerberus-check); reference/cerberus/porta.md",
+  "descricao": "Procura padrões de token e chave nas linhas adicionadas de @{upstream}..HEAD (ou do intervalo do contexto, da última tag ou da base). Nos momentos novos: texto do comentário (--ctx texto=<arquivo>) e conteúdo do artefato (--ctx arquivo=<caminho>)."
+}

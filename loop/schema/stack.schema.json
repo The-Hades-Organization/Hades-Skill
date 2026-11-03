@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hades.stack/1",
+  "title": "Pacote de stack da Hades (reference/projects.md §Stack)",
+  "type": "object",
+  "required": ["schema", "name", "detect", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "hades.stack/1"},
+    "name": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+    "description": {"type": "string"},
+    "detect": {
+      "type": "object",
+      "required": ["files"],
+      "additionalProperties": false,
+      "properties": {
+        "files": {"type": "array", "items": {"type": "string"}, "minItems": 1, "description": "caminhos (glob) a partir da raiz do repo"},
+        "all": {"type": "boolean", "description": "true = todos precisam existir; false = qualquer um (padrão)"}
+      }
+    },
+    "steps": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "typecheck": {"$ref": "#/$defs/step"},
+        "lint": {"$ref": "#/$defs/step"},
+        "build": {"$ref": "#/$defs/step"},
+        "test": {"$ref": "#/$defs/step"},
+        "integration": {"$ref": "#/$defs/step"},
+        "affected": {"$ref": "#/$defs/step"}
+      }
+    },
+    "guard": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "patterns": {"type": "array", "items": {"type": "string", "x-regex": "ere"}, "description": "comando que o hook manda para a fila de gates"}
+      }
+    }
+  },
+  "$defs": {
+    "step": {
+      "type": "object",
+      "required": ["cmd", "kind", "costGb"],
+      "additionalProperties": false,
+      "properties": {
+        "cmd": {"type": "string", "minLength": 1, "description": "placeholders: {project} {files} {base}"},
+        "kind": {"enum": ["lint", "build", "test", "test:integration", "gate"], "description": "kind do gate-lock.sh"},
+        "costGb": {"type": "integer", "description": "pico de memória medido (GB), o custo na fila"},
+        "measuredAt": {"type": "string", "description": "AAAA-MM-DD da medição; vazio = estimado"},
+        "parallel": {"type": "integer", "description": "quantos deste passo a fila admite ao mesmo tempo"}
+      }
+    }
+  }
+}

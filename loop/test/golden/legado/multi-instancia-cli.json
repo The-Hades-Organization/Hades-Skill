@@ -1,0 +1,8 @@
+{
+  "--dir <T>/nogit": "<T>/mi-d1\nrc=0",
+  "--dir <T>/wt-mi1": "<T>/mi-d1\nrc=0",
+  "--dir <T>/wt-mi2": "<T>/mi-d2\nrc=0",
+  "bogus": "Instâncias do Hades nesta máquina (reference/projects.md §Várias instâncias). O install.sh registra cada $D em\n~/.claude/hades/instances/<projeto> (`default` sem pacote) e a instância padrão em ~/.claude/hades/instance.\n  hades instance [--dir <d>]   $D da instância do projeto do diretório (padrão: o atual); sem registro do projeto,\n                                  a instância padrão. Sai 1 se nenhuma das duas tem env.sh\n  hades instance list          projeto<TAB>$D<TAB>HADES_ID de cada instância registrada (a padrão sem registro de\n                                  projeto, de instalação anterior à 4.7.0, entra com o projeto do worktree dela)\nrc=2",
+  "list": "example-monorepo\t<T>/mi-d1\t\nother-plain\t<T>/mi-d2\tprojb\nrc=0",
+  "sem argumento": "<T>/mi-d1\nrc=0"
+}

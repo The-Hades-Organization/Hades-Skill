@@ -1,0 +1,465 @@
+## panel start (login)
+rc=0
+painel em http://127.0.0.1:21220
+-- hds-panel.service
+[Unit]
+Description=Painel do Hades (http://127.0.0.1:21220)
+
+[Service]
+WorkingDirectory=<T>/sc-d
+Environment="PATH=<PATH>" "HADES_WT=<T>/wt-sc" "HADES_DATA=<T>/sc-d" "HADES_ID=" "HADES_KIT_DIR=<T>/sc-d" "HADES_SKILL_DIR=<T>/home/.claude/skills/hades"
+ExecStart="<BASH>" "<T>/sc-d/hades-ts.sh" panel serve --port 21220
+StandardOutput=append:<T>/sc-d/logs/panel.log
+StandardError=append:<T>/sc-d/logs/panel.log
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+-- systemctl
+--user is-active --quiet hds-panel
+--user reset-failed hds-panel
+--user daemon-reload
+--user is-enabled --quiet hds-panel
+--user enable --quiet hds-panel
+--user start hds-panel
+
+## panel start de novo (já no ar)
+rc=0
+já está no ar: http://127.0.0.1:21220
+-- systemctl
+--user is-active --quiet hds-panel
+
+## panel status
+rc=0
+hds-panel: active http://127.0.0.1:21220 · início automático: no login do usuário
+-- systemctl
+--user is-active hds-panel
+--user is-enabled hds-panel
+
+## panel url
+rc=0
+http://127.0.0.1:21220
+-- systemctl
+
+## panel autostart boot
+rc=0
+início automático (boot): com a máquina (linger)
+-- systemctl
+--user is-enabled --quiet hds-panel
+--user is-enabled hds-panel
+
+## panel autostart off
+rc=0
+início automático (off): desligado
+-- systemctl
+--user is-enabled --quiet hds-panel
+--user disable --quiet hds-panel
+--user is-enabled hds-panel
+
+## panel restart
+rc=0
+painel em http://127.0.0.1:21220
+-- systemctl
+--user stop hds-panel
+--user reset-failed hds-panel
+--user is-active --quiet hds-panel
+--user reset-failed hds-panel
+--user daemon-reload
+--user is-enabled --quiet hds-panel
+--user enable --quiet hds-panel
+--user start hds-panel
+
+## panel stop
+rc=0
+-- systemctl
+--user stop hds-panel
+--user reset-failed hds-panel
+
+## panel verbo inválido
+rc=2
+uso: panel.sh start|stop|restart|status|url|autostart
+-- systemctl
+
+## notify apply ligado
+rc=0
+vigia hds-notify: active
+-- hds-notify.service
+[Unit]
+Description=Vigia de notificações do Hades
+
+[Service]
+WorkingDirectory=<T>/sc-d
+Environment="PATH=<PATH>" "HADES_WT=<T>/wt-sc" "HADES_DATA=<T>/sc-d" "LOCKS=<T>/work/example__monorepo/locks" "HADES_NOTIFY_UNIT=hds-notify" "HADES_ID="
+ExecStart="<BASH>" "<T>/sc-d/notify.sh" watch
+StandardOutput=append:<T>/sc-d/logs/notify.log
+StandardError=append:<T>/sc-d/logs/notify.log
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+-- systemctl
+--version
+--user daemon-reload
+--user is-enabled --quiet hds-notify
+--user enable --quiet hds-notify
+--user is-active --quiet hds-notify
+--user start hds-notify
+--user is-active hds-notify
+
+## notify apply de novo
+rc=0
+vigia hds-notify: active
+-- systemctl
+--version
+--user is-enabled --quiet hds-notify
+--user start hds-notify
+--user is-active hds-notify
+
+## notify restart
+rc=0
+-- systemctl
+--version
+--user restart hds-notify
+
+## notify status
+rc=0
+vigia hds-notify: active · desktop on · ntfy off (https://ntfy.sh)
+-- systemctl
+--user is-active hds-notify
+
+## notify apply desligado
+rc=0
+vigia hds-notify: active
+-- systemctl
+--version
+--user disable --quiet --now hds-notify
+--user reset-failed hds-notify
+--user is-active hds-notify
+
+## linger state
+rc=0
+no
+-- systemctl
+
+## jobs e chat do painel
+rc=0
+job <id>
+chat <sid>
+-- systemd-run e systemctl
+systemd-run
+  --user
+  --quiet
+  --collect
+  --unit=hds-pjob-<job>
+  --working-directory=<T>/sc-d
+  -p
+  StandardOutput=append:<T>/sc-d/logs/panel-jobs/<job>.log
+  -p
+  StandardError=append:<T>/sc-d/logs/panel-jobs/<job>.log
+  -E
+  PATH=<PATH>
+  -E
+  NO_COLOR=1
+  -E
+  TERM=dumb
+  -E
+  HADES_WT=<T>/wt-sc
+  -E
+  HADES_DATA=<T>/sc-d
+  -E
+  HADES_PANEL_JOB=<job>
+  /bin/bash
+  -c
+  echo oi
+rc=$?; echo $rc > <T>/sc-d/logs/panel-jobs/<job>.rc; exit $rc
+systemd-run
+  --user
+  --quiet
+  --collect
+  --unit=hds-chat-<sid>
+  --working-directory=<T>/clone/monorepo
+  -p
+  StandardInput=file:<T>/sc-d/claude/<sid>.in
+  -p
+  StandardOutput=append:<T>/sc-d/claude/<sid>.jsonl
+  -p
+  StandardError=append:<T>/sc-d/claude/<sid>.jsonl
+  -E
+  PATH=<PATH>
+  -E
+  NO_COLOR=1
+  -E
+  TERM=dumb
+  -E
+  HADES_WT=<T>/wt-sc
+  -E
+  HADES_DATA=<T>/sc-d
+  /bin/bash
+  -c
+  "$@"; rc=$?; printf '{"type":"hds_end","rc":%s}\n' "$rc" >> <T>/sc-d/claude/<sid>.jsonl; exit $rc
+  hds-chat
+  <T>/sc-bin/node
+  -p
+  --output-format
+  stream-json
+  --verbose
+  --include-partial-messages
+  --permission-mode
+  auto
+  --model
+  modelo-x
+  --effort
+  alto
+-- systemctl
+--user list-units hds-chat-* --plain --no-legend --state=active,activating,deactivating
+--user list-units hds-chat-* --plain --no-legend --state=active,activating,deactivating
+
+## amostrador e log de unit
+rc=0
+extra panel {"state":"active","sub":"running","result":"success","restarts":2,"mem":1048576,"aged":true}
+log unit: {"text":"2026-01-01T00:00:00+0000 host hds-panel[1]: no ar\n"}
+-- systemctl (list-units e show)
+--user list-units hds-* --all --plain --no-legend
+--user show -p Id,ActiveState,SubState,Result,NRestarts,MemoryCurrent,CPUUsageNSec,ActiveEnterTimestampMonotonic,ExecMainStatus hds-api.service hds-devtunnel.service hds-panel-tunnel.service hds-panel.service hds-widget-tunnel.service
+--user show hades.slice -p ControlGroup --value
+--user list-units hds-pjob-* --plain --no-legend --state=active
+-- journalctl
+journalctl
+  --user
+  -u
+  hds-panel
+  -n
+  5
+  --no-pager
+  -o
+  short-iso
+
+## clean apply ligado
+rc=0
+timer hds-logrotate (a cada 6h): ativo
+-- hds-logrotate.service
+[Unit]
+Description=Hades: rotação de logs e limpeza segura
+
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=idle
+Environment="PATH=<PATH>" "HADES_WT=<T>/wt-sc" "HADES_DATA=<T>/sc-d" "HADES_ID="
+ExecStart=/bin/bash "<T>/sc-d/clean.sh" run --quiet
+StandardOutput=append:<T>/sc-d/logs/logrotate.log
+StandardError=append:<T>/sc-d/logs/logrotate.log
+-- hds-logrotate.timer
+[Unit]
+Description=Hades: timer da rotação de logs
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=6h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+-- systemd-run
+-- systemctl
+--version
+--user daemon-reload
+--user enable --quiet hds-logrotate.timer
+--user restart hds-logrotate.timer
+--user is-enabled --quiet hds-logrotate.timer
+--user show -p LastTriggerUSec --value hds-logrotate.timer
+
+## clean apply de novo
+rc=0
+timer hds-logrotate (a cada 6h): ativo
+-- systemd-run
+-- systemctl
+--version
+--user enable --quiet hds-logrotate.timer
+--user start hds-logrotate.timer
+--user is-enabled --quiet hds-logrotate.timer
+--user show -p LastTriggerUSec --value hds-logrotate.timer
+
+## clean apply com intervalo novo
+rc=0
+timer hds-logrotate (a cada 2h): ativo
+-- hds-logrotate.service
+[Unit]
+Description=Hades: rotação de logs e limpeza segura
+
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=idle
+Environment="PATH=<PATH>" "HADES_WT=<T>/wt-sc" "HADES_DATA=<T>/sc-d" "HADES_ID="
+ExecStart=/bin/bash "<T>/sc-d/clean.sh" run --quiet
+StandardOutput=append:<T>/sc-d/logs/logrotate.log
+StandardError=append:<T>/sc-d/logs/logrotate.log
+-- hds-logrotate.timer
+[Unit]
+Description=Hades: timer da rotação de logs
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=2h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+-- systemd-run
+-- systemctl
+--version
+--user daemon-reload
+--user enable --quiet hds-logrotate.timer
+--user restart hds-logrotate.timer
+--user is-enabled --quiet hds-logrotate.timer
+--user show -p LastTriggerUSec --value hds-logrotate.timer
+
+## clean status (linha do timer)
+rc=0
+@timer	ativo	-
+-- systemd-run
+-- systemctl
+--user is-enabled --quiet hds-logrotate.timer
+--user show -p LastTriggerUSec --value hds-logrotate.timer
+--user is-active --quiet hds-pjob-<job>
+
+## clean apply desligado
+rc=0
+timer hds-logrotate (a cada 2h): desligado
+-- systemd-run
+-- systemctl
+--version
+--user disable --quiet --now hds-logrotate.timer
+--user is-enabled --quiet hds-logrotate.timer
+--user show -p LastTriggerUSec --value hds-logrotate.timer
+
+## tunnel create
+rc=0
+túnel hades.reg com a porta 3000 (acesso: só o dono até publish)
+-- systemd-run
+-- systemctl
+
+## tunnel publish-cmds
+rc=0
+! devtunnel access create hades.reg -p 3000 --anonymous -e 2d
+! systemd-run --user --unit=hds-devtunnel --slice=hades devtunnel host hades.reg
+-- systemd-run
+-- systemctl
+
+## tunnel url
+rc=0
+https://a-3000.x.devtunnels.ms — reinicie os serviços cujo .env mudou
+-- systemd-run
+-- systemctl
+
+## tunnel status
+rc=0
+hds-devtunnel: inactive https://a-3000.x.devtunnels.ms
+regra 1
+regra 2
+-- systemd-run
+-- systemctl
+--version
+--user is-active hds-devtunnel
+
+## tunnel stop-cmd
+rc=0
+! systemctl --user stop hds-devtunnel
+-- systemd-run
+-- systemctl
+
+## tunnel panel-start
+rc=0
+acesso: só a conta dona do devtunnel (regressao)
+painel remoto: https://b-21220.y.devtunnels.ms
+-- systemd-run
+systemd-run
+  --user
+  --unit=hds-panel-tunnel
+  -p
+  Restart=on-failure
+  -p
+  RestartSec=10
+  devtunnel
+  host
+  hades-panel.reg
+-- systemctl
+--version
+--user is-active --quiet hds-panel-tunnel
+--user reset-failed hds-panel-tunnel
+--user is-active --quiet hds-panel-tunnel
+
+## tunnel panel-status
+rc=0
+hds-panel-tunnel: inactive https://b-21220.y.devtunnels.ms
+-- systemd-run
+-- systemctl
+--user is-active hds-panel-tunnel
+
+## tunnel panel-stop
+rc=0
+túnel do painel parado
+-- systemd-run
+-- systemctl
+--user stop hds-panel-tunnel
+--user reset-failed hds-panel-tunnel
+
+## tunnel widget-create
+rc=0
+túnel hades-widget.reg com a porta 21221 (acesso: só o dono até o dono publicar)
+-- systemd-run
+-- systemctl
+
+## tunnel widget-publish-cmds
+rc=0
+! devtunnel access create hades-widget.reg -p 21221 --anonymous -e 2d
+! systemd-run --user --unit=hds-widget-tunnel --slice=hades -p Restart=on-failure -p RestartSec=10 devtunnel host hades-widget.reg
+! <T>/sc-d/tunnel.sh widget-stamp   # grava a validade (o painel mostra); depois do host, rode <T>/sc-d/tunnel.sh widget-url
+-- systemd-run
+-- systemctl
+
+## tunnel widget-stamp
+rc=0
+acesso anônimo do widget vale até <ts>
+-- systemd-run
+-- systemctl
+
+## tunnel widget-start
+rc=0
+widget: https://w-21221.z.devtunnels.ms/api/widget
+-- systemd-run
+systemd-run
+  --user
+  --unit=hds-widget-tunnel
+  --slice=hades
+  -p
+  Restart=on-failure
+  -p
+  RestartSec=10
+  devtunnel
+  host
+  hades-widget.reg
+-- systemctl
+--version
+--user is-active --quiet hds-widget-tunnel
+--user reset-failed hds-widget-tunnel
+--user is-active --quiet hds-widget-tunnel
+
+## tunnel widget-status
+rc=0
+hds-widget-tunnel: inactive https://w-21221.z.devtunnels.ms · validade: <ts>
+-- systemd-run
+-- systemctl
+--user is-active hds-widget-tunnel
+
+## tunnel widget-stop
+rc=0
+túnel do widget parado
+-- systemd-run
+-- systemctl
+--user stop hds-widget-tunnel
+--user reset-failed hds-widget-tunnel
+

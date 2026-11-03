@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# ss falso da regressão: portas em escuta vêm de FAKE_SS_PORTS (separadas por espaço); a máquina real não entra no teste.
+for p in ${FAKE_SS_PORTS:-}; do echo "LISTEN 0 128 127.0.0.1:$p 0.0.0.0:*"; done

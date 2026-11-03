@@ -1,0 +1,17 @@
+{
+  "titulo": "Registro do agente confere com git, herdr e GitHub",
+  "momentos": [
+    "done",
+    "consolidacao"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "vigilia/coerencia",
+    "registro"
+  ],
+  "timeoutS": 60,
+  "origem": "reference/loop/orchestrate.md §2; reference/cerberus/vigilia.md",
+  "descricao": "Worktree e branch do registro, base ancestral de HEAD, sessão viva no herdr com o nome (painel sem nome é sessão órfã) e PR da branch no GitHub com o número e o estado do registro."
+}

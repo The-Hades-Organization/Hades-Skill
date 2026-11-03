@@ -1,0 +1,175 @@
+{
+  "project": "example-monorepo",
+  "prs": [
+    {
+      "cardIds": [],
+      "ciEligible": true,
+      "claudeEligible": false,
+      "codes": [],
+      "number": 101,
+      "specIds": [],
+      "stacked": true,
+      "state": "ci-red"
+    },
+    {
+      "cardIds": [],
+      "ciEligible": true,
+      "claudeEligible": false,
+      "codes": [],
+      "number": 102,
+      "specIds": [],
+      "stacked": true,
+      "state": "conflict"
+    },
+    {
+      "cardIds": [],
+      "ciEligible": true,
+      "claudeEligible": false,
+      "codes": [
+        "B1"
+      ],
+      "number": 103,
+      "specIds": [],
+      "stacked": true,
+      "state": "needs-response"
+    },
+    {
+      "cardIds": [],
+      "ciEligible": true,
+      "claudeEligible": false,
+      "codes": [
+        "RF-12"
+      ],
+      "number": 104,
+      "specIds": [],
+      "stacked": true,
+      "state": "needs-response"
+    },
+    {
+      "cardIds": [],
+      "ciEligible": true,
+      "claudeEligible": false,
+      "codes": [],
+      "number": 105,
+      "specIds": [],
+      "stacked": true,
+      "state": "needs-response"
+    },
+    {
+      "cardIds": [
+        "AT26-77"
+      ],
+      "ciEligible": true,
+      "claudeEligible": false,
+      "codes": [],
+      "number": 114,
+      "specIds": [
+        "UC-12"
+      ],
+      "stacked": true,
+      "state": "needs-response"
+    },
+    {
+      "cardIds": [],
+      "ciEligible": true,
+      "claudeEligible": false,
+      "codes": [],
+      "number": 106,
+      "specIds": [],
+      "stacked": true,
+      "state": "needs-triage"
+    },
+    {
+      "cardIds": [],
+      "ciEligible": true,
+      "claudeEligible": false,
+      "codes": [],
+      "number": 107,
+      "specIds": [],
+      "stacked": true,
+      "state": "stale-base"
+    },
+    {
+      "cardIds": [],
+      "ciEligible": true,
+      "claudeEligible": false,
+      "codes": [],
+      "number": 108,
+      "specIds": [],
+      "stacked": true,
+      "state": "draft"
+    },
+    {
+      "cardIds": [],
+      "ciEligible": false,
+      "claudeEligible": false,
+      "codes": [],
+      "number": 115,
+      "specIds": [],
+      "stacked": true,
+      "state": "draft"
+    },
+    {
+      "cardIds": [],
+      "ciEligible": true,
+      "claudeEligible": false,
+      "codes": [],
+      "number": 109,
+      "specIds": [],
+      "stacked": true,
+      "state": "ci-running"
+    },
+    {
+      "cardIds": [],
+      "ciEligible": true,
+      "claudeEligible": false,
+      "codes": [],
+      "number": 110,
+      "specIds": [],
+      "stacked": true,
+      "state": "awaiting-review"
+    },
+    {
+      "cardIds": [],
+      "ciEligible": false,
+      "claudeEligible": false,
+      "codes": [],
+      "number": 111,
+      "specIds": [],
+      "stacked": true,
+      "state": "no-ci"
+    },
+    {
+      "cardIds": [],
+      "ciEligible": true,
+      "claudeEligible": false,
+      "codes": [
+        "B4"
+      ],
+      "number": 112,
+      "specIds": [],
+      "stacked": true,
+      "state": "done-pending"
+    },
+    {
+      "cardIds": [],
+      "ciEligible": true,
+      "claudeEligible": false,
+      "codes": [
+        "B7"
+      ],
+      "number": 113,
+      "specIds": [],
+      "stacked": true,
+      "state": "needs-attention"
+    }
+  ],
+  "warnings": [
+    "search-truncated",
+    "merge-state-missing",
+    "checks-truncated",
+    "comments-truncated",
+    "threads-truncated",
+    "reviews-truncated"
+  ]
+}

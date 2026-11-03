@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentação
+    url: https://github.com/The-Hades-Organization/Hades-Skill#readme
+    about: Pré-requisitos, instalação, exemplos de uso e configuração.
+  - name: Vulnerabilidade
+    url: https://github.com/The-Hades-Organization/Hades-Skill/security/policy
+    about: Não abra issue pública; reporte em privado pelo GitHub, como diz o SECURITY.md.

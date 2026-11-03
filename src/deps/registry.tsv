@@ -1,0 +1,29 @@
+# Registro único das dependências externas da Hades: o que cada uma é, como detectar e como instalar. Colunas separadas por TAB.
+# Lido pela CLI (`hades deps`), por `dep_need` do loop/bin/lib.sh (o bash roda antes de haver Bun) e pelo doctor.sh.
+# id  comando  versão  nível  doctor  como instalar  para quê  sistema
+#   comando: o executável procurado no PATH (a ordem do PATH vale)
+#   versão: argumentos que imprimem a versão na primeira linha (vazio = não mostra versão)
+#   nível: error (sem ela o Hades não funciona) | warn (um recurso só depende dela); é o que o doctor reporta quando falta
+#   doctor: own = o doctor.sh já tem checagem própria, mais rica (não duplica) · registry = a linha vem deste registro
+#   sistema: linux | macos = só nesse sistema (o `hades deps` e o painel não listam nos outros); vazio = todos. Acompanha o gerenciador de serviço (HADES_SERVICE_MANAGER força)
+bun	bun	--version	error	registry	curl -fsSL https://bun.sh/install | bash   (https://bun.sh; depois abra um shell novo ou ponha ~/.bun/bin no PATH)	roda a CLI hades e os shims do kit
+git	git	--version	error	registry	instale o pacote git da sua distribuição (https://git-scm.com/downloads)	clones, worktrees, branches e o registro das unidades
+jq	jq	--version	error	own	instale o pacote jq da sua distribuição (https://jqlang.org)	JSON em loop/bin/lib.sh (perfil do projeto) e kit/config.sh
+node	node	--version	error	own	nvm install <versão do .nvmrc> e atualize NODE_BIN no env.sh (https://github.com/nvm-sh/nvm)	build e serviços do projeto
+unzip	unzip	-v	error	own	instale o pacote unzip da sua distribuição	pacotes e downloads
+gh	gh	--version	error	own	instale o GitHub CLI (https://cli.github.com) e rode: gh auth login	PRs, reviews, checagem de versão e contribuição ao repo da skill (hades contrib)
+docker	docker	--version	warn	own	instale o Docker Engine e o plugin compose v2 (https://docs.docker.com/engine/install)	infra do ambiente do projeto e build do APK do widget (hades widget-apk)
+systemctl	systemctl	--version	warn	own	precisa de systemd com sessão de usuário (loginctl enable-linger $USER e re-login)	units, slice e timers do ambiente	linux
+launchctl	launchctl	version	warn	own	ferramenta nativa do macOS (/bin/launchctl); precisa de sessão de usuário (login gráfico)	serviços do ambiente no macOS (launchd)	macos
+herdr	herdr	--version	warn	registry	instale o herdr (o multiplexador de agentes) e deixe-o no PATH	orquestração de agentes (hades agent, hades watch)
+devtunnel	devtunnel	--version	warn	own	instale o devtunnel e rode: devtunnel user login -g -d	túnel público do painel
+loginctl	loginctl	--version	warn	own	instale o systemd/logind (pacote systemd da sua distribuição) com sessão de usuário	liga o linger do usuário (painel iniciando com a máquina)	linux
+notify-send	notify-send		warn	own	instale o libnotify (notify-send) da sua distribuição	notificações no desktop (celular não depende)
+ufw	ufw		warn	own	instale o ufw da sua distribuição (ou use o firewall que a máquina já tem)	comando de firewall sugerido no onboarding
+firewall-cmd	firewall-cmd		warn	own	instale o firewalld da sua distribuição (ou use o firewall que a máquina já tem)	comando de firewall sugerido no onboarding
+curl	curl		warn	own	instale o curl da sua distribuição	baixa o CLI do devtunnel (tunnel.sh install)
+journalctl	journalctl		warn	own	instale o systemd (journalctl) da sua distribuição	lê a URL pública do túnel no journal da unit	linux
+systemd-run	systemd-run		warn	own	instale o systemd (systemd-run) da sua distribuição	sobe o túnel como unit transitória do usuário	linux
+claude	claude	--version	warn	own	instale o Claude Code (https://claude.com/claude-code) e deixe-o no PATH	revisões de PR do painel (hades review)
+ss	ss		warn	own	instale o pacote iproute2 da sua distribuição	portas de teste em uso (hades agent skill-new)
+bwrap	bwrap	--version	warn	registry	instale o pacote bubblewrap da sua distribuição (pacman -S bubblewrap · apt install bubblewrap)	ensaio isolado do código do plugin antes de ativá-lo (guarda plugin-ensaio-isolado do Cerberus; sem ele a guarda só avisa)

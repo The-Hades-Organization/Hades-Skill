@@ -1,0 +1,46 @@
+repo example/monorepo   login dev-a   escopo mine   PRs 15
+
+  #     estado          d base                          viva tri esp top tot  chk  dec              titulo
+  101 ci-red          -- develop                         0   0   0   0   0   F1 REVIEW_REQUIRED   SOFTWARE-101 - [Svc] CI vermelho
+  102 conflict        -- develop                         0   0   0   0   0   ok REVIEW_REQUIRED   SOFTWARE-102 - [Svc] Conflito
+  103 needs-response  -- develop                         1   0   0   0   2   ok REVIEW_REQUIRED   SOFTWARE-103 - [Svc] Achado vivo
+  104 needs-response  -- develop                         0   0   0   1   0   ok REVIEW_REQUIRED   SOFTWARE-104 - [Web] Top-level
+  105 needs-response  -- develop                         0   0   0   0   0   ok APPROVED          SOFTWARE-105 - [Svc] Review não visto
+  114 needs-response  -- develop                         1   0   0   0   1   ok REVIEW_REQUIRED   software-9 SOFTWARE-4242 - [Alarms] Reaberta
+  106 needs-triage    -- develop                         0   1   0   0   1   ok REVIEW_REQUIRED   SOFTWARE-106 - [Svc] Só triagem
+  107 stale-base      -- develop                         0   0   0   0   0   ok REVIEW_REQUIRED   SOFTWARE-107 - [Svc] Base atrás
+  108 draft           D- develop                         0   0   0   0   0   -- REVIEW_REQUIRED   SOFTWARE-108 - [Svc] Rascunho
+  115 draft           DS svc/feat/SOFTWARE-111-stack~    0   0   0   0   0   -- REVIEW_REQUIRED   SOFTWARE-115 - [Svc] Empilhada rascunho
+  109 ci-running      -- develop                         0   0   0   0   0   P1 REVIEW_REQUIRED   SOFTWARE-109 - [Svc] CI rodando
+  110 awaiting-review -- develop                         0   0   0   0   0   ok REVIEW_REQUIRED   SOFTWARE-110 - [Svc] Esperando review
+  111 no-ci           -S svc/feat/SOFTWARE-110-await~    0   0   0   0   0   -- REVIEW_REQUIRED   SOFTWARE-111 - [Svc] Empilhada sem CI
+  112 done-pending    -- develop                         0   0   0   0 120   ok APPROVED          SOFTWARE-112 - [Svc] Pronta
+  113 needs-attention -- develop                         0   0   1   0   1   ok REVIEW_REQUIRED   SOFTWARE-113 - [Svc] Refutada
+
+flags: D=draft S=empilhada (base != develop: sem ci-pr.yml e sem @claude)
+colunas: viva=acionavel  tri=a triar  esp=esperando reviewer  top=comentario top-level
+totais: viva 2  triagem 1  esperando 1  top-level 1  threads abertas 4
+  ci-red          101
+  conflict        102
+  needs-response  103, 104, 105, 114
+  needs-triage    106
+  stale-base      107
+  draft           108, 115
+  ci-running      109
+  awaiting-review 110
+  no-ci           111
+  done-pending    112
+  needs-attention 113
+
+achados vivos (thread: isResolved=false AND isOutdated=false; top: comentario top-level humano):
+  #103 apps/svc/src/a.ts:10 [B1] rev-b: 🔴 **B1** — falta validação de entrada
+  #104 (top-level) [RF-12] rev-b: RF-12: botão sem i18n
+  #114 apps/svc/src/a.ts:10 [V10] rev-b: V10 nome de evento fora do padrão
+
+avisos (dado cortado ou indisponivel — vazio aqui NAO significa "nada a fazer"):
+  search-truncated: 20 PRs no escopo, 15 coletadas (teto 60)
+  merge-state-missing: sem mergeStateStatus para 113 (teto de 200 PRs abertas)
+  checks-truncated #101: 45 checks, 2 lidos (teto 40)
+  comments-truncated #104: 40 comentarios top-level, 8 lidos (teto 30)
+  threads-truncated #112: 120 threads, 2 lidas (teto 100)
+  reviews-truncated #112: 50 reviews, 1 lidos (teto 40)

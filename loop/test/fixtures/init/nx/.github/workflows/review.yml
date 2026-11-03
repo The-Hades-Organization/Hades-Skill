@@ -1,0 +1,9 @@
+name: review
+on:
+  issue_comment:
+jobs:
+  review:
+    if: startsWith(github.event.comment.body, '@bot')
+    steps:
+      - run: |
+          echo "BOT_PROCESSED:${COMMENT_ID}"

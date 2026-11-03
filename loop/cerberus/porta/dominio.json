@@ -1,0 +1,9 @@
+{
+  "titulo": "O núcleo não cita vocabulário de domínio",
+  "momentos": [
+    "release"
+  ],
+  "tipo": "emitida",
+  "origem": "kit/skill-release.sh domain_guard (reference/projects.md §Guarda de domínio)",
+  "descricao": "domainTerms dos perfis contra a skill, menos os @allow do pacote; HADES_DOMAIN_GUARD=strict reprova."
+}

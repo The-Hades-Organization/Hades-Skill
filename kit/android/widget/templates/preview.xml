@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Prévia do seletor de widgets (previewLayout): o mesmo visual com dados de exemplo, sem depender de leitura. Sem
+     includes aqui: dentro do seletor nada pinta o texto, então cada valor é escrito no próprio elemento. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:paddingBottom="8dp"
+    android:paddingEnd="6dp"
+    android:paddingStart="15dp"
+    android:paddingTop="4dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+        <ImageView
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_mark" />
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="7dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:text="@string/@LABEL_RESOURCE@"
+            android:textColor="@color/hades_foreground"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+        <ImageView
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:importantForAccessibility="no"
+            android:padding="8dp"
+            android:src="@drawable/ic_refresh" />
+    </LinearLayout>
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif-medium"
+        android:text="3"
+        android:textColor="@color/hades_ok"
+        android:textSize="24sp" />
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/count_active_label"
+        android:textColor="@color/hades_muted_foreground"
+        android:textSize="10sp" />
+    <ProgressBar
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="6dp"
+        android:layout_marginEnd="9dp"
+        android:layout_marginTop="6dp"
+        android:importantForAccessibility="no"
+        android:indeterminate="false"
+        android:max="100"
+        android:maxHeight="6dp"
+        android:minHeight="6dp"
+        android:progress="60"
+        android:progressDrawable="@drawable/bar_ok" />
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="atualizado 14:32"
+        android:textColor="@color/hades_muted_foreground"
+        android:textSize="11sp" />
+</LinearLayout>

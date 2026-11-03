@@ -1,0 +1,16 @@
+{
+  "titulo": "Código executável do plugin é o que a prévia mostrou",
+  "momentos": [
+    "plugin"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "limiar",
+    "executavel"
+  ],
+  "timeoutS": 60,
+  "origem": "reference/cerberus/limiar.md §plugin-executavel-na-previa",
+  "descricao": "Compara o instalado com o novo (ou o clone com a prévia) em post-install.sh, hooks, páginas, rotas e scripts: lista o que muda; executável novo ou diferente da prévia barra."
+}

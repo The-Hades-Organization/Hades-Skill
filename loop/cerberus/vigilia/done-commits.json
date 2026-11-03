@@ -1,0 +1,17 @@
+{
+  "titulo": "Commit citado no report está na branch da unidade",
+  "momentos": [
+    "done",
+    "consolidacao"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "vigilia/auditoria",
+    "commits"
+  ],
+  "timeoutS": 30,
+  "origem": "reference/loop/roles/impl.md §Fluxo; reference/cerberus/vigilia.md",
+  "descricao": "Hex de 7 a 40 entre crases, ou solto em linha que fala de commit, fora de bloco de código: existe no repositório e é ancestral de HEAD."
+}

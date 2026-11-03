@@ -1,0 +1,16 @@
+{
+  "titulo": "Plugin fixado num sha exato, o da prévia que o dono viu",
+  "momentos": [
+    "plugin"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "limiar",
+    "commit-fixado"
+  ],
+  "timeoutS": 60,
+  "origem": "reference/cerberus/limiar.md §plugin-commit-fixado",
+  "descricao": "Exige sha de 40 hex igual ao da prévia (preview.json no add, ponta do remote e log de auditoria no update, HEAD e última instalação no enable), com o pacote sem mudança solta. Ref móvel ou sha diferente barra."
+}

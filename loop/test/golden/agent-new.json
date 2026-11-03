@@ -1,0 +1,40 @@
+{
+  "entrega": {
+    "SOFTWARE-123": {
+      "agent": "impl-a",
+      "base": "origin/develop",
+      "branch": "svc/feat/SOFTWARE-123-demo",
+      "card": "SOFTWARE-123",
+      "specs": [
+        "UC-1",
+        "UC-2"
+      ],
+      "status": "in-progress",
+      "worktree": "<T>/agents/impl-a"
+    }
+  },
+  "lock": [
+    "agent=impl-a",
+    "pane=w1:p1",
+    "clone=<T>/agents/impl-a",
+    "host=<VAR>",
+    "pid=<VAR>",
+    "since=<VAR>",
+    "mode=deliver"
+  ],
+  "registro": {
+    "base": "origin/develop",
+    "branch": "svc/feat/SOFTWARE-123-demo",
+    "card": "SOFTWARE-123",
+    "key": "SOFTWARE-123",
+    "lock": "deliver-SOFTWARE-123.lock",
+    "mode": "deliver",
+    "name": "impl-a",
+    "pane": "w1:p1",
+    "phase": "impl",
+    "pr": null,
+    "role": "impl",
+    "state": "allocated",
+    "worktree": "<T>/agents/impl-a"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "titulo": "Só resolve thread de achado confirmado",
+  "momentos": [
+    "publicacao"
+  ],
+  "tipo": "regra",
+  "dono": "porta",
+  "origem": "SKILL.md §Invariantes de segurança",
+  "descricao": "Thread refutada ou de verificação indeterminada fica aberta."
+}

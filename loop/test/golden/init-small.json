@@ -1,0 +1,60 @@
+{
+  "draft": null,
+  "dryRun": true,
+  "errors": [],
+  "evidence": {
+    "flow.kind": "nenhum workflow com pull_request; base = branch atual",
+    "identity.aliases": "dono e primeiro termo do nome do repo (só para a guarda de nome do núcleo)",
+    "identity.repo": "remote.origin.url = https://github.com/acme/tiny.git"
+  },
+  "profile": {
+    "flow": {
+      "base": "main",
+      "kind": "trunk"
+    },
+    "identity": {
+      "aliases": [
+        "acme"
+      ],
+      "repo": "acme/tiny"
+    },
+    "name": "tiny",
+    "schema": "hades.profile/1"
+  },
+  "quality": {
+    "conflicts": "",
+    "mapped": [],
+    "ruleDocs": []
+  },
+  "stacks": {
+    "detected": [],
+    "installed": [
+      "node-nx",
+      "pnpm-next",
+      "rust-cargo",
+      "tauri"
+    ],
+    "offer": "nenhuma stack instalada casa com o repo: rode /hades stack add (hades stack-add propose) e liste a nova em stacks"
+  },
+  "uncertain": [
+    {
+      "field": "identity.gh",
+      "suggestion": "informe o usuário ou o nome da variável com o token",
+      "why": "conta do gh do projeto não é inferível do repo"
+    },
+    {
+      "field": "identity.vocabulary",
+      "why": "nomes de serviços e scripts que só existem neste projeto (guarda de nome): só o dono sabe"
+    },
+    {
+      "field": "flow.kind",
+      "suggestion": "pr se o time abre PR; trunk se commita direto na base",
+      "why": "sem workflow de CI em PR não dá para saber se o fluxo é PR ou trunk"
+    },
+    {
+      "field": "env",
+      "why": "ambiente local fica fora por padrão (ver /hades env); pr.labels e refs também"
+    }
+  ],
+  "valid": true
+}

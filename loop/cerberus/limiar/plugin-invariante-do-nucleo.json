@@ -1,0 +1,16 @@
+{
+  "titulo": "Plugin não sobrescreve invariante do núcleo",
+  "momentos": [
+    "plugin"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "limiar",
+    "invariante"
+  ],
+  "timeoutS": 60,
+  "origem": "reference/cerberus/limiar.md §plugin-invariante-do-nucleo",
+  "descricao": "Barra pacote que cai por cima de arquivo do núcleo (kit/, loop/), mexe no hook hades-guard, registra guarda ou bloco numa cabeça do Cerberus ou declara/muda HADES_CERBERUS_*."
+}

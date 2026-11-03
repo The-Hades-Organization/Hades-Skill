@@ -1,0 +1,16 @@
+# sobe
+- `teste.deterministico` [testes] (subida por example-monorepo): Sem dependência de hora, ordem, rede ou acaso não controlado; relógio e aleatoriedade entram por injeção. Teste instável é bug aberto, não ruído.
+- `pratica.erro-explicito` [praticas]: Falha é tratada ou propagada com contexto; catch vazio e erro engolido são proibidos. Quem captura decide algo (repetir, traduzir, registrar e seguir), senão deixa subir. — checagem: `grep -E 'catch *(\([a-zA-Z_]*\))? *\{ *\}'` em `*`
+# conflitos
+## Conflitos de qualidade
+
+- `pratica.erro-explicito` (severidade-menor, projeto example-monorepo): o projeto pede baixa, o catálogo ligado exige alta: vale alta. Nota do projeto: legado
+- `teste.sem-mock-do-que-e-seu` (contradiz, projeto example-monorepo): a regra do projeto contraria este item ligado. Nota do projeto: o projeto mocka a camada de dados
+- `x.nao-existe` (id-desconhecido, projeto example-monorepo): o perfil cita um id que não está no catálogo.
+# sem perfil
+rc=0
+# validação
+aviso: <T>/packs-q/example-monorepo/profile.json: sem `core` (faixa de versões do núcleo; reference/projects.md §Plugin)
+ok  <T>/packs-q/example-monorepo/profile.json
+ok  <SKILL>/quality/base.json
+ok  <T>/home/.claude/hades/quality/choices.tsv

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hades · sem conexão</title>
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f9f2eb">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#12090e">
+<script>
+  // o tema escolhido no painel vale aqui também (mesma origem); sem escolha, o do sistema decide pelo CSS
+  try { var t = localStorage.getItem('hades-panel-theme'); if (t === 'light') document.documentElement.className = 'claro'; else if (t === 'dark') document.documentElement.className = 'escuro'; } catch (e) { /* sem storage: fica o tema do sistema */ }
+</script>
+<style>
+/* Sem rede, esta página não carrega o app: os tokens são uma cópia dos do index.html (Marfim e Érebo).
+   As fontes vêm do cache do service worker quando o painel já abriu antes; senão, a reserva do sistema. */
+@font-face { font-family: 'Figtree'; src: url('/ui/vendor/Figtree-Variable.woff2') format('woff2'); font-weight: 300 900; font-display: swap; }
+@font-face { font-family: 'Marcellus'; src: url('/ui/vendor/Marcellus-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Geist Mono'; src: url('/ui/vendor/GeistMono-Variable.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
+:root {
+  color-scheme: light;
+  --background: oklch(0.965 0.012 70);
+  --foreground: oklch(0.24 0.05 350);
+  --muted-foreground: oklch(0.48 0.04 345);
+  --border: oklch(0.24 0.05 350 / 12%);
+  --border-strong: oklch(0.24 0.05 350 / 22%);
+  --primary: #391a2c;
+  --primary-foreground: #eddece;
+  --ring: oklch(0.514 0.222 16.935);
+  --vivo: oklch(0.514 0.222 16.935);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.claro) {
+    color-scheme: dark;
+    --background: oklch(0.155 0.018 345);
+    --foreground: oklch(0.93 0.022 70);
+    --muted-foreground: oklch(0.72 0.03 340);
+    --border: oklch(0.93 0.022 70 / 10%);
+    --border-strong: oklch(0.93 0.022 70 / 18%);
+    --primary: #ffc6df;
+    --primary-foreground: #391a2c;
+    --ring: oklch(0.586 0.253 17.585);
+    --vivo: oklch(0.586 0.253 17.585);
+  }
+}
+:root.escuro {
+  color-scheme: dark;
+  --background: oklch(0.155 0.018 345);
+  --foreground: oklch(0.93 0.022 70);
+  --muted-foreground: oklch(0.72 0.03 340);
+  --border: oklch(0.93 0.022 70 / 10%);
+  --border-strong: oklch(0.93 0.022 70 / 18%);
+  --primary: #ffc6df;
+  --primary-foreground: #391a2c;
+  --ring: oklch(0.586 0.253 17.585);
+  --vivo: oklch(0.586 0.253 17.585);
+}
+* { box-sizing: border-box; }
+html, body { background: var(--background); color: var(--foreground); }
+body { margin: 0; min-height: 100dvh; font: 400 0.875rem/1.5 'Figtree', ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; caret-color: var(--vivo); }
+::selection { background: color-mix(in oklch, var(--vivo) 28%, transparent); }
+.topo { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 16px; border-bottom: 1px solid var(--border-strong); }
+.marca { display: block; width: 28px; height: 28px; }
+.nome { font-family: 'Marcellus', Georgia, serif; font-size: 1.125rem; letter-spacing: 0.01em; }
+.estado { display: inline-flex; align-items: center; gap: 8px; margin-left: 8px; padding-left: 12px; border-left: 1px solid var(--border-strong); font-weight: 500; }
+.ponto { width: 8px; height: 8px; border-radius: 50%; background: var(--muted-foreground); opacity: .6; }
+main { max-width: 38rem; padding: 12vh 16px 48px; margin: 0 auto; }
+h1 { margin: 0; font-family: 'Marcellus', Georgia, serif; font-weight: 400; font-synthesis: none; font-size: 2rem; line-height: 1.1; letter-spacing: 0.01em; text-wrap: balance; }
+p { margin: 12px 0 0; color: var(--muted-foreground); max-width: 62ch; text-wrap: pretty; }
+h1, h2 { text-wrap: balance; }
+h2 { margin: 32px 0 0; padding-bottom: 10px; border-bottom: 1px solid var(--border); font-size: 1rem; line-height: 1.5; font-weight: 600; }
+ul { margin: 0; padding: 0; list-style: none; }
+li { padding: 10px 0; border-bottom: 1px solid var(--border); text-wrap: pretty; }
+code { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 0.75rem; white-space: nowrap; }
+.acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 24px; }
+button { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 14px; border: 0; border-radius: 0; background: var(--primary); color: var(--primary-foreground); font-family: inherit; font-size: 0.875rem; font-weight: 500; line-height: 1; cursor: pointer; }
+button:hover { background: color-mix(in oklch, var(--primary) 90%, transparent); }
+button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.nota { margin: 0; font-size: 0.8125rem; }
+@media (max-width: 767px), (pointer: coarse) { button { height: 44px; } main { padding-top: 8vh; } }
+</style></head><body>
+<header class="topo">
+  <img class="marca" src="/ui/brand/hades.svg" alt="" width="28" height="28">
+  <span class="nome">Hades</span>
+  <span class="estado"><span class="ponto" aria-hidden="true"></span>Sem conexão</span>
+</header>
+<main>
+  <h1>Sem conexão com o Hades</h1>
+  <p>Este aparelho não alcança o painel agora. O painel só mostra dados ao vivo, então não fica uma cópia antiga para ler.</p>
+  <h2>O que conferir</h2>
+  <ul>
+    <li>O ambiente está no ar? No terminal da máquina: <code>/hades env status</code>.</li>
+    <li>Pelo celular, o túnel precisa estar aberto (página Acesso remoto, quando voltar).</li>
+    <li>A rede deste aparelho está ligada?</li>
+  </ul>
+  <div class="acoes">
+    <button type="button" onclick="location.reload()">Tentar de novo</button>
+    <p class="nota" role="status">A página tenta sozinha quando a rede voltar.</p>
+  </div>
+</main>
+<script>addEventListener('online', function () { location.reload(); });</script>
+</body></html>

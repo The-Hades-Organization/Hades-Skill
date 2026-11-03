@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# journalctl falso: registra o argv em $FAKE_SYSTEMCTL_DIR/argv.log e devolve o que está em $FAKE_SYSTEMCTL_DIR/journal
+d=${FAKE_SYSTEMCTL_DIR:?}; { echo "journalctl"; for a in "$@"; do printf '  %s\n' "$a"; done; } >> "$d/argv.log"
+[[ -f $d/journal ]] && cat "$d/journal"
+exit 0

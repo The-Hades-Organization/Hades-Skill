@@ -1,0 +1,306 @@
+// Orquestrador no canvas do Argos (reference/argos.md §Orquestrador no canvas, D7): quem é orquestrador e quem é recruta
+// de quem, quem pode comandar quem, o auto-layout dos recrutas abaixo do orquestrador e a identidade que o recruta recebe no
+// prompt inicial. Lógica pura, sem Node/DOM: a CLI `hades canvas` e o painel usam o mesmo módulo. Toda mudança do
+// documento sai como `CanvasOp` de `canvas-history` (desfazer volta exatamente ao anterior).
+import { CANVAS_LIMITS, type CanvasDoc, type CanvasEdge, type CanvasNode } from "./canvas-doc.ts";
+import { type AtomicOp, type CanvasOp, opBatch, opCreate, opDelete, opMove, opUpdate } from "./canvas-history.ts";
+import { opCreateLink } from "./canvas-links.ts";
+import { hasNoteAccess, NOTE_READER_TYPES, NOTE_TYPE } from "./canvas-note.ts";
+
+/** O nó que a ferramenta Terminal cria; só ele vira orquestrador ou recruta (tem processo que o canvas criou). */
+export const TERMINAL_NODE_TYPE = "terminal";
+/** Aresta do orquestrador para o recruta: hierarquia desenhada, sem leitor (não é `link`: terminal↔terminal segue recusado). */
+export const RECRUIT_EDGE_KIND = "recruit";
+/**
+ * Aresta do orquestrador para o agente que ele alocou pela CLI (`hades agent new|skill-new|review|adopt` chamado de um pane
+ * do herdr): o registro do agente guarda o par do pane de quem chamou (`orchestrator`) e a ligação nasce dele, sem passo manual.
+ */
+export const ORCHESTRATES_EDGE_KIND = "orchestrates";
+
+export const RECRUIT_LAYOUT = {
+  /** Espaço entre recrutas lado a lado e entre o orquestrador e a primeira fileira. */
+  gapX: 48,
+  gapY: 96,
+  /** Recrutas por fileira; passando disso, abre outra fileira abaixo. */
+  perRow: 4,
+} as const;
+
+/** Códigos estáveis: só ganham valores. */
+export const RECRUIT_ERRORS = {
+  notInCanvas: "recruit_not_in_canvas",
+  notOrchestrator: "recruit_not_orchestrator",
+  notRecruit: "recruit_not_recruit",
+  notYourRecruit: "recruit_not_yours",
+  missingNote: "recruit_missing_note",
+  noteNotShared: "recruit_note_not_shared",
+  ambiguous: "recruit_ambiguous",
+} as const;
+export type RecruitErrorCode = (typeof RECRUIT_ERRORS)[keyof typeof RECRUIT_ERRORS];
+
+export const RECRUIT_ERROR_TEXT: Readonly<Record<RecruitErrorCode, string>> = {
+  [RECRUIT_ERRORS.notInCanvas]: "o seu terminal não está em nenhum canvas do painel",
+  [RECRUIT_ERRORS.notOrchestrator]: "só o terminal com a caixa Orquestrador ligada comanda recrutas",
+  [RECRUIT_ERRORS.notRecruit]: "recruta não encontrado no canvas",
+  [RECRUIT_ERRORS.notYourRecruit]: "esse terminal não é recruta seu: só o orquestrador que o criou o comanda",
+  [RECRUIT_ERRORS.missingNote]: "nota não encontrada no canvas",
+  [RECRUIT_ERRORS.noteNotShared]: "a nota não está ligada ao orquestrador: ligue-a a você antes de passá-la ao recruta",
+  [RECRUIT_ERRORS.ambiguous]: "mais de um nó com esse nome: use o id do nó",
+};
+
+export class RecruitError extends Error {
+  readonly code: RecruitErrorCode;
+  constructor(code: RecruitErrorCode) {
+    super(RECRUIT_ERROR_TEXT[code]);
+    this.name = "RecruitError";
+    this.code = code;
+  }
+}
+
+const fail = (code: RecruitErrorCode): never => {
+  throw new RecruitError(code);
+};
+
+type Dict = Record<string, unknown>;
+const isDict = (value: unknown): value is Dict => typeof value === "object" && value !== null && !Array.isArray(value);
+const dataOf = (node: CanvasNode): Dict => (isDict(node.data) ? node.data : {});
+
+export interface HerdrTarget {
+  session: string;
+  pane: string;
+}
+
+/** O par do herdr gravado no nó `terminal` (`data.herdr`), ou `undefined`. */
+export function terminalTargetOf(node: CanvasNode): HerdrTarget | undefined {
+  if (node.type !== TERMINAL_NODE_TYPE) return undefined;
+  const herdr = dataOf(node).herdr;
+  return isDict(herdr) && typeof herdr.session === "string" && typeof herdr.pane === "string" ? { session: herdr.session, pane: herdr.pane } : undefined;
+}
+
+/** O nome que o nó mostra (`data.name` do terminal; o id para os demais). */
+export function nodeName(node: CanvasNode): string {
+  const name = dataOf(node).name;
+  return typeof name === "string" && name.trim() ? name.trim() : node.id;
+}
+
+export const isOrchestrator = (node: CanvasNode | undefined): boolean => node?.type === TERMINAL_NODE_TYPE && dataOf(node).orchestrator === true;
+
+/** O id do orquestrador que criou o recruta, ou `undefined`. */
+export function recruiterOf(node: CanvasNode | undefined): string | undefined {
+  if (!node || node.type !== TERMINAL_NODE_TYPE) return undefined;
+  const by = dataOf(node).recruiter;
+  return typeof by === "string" && by ? by : undefined;
+}
+
+/** O par `{session, pane}` válido de um valor solto (o `orchestrator` do registro ou do nó do grafo), ou `undefined`. */
+export function herdrTargetOf(value: unknown): HerdrTarget | undefined {
+  return isDict(value) && typeof value.session === "string" && value.session !== "" && typeof value.pane === "string" && value.pane !== ""
+    ? { session: value.session, pane: value.pane }
+    : undefined;
+}
+
+const sameTarget = (a: HerdrTarget | undefined, b: HerdrTarget | undefined): boolean =>
+  a !== undefined && b !== undefined && a.session === b.session && a.pane === b.pane;
+
+/** Nó do grafo vivo como o canvas o recebe: o id e, no agente alocado por um orquestrador, o par do pane dele. */
+export interface OrchestratedRef {
+  id: string;
+  orchestrator?: unknown;
+}
+
+/** Os terminais do documento que são o orquestrador do agente (o pane do terminal é o que o registro do agente gravou). */
+export function orchestratorTerminals(doc: CanvasDoc, ref: OrchestratedRef): CanvasNode[] {
+  const target = herdrTargetOf(ref.orchestrator);
+  if (target === undefined) return [];
+  return doc.nodes.filter((node) => node.id !== ref.id && sameTarget(terminalTargetOf(node), target));
+}
+
+/**
+ * Arestas `orchestrates` terminal → agente para os nós do grafo que vieram de um orquestrador com nó `terminal` neste
+ * documento. Agente → agente sai do próprio grafo; aqui só o terminal do canvas, que o servidor não conhece.
+ */
+export function orchestrationEdges(doc: CanvasDoc, graphNodes: readonly OrchestratedRef[]): { from: string; to: string; kind: string }[] {
+  const edges: { from: string; to: string; kind: string }[] = [];
+  for (const ref of graphNodes) for (const terminal of orchestratorTerminals(doc, ref)) edges.push({ from: terminal.id, to: ref.id, kind: ORCHESTRATES_EDGE_KIND });
+  return edges;
+}
+
+/** Os recrutas do orquestrador, na ordem do documento. */
+export const recruitsOf = (doc: CanvasDoc, orchestratorId: string): CanvasNode[] => doc.nodes.filter((node) => recruiterOf(node) === orchestratorId);
+
+/**
+ * Os nós do documento que são o processo no par `{session, pane}`: o terminal pelo `data.herdr`, e o agente do grafo pelo
+ * par que o grafo vivo dá (`graphTargets`, id do nó → par).
+ */
+export function nodesAtTarget(doc: CanvasDoc, target: HerdrTarget, graphTargets: ReadonlyMap<string, HerdrTarget> = new Map()): CanvasNode[] {
+  const same = (t: HerdrTarget | undefined): boolean => t !== undefined && t.session === target.session && t.pane === target.pane;
+  return doc.nodes.filter((node) => NOTE_READER_TYPES.includes(node.type) && (same(terminalTargetOf(node)) || (node.type !== TERMINAL_NODE_TYPE && same(graphTargets.get(node.id)))));
+}
+
+/** O nó pelo id, ou pelo nome (único) entre os do tipo pedido; nome repetido é ambíguo. */
+export function findByRef(doc: CanvasDoc, ref: string, accept: (node: CanvasNode) => boolean): CanvasNode | undefined {
+  const byId = doc.nodes.find((node) => node.id === ref && accept(node));
+  if (byId) return byId;
+  const named = doc.nodes.filter((node) => accept(node) && nodeName(node) === ref);
+  if (named.length > 1) return fail(RECRUIT_ERRORS.ambiguous);
+  return named[0];
+}
+
+/** A nota pelo id do nó ou pelo nome do arquivo dela (`data.note`). */
+export function findNote(doc: CanvasDoc, ref: string): CanvasNode | undefined {
+  const notes = doc.nodes.filter((node) => node.type === NOTE_TYPE);
+  return notes.find((node) => node.id === ref) ?? notes.find((node) => dataOf(node).note === ref);
+}
+
+/** O orquestrador que chama; agente comum (ou nó que não é terminal) é recusado. */
+export function requireOrchestrator(doc: CanvasDoc, callerId: string): CanvasNode {
+  const caller = doc.nodes.find((node) => node.id === callerId);
+  return isOrchestrator(caller) ? (caller as CanvasNode) : fail(RECRUIT_ERRORS.notOrchestrator);
+}
+
+/**
+ * O recruta `ref` do orquestrador `callerId`: o chamador tem de ser orquestrador e o recruta, dele. O nome se procura só
+ * entre os recrutas dele (o mesmo nome num terminal alheio não o torna ambíguo); terminal alheio com o id ou o nome pedido
+ * é recusado como de outro.
+ */
+export function requireRecruit(doc: CanvasDoc, callerId: string, ref: string): CanvasNode {
+  requireOrchestrator(doc, callerId);
+  const isTerminal = (n: CanvasNode): boolean => n.type === TERMINAL_NODE_TYPE;
+  const mine = findByRef(doc, ref, (n) => isTerminal(n) && recruiterOf(n) === callerId);
+  if (mine) return mine;
+  const other = doc.nodes.some((n) => isTerminal(n) && (n.id === ref || nodeName(n) === ref));
+  return fail(other ? RECRUIT_ERRORS.notYourRecruit : RECRUIT_ERRORS.notRecruit);
+}
+
+// ---- auto-layout ----
+
+export interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Onde cada um dos `sizes` fica abaixo do orquestrador: fileiras de até `perRow`, centradas sob ele, com passo uniforme
+ * (o maior tamanho mais o espaço). A ordem é a dos recrutas (o primeiro à esquerda na primeira fileira).
+ */
+export function recruitSlots(orchestrator: Box, sizes: readonly { w: number; h: number }[]): { x: number; y: number }[] {
+  if (sizes.length === 0) return [];
+  const stepX = Math.max(...sizes.map((s) => s.w)) + RECRUIT_LAYOUT.gapX;
+  const stepY = Math.max(...sizes.map((s) => s.h)) + RECRUIT_LAYOUT.gapY;
+  const center = orchestrator.x + orchestrator.w / 2;
+  const top = orchestrator.y + orchestrator.h + RECRUIT_LAYOUT.gapY;
+  return sizes.map((size, i) => {
+    const row = Math.floor(i / RECRUIT_LAYOUT.perRow);
+    const inRow = Math.min(RECRUIT_LAYOUT.perRow, sizes.length - row * RECRUIT_LAYOUT.perRow);
+    const col = i % RECRUIT_LAYOUT.perRow;
+    const slotCenter = center + (col - (inRow - 1) / 2) * stepX;
+    return { x: Math.round(slotCenter - size.w / 2), y: Math.round(top + row * stepY) };
+  });
+}
+
+/** Primeiro id livre `<prefixo><n>` (n ≥ 1) entre os nós e as arestas do documento. */
+export function freshId(doc: CanvasDoc, prefix: string): string {
+  const taken = new Set([...doc.nodes.map((n) => n.id), ...doc.edges.map((e) => e.id)]);
+  let i = 1;
+  while (taken.has(`${prefix}${i}`)) i += 1;
+  return `${prefix}${i}`;
+}
+
+export interface RecruitInput {
+  orchestratorId: string;
+  /** `data` do nó novo (nome, agente, papel, `herdr`…); `recruiter` é posto aqui. */
+  data: Dict;
+  /** Tamanho do nó novo (padrão: o do orquestrador). */
+  size?: { w: number; h: number };
+  /** Notas já ligadas ao orquestrador que o recruta recebe ao nascer. */
+  notes?: readonly string[];
+}
+
+/**
+ * O passo do recrutamento: o nó novo (com `recruiter`), a aresta do orquestrador até ele, as conexões às notas pedidas e o
+ * auto-layout de todos os recrutas daquele orquestrador. Um lote só: desfazer tira o recruta e devolve as posições.
+ */
+export function planRecruit(doc: CanvasDoc, input: RecruitInput): { op: CanvasOp; nodeId: string } {
+  const orchestrator = requireOrchestrator(doc, input.orchestratorId);
+  // a mesma nota pedida duas vezes (pelo nome e pelo id, ou repetida) vira uma conexão só
+  const notes = [...new Map((input.notes ?? []).map((ref) => requireSharedNote(doc, orchestrator.id, ref)).map((n) => [n.id, n])).values()];
+  const size = input.size ?? { w: orchestrator.w, h: orchestrator.h };
+  const nodeId = freshId(doc, "term-r");
+  const team = recruitsOf(doc, orchestrator.id);
+  const slots = recruitSlots(orchestrator, [...team.map((n) => ({ w: n.w, h: n.h })), size]);
+  const slot = slots[slots.length - 1] as { x: number; y: number };
+  const top = Math.min(CANVAS_LIMITS.layer - 1, doc.nodes.reduce((z, n) => Math.max(z, n.z), 0));
+  const node: CanvasNode = {
+    id: nodeId, type: TERMINAL_NODE_TYPE, x: slot.x, y: slot.y, w: size.w, h: size.h, z: top + 1,
+    data: { ...input.data, recruiter: orchestrator.id }, locked: false, blurred: false,
+  };
+  const edge: CanvasEdge = { id: freshId(doc, "recruit-e"), from: orchestrator.id, to: nodeId, kind: RECRUIT_EDGE_KIND };
+  const ops: AtomicOp[] = [opCreate(doc, [node], [edge])];
+  let next = { ...doc, nodes: [...doc.nodes, node], edges: [...doc.edges, edge] };
+  for (const note of notes) {
+    const op = opCreateLink(next, { id: freshId(next, "link-r"), from: nodeId, to: note.id });
+    ops.push(op);
+    if (op.kind === "edge-create") next = { ...next, edges: [...next.edges, op.edge.item] };
+  }
+  team.forEach((member, i) => {
+    const to = slots[i] as { x: number; y: number };
+    if (member.x !== to.x || member.y !== to.y) ops.push(opMove(doc, member.id, to));
+  });
+  return { op: opBatch(ops), nodeId };
+}
+
+/** A nota que o orquestrador pode passar ao recruta: existe e está ligada direto a ele. */
+export function requireSharedNote(doc: CanvasDoc, orchestratorId: string, ref: string): CanvasNode {
+  const note = findNote(doc, ref) ?? fail(RECRUIT_ERRORS.missingNote);
+  if (!hasNoteAccess(doc, note.id, orchestratorId)) return fail(RECRUIT_ERRORS.noteNotShared);
+  return note;
+}
+
+/** `connect`: liga o recruta a uma nota já ligada ao orquestrador. Já ligados: `undefined` (nada a fazer). */
+export function planConnect(doc: CanvasDoc, callerId: string, recruitRef: string, noteRef: string): { op: AtomicOp | undefined; recruit: CanvasNode; note: CanvasNode } {
+  const recruit = requireRecruit(doc, callerId, recruitRef);
+  const note = requireSharedNote(doc, callerId, noteRef);
+  if (hasNoteAccess(doc, note.id, recruit.id)) return { op: undefined, recruit, note };
+  return { op: opCreateLink(doc, { id: freshId(doc, "link-r"), from: recruit.id, to: note.id }), recruit, note };
+}
+
+/** `dismiss`: tira o nó do recruta (com as arestas dele). O processo fecha antes, pela rota de fechar (D2). */
+export const planDismiss = (doc: CanvasDoc, recruitId: string): AtomicOp => opDelete(doc, [recruitId]);
+
+/** `reassign`: o papel novo no `data` do nó (`null` tira); posição, nome e conexões ficam. */
+export function planReassign(doc: CanvasDoc, recruitId: string, role: string | null): AtomicOp | undefined {
+  const node = doc.nodes.find((n) => n.id === recruitId) ?? fail(RECRUIT_ERRORS.notRecruit);
+  const data = { ...dataOf(node) };
+  if ((data.role ?? null) === role) return undefined;
+  if (role === null) delete data.role;
+  else data.role = role;
+  return opUpdate(doc, recruitId, data);
+}
+
+// ---- identidade ----
+
+export interface Identity {
+  name: string;
+  /** Nome do papel (ou `null`, sem papel). */
+  role: string | null;
+  orchestrator: string;
+  /** Nomes de arquivo das notas ligadas ao recruta. */
+  notes: readonly string[];
+  /** Tarefa que o orquestrador passou, depois da identidade. */
+  task?: string;
+}
+
+/** O prompt inicial do recruta: quem ele é, o papel, a quem responde, as notas e como lê-las. */
+export function identityPrompt(identity: Identity): string {
+  const lines = [
+    `Você é ${identity.name}, recruta do orquestrador ${identity.orchestrator} neste canvas.`,
+    `Papel: ${identity.role ?? "sem papel definido"}.`,
+    identity.notes.length
+      ? `Notas ligadas a você: ${identity.notes.join(", ")}. Leia com \`hades canvas note read <nota>\` e escreva com \`hades canvas note write <nota>\`.`
+      : "Nenhuma nota ligada a você por enquanto (`hades canvas note list` mostra quando houver).",
+    `Responda ao orquestrador ${identity.orchestrator}; não recrute, não dispense e não reatribua ninguém.`,
+  ];
+  if (identity.task && identity.task.trim()) lines.push("", identity.task.trim());
+  return lines.join("\n");
+}

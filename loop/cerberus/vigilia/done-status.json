@@ -1,0 +1,17 @@
+{
+  "titulo": "Report do DONE começa com STATUS: DONE",
+  "momentos": [
+    "done",
+    "consolidacao"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "vigilia/auditoria",
+    "status"
+  ],
+  "timeoutS": 20,
+  "origem": "reference/loop/roles/impl.md §Fluxo; reference/cerberus/vigilia.md",
+  "descricao": "Primeira linha do report.md de cada agente conferido (o do DONE ou os membros da consolidação)."
+}

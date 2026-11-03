@@ -1,0 +1,10 @@
+{
+  "titulo": "Sem --force e sem pular o hook do repo",
+  "momentos": [
+    "push"
+  ],
+  "tipo": "regra",
+  "dono": "porta",
+  "origem": "SKILL.md §Invariantes de segurança; reference/loop/gates.md §2",
+  "descricao": "Nunca --no-verify nem --force/--force-with-lease em branch sob review."
+}

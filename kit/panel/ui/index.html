@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hades</title>
+<link rel="icon" type="image/svg+xml" href="/ui/brand/hades.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/ui/brand/favicon-32.png">
+<!-- instalável no celular: o manifest é buscado sem cookie por padrão, e pelo túnel o /ui/* exige o da sessão -->
+<link rel="manifest" href="/ui/manifest.webmanifest" crossorigin="use-credentials">
+<link rel="apple-touch-icon" href="/ui/brand/apple-touch-icon.png">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f9f2eb">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#12090e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Hades">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script>
+  // tema antes do primeiro paint: escolha salva, senão o do sistema
+  (() => {
+    let t = null;
+    try { t = localStorage.getItem('hades-panel-theme'); } catch (e) {}
+    if (t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.classList.add('dark');
+  })();
+  window.__TOKEN = '__PANEL_TOKEN__';
+</script>
+<style>
+@font-face { font-family: 'Figtree'; src: url('/ui/vendor/Figtree-Variable.woff2') format('woff2'); font-weight: 300 900; font-display: swap; }
+@font-face { font-family: 'Marcellus'; src: url('/ui/vendor/Marcellus-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Geist Mono'; src: url('/ui/vendor/GeistMono-Variable.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
+/* tokens com os nomes do shadcn (páginas e plugins usam as classes): Marfim no claro, Érebo no escuro. O trilho (sidebar),
+   o metal e o rosa vivo são da marca e valem nos dois temas */
+:root {
+  --background: oklch(0.965 0.012 70);
+  --foreground: oklch(0.24 0.05 350);
+  --card: oklch(0.985 0.008 70);
+  --card-foreground: oklch(0.24 0.05 350);
+  --popover: oklch(0.985 0.008 70);
+  --popover-foreground: oklch(0.24 0.05 350);
+  --primary: #391a2c;
+  --primary-foreground: #eddece;
+  --secondary: oklch(0.94 0.014 70);
+  --secondary-foreground: oklch(0.24 0.05 350);
+  --muted: oklch(0.94 0.014 70);
+  --muted-foreground: oklch(0.48 0.04 345);
+  --accent: oklch(0.94 0.014 70);
+  --accent-foreground: oklch(0.24 0.05 350);
+  --destructive: oklch(0.52 0.19 32);
+  --border: oklch(0.24 0.05 350 / 12%);
+  --border-strong: oklch(0.24 0.05 350 / 22%);
+  --input: oklch(0.24 0.05 350 / 18%);
+  --ring: oklch(0.514 0.222 16.935);
+  --vivo: oklch(0.514 0.222 16.935);
+  --metal: #ffc6df;
+  --metal-ink: oklch(0.6 0.1 350);   /* o metal sobre o marfim some: série e traço usam este */
+  --chart-1: var(--vivo);
+  --chart-2: var(--info);
+  --chart-3: var(--warn);
+  --chart-4: var(--ok);
+  --chart-5: var(--metal-ink);
+  --radius: 0;
+  --sidebar: #391a2c;
+  --sidebar-foreground: #eddece;
+  --sidebar-primary: #ffc6df;
+  --sidebar-primary-foreground: #391a2c;
+  --sidebar-accent: oklch(0.32 0.06 346);
+  --sidebar-accent-foreground: #eddece;
+  --sidebar-border: oklch(0.908 0.027 69 / 10%);
+  --sidebar-ring: #ffc6df;
+  --rail-muted: oklch(0.78 0.035 340);
+  --s1: var(--chart-1);
+  --s2: var(--chart-2);
+  --s3: var(--chart-3);
+  --s4: var(--chart-4);
+  --ok: oklch(0.5 0.12 160);
+  --warn: oklch(0.53 0.13 70);
+  --bad: oklch(0.52 0.19 32);
+  --info: oklch(0.5 0.1 225);
+  --term: oklch(0.17 0.015 345);
+  --term-foreground: oklch(0.9 0.02 70);
+  --term-muted: oklch(0.68 0.03 340);
+  --term-bad: oklch(0.7 0.18 32);   /* o terminal é escuro nos dois temas: estados dele não seguem o claro */
+  --term-warn: oklch(0.8 0.14 78);
+}
+.dark {
+  --background: oklch(0.155 0.018 345);
+  --foreground: oklch(0.93 0.022 70);
+  --card: oklch(0.195 0.022 345);
+  --card-foreground: oklch(0.93 0.022 70);
+  --popover: oklch(0.235 0.026 345);
+  --popover-foreground: oklch(0.93 0.022 70);
+  --primary: #ffc6df;
+  --primary-foreground: #391a2c;
+  --secondary: oklch(0.235 0.026 345);
+  --secondary-foreground: oklch(0.93 0.022 70);
+  --muted: oklch(0.235 0.026 345);
+  --muted-foreground: oklch(0.72 0.03 340);
+  --accent: oklch(0.235 0.026 345);
+  --accent-foreground: oklch(0.93 0.022 70);
+  --destructive: oklch(0.68 0.19 32);
+  --border: oklch(0.93 0.022 70 / 10%);
+  --border-strong: oklch(0.93 0.022 70 / 18%);
+  --input: oklch(0.93 0.022 70 / 15%);
+  --ring: oklch(0.586 0.253 17.585);
+  --vivo: oklch(0.586 0.253 17.585);
+  --metal-ink: #ffc6df;
+  --ok: oklch(0.74 0.13 160);
+  --warn: oklch(0.8 0.14 78);
+  --bad: oklch(0.68 0.19 32);
+  --info: oklch(0.72 0.1 215);
+  --term: oklch(0.13 0.012 345);
+}
+html, body { background: var(--background); color: var(--foreground); }
+body { margin: 0; font-family: 'Figtree', ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; caret-color: var(--vivo); }
+/* celular: alvos de toque de pelo menos 40 px. Fora de @layer, vence os utilitários (h-8, size-8) sem tocar no app.js */
+@media (max-width: 767px), (pointer: coarse) {
+  button, [role=tab], select, input:not([type=checkbox]):not([type=radio]) { min-height: 40px; }
+  button { min-width: 40px; }
+  [role=switch] { min-height: 0; min-width: 0; }  /* o Switch tem tamanho próprio (h-5 w-9); o piso de 40px o deformava no celular */
+  nav a[href^="#/"] { min-height: 40px; }
+  main a[href^="http"] { display: inline-flex; align-items: center; min-height: 40px; }
+  /* controles segmentados (h-9 com 3px de folga): crescem junto com os botões de 40 px */
+  .p-\[3px\] { height: auto; min-height: 46px; }
+  .p-\[3px\] > button { white-space: nowrap; flex-shrink: 0; }
+  input[type=checkbox], input[type=radio] { width: 20px; height: 20px; }
+}
+.tnum { font-variant-numeric: tabular-nums; }
+/* escala tipográfica (rem: acompanha o tamanho de fonte do navegador). Os papéis (.t-*, abaixo) e o CSS dos efeitos (fx/) leem daqui */
+:root {
+  --fs-micro: 0.6875rem; --fs-meta: 0.75rem; --fs-label: 0.8125rem; --fs-body: 0.875rem; --fs-prose: 0.9375rem;
+  --elev: 0 1px 2px oklch(0 0 0 / .08), 0 2px 8px oklch(0 0 0 / .06);
+  --fs-section: 1rem; --fs-section-lg: 1.125rem; --fs-display: 1.5rem; --fs-page-title: 2rem;
+}
+/* o fio das Moiras (HadesCore.Fio): fiando (rodando), medido (concluído), cortado (falhou), frouxo (esperando), parado */
+.fio { position: relative; height: 2px; width: 100%; }
+.fio[data-s=parado] { height: 1px; background: var(--border-strong); }
+/* tracejados por máscara: o Firefox não pinta gradiente que mistura cor oklch com transparent */
+/* o tracejado vai no ::before: com a máscara no próprio .fio os nós (filhos) sumiam */
+.fio[data-s=frouxo]::before { content: ''; position: absolute; inset: 0; background: var(--muted-foreground); mask: repeating-linear-gradient(90deg, #000 0 3px, #0000 3px 7px); opacity: .75; }
+.fio[data-s=frouxo] .no { background: var(--muted-foreground); }
+.fio[data-s=fiando] { height: 3px; background: var(--vivo); overflow: hidden; }
+.fio[data-s=fiando]::after { content: ''; position: absolute; inset: 0; width: 35%;
+  background: linear-gradient(90deg, transparent, var(--metal) 50%, transparent); animation: fiar 1.8s cubic-bezier(.45,0,.55,1) infinite; }
+@keyframes fiar { from { transform: translateX(-100%) } to { transform: translateX(290%) } }
+.fio[data-s=medido] { height: 1.5px; background: var(--foreground); opacity: .85; }
+.fio .no { position: absolute; top: 50%; width: 6px; height: 6px; background: var(--foreground); transform: translate(-50%, -50%) rotate(45deg); }
+.fio[data-s=fiando] .no { background: var(--metal-ink); }
+.fio[data-s=cortado] { background: none; }
+.fio[data-s=cortado] > .antes { position: absolute; left: 0; top: 0; height: 2px; background: var(--bad); }
+.fio[data-s=cortado] > .depois { position: absolute; right: 0; top: 0; height: 1px; background: var(--border-strong); mask: repeating-linear-gradient(90deg, #000 0 2px, #0000 2px 6px); }
+.fio[data-s=cortado] > svg { position: absolute; top: -5px; overflow: visible; color: var(--bad); }
+/* o pulso é só de quem pede você (atenção): quem prefere menos movimento recebe o olho parado */
+@media (prefers-reduced-motion: no-preference) { .pulso { animation: pulso 2.4s ease-in-out infinite; } }
+/* alça de redimensionar do canvas: vence o cursor do nó rico (texto da nota, terminal) enquanto o mouse está nela */
+.canvas-resize-cursor, .canvas-resize-cursor * { cursor: nwse-resize !important; }
+@keyframes pulso { 50% { opacity: .35 } }
+/* o rio do trilho: linha fina com uma correnteza descendo; o óbolo (página ativa) desliza nele; o ponto vivo desce até
+   o item onde a atividade começou (--desde = distância do topo do rio) */
+.rio { position: absolute; left: 27px; top: 0; bottom: 0; width: 1px; overflow: hidden; pointer-events: none;
+  background: color-mix(in oklch, var(--rail-muted) 30%, transparent); }
+.rio::after { content: ''; position: absolute; left: 0; width: 1px; height: 120px; top: -120px;
+  background: var(--metal); mask: linear-gradient(#0000, #000b, #0000); animation: correnteza 6s linear infinite; }
+@keyframes correnteza { to { transform: translateY(calc(100vh + 120px)) } }
+.obolo { position: absolute; left: 23px; top: 0; width: 9px; height: 9px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 35% 35%, #fff 0, var(--metal) 45%, oklch(0.7 0.09 350) 100%); box-shadow: 0 1px 2px oklch(0 0 0 / .45);
+  transition: transform .42s cubic-bezier(.16,1,.3,1); }
+.ponto-vivo { animation: descer .9s cubic-bezier(.16,1,.3,1) both, pulso 2.4s ease-in-out .9s infinite; }
+@keyframes descer { from { transform: translateY(var(--desde, 0px)); opacity: .2 } to { transform: none; opacity: 1 } }
+.marca { -webkit-mask: url('/ui/brand/hades-mark.svg') center / contain no-repeat; mask: url('/ui/brand/hades-mark.svg') center / contain no-repeat; background: var(--metal); }
+/* até o Tailwind compilar a primeira vez, só o fundo (sem flash de HTML cru) */
+body:not(.ready) #root { opacity: 0; }
+#root { transition: opacity .25s ease; }
+/* página registrada com { stage: true }: o canvas ocupa a janela; o rolar da página não existe e o celular respeita a área segura */
+.stage-frame { overscroll-behavior: none; padding-bottom: env(safe-area-inset-bottom); }
+</style>
+<style type="text/tailwindcss">
+@custom-variant dark (&:is(.dark *));
+@theme inline {
+  --font-sans: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+  --font-heading: 'Marcellus', 'Figtree', serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-vivo: var(--vivo);
+  --color-metal: var(--metal);
+  --color-metal-ink: var(--metal-ink);
+  --color-rail-muted: var(--rail-muted);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-info: var(--info);
+  --color-term: var(--term);
+  --color-term-foreground: var(--term-foreground);
+  --color-term-muted: var(--term-muted);
+  --color-term-bad: var(--term-bad);
+  --color-term-warn: var(--term-warn);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
+  --radius-2xl: var(--radius);
+  --animate-fade-in: fade-in .25s ease-out both;
+  /* a entrada escalonada saiu: a página entra inteira (FadeContent, fx/) e só o dado que mudou se mexe */
+  --animate-fade-up: none;
+  --animate-zoom-in: zoom-in .18s cubic-bezier(.16,1,.3,1) both;
+  --animate-slide-in-right: slide-in-right .3s cubic-bezier(.16,1,.3,1) both;
+  --animate-slide-in-left: slide-in-left .3s cubic-bezier(.16,1,.3,1) both;
+  --animate-toast-in: toast-in .35s cubic-bezier(.16,1,.3,1) both;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-flash: flash 1.2s ease-out;
+  @keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes zoom-in { from { opacity: 0; transform: translate(-50%, -48%) scale(.96) } to { opacity: 1; transform: translate(-50%, -50%) scale(1) } }
+  @keyframes slide-in-right { from { transform: translateX(100%) } to { transform: none } }
+  @keyframes slide-in-left { from { transform: translateX(-100%) } to { transform: none } }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(16px) scale(.97) } to { opacity: 1; transform: none } }
+  @keyframes shimmer { from { background-position: 200% 0 } to { background-position: -200% 0 } }
+  @keyframes flash { from { background-color: color-mix(in oklch, var(--warn) 25%, transparent) } to { background-color: transparent } }
+}
+/* Papéis tipográficos: o nome diz o propósito, não o valor. Famílias, cores e layout ficam fora (vêm das outras classes);
+   quem precisa de exceção soma um utilitário (leading-*, font-*, truncate), que vence o papel. Tabela papel → uso em reference/panel.md */
+@utility t-page-title { font-size: var(--fs-page-title); line-height: 1; text-wrap: balance; }                    /* h1 da página (Marcellus vem do h1) */
+@utility t-section-lg { font-size: var(--fs-section-lg); line-height: 1.35; font-weight: 600; text-wrap: balance; } /* título de diálogo e de leitura */
+@utility t-section { font-size: var(--fs-section); line-height: 1.5rem; font-weight: 600; text-wrap: balance; }      /* título de card e de painel lateral */
+@utility t-body-strong { font-size: var(--fs-body); line-height: 1.25rem; font-weight: 600; text-wrap: pretty; }   /* subtítulo dentro do card */
+@utility t-body { font-size: var(--fs-body); line-height: 1.25rem; text-wrap: pretty; }                            /* texto de interface, descrição, dica de campo */
+@utility t-label { font-size: var(--fs-label); line-height: 1.25rem; font-weight: 500; }                          /* nav, aba, botão, nome de campo, resumo do card */
+@utility t-meta-em { font-size: var(--fs-meta); line-height: 1rem; font-weight: 500; }                            /* selo, legenda destacada, botão pequeno */
+@utility t-meta { font-size: var(--fs-meta); line-height: 1rem; text-wrap: pretty; }                              /* hora, contagem, caminho, "há 3 min" */
+@utility t-micro { font-size: var(--fs-micro); line-height: 1rem; font-weight: 500; }                             /* eixo de gráfico, Kbd, subrótulo de nó SVG */
+@utility t-control { font-size: var(--fs-label); line-height: 1.25rem; font-weight: 500; min-height: 2rem; }          /* controle (segmentado, chip, seletor, botão): um corpo e uma altura; 44 px no toque vêm da regra mobile */
+@utility t-data { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-meta); line-height: 1rem; } /* número, tempo, id em linha */
+@utility t-kpi { font-size: var(--fs-display); line-height: 1.2; font-weight: 600; font-variant-numeric: tabular-nums; text-wrap: balance; } /* número grande de card */
+@utility t-code { font-family: var(--font-mono); font-size: var(--fs-meta); line-height: 1.625; }                  /* log, comando, <pre> */
+@utility t-code-doc { font-family: var(--font-mono); font-size: var(--fs-label); line-height: 1.625; }            /* <pre> dentro de documento */
+@utility t-prose { font-size: var(--fs-prose); line-height: 1.75rem; text-wrap: pretty; }                         /* Docs, Thanatos, resposta do chat */
+/* uma elevação só para tudo que flutua sobre o canvas (gaveta, legenda, supervisor, composer, menus): borda leve e sombra curta */
+@utility elev-float { border: 1px solid var(--border); box-shadow: var(--elev); }
+@utility elev-shadow { box-shadow: var(--elev); } /* a mesma sombra para o que já tem a própria borda (gaveta presa na borda do canvas) */
+@layer base {
+  * { @apply border-border outline-ring; }
+  h1, h2, h3, h4 { text-wrap: balance; }
+  p { text-wrap: pretty; }
+  /* texto claro no fundo escuro parece mais fino: um fio a mais de tracking nos papéis pequenos */
+  .dark :is(.t-meta, .t-meta-em, .t-micro, .t-data) { letter-spacing: 0.01em; }
+  ::selection { background: color-mix(in oklch, var(--vivo) 28%, transparent); }
+  /* no terminal a seleção é neutra: o rosa sobre o fundo escuro some com o texto vermelho do erro */
+  .bg-term ::selection { background: color-mix(in oklch, var(--term-foreground) 26%, transparent); }
+  /* a inscrição (Marcellus, um peso só) fica no h1 e na marca; h2–h4 seguem no Figtree */
+  h1 { font-family: var(--font-heading); font-weight: 400; font-synthesis: none; letter-spacing: 0.01em; }
+  a { text-underline-offset: 3px; }
+  * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+  .scrollbar-none { scrollbar-width: none; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .scrollbar-thin { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  /* item de grid encolhe abaixo do maior texto sem quebra (título com reticências, URL, mono): sem isto a coluna
+     cresce até o conteúdo e o card vaza. :where = especificidade zero, uma classe min-w-* explícita ainda vence */
+  :where(.grid) > * { min-width: 0; }
+  /* documentos da skill (Markdown renderizado): tipografia de leitura sem o plugin typography */
+  .md { @apply t-prose text-foreground; }
+  .md > :first-child { @apply mt-0; }
+  .md h1 { @apply mt-2 mb-4 font-semibold tracking-tight; font-size: var(--fs-page-title); line-height: 1.1; }
+  .md h2 { @apply mt-10 mb-3 scroll-mt-24 border-b pb-2 font-semibold tracking-tight; font-size: var(--fs-display); line-height: 1.25; }
+  .md h3 { @apply mt-8 mb-2 scroll-mt-24 t-section-lg; }
+  .md h4 { @apply mt-6 mb-2 t-section; }
+  .md p { @apply my-3; }
+  .md ul { @apply my-3 list-disc pl-6; } .md ol { @apply my-3 list-decimal pl-6; }
+  .md li { @apply my-1; } .md li > ul, .md li > ol { @apply my-1; }
+  .md a { @apply font-medium underline underline-offset-4 decoration-border-strong hover:decoration-foreground; }
+  .md strong { @apply font-semibold; }
+  .md code { @apply bg-muted px-1.5 py-0.5 font-mono text-[0.85em]; overflow-wrap: anywhere; }
+  .md pre { @apply my-4 overflow-x-auto border bg-term p-4 t-code-doc text-term-foreground; }
+  .md pre code { @apply bg-transparent p-0 text-inherit; }
+  .md blockquote { @apply my-4 border-l-2 pl-4 italic text-muted-foreground; }
+  .md table { @apply my-4 block w-full overflow-x-auto t-body; border-collapse: collapse; }
+  .md th { @apply border-b bg-muted/50 px-3 py-2 text-left font-medium whitespace-nowrap; }
+  .md td { @apply border-b px-3 py-2 align-top; }
+  .md hr { @apply my-8; }
+  /* resposta do chat (página Claude): mesmo markdown, em escala de conversa */
+  .md-chat { @apply t-prose leading-6; }
+  .md-chat h1, .md-chat h2, .md-chat h3, .md-chat h4 { @apply mt-4 mb-2 border-b-0 pb-0 t-section; }
+  .md-chat p { @apply my-2; } .md-chat pre { @apply my-3 p-3 t-code; } .md-chat hr { @apply my-4; }
+  .md-chat { overflow-wrap: anywhere; }
+  /* nota do canvas (argos/node-note.tsx): o mesmo markdown, compacto; célula com borda; diagrama com "Copiar" ao passar o mouse */
+  .md-note { @apply t-label leading-5; overflow-wrap: anywhere; }
+  .md-note h1, .md-note h2, .md-note h3, .md-note h4 { @apply mt-3 mb-1 border-b-0 pb-0 t-section; }
+  .md-note p, .md-note ul, .md-note ol { @apply my-1.5; } .md-note pre { @apply my-2 p-2 t-code; }
+  .md-note table { @apply my-2 t-label; } .md-note th, .md-note td { @apply border px-2 py-1; }
+  .md-note img { max-width: 100%; height: auto; }
+  .note-diagram { @apply relative my-2 flex justify-center; }
+  .note-diagram svg { max-width: 100%; height: auto; }
+  .note-diagram-copy { @apply absolute right-1 top-1 cursor-pointer border bg-card px-1.5 t-label opacity-0; }
+  .note-diagram:hover .note-diagram-copy, .note-diagram-copy:focus-visible { @apply opacity-100; }
+}
+/* celular (<768px): alvo de toque de 44px. Botões e selects crescem; caixa, fechar e copiar log mantêm o desenho e ganham só a área de toque
+   (o ::after precisa de ancestral posicionado: esses botões já são relative ou absolute no markup, não force position aqui) */
+@media (max-width: 767px) {
+  button:not([role=switch]):not([role=checkbox]):not([aria-label=Fechar]):not([aria-label="Copiar log"]), select, a[href]:is(.flex, .inline-flex, .grid) { min-height: 44px; }
+  [role=checkbox]::after, [aria-label=Fechar]::after, [aria-label="Copiar log"]::after { content: ''; position: absolute; inset: -16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  /* alternativa parada, não corte: o fio fiando vira torção (hachura), o rio fica sem correnteza, o vivo não pulsa */
+  .fio[data-s=fiando] { background: repeating-linear-gradient(90deg, var(--vivo) 0 6px, var(--metal-ink) 6px 8px); }
+  .fio[data-s=fiando]::after, .rio::after { display: none; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="/ui/vendor/react.js"></script>
+<script src="/ui/vendor/react-dom.js"></script>
+<script>window.react = window.React; /* o UMD do lucide-react procura o global "react" */</script>
+<script src="/ui/vendor/lucide-react.js"></script>
+<script src="/ui/vendor/htm.js"></script>
+<script src="/ui/vendor/marked.js"></script>
+<script src="/ui/vendor/tailwind.js"></script>
+<script src="/ui/tour-logic.js"></script>
+<script src="/ui/app.js"></script>
+<script src="/ui/fx/hold-button.js"></script>
+<script src="/ui/fx/lazy.js"></script>
+<script src="/ui/fx/intro.js"></script>
+<script src="/ui/widget-apk.js"></script>
+<script src="/ui/tour.js"></script>
+<!-- páginas do núcleo: cada uma se registra na base (app.js); a ordem entre elas não importa -->
+<script src="/ui/pages/overview.js"></script>
+<script src="/ui/pages/code.js"></script>
+<script src="/ui/pages/loop.js"></script>
+<script src="/ui/pages/orchestration.js"></script>
+<script src="/ui/pages/reviews.js"></script>
+<script src="/ui/pages/queue.js"></script>
+<script src="/ui/pages/usage.js"></script>
+<script src="/ui/pages/claude.js"></script>
+<script src="/ui/pages/herdr.js"></script>
+<script src="/ui/lib/canvas-model.js"></script>
+<script src="/ui/argos/canvas-engine.js"></script>
+<script src="/ui/argos/canvas-controls.js"></script>
+<script src="/ui/argos/canvas-minimap.js"></script>
+<script src="/ui/argos/logic.js"></script>
+<script src="/ui/argos/parts.js"></script>
+<script src="/ui/argos/canvas-legend.js"></script>
+<script src="/ui/argos/reading-runner.js"></script>
+<script src="/ui/argos/reading-bar.js"></script>
+<script src="/ui/argos/node-terminal.js"></script>
+<script src="/ui/argos/node-tty.js"></script>
+<script src="/ui/argos/commands-canvas.js"></script>
+<script src="/ui/argos/node-note.js"></script>
+<script src="/ui/argos/types-user.js"></script>
+<script src="/ui/argos/types-live.js"></script>
+<script src="/ui/argos/node-permission.js"></script>
+<script src="/ui/argos/node-balloon.js"></script>
+<script src="/ui/argos/canvas-composer.js"></script>
+<script src="/ui/argos/canvas-menu.js"></script>
+<script src="/ui/argos/canvas-overlays.js"></script>
+<script src="/ui/argos/canvas-focus.js"></script>
+<script src="/ui/argos/canvas-links.js"></script>
+<script src="/ui/argos/canvas-hidden.js"></script>
+<!-- supervisor do canvas (reference/argos.md §Supervisor): painel flutuante, depois do modelo e antes da página -->
+<script src="/ui/argos/supervisor.js"></script>
+<script src="/ui/pages/argos.js"></script>
+<script src="/ui/pages/caronte.js"></script>
+<script src="/ui/pages/jobs.js"></script>
+<script src="/ui/pages/logs.js"></script>
+<script src="/ui/pages/notify.js"></script>
+<script src="/ui/pages/remote.js"></script>
+<script src="/ui/pages/quality.js"></script>
+<script src="/ui/pages/cerberus.js"></script>
+<script src="/ui/pages/thanatos.js"></script>
+<script src="/ui/pages/onboard.js"></script>
+<script src="/ui/pages/plugins.js"></script>
+<script src="/ui/pages/config.js"></script>
+<script src="/ui/pages/docs.js"></script>
+<!-- page-tours -->
+<script>
+  // casca offline (ui/sw.js). Só registra em HTTPS ou localhost; sem isso o painel segue normal
+  if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {}));
+</script>
+</body>
+</html>

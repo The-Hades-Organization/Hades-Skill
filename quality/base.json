@@ -1,0 +1,984 @@
+{
+ "schema": "hades.quality/1",
+ "rules": [
+  {
+   "id": "pratica.nome-revela-intencao",
+   "group": "praticas",
+   "text": "Nome de variável, função e tipo diz o que é ou o que faz; abreviação só quando o domínio já a usa. Se precisa de comentário para explicar o nome, o nome está errado.",
+   "severity": "media"
+  },
+  {
+   "id": "pratica.funcao-uma-coisa",
+   "group": "praticas",
+   "text": "Função faz uma coisa em um só nível de abstração. Se a descrição pede \"e\", separe; se mistura decisão com detalhe de I/O, extraia.",
+   "severity": "media"
+  },
+  {
+   "id": "pratica.poucos-parametros",
+   "group": "praticas",
+   "text": "Função com mais de três parâmetros ganha um objeto nomeado; flag booleana que muda o comportamento vira duas funções.",
+   "severity": "baixa"
+  },
+  {
+   "id": "pratica.sem-codigo-morto",
+   "group": "praticas",
+   "text": "Não deixe código comentado, variável sem uso nem ramo inalcançável. O histórico do git guarda o que saiu.",
+   "severity": "media"
+  },
+  {
+   "id": "pratica.sem-duplicacao-de-regra",
+   "group": "praticas",
+   "text": "A mesma regra de negócio vive em um só lugar. Trecho parecido por acaso pode repetir; regra que precisa mudar junto não.",
+   "severity": "media"
+  },
+  {
+   "id": "pratica.retorno-cedo",
+   "group": "praticas",
+   "text": "Trate o caso inválido primeiro e saia (guard clause); aninhamento acima de três níveis é sinal de extração pendente.",
+   "severity": "baixa"
+  },
+  {
+   "id": "pratica.sem-numero-magico",
+   "group": "praticas",
+   "text": "Número e texto com significado de negócio viram constante nomeada, no módulo que é dono do conceito; valor de protocolo ou de norma cita a seção que o fixa, e conversão entre códigos é mapa explícito, não aritmética sobre a posição.",
+   "severity": "baixa"
+  },
+  {
+   "id": "pratica.escopo-minimo",
+   "group": "praticas",
+   "text": "Mude só o que o pedido exige. Refatoração oportunista entra em commit separado ou fica anotada como pendência, nunca misturada à entrega.",
+   "severity": "media"
+  },
+  {
+   "id": "pratica.erro-explicito",
+   "group": "praticas",
+   "text": "Falha é tratada ou propagada com contexto; catch vazio e erro engolido são proibidos. Quem captura decide algo (repetir, traduzir, registrar e seguir), senão deixa subir.",
+   "severity": "alta",
+   "check": {
+    "kind": "grep",
+    "pattern": "catch *(\\([a-zA-Z_]*\\))? *\\{ *\\}",
+    "files": "*"
+   }
+  },
+  {
+   "id": "pratica.fronteira-valida-entrada",
+   "group": "praticas",
+   "text": "Dado que vem de fora (requisição, fila, arquivo, variável de ambiente) é validado na fronteira, uma vez; o miolo trabalha com tipos já confiáveis.",
+   "severity": "alta"
+  },
+  {
+   "id": "pratica.efeito-colateral-na-borda",
+   "group": "praticas",
+   "text": "Lógica de decisão é função pura; escrita em banco, rede e disco fica na borda, que a chama. Isso é o que torna a regra testável sem dublê.",
+   "severity": "media"
+  },
+  {
+   "id": "pratica.dependencia-injetada",
+   "group": "praticas",
+   "text": "Quem precisa de relógio, banco, cliente HTTP ou gerador de id o recebe por parâmetro ou construtor, em vez de importar uma instância global.",
+   "severity": "media"
+  },
+  {
+   "id": "pratica.imutabilidade-por-padrao",
+   "group": "praticas",
+   "text": "Prefira valores imutáveis e cópias a mutar argumento recebido. Mutação deliberada fica local e aparece no nome.",
+   "severity": "baixa"
+  },
+  {
+   "id": "pratica.composicao-sobre-heranca",
+   "group": "praticas",
+   "text": "Reuso por composição; herança só quando há uma relação \"é um\" estável e a subclasse honra todo o contrato da base.",
+   "severity": "baixa"
+  },
+  {
+   "id": "solid.responsabilidade-unica",
+   "group": "praticas",
+   "text": "Cada módulo tem um motivo para mudar. Classe que o financeiro e a operação alteram por razões diferentes deve ser duas.",
+   "severity": "media"
+  },
+  {
+   "id": "solid.aberto-fechado",
+   "group": "praticas",
+   "text": "Comportamento novo entra por extensão (nova implementação, nova entrada de tabela) sem reabrir o código estável; cadeia de if por tipo que cresce a cada feature pede polimorfismo ou tabela.",
+   "severity": "baixa"
+  },
+  {
+   "id": "solid.substituicao",
+   "group": "praticas",
+   "text": "Quem implementa uma interface cumpre todas as promessas dela: mesmas pré-condições ou mais frouxas, mesmas pós-condições ou mais fortes. Implementação que lança \"não suportado\" quebra o contrato.",
+   "severity": "media"
+  },
+  {
+   "id": "solid.interface-enxuta",
+   "group": "praticas",
+   "text": "Interface pequena e pelo ponto de vista de quem consome; ninguém depende de método que não usa.",
+   "severity": "baixa"
+  },
+  {
+   "id": "solid.inversao-de-dependencia",
+   "group": "praticas",
+   "text": "Regra de negócio depende de abstrações que ela mesma define; banco, fila e framework se encaixam por fora.",
+   "severity": "media"
+  },
+  {
+   "id": "comentario.explica-porque",
+   "group": "estilo",
+   "text": "Comentário explica o porquê (restrição, invariante que não se vê de perto, trade-off medido, decisão), não repete o que o código já diz. Se o código ficou obscuro, reescreva-o; comentário que contradiz o código é bug.",
+   "severity": "baixa"
+  },
+  {
+   "id": "comentario.sem-historia",
+   "group": "estilo",
+   "text": "Sem diário no código (\"alterado por\", \"antes era\"), sem TODO sem dono e sem data. Histórico é do commit; pendência é do tracker.",
+   "severity": "baixa"
+  },
+  {
+   "id": "comentario.sem-ruido",
+   "group": "estilo",
+   "text": "Sem separador decorativo, sem docstring que só refaz a assinatura e sem comentário que o diff do reviewer não precisaria.",
+   "severity": "baixa"
+  },
+  {
+   "id": "estilo.formatacao-automatica",
+   "group": "estilo",
+   "text": "Formatação é do formatador do projeto, não de discussão de review. Não misture reformatação com mudança de lógica.",
+   "severity": "baixa"
+  },
+  {
+   "id": "estilo.consistencia-local",
+   "group": "estilo",
+   "text": "Siga a convenção do arquivo e do módulo vizinho (nomes, camadas, estilo de erro), mesmo que você prefira outra; mudança de convenção é decisão própria.",
+   "severity": "media"
+  },
+  {
+   "id": "estilo.commit-pequeno",
+   "group": "estilo",
+   "text": "Commit é uma mudança coerente, com mensagem que diz o porquê. Corpo quebrado em linhas curtas.",
+   "severity": "baixa"
+  },
+  {
+   "id": "ts.sem-any",
+   "group": "linguagem",
+   "text": "Sem any, implícito ou explícito, em código novo; use unknown e estreite, ou modele o tipo. Exceção só com a razão no comentário.",
+   "severity": "alta",
+   "tags": [
+    "typescript"
+   ],
+   "check": {
+    "kind": "grep",
+    "pattern": ":\\s*any([^a-zA-Z0-9_]|$)",
+    "files": "*.ts"
+   }
+  },
+  {
+   "id": "ts.sem-assercao-cega",
+   "group": "linguagem",
+   "text": "Asserção de tipo (as T, !) só depois de uma checagem que a justifique; ela cala o compilador, não prova nada.",
+   "severity": "media",
+   "tags": [
+    "typescript"
+   ]
+  },
+  {
+   "id": "ts.estreitar-em-vez-de-assertar",
+   "group": "linguagem",
+   "text": "União discriminada e guarda de tipo no lugar de campos opcionais soltos; torne o estado inválido impossível de representar.",
+   "severity": "baixa",
+   "tags": [
+    "typescript"
+   ]
+  },
+  {
+   "id": "ts.async-sem-esquecer",
+   "group": "linguagem",
+   "text": "Toda Promise é aguardada, retornada ou tratada de propósito; promessa solta esconde erro e quebra a ordem.",
+   "severity": "alta",
+   "tags": [
+    "typescript",
+    "javascript"
+   ]
+  },
+  {
+   "id": "js.igualdade-estrita",
+   "group": "linguagem",
+   "text": "Compare com === e !==; coerção implícita só quando for o ponto e vier comentada.",
+   "severity": "baixa",
+   "tags": [
+    "javascript",
+    "typescript"
+   ],
+   "check": {
+    "kind": "grep",
+    "pattern": "[^=!]==[^=]",
+    "files": "*.js"
+   }
+  },
+  {
+   "id": "py.tipos-nas-bordas",
+   "group": "linguagem",
+   "text": "Assinaturas públicas levam anotação de tipo; estruturas de dados que cruzam módulo são dataclass ou modelo tipado, não dict anônimo.",
+   "severity": "baixa",
+   "tags": [
+    "python"
+   ]
+  },
+  {
+   "id": "py.sem-except-nu",
+   "group": "linguagem",
+   "text": "Nunca except sem classe, nem Exception engolida em silêncio; capture o erro que você sabe tratar.",
+   "severity": "alta",
+   "tags": [
+    "python"
+   ],
+   "check": {
+    "kind": "grep",
+    "pattern": "^\\s*except\\s*:",
+    "files": "*.py"
+   }
+  },
+  {
+   "id": "py.sem-default-mutavel",
+   "group": "linguagem",
+   "text": "Argumento padrão nunca é lista, dict ou set literal; use None e crie dentro da função.",
+   "severity": "media",
+   "tags": [
+    "python"
+   ],
+   "check": {
+    "kind": "grep",
+    "pattern": "def .*=\\s*(\\[\\]|\\{\\})",
+    "files": "*.py"
+   }
+  },
+  {
+   "id": "sh.modo-estrito",
+   "group": "linguagem",
+   "text": "Script bash começa com set -euo pipefail (ou justifica a ausência), cita toda expansão e usa [[ ]] em vez de [ ].",
+   "severity": "media",
+   "tags": [
+    "bash"
+   ]
+  },
+  {
+   "id": "java.optional-no-retorno",
+   "group": "linguagem",
+   "text": "Optional serve para retorno que pode faltar, não para campo nem parâmetro; null não atravessa a fronteira pública.",
+   "severity": "baixa",
+   "tags": [
+    "java",
+    "kotlin"
+   ],
+   "default": "off"
+  },
+  {
+   "id": "fw.controlador-fino",
+   "group": "framework",
+   "text": "Controlador/handler valida, delega e traduz a resposta; a regra mora em serviço ou domínio que se testa sem o framework.",
+   "severity": "media"
+  },
+  {
+   "id": "fw.configuracao-por-ambiente",
+   "group": "framework",
+   "text": "Valor que muda entre ambientes (url, credencial, limite) vem de configuração tipada, lida uma vez na subida, sem default perigoso em produção.",
+   "severity": "alta"
+  },
+  {
+   "id": "fw.contrato-versionado",
+   "group": "framework",
+   "text": "Mudança em contrato publicado (API, evento, esquema de mensagem) é aditiva; remover ou mudar o significado de campo exige versão nova e janela de migração.",
+   "severity": "alta"
+  },
+  {
+   "id": "fw.idempotencia-de-consumidor",
+   "group": "framework",
+   "text": "Consumidor de fila ou webhook tolera a mesma mensagem duas vezes (entrega pelo menos uma vez é o normal): chave de idempotência deduplicada no banco ou operação naturalmente repetível (upsert, inserir se não existir). Efeito que não se repete sozinho (e-mail, notificação, cobrança, auditoria) ganha deduplicação explícita, e a estratégia fica escrita.",
+   "severity": "alta"
+  },
+  {
+   "id": "fw.ui-sem-regra-de-negocio",
+   "group": "framework",
+   "text": "Componente de interface exibe e coleta; cálculo e decisão ficam fora dele. Estado vem de uma fonte só.",
+   "severity": "media",
+   "tags": [
+    "frontend"
+   ]
+  },
+  {
+   "id": "fw.acessibilidade-basica",
+   "group": "framework",
+   "text": "Elemento interativo é alcançável por teclado, tem nome acessível e contraste legível (WCAG AA); ícone sozinho leva rótulo e ícone decorativo some do leitor de tela. Prefira o elemento nativo a imitar botão; operação de arrastar tem equivalente por botão; diálogo recebe foco, fecha com Esc e devolve o foco a quem o abriu.",
+   "severity": "media",
+   "tags": [
+    "frontend"
+   ]
+  },
+  {
+   "id": "seg.sem-segredo-no-codigo",
+   "group": "praticas",
+   "text": "Senha, token e chave nunca entram no repositório, nem em teste ou exemplo (o arquivo de exemplo de ambiente só leva marcador); vêm do ambiente ou de um cofre, e vazamento é tratado como credencial queimada. Variável que o build embute no código do cliente é pública por definição: nunca recebe segredo.",
+   "severity": "bloqueante"
+  },
+  {
+   "id": "seg.sem-concatenar-consulta",
+   "group": "praticas",
+   "text": "Consulta ao banco usa parâmetros, nunca concatenação de entrada externa; o mesmo vale para comando de shell, caminho de arquivo e expressão regular montada com entrada (escape, ou ela vira vetor de travamento).",
+   "severity": "bloqueante",
+   "check": {
+    "kind": "grep",
+    "pattern": "(SELECT|INSERT|UPDATE|DELETE)[^;]*(\\+|\\$\\{)",
+    "files": "*"
+   }
+  },
+  {
+   "id": "seg.autorizacao-no-servidor",
+   "group": "praticas",
+   "text": "Toda decisão de acesso é conferida no servidor, por recurso e pelo escopo do chamador (inquilino, organização), antes de carregar o recurso, na leitura e na escrita; recurso fora do escopo responde como inexistente, e configuração de autorização ausente fecha em vez de abrir. Esconder o botão não é controle.",
+   "severity": "bloqueante"
+  },
+  {
+   "id": "seg.log-sem-dado-sensivel",
+   "group": "praticas",
+   "text": "Log não leva credencial, documento pessoal nem corpo completo de requisição; registre identificadores.",
+   "severity": "alta"
+  },
+  {
+   "id": "seg.dependencia-minima",
+   "group": "praticas",
+   "text": "Dependência nova se justifica (o que resolve, manutenção, licença) e entra por pedido explícito; não instale pacote para uma função de três linhas.",
+   "severity": "media"
+  },
+  {
+   "id": "teste.comportamento-nao-implementacao",
+   "group": "testes",
+   "text": "Teste afirma o que o código promete, não como o faz; refatorar sem mudar comportamento não deve quebrar nada.",
+   "severity": "media"
+  },
+  {
+   "id": "teste.um-motivo-para-falhar",
+   "group": "testes",
+   "text": "Cada teste verifica uma ideia e o nome diz qual (dado X, quando Y, então Z). Falha aponta a causa sem depurar.",
+   "severity": "media"
+  },
+  {
+   "id": "teste.deterministico",
+   "group": "testes",
+   "text": "Sem dependência de hora, ordem, rede ou acaso não controlado; relógio e aleatoriedade entram por injeção. Teste instável é bug aberto, não ruído.",
+   "severity": "alta"
+  },
+  {
+   "id": "teste.sem-mock-do-que-e-seu",
+   "group": "testes",
+   "text": "Dublê só para o que cruza a fronteira do processo (rede, disco, relógio). Mockar a própria regra testa o mock.",
+   "severity": "baixa"
+  },
+  {
+   "id": "teste.bug-ganha-teste",
+   "group": "testes",
+   "text": "Correção de bug começa por um teste que falha pelo motivo certo e passa depois da correção.",
+   "severity": "alta"
+  },
+  {
+   "id": "teste.limites-e-vazios",
+   "group": "testes",
+   "text": "Cubra o limite (zero, um, máximo, vazio, nulo) e o caminho de erro (entrada inválida, dependência que falha, dado corrompido), não só o caso feliz; no erro, afirme a classe ou o código certo, não só que falhou.",
+   "severity": "media"
+  },
+  {
+   "id": "teste.dados-minimos",
+   "group": "testes",
+   "text": "Montagem do teste mostra só o que importa para o caso; fábrica de dados com padrão sensato, sem fixture gigante compartilhada.",
+   "severity": "baixa"
+  },
+  {
+   "id": "banco.migracao-reversivel",
+   "group": "banco",
+   "text": "Migração de esquema é versionada, pequena e segura para rodar com a versão anterior do código ainda no ar (adicionar, migrar, só depois remover; renomear é adicionar novo e remover velho em entregas separadas). Migração já aplicada não se edita, e a volta vem escrita dizendo se perde dado.",
+   "severity": "alta"
+  },
+  {
+   "id": "banco.indice-para-consulta",
+   "group": "banco",
+   "text": "Consulta nova num caminho quente vem com o índice que a serve; confira o plano em vez de supor.",
+   "severity": "media"
+  },
+  {
+   "id": "banco.sem-n-mais-um",
+   "group": "banco",
+   "text": "Carregar relação dentro de laço gera uma consulta por item; busque em lote ou com junção.",
+   "severity": "alta"
+  },
+  {
+   "id": "banco.transacao-curta",
+   "group": "banco",
+   "text": "Transação envolve só as escritas que precisam ser atômicas; sem chamada de rede nem espera de usuário dentro dela.",
+   "severity": "alta"
+  },
+  {
+   "id": "banco.restricao-no-banco",
+   "group": "banco",
+   "text": "Unicidade, chave estrangeira e não-nulo são garantidos pelo banco, além da validação na aplicação; a aplicação sozinha perde a corrida.",
+   "severity": "media"
+  },
+  {
+   "id": "banco.sem-select-estrela",
+   "group": "banco",
+   "text": "Consulta pede as colunas de que precisa; SELECT * em código de aplicação quebra quando o esquema muda.",
+   "severity": "baixa",
+   "default": "off",
+   "check": {
+    "kind": "grep",
+    "pattern": "SELECT\\s+\\*",
+    "files": "*"
+   }
+  },
+  {
+   "id": "banco.dinheiro-sem-float",
+   "group": "banco",
+   "text": "Valor monetário usa decimal ou inteiro em centavos, nunca ponto flutuante; arredondamento é regra explícita.",
+   "severity": "alta"
+  },
+  {
+   "id": "fw.timeout-em-io-externo",
+   "group": "framework",
+   "text": "Toda chamada que sai do processo (HTTP, banco, fila, cache, socket, e-mail) tem timeout explícito e configurável; o padrão da biblioteca não conta. Sem timeout, um vizinho lento prende o pool e a falha vira cascata.",
+   "severity": "alta"
+  },
+  {
+   "id": "fw.desligamento-gracioso",
+   "group": "framework",
+   "text": "No sinal de parada o serviço para de aceitar trabalho novo, termina ou devolve o que está em voo, grava o estado que só existe em memória e fecha conexões, tudo sob um teto de tempo. Tarefa de fundo iniciada na subida guarda um handle para ser esperada.",
+   "severity": "alta",
+   "default": "off"
+  },
+  {
+   "id": "fw.saude-viva-e-pronta",
+   "group": "framework",
+   "text": "A sondagem de vida não consulta dependência (só diz que o processo responde); a de prontidão confere as dependências críticas. Uma sondagem só para as duas mata processo saudável quando o banco oscila. Saúde e métricas ficam fora do prefixo e da autenticação de negócio; métricas pedem credencial própria.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "fw.falha-cedo-na-subida",
+   "group": "framework",
+   "text": "Configuração ausente ou inválida, porta ocupada ou dependência obrigatória fora: o processo sai na subida com mensagem acionável e código de saída diferente de zero, em vez de pânico sem contexto ou de seguir meio configurado.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "fw.erro-com-codigo-estavel",
+   "group": "framework",
+   "text": "Erro que cruza a fronteira leva um código estável de um enum, separado da mensagem: o código só ganha valores (nunca renomeia nem some) e não se traduz; quem consome ramifica pelo código, nunca pelo texto nem só pelo status HTTP. A mensagem ao usuário sai do catálogo de tradução.",
+   "severity": "alta"
+  },
+  {
+   "id": "fw.erro-mapeado-pela-causa",
+   "group": "framework",
+   "text": "Erro de infraestrutura é traduzido pela causa (violação de unicidade vira conflito, registro ausente vira não encontrado, chave estrangeira vira requisição inválida), cada um com seu código; o curinga que transforma tudo em erro interno esconde o caso e vaza detalhe.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "fw.listagem-paginada-com-teto",
+   "group": "framework",
+   "text": "Endpoint que lista é paginado, com tamanho máximo imposto pelo servidor (pedido acima do teto é recusado, não atendido). Ordenação e filtro chegam como valores de uma lista fechada que o servidor mapeia para coluna; o cliente nunca nomeia coluna.",
+   "severity": "media"
+  },
+  {
+   "id": "fw.efeito-apos-commit",
+   "group": "framework",
+   "text": "Publicar evento, invalidar cache ou notificar depois do commit é tratado à parte: a falha nesse passo não desfaz nem rejeita a escrita já confirmada, e fica registrada e medida (ou o efeito sai por uma caixa de saída transacional).",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "fw.agendamento-unico-entre-replicas",
+   "group": "framework",
+   "text": "Tarefa agendada dispara em toda réplica; o que deve acontecer uma vez por ciclo pega uma trava distribuída (no banco ou no cache) antes de agir.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "fw.recurso-com-dono",
+   "group": "framework",
+   "text": "Toda inscrição, ouvinte, timer, socket e conexão aberta tem dono e é encerrada no fim do ciclo de vida (desmontagem, logout, cancelamento, desligamento). Cancele o timeout e o ouvinte juntos; recurso solto vaza memória e reconecta sozinho.",
+   "severity": "alta"
+  },
+  {
+   "id": "fw.reenvio-com-chave-de-idempotencia",
+   "group": "framework",
+   "text": "Cliente que reenvia operação que não é naturalmente repetível (fila offline, nova tentativa) gera a chave de idempotência uma vez, ao enfileirar, e o servidor deduplica por ela; sem isso não se distingue \"não chegou\" de \"chegou e a resposta se perdeu\".",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "fw.mensagem-invalida-para-fila-morta",
+   "group": "framework",
+   "text": "Consumidor não relança erro em mensagem malformada (ela volta para sempre e trava a partição): valida com o esquema completo, manda para a fila de mensagens mortas com o motivo e confirma. Erro transitório, ao contrário, é relançado para nova tentativa.",
+   "severity": "alta",
+   "default": "off"
+  },
+  {
+   "id": "fw.topico-no-contrato",
+   "group": "framework",
+   "text": "Nome de tópico ou fila e esquema do evento vivem no contrato compartilhado como constante, nunca literal no serviço; a lista de tópicos provisionados é gerada dele, não editada à mão. Mensagens da mesma entidade usam a mesma chave de partição para manter a ordem.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "obs.log-estruturado-com-correlacao",
+   "group": "framework",
+   "text": "Log é estruturado (campos, não frase montada), com nível, nome do serviço, horário em UTC e o identificador de requisição propagado entre serviços; mensagem de log fica num idioma só, sem depender do idioma do usuário.",
+   "severity": "media"
+  },
+  {
+   "id": "obs.metrica-com-cardinalidade-limitada",
+   "group": "framework",
+   "text": "Rótulo de métrica tem cardinalidade limitada por construção: nada de id de usuário, URL crua ou texto de erro como rótulo; o identificador que interessa vai para o log. Contador só sobe, conta o efeito real e só depois do sucesso.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "obs.caminho-degradado-visivel",
+   "group": "framework",
+   "text": "Acesso negado, recusa e modo degradado (dependência fora, fallback, lote com falha parcial) emitem log estruturado com o motivo e uma métrica que o plantão consegue ver; caminho que degrada em silêncio é incidente adiado.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "fw.ui-resposta-obsoleta-descartada",
+   "group": "framework",
+   "text": "Requisição disparada por interação guarda o que foi pedido e descarta a resposta que chega depois de uma mais nova; ação que não pode rodar duas vezes bloqueia com aviso visível; o estado de carregando volta ao normal também no erro.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "fw.ui-texto-traduzido",
+   "group": "framework",
+   "text": "Texto visível vem do catálogo de tradução, com chave literal (rastreável) e plural ou interpolação por mensagem parametrizada, nunca concatenação; mapa de enum aponta para a chave, não para o texto. O servidor não decide texto de interface, e os idiomas mantêm as mesmas chaves, sem chave órfã.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "fw.ui-tokens-de-design",
+   "group": "framework",
+   "text": "Cor, espaçamento, raio, fonte, camada e duração vêm dos tokens do design system, sem literal no estilo; confira que o token existe (token inexistente vira valor vazio e a regra some sem erro).",
+   "severity": "baixa",
+   "default": "off"
+  },
+  {
+   "id": "fw.ui-estado-derivado",
+   "group": "framework",
+   "text": "Estado derivado é calculado (valor computado ou memorizado), não copiado e sincronizado por efeito; efeito é só para efeito colateral. Template sem lógica nem chamada repetida, e item de lista renderizada com chave estável e única.",
+   "severity": "baixa",
+   "default": "off"
+  },
+  {
+   "id": "fw.contrato-gerado-da-fonte",
+   "group": "framework",
+   "text": "Tipo que cruza a fronteira (cliente e servidor, linguagens diferentes) tem uma fonte de verdade e o outro lado é gerado dela, nunca redeclarado: o gerado é commitado, marcado como gerado, nunca editado à mão, e um modo de checagem no CI falha quando diverge.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "pratica.sem-falha-silenciosa",
+   "group": "praticas",
+   "text": "Valor impossível não vira padrão em silêncio: enum desconhecido não cai em zero, NaN e indefinido não são gravados, truncamento e estouro de limite são erro, entrada inválida não é coagida para o default. Falhe alto ou registre, nunca siga como se estivesse certo.",
+   "severity": "alta"
+  },
+  {
+   "id": "pratica.escolha-exaustiva",
+   "group": "praticas",
+   "text": "Escolha sobre enum ou união cobre todos os casos e o compilador acusa valor novo (never no último ramo, match sem curinga); default genérico que engole o caso novo é proibido, porque contrato só cresce.",
+   "severity": "media"
+  },
+  {
+   "id": "pratica.comparar-com-constante-do-contrato",
+   "group": "praticas",
+   "text": "Ramificar por valor de contrato (status, código de erro, tipo de evento) compara com a constante do enum compartilhado, nunca com texto literal: renomear no outro lado tem de quebrar a compilação, não passar calado.",
+   "severity": "media"
+  },
+  {
+   "id": "pratica.uma-grafia-por-conceito",
+   "group": "praticas",
+   "text": "Um conceito tem um nome e uma grafia em todas as camadas (fio, tipo gerado, cliente). A caixa do fio é decidida uma vez por tipo, não campo a campo, e adaptador que mantém duas grafias vivas é dívida.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "pratica.custo-limitado-pela-entrada",
+   "group": "praticas",
+   "text": "Entrada que vem de fora tem tamanho limitado antes de algoritmo super-linear (super-linear sobre entrada ilimitada é negação de serviço); busca dentro de laço usa mapa ou conjunto; recursão sobre estrutura externa tem limite de profundidade; trabalho pesado síncrono não trava o laço de eventos.",
+   "severity": "alta"
+  },
+  {
+   "id": "pratica.operacao-composta-atomica",
+   "group": "praticas",
+   "text": "Ler, decidir e escrever em estado compartilhado sob concorrência é uma operação atômica (transação, script no servidor, compare-and-set); duas chamadas separadas são corrida. Contador contra abuso sobe antes da verificação cara, não depois.",
+   "severity": "alta",
+   "default": "off"
+  },
+  {
+   "id": "pratica.tempo-em-utc",
+   "group": "praticas",
+   "text": "Instante trafega e é registrado em UTC (ISO 8601 com Z); texto de data sem fuso não é lido como hora local; o servidor não formata data localizada, e \"hoje\" ou \"início do dia\" recebe o fuso como parâmetro.",
+   "severity": "alta"
+  },
+  {
+   "id": "pratica.fronteira-de-modulo",
+   "group": "praticas",
+   "text": "A direção de dependência entre módulos é imposta por lint, não por convenção: infraestrutura não importa interface, uma feature não importa outra direto, o compartilhado não importa o específico.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "pratica.codigo-segue-a-spec",
+   "group": "praticas",
+   "text": "Quando há especificação aprovada, código e spec não divergem: a divergência se resolve mudando um dos dois antes do merge, e o commit cita a spec que implementa.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "seg.erro-interno-sem-detalhe",
+   "group": "praticas",
+   "text": "Resposta de erro interno leva mensagem genérica e um código; nome de tabela, restrição, caminho, pilha e mensagem do driver ficam só no log do servidor.",
+   "severity": "alta"
+  },
+  {
+   "id": "seg.limite-de-tamanho-e-taxa",
+   "group": "praticas",
+   "text": "Corpo de requisição tem teto global pequeno, aumentado só na rota que precisa; rota cara ou visada por abuso (login, recuperação de senha, envio de e-mail, execução de código) tem limite de taxa com resposta 429 e Retry-After. Limite de concorrência não substitui limite de taxa.",
+   "severity": "alta",
+   "default": "off"
+  },
+  {
+   "id": "seg.caminho-e-url-contidos",
+   "group": "praticas",
+   "text": "Entrada que vira caminho de arquivo, URL de saída ou chave de objeto passa por lista permitida, e o caminho resolvido é conferido dentro do diretório base (normalizar e checar o prefixo; conferir só o sufixo não barra ..). Host de saída vindo de dado nunca é usado sem lista permitida.",
+   "severity": "alta"
+  },
+  {
+   "id": "seg.html-sem-sanitizar",
+   "group": "praticas",
+   "text": "HTML vindo de fora só entra no DOM sanitizado; desligar a proteção do framework (inserir HTML cru, contornar o sanitizador, template sem escape) exige a razão no código.",
+   "severity": "alta",
+   "check": {
+    "kind": "grep",
+    "pattern": "(innerHTML|dangerouslySetInnerHTML|bypassSecurityTrust|v-html)",
+    "files": "*"
+   }
+  },
+  {
+   "id": "seg.origem-e-credencial-no-lugar-certo",
+   "group": "praticas",
+   "text": "Origens aceitas vêm de lista configurada, nunca curinga; controle de segurança não confia em cabeçalho que o cliente forja (Origin, Referer), e token não viaja na query string.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "seg.auditoria-de-mutacao",
+   "group": "praticas",
+   "text": "Operação que muda estado com ator identificável (e leitura de dado sensível) registra o fato auditado: quem, o quê, alvo e quando, por um mecanismo único. Endpoint novo sai coberto, com isenção declarada ou com pendência registrada com prazo, nunca omitido em silêncio.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "banco.data-hora-com-fuso",
+   "group": "banco",
+   "text": "Coluna de data e hora guarda instante com fuso (o tipo com time zone do banco); sem fuso, o valor é ambíguo entre servidor e cliente e a ordem do histórico se perde.",
+   "severity": "alta"
+  },
+  {
+   "id": "banco.dado-fora-da-migracao",
+   "group": "banco",
+   "text": "Seed e backfill não são migração de esquema: rodam como tarefa idempotente própria. Script de esquema tolera reexecução (criar se não existir), e backfill grande vai em lotes, fora da transação do DDL.",
+   "severity": "baixa",
+   "default": "off"
+  },
+  {
+   "id": "banco.trava-pesada-anunciada",
+   "group": "banco",
+   "text": "Mudança que trava tabela grande (tipo de coluna, chave estrangeira com verificação, NOT NULL com backfill, índice sem modo concorrente) é feita em passos e anunciada na entrega para escolher a janela; índice em tabela populada é criado em modo concorrente.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "banco.esquema-igual-as-migracoes",
+   "group": "banco",
+   "text": "O modelo declarado e o resultado das migrações não divergem: objeto que o ORM não modela fica registrado num lugar só, na mesma entrega, e o SQL gerado é lido antes do commit (gerador às vezes derruba e recria o que bastava alterar).",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "ts.configuracao-estrita",
+   "group": "linguagem",
+   "text": "O compilador roda no modo estrito e com as checagens que pegam bug de verdade: acesso por índice pode ser undefined, opcional ausente difere de presente e nulo, override explícito, sem fallthrough em switch.",
+   "severity": "baixa",
+   "tags": [
+    "typescript"
+   ],
+   "default": "off"
+  },
+  {
+   "id": "js.sem-console-log",
+   "group": "linguagem",
+   "text": "console.log não fica em código de produto: registro passa pelo logger do projeto (aviso e erro podem ir ao console); ferramenta de build fica fora da regra.",
+   "severity": "baixa",
+   "tags": [
+    "javascript",
+    "typescript"
+   ],
+   "default": "off",
+   "check": {
+    "kind": "grep",
+    "pattern": "console\\.log\\(",
+    "files": "*.ts"
+   }
+  },
+  {
+   "id": "rs.sem-descartar-result",
+   "group": "linguagem",
+   "text": "Em Rust, let _ = sobre Result descarta o erro em silêncio, e .unwrap_or_default() sobre Result de entrada externa troca a falha por um valor vazio. Descarte deliberado é .ok() explícito, com a razão por perto, e match sobre o enum de erro não tem braço curinga.",
+   "severity": "alta",
+   "tags": [
+    "rust"
+   ],
+   "default": "off",
+   "check": {
+    "kind": "grep",
+    "pattern": "let _ = ",
+    "files": "*.rs"
+   }
+  },
+  {
+   "id": "rs.sem-panic-em-caminho-recuperavel",
+   "group": "linguagem",
+   "text": "Código que atende requisição, tarefa ou laço de serviço não usa unwrap, expect, panic!, todo! nem indexação [i] sobre dado externo: a falha sobe por Result e ?, senão um pânico derruba a tarefa (ou o processo) em vez de virar erro tratado. Exceção é invariante provada, com comentário dizendo por que não falha; teste e subida do processo ficam de fora.",
+   "severity": "alta",
+   "tags": [
+    "rust"
+   ],
+   "default": "off"
+  },
+  {
+   "id": "rs.erro-tipado-na-api",
+   "group": "linguagem",
+   "text": "API pública de biblioteca ou módulo devolve enum de erro próprio (thiserror, com #[from] e #[source] nas conversões), não Box<dyn Error> nem String: quem chama precisa ramificar pela variante. anyhow e Box<dyn Error> ficam no main e em ferramentas.",
+   "severity": "media",
+   "tags": [
+    "rust"
+   ],
+   "default": "off",
+   "check": {
+    "kind": "grep",
+    "pattern": "Result<[^;{]*Box<dyn (std::error::)?Error",
+    "files": "*.rs"
+   }
+  },
+  {
+   "id": "rs.erro-preserva-causa",
+   "group": "linguagem",
+   "text": "Ao traduzir um erro, a causa original segue junto (variante com #[source] ou #[from]) ou vai ao log antes da troca; .map_err(|_| …) joga o motivo fora e deixa o log sem pista. Se a causa não pode sair para o cliente, ela fica só no servidor.",
+   "severity": "media",
+   "tags": [
+    "rust"
+   ],
+   "default": "off"
+  },
+  {
+   "id": "rs.unsafe-com-safety",
+   "group": "linguagem",
+   "text": "Todo bloco, função ou impl unsafe leva acima um comentário // SAFETY: com a invariante que o torna válido e quem a garante; sem ele, não entra. Prefira a abstração segura: unsafe fica pequeno e atrás de uma função segura.",
+   "severity": "alta",
+   "tags": [
+    "rust"
+   ],
+   "default": "off"
+  },
+  {
+   "id": "rs.async-sem-bloqueio",
+   "group": "linguagem",
+   "text": "Dentro de async fn nada bloqueia a thread: std::thread::sleep, std::fs, std::net, trabalho de CPU longo e espera em canal síncrono. Use a versão assíncrona (tokio::time::sleep, tokio::fs) ou spawn_blocking; um worker preso atrasa todas as tarefas que dividem o executor.",
+   "severity": "alta",
+   "tags": [
+    "rust"
+   ],
+   "default": "off"
+  },
+  {
+   "id": "rs.guarda-de-lock-sem-await",
+   "group": "linguagem",
+   "text": "Guarda de Mutex ou RwLock da std nunca atravessa um .await (trava a tarefa e quebra Send): copie o que precisa, solte o lock e só então aguarde, ou use o lock assíncrono quando a seção precisa aguardar. Lock envenenado é decisão (recuperar com PoisonError::into_inner ou falhar com mensagem), não .lock().unwrap() em produção.",
+   "severity": "alta",
+   "tags": [
+    "rust"
+   ],
+   "default": "off"
+  },
+  {
+   "id": "rs.tarefa-com-dono",
+   "group": "linguagem",
+   "text": "tokio::spawn devolve um JoinHandle: guarde-o, aguarde-o ou aborte-o no desligamento, e trate o JoinError; tarefa solta que entra em pânico morre sem ninguém ver. Tarefas irmãs que dependem uma da outra se cancelam (select! e abort), em vez de deixar a outra vazando.",
+   "severity": "media",
+   "tags": [
+    "rust"
+   ],
+   "default": "off"
+  },
+  {
+   "id": "rs.log-pelo-tracing",
+   "group": "linguagem",
+   "text": "Serviço registra por tracing (ou pelo logger do projeto), nunca por println!, eprintln! ou dbg!, que escapam do nível, do filtro e do formato. Dado variável vai em campo (error = %e, user_id = %id), não interpolado na mensagem; #[instrument] usa skip ou skip_all para argumento sensível ou grande. Saída de ferramenta de linha de comando fica fora.",
+   "severity": "media",
+   "tags": [
+    "rust"
+   ],
+   "default": "off"
+  },
+  {
+   "id": "rs.conversao-numerica-explicita",
+   "group": "linguagem",
+   "text": "Conversão que pode perder valor usa TryFrom/try_into e trata o erro, ou From quando é sem perda; `as` entre inteiros trunca e troca o sinal em silêncio, e fica só para alargamento provado ou float com arredondamento escrito. Tamanho e índice que vêm de fora são validados antes de virar usize.",
+   "severity": "media",
+   "tags": [
+    "rust"
+   ],
+   "default": "off"
+  },
+  {
+   "id": "rs.visibilidade-minima",
+   "group": "linguagem",
+   "text": "Item nasce privado; abra com pub(crate) ou pub(super) e use pub só no que é API do crate. Reexporte por nome (pub use a::{B, C}), não por glob: pub use x::* expõe sem querer todo item futuro do módulo e esconde de onde o nome vem.",
+   "severity": "baixa",
+   "tags": [
+    "rust"
+   ],
+   "default": "off",
+   "check": {
+    "kind": "grep",
+    "pattern": "pub use [A-Za-z_:]+::\\*;",
+    "files": "*.rs"
+   }
+  },
+  {
+   "id": "rs.lints-no-manifesto",
+   "group": "linguagem",
+   "text": "Os lints do projeto ficam no [lints] do Cargo.toml (ou em [workspace.lints], herdado pelos crates), num lugar só; #![warn], #![allow] e #![deny] no topo de arquivo espalham a política e escondem supressão ampla. allow é por item, com a razão.",
+   "severity": "media",
+   "tags": [
+    "rust"
+   ],
+   "default": "off",
+   "check": {
+    "kind": "grep",
+    "pattern": "^#!\\[(allow|warn|deny|forbid)\\(",
+    "files": "*.rs"
+   }
+  },
+  {
+   "id": "rs.gate-fmt-clippy",
+   "group": "linguagem",
+   "text": "O CI bloqueia em cargo fmt --check, cargo clippy -- -D warnings e cargo test, com os padrões do clippy; configuração própria (clippy.toml) só quando uma regra específica se prova necessária. O que o clippy já pega (let_underscore_must_use, unwrap_used) vale mais ligado como lint do que cobrado em review.",
+   "severity": "media",
+   "tags": [
+    "rust"
+   ],
+   "default": "off"
+  },
+  {
+   "id": "rs.ordem-de-hashmap",
+   "group": "linguagem",
+   "text": "Nada observável depende da ordem de iteração de HashMap ou HashSet, que muda a cada execução: saída serializada, hash, log, snapshot e asserção de teste passam por BTreeMap, IndexMap ou Vec ordenado antes de iterar.",
+   "severity": "media",
+   "tags": [
+    "rust"
+   ],
+   "default": "off"
+  },
+  {
+   "id": "rs.tipo-fecha-dominio",
+   "group": "linguagem",
+   "text": "Conjunto fechado de valores é enum (com FromStr ou serde na borda), não &str nem inteiro comparado; identificadores e unidades que se confundem (dois ids, segundos e milissegundos) ganham newtype; argumentos seguidos do mesmo tipo (&str, &str) e bool que muda o comportamento viram struct ou enum nomeado.",
+   "severity": "baixa",
+   "tags": [
+    "rust"
+   ],
+   "default": "off"
+  },
+  {
+   "id": "rs.doc-comment-contrato",
+   "group": "linguagem",
+   "text": "Item pub tem /// que diz o contrato, não repete a assinatura: # Errors quando devolve Result, # Panics quando pode entrar em pânico, # Safety em unsafe fn. Módulo e crate abrem com //! de uma frase com o propósito. Exemplo em doc comment é doctest que compila.",
+   "severity": "baixa",
+   "tags": [
+    "rust"
+   ],
+   "default": "off"
+  },
+  {
+   "id": "rs.crates-em-uma-direcao",
+   "group": "linguagem",
+   "text": "Dependência entre crates do workspace aponta numa direção só, escrita e conferida (cargo tree, cargo-deny): o crate de baixo nunca depende do de cima. O Cargo só barra ciclo literal; o resto é disciplina de quem edita o Cargo.toml.",
+   "severity": "media",
+   "tags": [
+    "rust"
+   ],
+   "default": "off"
+  },
+  {
+   "id": "rs.teste-sem-mutar-ambiente",
+   "group": "linguagem",
+   "text": "Teste não altera variável de ambiente com set_var ou remove_var: o ambiente é global, os testes correm em paralelo e o valor vaza para os vizinhos (na edição 2024 a chamada ainda é unsafe). Passe o valor por parâmetro ou configuração injetada; se for inevitável, serialize sob um lock e restaure no fim.",
+   "severity": "media",
+   "tags": [
+    "rust"
+   ],
+   "default": "off"
+  },
+  {
+   "id": "comentario.referencia-perene",
+   "group": "estilo",
+   "text": "Comentário que cita fonte externa usa referência perene (RFC, DOI, seção da norma, decisão de arquitetura versionada), nunca número de PR, issue ou commit do próprio repositório, que o git já guarda e o squash apaga.",
+   "severity": "baixa"
+  },
+  {
+   "id": "comentario.supressao-justificada",
+   "group": "estilo",
+   "text": "Toda supressão de lint ou do compilador (disable, ignore, expect-error) diz o que falha sem ela, não que \"é necessário\".",
+   "severity": "media"
+  },
+  {
+   "id": "estilo.um-publico-por-arquivo",
+   "group": "estilo",
+   "text": "Arquivo exporta um componente ou tipo público principal, com nome no padrão do projeto (caixa e sufixo de papel); auxiliar privado usado só ali pode morar junto, sem exportar.",
+   "severity": "baixa",
+   "default": "off"
+  },
+  {
+   "id": "teste.rede-antes-de-refatorar",
+   "group": "testes",
+   "text": "Refatoração estrutural (mover diretório, quebrar arquivo por responsabilidade) só começa depois de existir teste cobrindo o que ela toca.",
+   "severity": "media"
+  },
+  {
+   "id": "teste.dependencia-real-ou-falha",
+   "group": "testes",
+   "text": "Teste que precisa de serviço real (banco, fila) falha ou aparece como pulado quando o serviço não está configurado; retornar cedo e passar verde sem verificar nada é falso positivo.",
+   "severity": "media",
+   "default": "off"
+  },
+  {
+   "id": "teste.paridade-entre-implementacoes",
+   "group": "testes",
+   "text": "Regra implementada duas vezes (cliente e servidor, duas linguagens) tem um conjunto de casos compartilhado que roda contra as duas; só o teste garante que elas concordam.",
+   "severity": "baixa",
+   "default": "off"
+  },
+  {
+   "id": "teste.orcamento-de-desempenho",
+   "group": "testes",
+   "text": "Operação sensível a desempenho tem um orçamento medido e um teste de regressão determinístico no CI; número de desempenho em comentário vem de medição, não de intuição.",
+   "severity": "baixa",
+   "default": "off"
+  }
+ ]
+}

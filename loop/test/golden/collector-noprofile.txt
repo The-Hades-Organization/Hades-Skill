@@ -1,0 +1,3 @@
+$ hades pr-loop-state --json
+hades: other/plain sem perfil em <T>/packs/ — rode /hades project init para criar o perfil do projeto (reference/projects.md)
+rc=3

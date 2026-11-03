@@ -1,0 +1,9 @@
+{
+  "titulo": "Gate fora da fila e polling barrados",
+  "momentos": [
+    "continuo"
+  ],
+  "tipo": "emitida",
+  "origem": "hades guard (PreToolUse Bash)",
+  "descricao": "test/lint/build fora do gate-lock, sleep de espera, laço com sleep, tail -f, watch e a mesma checagem repetida."
+}

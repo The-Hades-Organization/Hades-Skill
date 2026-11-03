@@ -1,0 +1,13 @@
+$ hades agent skill-new rem --port 21288
+  remote(s) origin no git da skill: push nunca é automático (branch.skill/rem.pushRemote=no_push); publicar é da consolidação
+  brief: <T>/home/.claude/hades/skill-dev/rem/.design-sync-reports/brief.md (preencha Item, Docs e Prova antes do prompt)
+
+unidade rem: worktree <T>/home/.claude/hades/skill-dev/rem · branch skill/rem (base main em <SHA>) · porta de teste 21288 · painel w2:p1
+1. complete o brief (<T>/home/.claude/hades/skill-dev/rem/.design-sync-reports/brief.md): Item, Docs e Prova
+2. o dono inicia — papel impl:
+   ! herdr agent start rem --kind claude --pane w2:p1 -- --permission-mode auto --model modelo-impl --effort alto
+3. depois: hades agent adopt rem && hades agent prompt rem
+rc=0
+pushRemote=no_push
+push rc=128
+refs no remote: 0

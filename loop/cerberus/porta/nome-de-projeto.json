@@ -1,0 +1,9 @@
+{
+  "titulo": "O núcleo não cita nome de projeto",
+  "momentos": [
+    "release"
+  ],
+  "tipo": "emitida",
+  "origem": "kit/skill-release.sh name_guard (reference/projects.md §Guarda de nome)",
+  "descricao": "Termos dos perfis instalados e identity.vocabulary contra a skill; HADES_NAME_GUARD=strict reprova, report só lista."
+}

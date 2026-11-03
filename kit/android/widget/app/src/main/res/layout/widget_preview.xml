@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Prévia do seletor (previewLayout): o layout regular com dados de exemplo, sem depender de leitura. Gerada de widget.xml. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:paddingBottom="8dp"
+    android:paddingEnd="6dp"
+    android:paddingStart="15dp"
+    android:paddingTop="4dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+        <ImageView
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_mark" />
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="7dp"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:text="@string/widget_label_status"
+            android:textStyle="bold"
+            android:textColor="@color/hades_foreground"
+            android:textSize="13sp" />
+        <ImageView
+            android:id="@+id/refresh"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:importantForAccessibility="yes"
+            android:src="@drawable/ic_refresh"
+            android:padding="8dp"
+            android:contentDescription="@string/refresh_desc" />
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="2dp">
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/count_active"
+                android:text="2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:textColor="@color/hades_ok"
+                android:textSize="24sp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/count_active_label"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="@color/hades_muted_foreground"
+                android:textSize="10sp" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/count_stopped"
+                android:text="3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:textColor="@color/hades_muted_foreground"
+                android:textSize="24sp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/count_stopped_label"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="@color/hades_muted_foreground"
+                android:textSize="10sp" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content">
+                <TextView
+                    android:id="@+id/count_asking"
+                    android:visibility="gone"
+                    android:text="1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="1"
+                    android:textColor="@color/hades_muted_foreground"
+                    android:textSize="24sp" />
+                <TextView
+                    android:id="@+id/count_asking_hot"
+                    android:text="1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="1"
+                    android:textStyle="bold"
+                    android:textColor="@color/hades_warn"
+                    android:textSize="24sp" />
+            </FrameLayout>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/count_asking_label"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="@color/hades_muted_foreground"
+                android:textSize="10sp" />
+        </LinearLayout>
+    </LinearLayout>
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <TextView
+            android:id="@+id/status"
+            android:text="atualizado 14:32"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+        <TextView
+            android:id="@+id/status_problem"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:visibility="gone"
+            android:textColor="@color/hades_bad"
+            android:textSize="11sp" />
+    </FrameLayout>
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="4dp"
+        android:layout_marginEnd="9dp"
+        android:background="@drawable/divider" />
+    <LinearLayout
+        android:id="@+id/agent_0"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginTop="3dp">
+        <ImageView
+            android:id="@+id/agent_0_icon"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_state_warn" />
+        <TextView
+            android:id="@+id/agent_0_name"
+            android:text="impl-api (impl)"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/agent_0_age"
+            android:text="5min"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/agent_1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginTop="3dp">
+        <ImageView
+            android:id="@+id/agent_1_icon"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_state_active" />
+        <TextView
+            android:id="@+id/agent_1_name"
+            android:text="rev-front (review)"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/agent_1_age"
+            android:text="12min"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/agent_2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginTop="3dp">
+        <ImageView
+            android:id="@+id/agent_2_icon"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_state_active" />
+        <TextView
+            android:id="@+id/agent_2_name"
+            android:text="spec-auth (spec)"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/agent_2_age"
+            android:text="1h33"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/agent_3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginTop="3dp">
+        <ImageView
+            android:id="@+id/agent_3_icon"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_state_idle" />
+        <TextView
+            android:id="@+id/agent_3_name"
+            android:text="docs (docs)"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/agent_3_age"
+            android:text="2h10"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+    </LinearLayout>
+</LinearLayout>

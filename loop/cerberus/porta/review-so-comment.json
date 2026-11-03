@@ -1,0 +1,10 @@
+{
+  "titulo": "Review publicado só como COMMENT",
+  "momentos": [
+    "publicacao"
+  ],
+  "tipo": "regra",
+  "dono": "porta",
+  "origem": "SKILL.md §Invariantes de segurança",
+  "descricao": "Nunca gh pr review --approve nem --request-changes."
+}

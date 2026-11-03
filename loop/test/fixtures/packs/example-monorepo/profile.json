@@ -1,0 +1,125 @@
+{
+  "schema": "hades.profile/1",
+  "name": "example-monorepo",
+  "description": "Fixture da regressão: os valores do perfil do projeto de referência, com identidade sintética.",
+  "identity": {
+    "repo": "example/monorepo"
+  },
+  "flow": {
+    "kind": "pr",
+    "base": "develop",
+    "ci": {
+      "workflow": "ci-pr.yml",
+      "bases": [
+        "develop"
+      ],
+      "draft": false
+    },
+    "bot": {
+      "mention": "@claude",
+      "bases": [
+        "develop"
+      ],
+      "selfMarkers": [
+        {
+          "pattern": "^CLAUDE_PROCESSED:",
+          "multiline": true
+        },
+        {
+          "pattern": "^⏳ Claude iniciando review",
+          "multiline": true
+        },
+        {
+          "pattern": "^@claude\\b"
+        }
+      ]
+    }
+  },
+  "work": {
+    "sources": [
+      "spec",
+      "plan",
+      "card"
+    ],
+    "specsDir": "docs/specs",
+    "specIdPattern": "\\b((UC|UF|ATOM|PROJ|INT|MOD|CROSS)-[0-9]{1,4}[a-z]?)\\b"
+  },
+  "rules": {
+    "docs": [
+      ".github/claude-review-rules.md",
+      "CLAUDE.md",
+      "apps/*/CLAUDE.md",
+      "docs/architecture/*.md",
+      "docs/specs/SPEC-GUIDE.md",
+      "docs/architecture/backend-review-rules.md",
+      "docs/architecture/frontend-review-rules.md",
+      "docs/architecture/comment-guide.md"
+    ],
+    "severity": {
+      "codePattern": "^(B[0-9]{1,2}|V[0-9]{1,2}|RB-[0-9]{1,2}[a-z]?|RF-[0-9]{1,2}|CMT-X?[0-9]{1,2})\\b",
+      "vocabulary": [
+        {
+          "prefix": "B",
+          "level": "bloqueante",
+          "meaning": "regra bloqueante (B1–B16)",
+          "doc": ".github/claude-review-rules.md"
+        },
+        {
+          "prefix": "V",
+          "level": "alta",
+          "meaning": "verificação importante (V1–V10)",
+          "doc": ".github/claude-review-rules.md"
+        },
+        {
+          "prefix": "RB-",
+          "level": "alta",
+          "meaning": "backend; 🔴/🟡 por regra",
+          "doc": "docs/architecture/backend-review-rules.md"
+        },
+        {
+          "prefix": "RF-",
+          "level": "alta",
+          "meaning": "frontend; 🔴/🟡 por regra",
+          "doc": "docs/architecture/frontend-review-rules.md"
+        },
+        {
+          "prefix": "CMT-",
+          "level": "media",
+          "meaning": "comentário (CMT-1..6, CMT-X*)",
+          "doc": "docs/architecture/comment-guide.md"
+        }
+      ]
+    }
+  },
+  "commit": {
+    "format": "conventional (commitlint config-conventional)",
+    "regex": "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\\([^)]+\\))?!?: .+",
+    "footer": "Spec: <IDs>",
+    "coAuthor": false
+  },
+  "branch": {
+    "format": "<module>/<prefix>/SOFTWARE-NNNN-<slug>",
+    "regex": "^[a-z0-9-]+/(feat|fix|refactor|test|docs|chore)/SOFTWARE-[0-9]+(-[a-z0-9-]+)?$",
+    "base": "origin/develop"
+  },
+  "card": {
+    "provider": "clickup",
+    "required": true,
+    "idPattern": "\\b(SOFTWARE-[0-9]+|AT26-[0-9]+)\\b",
+    "newIdPattern": "SOFTWARE-[0-9]+",
+    "example": "SOFTWARE-N"
+  },
+  "stacks": [
+    "node-nx"
+  ],
+  "reviewAgents": {
+    "command": "/review-agents",
+    "dir": ".claude/agents"
+  },
+  "env": null,
+  "pr": {
+    "labels": [
+      "backend"
+    ]
+  }
+}

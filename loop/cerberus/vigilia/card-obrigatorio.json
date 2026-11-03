@@ -1,0 +1,10 @@
+{
+  "titulo": "Card antes da branch quando o perfil exige",
+  "momentos": [
+    "done"
+  ],
+  "tipo": "regra",
+  "dono": "vigilia",
+  "origem": "SKILL.md §Invariantes de segurança (card.required)",
+  "descricao": "Sem card, o tick não cria branch nem commit."
+}

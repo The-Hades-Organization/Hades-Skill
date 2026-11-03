@@ -1,0 +1,17 @@
+{
+  "titulo": "Conta do gh é a que o perfil declara",
+  "momentos": [
+    "push",
+    "consolidacao",
+    "comentario"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "porta/conta-gh"
+  ],
+  "timeoutS": 30,
+  "origem": "src/lib/cerberus-porta.ts (hades cerberus-check); reference/cerberus/porta.md",
+  "descricao": "Compara a conta que empurra (gh api user, com o token de identity.gh.tokenEnv quando houver) com identity.gh.user. Nos momentos novos: quem comenta."
+}

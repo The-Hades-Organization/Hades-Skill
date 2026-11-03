@@ -1,0 +1,20 @@
+# caso	evento	onde	fundo	sessão	comando
+answer-cita-gate	Pre	main	0	d1	hades-agent.sh answer impl-a Q1 "rode npx nx test app-alarms e confira"
+prompt-cita-gate	Pre	main	0	d1	~/.claude/skills/hades/loop/bin/hades-agent.sh prompt impl-a "depois do npx nx test app-alarms, siga"
+escalate-cita-espera	Pre	main	0	d1	hades-agent.sh escalate impl-a "gate lento: sleep 30 e tail -f build.log"
+answer-cita-log-1	Pre	main	0	d2	hades-agent.sh answer impl-a Q1 "veja cat out.summary"
+answer-cita-log-2	Pre	main	0	d2	hades-agent.sh answer impl-a Q2 "veja cat out.summary"
+answer-e-gate-real	Pre	main	0	d1	hades-agent.sh answer impl-a Q1 "ok" && npx nx test app-alarms
+answer-aspas-no-gate	Pre	main	0	d1	bash -c "npx nx test app-alarms"
+leitura-1	Pre	main	0	d3	cat out.summary
+leitura-repetida	Pre	main	0	d3	cat out.summary
+rel-leitura-1	Pre	main	0	d4	cat out.summary
+rel-gate-entre	Pre	main	0	d4	"$GL" run test --label x -- npx nx test app-alarms
+rel-leitura-apos-gate	Pre	main	0	d4	cat out.summary
+rel-leitura-apos-gate-2	Pre	main	0	d4	cat out.summary
+sono-curto-entre-1	Pre	main	0	d5	cat other.summary
+sono-curto-entre-sleep	Pre	main	0	d5	sleep 5
+sono-curto-entre-2	Pre	main	0	d5	cat other.summary
+phase-cita-gate	Pre	main	0	d1	hades-agent.sh phase impl-a review "rode npx nx test app-alarms antes"
+resume-cita-espera	Pre	main	0	d1	hades-agent.sh resume impl-a "gate lento: sleep 30 e tail -f build.log"
+resume-e-gate-real	Pre	main	0	d1	hades-agent.sh resume impl-a "ok" && npx nx test app-alarms

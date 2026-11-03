@@ -1,0 +1,17 @@
+{
+  "titulo": "Estado atual do plano confere com o registro",
+  "momentos": [
+    "done",
+    "consolidacao"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "vigilia/coerencia",
+    "plano"
+  ],
+  "timeoutS": 30,
+  "origem": "reference/loop/orchestrate.md §1.1 (Estado e histórico); reference/cerberus/vigilia.md",
+  "descricao": "Agente ativo citado no \"Estado atual\" do plano aprovado (plan.json); painel, porta, PR e commits que o trecho dele cita batem com o registro e com o git."
+}

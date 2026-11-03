@@ -1,0 +1,37 @@
+{
+  "schema": "hades.stack/1",
+  "name": "rust-cargo",
+  "description": "Crate ou workspace Rust com cargo. Custos estimados até a primeira medição; compilação cheia pesa por causa do rustc em paralelo.",
+  "detect": {
+    "files": [
+      "Cargo.toml"
+    ]
+  },
+  "steps": {
+    "typecheck": {
+      "cmd": "cargo check --all-targets",
+      "kind": "build",
+      "costGb": 2
+    },
+    "lint": {
+      "cmd": "cargo clippy --all-targets -- -D warnings",
+      "kind": "lint",
+      "costGb": 2
+    },
+    "build": {
+      "cmd": "cargo build --release",
+      "kind": "build",
+      "costGb": 4
+    },
+    "test": {
+      "cmd": "cargo test",
+      "kind": "test",
+      "costGb": 3
+    }
+  },
+  "guard": {
+    "patterns": [
+      "(^|[;&|]|\\s)cargo\\s+(build|check|clippy|test|nextest)\\b"
+    ]
+  }
+}

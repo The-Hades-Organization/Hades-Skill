@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:layout_marginEnd="9dp"
+    android:layout_marginTop="0dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="bottom"
+        android:orientation="horizontal">
+        <TextView
+            android:id="@+id/memory_percent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="18sp" />
+        <TextView
+            android:id="@+id/memory_label"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:layout_marginBottom="3dp"
+            android:maxLines="1"
+            android:text="@string/memory_label"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="10sp" />
+        <TextView
+            android:id="@+id/memory_detail"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="3dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+    </LinearLayout>
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp">
+        <ProgressBar
+            style="?android:attr/progressBarStyleHorizontal"
+            android:id="@+id/memory_bar_ok"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:indeterminate="false"
+            android:max="100"
+            android:maxHeight="6dp"
+            android:minHeight="6dp"
+            android:progress="0"
+            android:progressDrawable="@drawable/bar_ok"
+            android:importantForAccessibility="no" />
+        <ProgressBar
+            style="?android:attr/progressBarStyleHorizontal"
+            android:id="@+id/memory_bar_warn"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:indeterminate="false"
+            android:max="100"
+            android:maxHeight="6dp"
+            android:minHeight="6dp"
+            android:progress="0"
+            android:progressDrawable="@drawable/bar_warn"
+            android:importantForAccessibility="no"
+            android:visibility="gone" />
+        <ProgressBar
+            style="?android:attr/progressBarStyleHorizontal"
+            android:id="@+id/memory_bar_bad"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:indeterminate="false"
+            android:max="100"
+            android:maxHeight="6dp"
+            android:minHeight="6dp"
+            android:progress="0"
+            android:progressDrawable="@drawable/bar_bad"
+            android:importantForAccessibility="no"
+            android:visibility="gone" />
+    </FrameLayout>
+</LinearLayout>

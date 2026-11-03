@@ -1,0 +1,1 @@
+{"name": "tiny", "scripts": {"lint": "eslint .", "test": "jest", "build": "tsc"}}

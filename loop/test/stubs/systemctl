@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# systemctl falso: nada de systemd real. Estado "enabled" por unit em $FAKE_SYSTEMCTL_DIR/enabled/<unit>; chamadas em calls.log
+d=${FAKE_SYSTEMCTL_DIR:?}; mkdir -p "$d/enabled"; echo "$*" >> "$d/calls.log"
+args=("$@"); [[ ${args[0]:-} == --user ]] && args=("${args[@]:1}")
+cmd=${args[0]:-}; unit=; quiet=
+for a in "${args[@]:1}"; do [[ $a == --quiet ]] && quiet=1; [[ $a == -* ]] || unit=$a; done
+say() { [[ -n $quiet ]] || echo "$1"; }   # --quiet não imprime o estado, como o systemctl de verdade
+case $cmd in
+  is-enabled) if [[ -f $d/enabled/$unit ]]; then say enabled; else say disabled; exit 1; fi ;;
+  enable) touch "$d/enabled/$unit" ;;
+  disable) rm -f "$d/enabled/$unit" ;;
+  # ativo só se o teste marcou a unit em active/<unit> (start/stop/restart mantêm a marca); sem marca: inactive
+  is-active) if [[ -f $d/active/$unit ]]; then say active; else say inactive; exit 3; fi ;;
+  start|restart) mkdir -p "$d/active"; touch "$d/active/$unit" ;;
+  stop) rm -f "$d/active/$unit" ;;
+  # list-units e show devolvem o que o teste pôs em $d/listing (uma linha de list-units por unit) e $d/show/<unit> (bloco de show)
+  list-units) pat=; for a in "${args[@]:1}"; do [[ $a == -* ]] || { pat=$a; break; }; done
+    [[ -f $d/listing ]] && while read -r line; do [[ ${line%% *} == $pat ]] && echo "$line"; done < "$d/listing" ;;
+  show) first=1; for a in "${args[@]:1}"; do [[ $a == -* || $a == *,* ]] && continue; [[ -f $d/show/$a ]] || continue
+    [[ -n $first ]] || echo; first=; cat "$d/show/$a"; done ;;
+esac
+exit 0

@@ -1,0 +1,8 @@
+validate rc=0
+sem review pedido
+110 done-pending
+112 done-pending
+110 com review pedido
+110 awaiting-review
+padrão (reviewRequired ausente), 110 com review pedido
+110 awaiting-review

@@ -1,0 +1,1366 @@
+{
+ "data": {
+  "search": {
+   "issueCount": 20,
+   "nodes": [
+    {
+     "number": 101,
+     "title": "SOFTWARE-101 - [Svc] CI vermelho",
+     "url": "https://github.example.invalid/example/monorepo/pull/101",
+     "isDraft": false,
+     "baseRefName": "develop",
+     "headRefName": "svc/fix/SOFTWARE-101-ci",
+     "headRefOid": "0101aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "reviewDecision": "REVIEW_REQUIRED",
+     "mergeable": "MERGEABLE",
+     "updatedAt": "2026-10-20T14:00:00Z",
+     "body": "",
+     "author": {
+      "login": "dev-a",
+      "__typename": "User"
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "oid": "0101aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "committedDate": "2026-10-20T10:00:00Z",
+         "statusCheckRollup": {
+          "state": "FAILURE",
+          "contexts": {
+           "totalCount": 45,
+           "nodes": [
+            {
+             "__typename": "CheckRun",
+             "name": "lint",
+             "conclusion": "FAILURE",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/lint"
+            },
+            {
+             "__typename": "CheckRun",
+             "name": "build",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/build"
+            }
+           ]
+          }
+         }
+        }
+       }
+      ]
+     },
+     "reviewThreads": {
+      "totalCount": 0,
+      "pageInfo": {
+       "hasNextPage": false
+      },
+      "nodes": []
+     },
+     "reviews": {
+      "totalCount": 1,
+      "nodes": [
+       {
+        "state": "COMMENTED",
+        "submittedAt": "2026-10-20T12:00:00Z",
+        "body": "",
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 0,
+      "nodes": []
+     }
+    },
+    {
+     "number": 102,
+     "title": "SOFTWARE-102 - [Svc] Conflito",
+     "url": "https://github.example.invalid/example/monorepo/pull/102",
+     "isDraft": false,
+     "baseRefName": "develop",
+     "headRefName": "svc/fix/SOFTWARE-102-conflito",
+     "headRefOid": "0102aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "reviewDecision": "REVIEW_REQUIRED",
+     "mergeable": "CONFLICTING",
+     "updatedAt": "2026-10-20T14:00:00Z",
+     "body": "",
+     "author": {
+      "login": "dev-a",
+      "__typename": "User"
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "oid": "0102aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "committedDate": "2026-10-20T10:00:00Z",
+         "statusCheckRollup": {
+          "state": "SUCCESS",
+          "contexts": {
+           "totalCount": 2,
+           "nodes": [
+            {
+             "__typename": "CheckRun",
+             "name": "lint",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/lint"
+            },
+            {
+             "__typename": "CheckRun",
+             "name": "build",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/build"
+            }
+           ]
+          }
+         }
+        }
+       }
+      ]
+     },
+     "reviewThreads": {
+      "totalCount": 0,
+      "pageInfo": {
+       "hasNextPage": false
+      },
+      "nodes": []
+     },
+     "reviews": {
+      "totalCount": 1,
+      "nodes": [
+       {
+        "state": "COMMENTED",
+        "submittedAt": "2026-10-20T12:00:00Z",
+        "body": "",
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 0,
+      "nodes": []
+     }
+    },
+    {
+     "number": 103,
+     "title": "SOFTWARE-103 - [Svc] Achado vivo",
+     "url": "https://github.example.invalid/example/monorepo/pull/103",
+     "isDraft": false,
+     "baseRefName": "develop",
+     "headRefName": "svc/feat/SOFTWARE-103-vivo",
+     "headRefOid": "0103aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "reviewDecision": "REVIEW_REQUIRED",
+     "mergeable": "MERGEABLE",
+     "updatedAt": "2026-10-20T14:00:00Z",
+     "body": "",
+     "author": {
+      "login": "dev-a",
+      "__typename": "User"
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "oid": "0103aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "committedDate": "2026-10-20T10:00:00Z",
+         "statusCheckRollup": {
+          "state": "SUCCESS",
+          "contexts": {
+           "totalCount": 2,
+           "nodes": [
+            {
+             "__typename": "CheckRun",
+             "name": "lint",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/lint"
+            },
+            {
+             "__typename": "CheckRun",
+             "name": "build",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/build"
+            }
+           ]
+          }
+         }
+        }
+       }
+      ]
+     },
+     "reviewThreads": {
+      "totalCount": 2,
+      "pageInfo": {
+       "hasNextPage": false
+      },
+      "nodes": [
+       {
+        "id": "T103-live",
+        "isResolved": false,
+        "isOutdated": false,
+        "path": "apps/svc/src/a.ts",
+        "line": 10,
+        "originalLine": 10,
+        "comments": {
+         "totalCount": 1,
+         "nodes": [
+          {
+           "databaseId": 1001,
+           "createdAt": "2026-10-20T12:00:00Z",
+           "body": "🔴 **B1** — falta validação de entrada",
+           "author": {
+            "login": "rev-b",
+            "__typename": "User"
+           }
+          }
+         ]
+        },
+        "replies": {
+         "nodes": [
+          {
+           "databaseId": 1001,
+           "createdAt": "2026-10-20T12:00:00Z",
+           "author": {
+            "login": "rev-b",
+            "__typename": "User"
+           }
+          }
+         ]
+        }
+       },
+       {
+        "id": "T103-applied",
+        "isResolved": false,
+        "isOutdated": false,
+        "path": "apps/svc/src/a.ts",
+        "line": 20,
+        "originalLine": 20,
+        "comments": {
+         "totalCount": 1,
+         "nodes": [
+          {
+           "databaseId": 1002,
+           "createdAt": "2026-10-20T12:00:00Z",
+           "body": "`V3` nome fora do padrão",
+           "author": {
+            "login": "rev-b",
+            "__typename": "User"
+           }
+          }
+         ]
+        },
+        "replies": {
+         "nodes": [
+          {
+           "databaseId": 1002,
+           "createdAt": "2026-10-20T12:00:00Z",
+           "author": {
+            "login": "rev-b",
+            "__typename": "User"
+           }
+          }
+         ]
+        }
+       }
+      ]
+     },
+     "reviews": {
+      "totalCount": 1,
+      "nodes": [
+       {
+        "state": "COMMENTED",
+        "submittedAt": "2026-10-20T12:00:00Z",
+        "body": "",
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 0,
+      "nodes": []
+     }
+    },
+    {
+     "number": 104,
+     "title": "SOFTWARE-104 - [Web] Top-level",
+     "url": "https://github.example.invalid/example/monorepo/pull/104",
+     "isDraft": false,
+     "baseRefName": "develop",
+     "headRefName": "web/feat/SOFTWARE-104-top",
+     "headRefOid": "0104aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "reviewDecision": "REVIEW_REQUIRED",
+     "mergeable": "MERGEABLE",
+     "updatedAt": "2026-10-20T14:00:00Z",
+     "body": "",
+     "author": {
+      "login": "dev-a",
+      "__typename": "User"
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "oid": "0104aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "committedDate": "2026-10-20T10:00:00Z",
+         "statusCheckRollup": {
+          "state": "SUCCESS",
+          "contexts": {
+           "totalCount": 2,
+           "nodes": [
+            {
+             "__typename": "CheckRun",
+             "name": "lint",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/lint"
+            },
+            {
+             "__typename": "CheckRun",
+             "name": "build",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/build"
+            }
+           ]
+          }
+         }
+        }
+       }
+      ]
+     },
+     "reviewThreads": {
+      "totalCount": 0,
+      "pageInfo": {
+       "hasNextPage": false
+      },
+      "nodes": []
+     },
+     "reviews": {
+      "totalCount": 1,
+      "nodes": [
+       {
+        "state": "COMMENTED",
+        "submittedAt": "2026-10-20T12:00:00Z",
+        "body": "",
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 40,
+      "nodes": [
+       {
+        "databaseId": 1003,
+        "createdAt": "2026-10-20T12:00:00Z",
+        "body": "RF-12: botão sem i18n",
+        "isMinimized": false,
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       },
+       {
+        "databaseId": 10402,
+        "createdAt": "2026-10-20T12:00:00Z",
+        "body": "CMT-X10 o comentário narra o fix",
+        "isMinimized": false,
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       },
+       {
+        "databaseId": 1004,
+        "createdAt": "2026-10-20T12:00:00Z",
+        "body": "CLAUDE_PROCESSED: 104",
+        "isMinimized": false,
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       },
+       {
+        "databaseId": 1005,
+        "createdAt": "2026-10-20T12:00:00Z",
+        "body": "@claude review",
+        "isMinimized": false,
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       },
+       {
+        "databaseId": 1006,
+        "createdAt": "2026-10-20T12:00:00Z",
+        "body": "⏳ Claude iniciando review…",
+        "isMinimized": false,
+        "author": {
+         "login": "github-actions[bot]",
+         "__typename": "Bot"
+        }
+       },
+       {
+        "databaseId": 1007,
+        "createdAt": "2026-10-20T12:00:00Z",
+        "body": "pedido antigo, ocultado",
+        "isMinimized": true,
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       },
+       {
+        "databaseId": 1008,
+        "createdAt": "2026-10-20T12:00:00Z",
+        "body": "respondi acima",
+        "isMinimized": false,
+        "author": {
+         "login": "dev-a",
+         "__typename": "User"
+        }
+       },
+       {
+        "databaseId": 1009,
+        "createdAt": "2026-10-20T12:00:00Z",
+        "body": "## Resumo do review\nB2 em dois arquivos",
+        "isMinimized": false,
+        "author": {
+         "login": "claude",
+         "__typename": "Bot"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "number": 105,
+     "title": "SOFTWARE-105 - [Svc] Review não visto",
+     "url": "https://github.example.invalid/example/monorepo/pull/105",
+     "isDraft": false,
+     "baseRefName": "develop",
+     "headRefName": "svc/feat/SOFTWARE-105-review",
+     "headRefOid": "0105aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "reviewDecision": "APPROVED",
+     "mergeable": "MERGEABLE",
+     "updatedAt": "2026-10-20T14:00:00Z",
+     "body": "",
+     "author": {
+      "login": "dev-a",
+      "__typename": "User"
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "oid": "0105aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "committedDate": "2026-10-20T10:00:00Z",
+         "statusCheckRollup": {
+          "state": "SUCCESS",
+          "contexts": {
+           "totalCount": 2,
+           "nodes": [
+            {
+             "__typename": "CheckRun",
+             "name": "lint",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/lint"
+            },
+            {
+             "__typename": "CheckRun",
+             "name": "build",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/build"
+            }
+           ]
+          }
+         }
+        }
+       }
+      ]
+     },
+     "reviewThreads": {
+      "totalCount": 0,
+      "pageInfo": {
+       "hasNextPage": false
+      },
+      "nodes": []
+     },
+     "reviews": {
+      "totalCount": 1,
+      "nodes": [
+       {
+        "state": "APPROVED",
+        "submittedAt": "2026-10-20T12:00:00Z",
+        "body": "",
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 0,
+      "nodes": []
+     }
+    },
+    {
+     "number": 106,
+     "title": "SOFTWARE-106 - [Svc] Só triagem",
+     "url": "https://github.example.invalid/example/monorepo/pull/106",
+     "isDraft": false,
+     "baseRefName": "develop",
+     "headRefName": "svc/feat/SOFTWARE-106-triagem",
+     "headRefOid": "0106aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "reviewDecision": "REVIEW_REQUIRED",
+     "mergeable": "MERGEABLE",
+     "updatedAt": "2026-10-20T14:00:00Z",
+     "body": "",
+     "author": {
+      "login": "dev-a",
+      "__typename": "User"
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "oid": "0106aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "committedDate": "2026-10-20T10:00:00Z",
+         "statusCheckRollup": {
+          "state": "SUCCESS",
+          "contexts": {
+           "totalCount": 2,
+           "nodes": [
+            {
+             "__typename": "CheckRun",
+             "name": "lint",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/lint"
+            },
+            {
+             "__typename": "CheckRun",
+             "name": "build",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/build"
+            }
+           ]
+          }
+         }
+        }
+       }
+      ]
+     },
+     "reviewThreads": {
+      "totalCount": 1,
+      "pageInfo": {
+       "hasNextPage": false
+      },
+      "nodes": [
+       {
+        "id": "T106-out",
+        "isResolved": false,
+        "isOutdated": true,
+        "path": "apps/svc/src/a.ts",
+        "line": null,
+        "originalLine": 42,
+        "comments": {
+         "totalCount": 1,
+         "nodes": [
+          {
+           "databaseId": 1010,
+           "createdAt": "2026-10-19T09:00:00Z",
+           "body": "`RB-31a` handler sem log",
+           "author": {
+            "login": "rev-b",
+            "__typename": "User"
+           }
+          }
+         ]
+        },
+        "replies": {
+         "nodes": [
+          {
+           "databaseId": 1010,
+           "createdAt": "2026-10-19T09:00:00Z",
+           "author": {
+            "login": "rev-b",
+            "__typename": "User"
+           }
+          }
+         ]
+        }
+       }
+      ]
+     },
+     "reviews": {
+      "totalCount": 1,
+      "nodes": [
+       {
+        "state": "COMMENTED",
+        "submittedAt": "2026-10-20T12:00:00Z",
+        "body": "",
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 0,
+      "nodes": []
+     }
+    },
+    {
+     "number": 107,
+     "title": "SOFTWARE-107 - [Svc] Base atrás",
+     "url": "https://github.example.invalid/example/monorepo/pull/107",
+     "isDraft": false,
+     "baseRefName": "develop",
+     "headRefName": "svc/feat/SOFTWARE-107-behind",
+     "headRefOid": "0107aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "reviewDecision": "REVIEW_REQUIRED",
+     "mergeable": "MERGEABLE",
+     "updatedAt": "2026-10-20T14:00:00Z",
+     "body": "",
+     "author": {
+      "login": "dev-a",
+      "__typename": "User"
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "oid": "0107aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "committedDate": "2026-10-20T10:00:00Z",
+         "statusCheckRollup": {
+          "state": "SUCCESS",
+          "contexts": {
+           "totalCount": 2,
+           "nodes": [
+            {
+             "__typename": "CheckRun",
+             "name": "lint",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/lint"
+            },
+            {
+             "__typename": "CheckRun",
+             "name": "build",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/build"
+            }
+           ]
+          }
+         }
+        }
+       }
+      ]
+     },
+     "reviewThreads": {
+      "totalCount": 0,
+      "pageInfo": {
+       "hasNextPage": false
+      },
+      "nodes": []
+     },
+     "reviews": {
+      "totalCount": 1,
+      "nodes": [
+       {
+        "state": "COMMENTED",
+        "submittedAt": "2026-10-20T12:00:00Z",
+        "body": "",
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 0,
+      "nodes": []
+     }
+    },
+    {
+     "number": 108,
+     "title": "SOFTWARE-108 - [Svc] Rascunho",
+     "url": "https://github.example.invalid/example/monorepo/pull/108",
+     "isDraft": true,
+     "baseRefName": "develop",
+     "headRefName": "svc/feat/SOFTWARE-108-draft",
+     "headRefOid": "0108aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "reviewDecision": "REVIEW_REQUIRED",
+     "mergeable": "MERGEABLE",
+     "updatedAt": "2026-10-20T14:00:00Z",
+     "body": "",
+     "author": {
+      "login": "dev-a",
+      "__typename": "User"
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "oid": "0108aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "committedDate": "2026-10-20T10:00:00Z",
+         "statusCheckRollup": null
+        }
+       }
+      ]
+     },
+     "reviewThreads": {
+      "totalCount": 0,
+      "pageInfo": {
+       "hasNextPage": false
+      },
+      "nodes": []
+     },
+     "reviews": {
+      "totalCount": 0,
+      "nodes": []
+     },
+     "comments": {
+      "totalCount": 0,
+      "nodes": []
+     }
+    },
+    {
+     "number": 109,
+     "title": "SOFTWARE-109 - [Svc] CI rodando",
+     "url": "https://github.example.invalid/example/monorepo/pull/109",
+     "isDraft": false,
+     "baseRefName": "develop",
+     "headRefName": "svc/feat/SOFTWARE-109-running",
+     "headRefOid": "0109aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "reviewDecision": "REVIEW_REQUIRED",
+     "mergeable": "MERGEABLE",
+     "updatedAt": "2026-10-20T14:00:00Z",
+     "body": "",
+     "author": {
+      "login": "dev-a",
+      "__typename": "User"
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "oid": "0109aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "committedDate": "2026-10-20T10:00:00Z",
+         "statusCheckRollup": {
+          "state": "PENDING",
+          "contexts": {
+           "totalCount": 3,
+           "nodes": [
+            {
+             "__typename": "CheckRun",
+             "name": "lint",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/lint"
+            },
+            {
+             "__typename": "CheckRun",
+             "name": "build",
+             "conclusion": null,
+             "status": "IN_PROGRESS",
+             "detailsUrl": "https://ci.example.invalid/build"
+            },
+            {
+             "__typename": "StatusContext",
+             "context": "deploy/preview",
+             "state": "SUCCESS",
+             "targetUrl": "https://ci.example.invalid/deploy/preview"
+            }
+           ]
+          }
+         }
+        }
+       }
+      ]
+     },
+     "reviewThreads": {
+      "totalCount": 0,
+      "pageInfo": {
+       "hasNextPage": false
+      },
+      "nodes": []
+     },
+     "reviews": {
+      "totalCount": 1,
+      "nodes": [
+       {
+        "state": "COMMENTED",
+        "submittedAt": "2026-10-20T12:00:00Z",
+        "body": "",
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 0,
+      "nodes": []
+     }
+    },
+    {
+     "number": 110,
+     "title": "SOFTWARE-110 - [Svc] Esperando review",
+     "url": "https://github.example.invalid/example/monorepo/pull/110",
+     "isDraft": false,
+     "baseRefName": "develop",
+     "headRefName": "svc/feat/SOFTWARE-110-awaiting",
+     "headRefOid": "0110aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "reviewDecision": "REVIEW_REQUIRED",
+     "mergeable": "MERGEABLE",
+     "updatedAt": "2026-10-20T14:00:00Z",
+     "body": "",
+     "author": {
+      "login": "dev-a",
+      "__typename": "User"
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "oid": "0110aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "committedDate": "2026-10-20T10:00:00Z",
+         "statusCheckRollup": {
+          "state": "SUCCESS",
+          "contexts": {
+           "totalCount": 2,
+           "nodes": [
+            {
+             "__typename": "CheckRun",
+             "name": "lint",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/lint"
+            },
+            {
+             "__typename": "CheckRun",
+             "name": "build",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/build"
+            }
+           ]
+          }
+         }
+        }
+       }
+      ]
+     },
+     "reviewThreads": {
+      "totalCount": 0,
+      "pageInfo": {
+       "hasNextPage": false
+      },
+      "nodes": []
+     },
+     "reviews": {
+      "totalCount": 1,
+      "nodes": [
+       {
+        "state": "COMMENTED",
+        "submittedAt": "2026-10-19T09:00:00Z",
+        "body": "",
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 0,
+      "nodes": []
+     }
+    },
+    {
+     "number": 111,
+     "title": "SOFTWARE-111 - [Svc] Empilhada sem CI",
+     "url": "https://github.example.invalid/example/monorepo/pull/111",
+     "isDraft": false,
+     "baseRefName": "svc/feat/SOFTWARE-110-awaiting",
+     "headRefName": "svc/feat/SOFTWARE-111-stacked",
+     "headRefOid": "0111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "reviewDecision": "REVIEW_REQUIRED",
+     "mergeable": "MERGEABLE",
+     "updatedAt": "2026-10-20T14:00:00Z",
+     "body": "",
+     "author": {
+      "login": "dev-a",
+      "__typename": "User"
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "oid": "0111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "committedDate": "2026-10-20T10:00:00Z",
+         "statusCheckRollup": null
+        }
+       }
+      ]
+     },
+     "reviewThreads": {
+      "totalCount": 0,
+      "pageInfo": {
+       "hasNextPage": false
+      },
+      "nodes": []
+     },
+     "reviews": {
+      "totalCount": 1,
+      "nodes": [
+       {
+        "state": "COMMENTED",
+        "submittedAt": "2026-10-20T12:00:00Z",
+        "body": "",
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 0,
+      "nodes": []
+     }
+    },
+    {
+     "number": 112,
+     "title": "SOFTWARE-112 - [Svc] Pronta",
+     "url": "https://github.example.invalid/example/monorepo/pull/112",
+     "isDraft": false,
+     "baseRefName": "develop",
+     "headRefName": "svc/feat/SOFTWARE-112-pronta",
+     "headRefOid": "0112aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "reviewDecision": "APPROVED",
+     "mergeable": "MERGEABLE",
+     "updatedAt": "2026-10-20T14:00:00Z",
+     "body": "",
+     "author": {
+      "login": "dev-a",
+      "__typename": "User"
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "oid": "0112aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "committedDate": "2026-10-20T10:00:00Z",
+         "statusCheckRollup": {
+          "state": "SUCCESS",
+          "contexts": {
+           "totalCount": 2,
+           "nodes": [
+            {
+             "__typename": "CheckRun",
+             "name": "lint",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/lint"
+            },
+            {
+             "__typename": "CheckRun",
+             "name": "build",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/build"
+            }
+           ]
+          }
+         }
+        }
+       }
+      ]
+     },
+     "reviewThreads": {
+      "totalCount": 120,
+      "pageInfo": {
+       "hasNextPage": true
+      },
+      "nodes": [
+       {
+        "id": "T112-applied",
+        "isResolved": false,
+        "isOutdated": false,
+        "path": "apps/svc/src/a.ts",
+        "line": 10,
+        "originalLine": 10,
+        "comments": {
+         "totalCount": 1,
+         "nodes": [
+          {
+           "databaseId": 1011,
+           "createdAt": "2026-10-20T12:00:00Z",
+           "body": "B4 retorno sem tipo",
+           "author": {
+            "login": "rev-b",
+            "__typename": "User"
+           }
+          }
+         ]
+        },
+        "replies": {
+         "nodes": [
+          {
+           "databaseId": 1011,
+           "createdAt": "2026-10-20T12:00:00Z",
+           "author": {
+            "login": "rev-b",
+            "__typename": "User"
+           }
+          }
+         ]
+        }
+       },
+       {
+        "id": "T112-resolved",
+        "isResolved": true,
+        "isOutdated": false,
+        "path": "apps/svc/src/a.ts",
+        "line": 10,
+        "originalLine": 10,
+        "comments": {
+         "totalCount": 1,
+         "nodes": [
+          {
+           "databaseId": 1012,
+           "createdAt": "2026-10-20T12:00:00Z",
+           "body": "nit: espaço",
+           "author": {
+            "login": "rev-b",
+            "__typename": "User"
+           }
+          }
+         ]
+        },
+        "replies": {
+         "nodes": [
+          {
+           "databaseId": 1012,
+           "createdAt": "2026-10-20T12:00:00Z",
+           "author": {
+            "login": "rev-b",
+            "__typename": "User"
+           }
+          }
+         ]
+        }
+       }
+      ]
+     },
+     "reviews": {
+      "totalCount": 50,
+      "nodes": [
+       {
+        "state": "APPROVED",
+        "submittedAt": "2026-10-20T12:00:00Z",
+        "body": "",
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 0,
+      "nodes": []
+     }
+    },
+    {
+     "number": 113,
+     "title": "SOFTWARE-113 - [Svc] Refutada",
+     "url": "https://github.example.invalid/example/monorepo/pull/113",
+     "isDraft": false,
+     "baseRefName": "develop",
+     "headRefName": "svc/feat/SOFTWARE-113-refutada",
+     "headRefOid": "0113aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "reviewDecision": "REVIEW_REQUIRED",
+     "mergeable": "MERGEABLE",
+     "updatedAt": "2026-10-20T14:00:00Z",
+     "body": "",
+     "author": {
+      "login": "dev-a",
+      "__typename": "User"
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "oid": "0113aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "committedDate": "2026-10-20T10:00:00Z",
+         "statusCheckRollup": {
+          "state": "SUCCESS",
+          "contexts": {
+           "totalCount": 2,
+           "nodes": [
+            {
+             "__typename": "CheckRun",
+             "name": "lint",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/lint"
+            },
+            {
+             "__typename": "CheckRun",
+             "name": "build",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/build"
+            }
+           ]
+          }
+         }
+        }
+       }
+      ]
+     },
+     "reviewThreads": {
+      "totalCount": 1,
+      "pageInfo": {
+       "hasNextPage": false
+      },
+      "nodes": [
+       {
+        "id": "T113-rebutted",
+        "isResolved": false,
+        "isOutdated": false,
+        "path": "apps/svc/src/a.ts",
+        "line": 10,
+        "originalLine": 10,
+        "comments": {
+         "totalCount": 1,
+         "nodes": [
+          {
+           "databaseId": 1013,
+           "createdAt": "2026-10-20T12:00:00Z",
+           "body": "**B7** transação aberta demais",
+           "author": {
+            "login": "rev-b",
+            "__typename": "User"
+           }
+          }
+         ]
+        },
+        "replies": {
+         "nodes": [
+          {
+           "databaseId": 1013,
+           "createdAt": "2026-10-20T12:00:00Z",
+           "author": {
+            "login": "rev-b",
+            "__typename": "User"
+           }
+          }
+         ]
+        }
+       }
+      ]
+     },
+     "reviews": {
+      "totalCount": 1,
+      "nodes": [
+       {
+        "state": "COMMENTED",
+        "submittedAt": "2026-10-20T12:00:00Z",
+        "body": "",
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 0,
+      "nodes": []
+     }
+    },
+    {
+     "number": 114,
+     "title": "software-9 SOFTWARE-4242 - [Alarms] Reaberta",
+     "url": "https://github.example.invalid/example/monorepo/pull/114",
+     "isDraft": false,
+     "baseRefName": "develop",
+     "headRefName": "alarms/fix/AT26-77-reabre",
+     "headRefOid": "0114aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "reviewDecision": "REVIEW_REQUIRED",
+     "mergeable": "MERGEABLE",
+     "updatedAt": "2026-10-20T14:00:00Z",
+     "body": "Spec: UC-12, ATOM-7a e CROSS-301; não casa: UCX-1 nem uc-3.",
+     "author": {
+      "login": "dev-a",
+      "__typename": "User"
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "oid": "0114aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "committedDate": "2026-10-20T10:00:00Z",
+         "statusCheckRollup": {
+          "state": "SUCCESS",
+          "contexts": {
+           "totalCount": 2,
+           "nodes": [
+            {
+             "__typename": "CheckRun",
+             "name": "lint",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/lint"
+            },
+            {
+             "__typename": "CheckRun",
+             "name": "build",
+             "conclusion": "SUCCESS",
+             "status": "COMPLETED",
+             "detailsUrl": "https://ci.example.invalid/build"
+            }
+           ]
+          }
+         }
+        }
+       }
+      ]
+     },
+     "reviewThreads": {
+      "totalCount": 1,
+      "pageInfo": {
+       "hasNextPage": false
+      },
+      "nodes": [
+       {
+        "id": "T114-reopened",
+        "isResolved": false,
+        "isOutdated": false,
+        "path": "apps/svc/src/a.ts",
+        "line": 10,
+        "originalLine": 10,
+        "comments": {
+         "totalCount": 3,
+         "nodes": [
+          {
+           "databaseId": 1014,
+           "createdAt": "2026-10-20T12:00:00Z",
+           "body": "V10 nome de evento fora do padrão",
+           "author": {
+            "login": "rev-b",
+            "__typename": "User"
+           }
+          }
+         ]
+        },
+        "replies": {
+         "nodes": [
+          {
+           "databaseId": 99114,
+           "createdAt": "2026-10-20T14:00:00Z",
+           "author": {
+            "login": "rev-b",
+            "__typename": "User"
+           }
+          }
+         ]
+        }
+       }
+      ]
+     },
+     "reviews": {
+      "totalCount": 1,
+      "nodes": [
+       {
+        "state": "COMMENTED",
+        "submittedAt": "2026-10-20T12:00:00Z",
+        "body": "",
+        "author": {
+         "login": "rev-b",
+         "__typename": "User"
+        }
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 0,
+      "nodes": []
+     }
+    },
+    {
+     "number": 115,
+     "title": "SOFTWARE-115 - [Svc] Empilhada rascunho",
+     "url": "https://github.example.invalid/example/monorepo/pull/115",
+     "isDraft": true,
+     "baseRefName": "svc/feat/SOFTWARE-111-stacked",
+     "headRefName": "svc/feat/SOFTWARE-115-stack2",
+     "headRefOid": "0115aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "reviewDecision": "REVIEW_REQUIRED",
+     "mergeable": "MERGEABLE",
+     "updatedAt": "2026-10-20T14:00:00Z",
+     "body": "",
+     "author": {
+      "login": "dev-a",
+      "__typename": "User"
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "oid": "0115aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "committedDate": "2026-10-20T10:00:00Z",
+         "statusCheckRollup": null
+        }
+       }
+      ]
+     },
+     "reviewThreads": {
+      "totalCount": 0,
+      "pageInfo": {
+       "hasNextPage": false
+      },
+      "nodes": []
+     },
+     "reviews": {
+      "totalCount": 0,
+      "nodes": []
+     },
+     "comments": {
+      "totalCount": 0,
+      "nodes": []
+     }
+    }
+   ]
+  }
+ }
+}

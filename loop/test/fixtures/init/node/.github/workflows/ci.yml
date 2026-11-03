@@ -1,0 +1,8 @@
+name: ci
+on:
+  push:
+    branches: [main]
+jobs:
+  t:
+    steps:
+      - run: echo verificar

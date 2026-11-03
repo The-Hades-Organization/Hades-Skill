@@ -1,0 +1,17 @@
+{
+  "name": "hades",
+  "private": true,
+  "license": "MIT",
+  "description": "CLI hades: TypeScript executado do fonte pelo Bun (sem build)",
+  "bin": { "hades": "src/cli.ts" },
+  "engines": { "bun": ">=1.1.0" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test loop/test/ts --parallel=8",
+    "hades": "bun src/cli.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.0",
+    "typescript": "^5.8.0"
+  }
+}

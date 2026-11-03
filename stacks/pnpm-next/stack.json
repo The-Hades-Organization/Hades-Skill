@@ -1,0 +1,41 @@
+{
+  "schema": "hades.stack/1",
+  "name": "pnpm-next",
+  "description": "App Next.js com pnpm. Comandos são os scripts do package.json (types:check, lint, test, build); cada projeto aponta eles para tsc, biome ou eslint, vitest. Custos são ESTIMATIVAS, nunca medidos (sem measuredAt).",
+  "detect": {
+    "files": [
+      "pnpm-lock.yaml",
+      "next.config.*"
+    ],
+    "all": true
+  },
+  "steps": {
+    "typecheck": {
+      "cmd": "pnpm run types:check",
+      "kind": "build",
+      "costGb": 2
+    },
+    "lint": {
+      "cmd": "pnpm run lint",
+      "kind": "lint",
+      "costGb": 1,
+      "parallel": 2
+    },
+    "build": {
+      "cmd": "pnpm run build",
+      "kind": "build",
+      "costGb": 3
+    },
+    "test": {
+      "cmd": "pnpm run test",
+      "kind": "test",
+      "costGb": 2
+    }
+  },
+  "guard": {
+    "patterns": [
+      "(^|[;&|]|\\s)pnpm\\s+(next\\s+build|vitest|eslint|biome|tsc)\\b",
+      "(^|[;&|]|\\s)pnpm\\s+(run\\s+)?(types:check|lint|test|build)\\b"
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "titulo": "Gate enfileirado não é gate aprovado",
+  "momentos": [
+    "continuo"
+  ],
+  "tipo": "emitida",
+  "origem": "kit/gate/gate-lock.sh (saída 75); SKILL.md §Invariantes de segurança",
+  "descricao": "Gate não admitido até o fim do timeout sai 75: o corpo registra o aviso; quem chamou cede o tick."
+}

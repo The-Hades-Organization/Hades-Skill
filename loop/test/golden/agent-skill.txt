@@ -1,0 +1,20 @@
+$ hades agent skill-new demo --port 21289
+  brief: <T>/home/.claude/hades/skill-dev/demo/.design-sync-reports/brief.md (preencha Item, Docs e Prova antes do prompt)
+
+unidade demo: worktree <T>/home/.claude/hades/skill-dev/demo · branch skill/demo (base main em <SHA>) · porta de teste 21289 · painel w2:p1
+1. complete o brief (<T>/home/.claude/hades/skill-dev/demo/.design-sync-reports/brief.md): Item, Docs e Prova
+2. o dono inicia — papel impl:
+   ! herdr agent start demo --kind claude --pane w2:p1 -- --permission-mode auto --model modelo-impl --effort alto
+3. depois: hades agent adopt demo && hades agent prompt demo
+rc=0
+$ hades agent skill-new demo (de novo)
+hades: branch skill/demo já existe
+rc=2
+$ hades agent skill-clean demo --dry-run
+== demo (branch skill/demo · worktree <T>/home/.claude/hades/skill-dev/demo)
+  arquiva <T>/home/.claude/hades/skill-dev/demo/.design-sync-reports → <T>/home/.claude/hades/skill-dev/_arquivo/demo
+  remove worktree <T>/home/.claude/hades/skill-dev/demo
+  remove branch skill/demo
+  [dry-run] git -C <T>/skill branch -q -d skill/demo
+  registro demo → archived
+rc=0

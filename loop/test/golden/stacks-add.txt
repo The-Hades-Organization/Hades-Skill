@@ -1,0 +1,49 @@
+{
+  "ci": {
+    "match": [
+      "npm run lint"
+    ],
+    "run": [
+      "npm run lint"
+    ],
+    "workflows": 1
+  },
+  "errors": [],
+  "stack": {
+    "description": "Proposto por stack-add a partir dos manifests de repo; custos estimados até a medição.",
+    "detect": {
+      "files": [
+        "package.json"
+      ]
+    },
+    "guard": {
+      "patterns": [
+        "(^|[;&|]|\\s)npm\\s+(run\\s+)?(lint|test)\\b"
+      ]
+    },
+    "name": "add-npm",
+    "schema": "hades.stack/1",
+    "steps": {
+      "lint": {
+        "cmd": "npm run lint",
+        "costGb": 2,
+        "kind": "lint"
+      },
+      "test": {
+        "cmd": "npm run test",
+        "costGb": 4,
+        "kind": "test"
+      }
+    }
+  },
+  "valid": true
+}
+stack-add: save só com o ok do dono (AskUserQuestion): passe --confirmed depois dele
+sem-ok rc=2
+<T>/stkadd/user/add-npm/stack.json
+salvo rc=0
+stack-add: <T>/stkadd/user/add-npm já existe (--force substitui)
+de-novo rc=1
+detect: add-npm 
+stack-add: nenhum manifest conhecido (package.json, Cargo.toml, go.mod, pyproject.toml): escreva o pacote à mão (reference/projects.md §Pacote de stack)
+sem-manifest rc=3

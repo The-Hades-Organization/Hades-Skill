@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# loginctl falso: o linger é o conteúdo de $FAKE_LINGER (yes|no)
+case $1 in
+  show-user) cat "$FAKE_LINGER" 2>/dev/null || echo no ;;
+  enable-linger) echo yes > "$FAKE_LINGER" ;;
+  disable-linger) echo no > "$FAKE_LINGER" ;;
+esac

@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# launchctl falso: nada de launchd real. Serviço carregado = arquivo em $FAKE_LAUNCHCTL_DIR/loaded/<rótulo> com o estado
+# (running | exited:<código>); chamadas em calls.log. FAKE_NO_GUI=1: sem sessão gráfica, `print gui/<uid>` falha; FAKE_NO_USER=1 faz o mesmo com user/<uid>.
+# FAKE_LIST_FAIL=1: `list` sai 1 sem saída (erro ou timeout). FAKE_BOOTOUT_NOT_LOADED=<código>: o código do bootout de serviço não carregado (padrão 3; o macOS recente
+# dá 113). FAKE_BOOTSTRAP_FAIL=<código>: todo bootstrap sai com ele. FAKE_BOOTSTRAP_BUSY=<n>: os n primeiros bootstrap saem 5 (Input/output error) como com o job ainda desmontando.
+d=${FAKE_LAUNCHCTL_DIR:?}; mkdir -p "$d/loaded"; echo "$*" >> "$d/calls.log"
+label_of() { sed -n 's|.*<key>Label</key><string>\([^<]*\)</string>.*|\1|p' "$1" | head -1; }
+load() { echo "${2:-running}" > "$d/loaded/$1"; }
+cmd=${1:-}; target=${2:-}
+case $cmd in
+  print)
+    case $target in
+      gui/*/*|user/*/*)
+        label=${target#*/*/}
+        [[ -f $d/loaded/$label ]] || { echo "Could not find service \"$label\" in domain for $target" >&2; exit 113; }
+        st=$(<"$d/loaded/$label")
+        printf '%s = {\n\tactive count = 1\n' "$target"
+        if [[ $st == running ]]; then printf '\tstate = running\n\truns = 1\n\tpid = 4242\n\tlast exit code = (never exited)\n'
+        else
+          code=${st#exited:}
+          case $code in 0) desc="" ;; 1) desc=": Operation not permitted" ;; 78) desc=": EX_CONFIG" ;; *) desc=": unknown error" ;; esac
+          printf '\tstate = not running\n\truns = 1\n\tlast exit code = %s%s\n' "$code" "$desc"
+        fi
+        printf '}\n' ;;
+      gui/*) [[ -z ${FAKE_NO_GUI:-} ]] || { echo "Could not find domain for $target" >&2; exit 113; } ;;
+      user/*) [[ -z ${FAKE_NO_USER:-} ]] || { echo "Could not find domain for $target" >&2; exit 113; } ;;
+    esac ;;
+  bootstrap)
+    if [[ -n ${FAKE_BOOTSTRAP_BUSY:-} ]]; then
+      n=$(cat "$d/busy" 2>/dev/null || echo 0)
+      if (( n < FAKE_BOOTSTRAP_BUSY )); then echo $((n + 1)) > "$d/busy"; echo "Bootstrap failed: 5: Input/output error" >&2; exit 5; fi
+    fi
+    [[ -z ${FAKE_BOOTSTRAP_FAIL:-} ]] || { echo "Bootstrap failed: ${FAKE_BOOTSTRAP_FAIL}" >&2; exit "$FAKE_BOOTSTRAP_FAIL"; }
+    label=$(label_of "${3:?}"); [[ -n $label ]] || { echo "Bootstrap failed: 5: Input/output error" >&2; exit 5; }
+    [[ ! -f $d/loaded/$label ]] || { echo "Bootstrap failed: 5: Input/output error" >&2; exit 5; }
+    load "$label" ;;
+  bootout)
+    label=${target#*/*/}
+    [[ -f $d/loaded/$label ]] || { echo "Boot-out failed: ${FAKE_BOOTOUT_NOT_LOADED:-3}: No such process" >&2; exit "${FAKE_BOOTOUT_NOT_LOADED:-3}"; }
+    rm -f "$d/loaded/$label" ;;
+  kickstart) load "${target#*/*/}" ;;
+  list)
+    [[ -z ${FAKE_LIST_FAIL:-} ]] || exit 1
+    printf 'PID\tStatus\tLabel\n'
+    for f in "$d"/loaded/*; do
+      [[ -f $f ]] || continue
+      st=$(<"$f"); if [[ $st == running ]]; then printf '4242\t0\t%s\n' "${f##*/}"; else printf -- '-\t%s\t%s\n' "${st#exited:}" "${f##*/}"; fi
+    done ;;
+esac
+exit 0

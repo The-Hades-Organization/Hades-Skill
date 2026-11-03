@@ -1,0 +1,14 @@
+{
+ "pr": 104,
+ "lastSeenReviewAt": "2026-10-20T12:00:00Z",
+ "comments": {
+  "10402": {
+   "verdict": "applied",
+   "at": "2026-10-20T13:00:00Z"
+  }
+ },
+ "lastClaudeTrigger": {
+  "at": "2026-10-19T09:00:00Z",
+  "head": "0104"
+ }
+}

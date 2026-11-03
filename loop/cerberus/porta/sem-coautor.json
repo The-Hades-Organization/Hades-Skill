@@ -1,0 +1,10 @@
+{
+  "titulo": "Commit sem trailer de co-author",
+  "momentos": [
+    "push"
+  ],
+  "tipo": "regra",
+  "dono": "porta",
+  "origem": "SKILL.md §Invariantes de segurança",
+  "descricao": "Nenhum commit que sai leva Co-Authored-By."
+}

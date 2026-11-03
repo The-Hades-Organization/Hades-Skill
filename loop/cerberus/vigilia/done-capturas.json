@@ -1,0 +1,17 @@
+{
+  "titulo": "Captura citada no report existe",
+  "momentos": [
+    "done",
+    "consolidacao"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "vigilia/auditoria",
+    "capturas"
+  ],
+  "timeoutS": 30,
+  "origem": "reference/loop/skill-dev-contract.md §Entrega; reference/cerberus/vigilia.md",
+  "descricao": "Imagens citadas em bloco que fala de captura: o arquivo existe (caminho, pasta do relatório, pasta de outra captura citada ou busca pelo nome) e não está vazio. Moldes com <…> ou {…} não são conferidos."
+}

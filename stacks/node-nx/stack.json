@@ -1,0 +1,46 @@
+{
+  "schema": "hades.stack/1",
+  "name": "node-nx",
+  "description": "Monorepo Node com nx e scripts npm que embrulham o nx (NODE_OPTIONS do package.json). Comandos e custos são os que o hook e o loop usavam fixos (gates.md §3.2); {project} = projeto nx.",
+  "detect": {
+    "files": [
+      "nx.json",
+      "package.json"
+    ],
+    "all": true
+  },
+  "steps": {
+    "lint": {
+      "cmd": "npm run lint -- {project}",
+      "kind": "lint",
+      "costGb": 2
+    },
+    "build": {
+      "cmd": "npm run build -- {project}",
+      "kind": "build",
+      "costGb": 3
+    },
+    "test": {
+      "cmd": "npm run test -- {project}",
+      "kind": "test",
+      "costGb": 4
+    },
+    "integration": {
+      "cmd": "npm run test:integration -- {project}",
+      "kind": "test:integration",
+      "costGb": 5
+    },
+    "affected": {
+      "cmd": "npm run affected:build -- --parallel=2",
+      "kind": "build",
+      "costGb": 5
+    }
+  },
+  "guard": {
+    "patterns": [
+      "(^|[;&|]|\\s)(npx\\s+)?nx\\s+(test|lint|build|run-many|affected|run\\s+\\S+:(test|lint|build))",
+      "npm\\s+run\\s+(test|lint|build|affected)[\\w:-]*",
+      "(^|[;&|]|\\s)(npx\\s+)?jest(\\s|$)"
+    ]
+  }
+}

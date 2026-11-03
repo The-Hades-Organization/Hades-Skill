@@ -1,0 +1,17 @@
+{
+  "titulo": "Arquivos tocados cabem no escopo do brief",
+  "momentos": [
+    "done",
+    "consolidacao"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "vigilia/auditoria",
+    "escopo"
+  ],
+  "timeoutS": 30,
+  "origem": "reference/loop/roles/impl.md §Fluxo (2); reference/cerberus/vigilia.md",
+  "descricao": "git diff --name-only <base>...HEAD contra os caminhos entre crases de \"Arquivos seus\" e de \"não toque\" no brief; fora da lista e citado no report é aviso (acréscimo registrado)."
+}

@@ -1,0 +1,219 @@
+{
+  "draft": null,
+  "dryRun": true,
+  "errors": [],
+  "evidence": {
+    "branch.format": "CLAUDE.md:8",
+    "card.idPattern": "WGT (CLAUDE.md:8)",
+    "card.provider": "CLAUDE.md:10",
+    "commit.coAuthor": "CLAUDE.md:9",
+    "commit.footer": "CLAUDE.md:9",
+    "commit.format": "commitlint.config.js:1",
+    "flow.base": ".github/workflows/ci-pr.yml:3",
+    "flow.bot": ".github/workflows/review.yml:6",
+    "flow.ci": ".github/workflows/ci-pr.yml:3",
+    "flow.kind": ".github/workflows/ci-pr.yml:3",
+    "identity.aliases": "dono e primeiro termo do nome do repo (só para a guarda de nome do núcleo)",
+    "identity.repo": "remote.origin.url = https://github.com/acme/widget.git",
+    "reviewAgents.command": ".claude/commands/review-agents.md",
+    "reviewAgents.dir": ".claude/agents (1 agentes)",
+    "rules.docs": ".github/review-rules.md, CLAUDE.md",
+    "rules.quality.estilo.consistencia-local": ".github/review-rules.md:24",
+    "rules.quality.fw.idempotencia-de-consumidor": ".github/review-rules.md:20",
+    "rules.quality.pratica.erro-explicito": ".github/review-rules.md:13",
+    "rules.quality.seg.sem-segredo-no-codigo": ".github/review-rules.md:10",
+    "rules.quality.solid.responsabilidade-unica": ".github/review-rules.md:17",
+    "rules.quality.ts.sem-any": ".github/review-rules.md:7",
+    "rules.severity.R": ".github/review-rules.md:5",
+    "rules.severity.V": ".github/review-rules.md:17",
+    "stacks": "detect de cada pacote de stack: node-nx",
+    "work.sources": "pasta de planos (docs/plan*, plans, PLAN*.md)",
+    "work.specIdPattern": "nomes de arquivo e guia em docs/specs/ (prefixos UC, UF)",
+    "work.specsDir": "docs/specs/ (4 arquivos .md)"
+  },
+  "profile": {
+    "branch": {
+      "format": "<module>/<prefix>/<task-id>[-<slug>]",
+      "regex": "^[a-z0-9-]+/(feat|fix|refactor|test|docs|chore)/(WGT-[0-9]+)(-[a-z0-9-]+)?$"
+    },
+    "card": {
+      "example": "WGT-N",
+      "idPattern": "\\b(WGT-[0-9]+)\\b",
+      "newIdPattern": "WGT-[0-9]+",
+      "provider": "clickup",
+      "required": true
+    },
+    "commit": {
+      "coAuthor": false,
+      "footer": "Spec: <IDs>",
+      "format": "conventional (commitlint config-conventional)",
+      "regex": "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\\([^)]+\\))?!?: .+"
+    },
+    "flow": {
+      "base": "develop",
+      "bot": {
+        "bases": [
+          "develop"
+        ],
+        "mention": "@bot",
+        "selfMarkers": [
+          {
+            "multiline": true,
+            "pattern": "^BOT_PROCESSED:"
+          },
+          {
+            "pattern": "^@bot\\b"
+          }
+        ]
+      },
+      "ci": {
+        "bases": [
+          "develop"
+        ],
+        "draft": false,
+        "workflow": "ci-pr.yml"
+      },
+      "kind": "pr"
+    },
+    "identity": {
+      "aliases": [
+        "acme"
+      ],
+      "repo": "acme/widget"
+    },
+    "name": "widget",
+    "reviewAgents": {
+      "command": "/review-agents",
+      "dir": ".claude/agents"
+    },
+    "rules": {
+      "docs": [
+        ".github/review-rules.md",
+        "CLAUDE.md"
+      ],
+      "quality": [
+        {
+          "contradicts": true,
+          "id": "ts.sem-any",
+          "note": ".github/review-rules.md:7",
+          "severity": "bloqueante"
+        },
+        {
+          "id": "seg.sem-segredo-no-codigo",
+          "note": ".github/review-rules.md:10"
+        },
+        {
+          "id": "pratica.erro-explicito",
+          "note": ".github/review-rules.md:13",
+          "severity": "bloqueante"
+        },
+        {
+          "id": "solid.responsabilidade-unica",
+          "note": ".github/review-rules.md:17",
+          "severity": "alta"
+        },
+        {
+          "id": "fw.idempotencia-de-consumidor",
+          "note": ".github/review-rules.md:20"
+        },
+        {
+          "id": "estilo.consistencia-local",
+          "note": ".github/review-rules.md:24",
+          "severity": "alta"
+        }
+      ],
+      "severity": {
+        "codePattern": "^(R[0-9]{1,2}|V[0-9]{1,2})\\b",
+        "vocabulary": [
+          {
+            "doc": ".github/review-rules.md",
+            "level": "bloqueante",
+            "meaning": "regras R1–R3",
+            "prefix": "R"
+          },
+          {
+            "doc": ".github/review-rules.md",
+            "level": "alta",
+            "meaning": "regras V1–V3",
+            "prefix": "V"
+          }
+        ]
+      }
+    },
+    "schema": "hades.profile/1",
+    "stacks": [
+      "node-nx"
+    ],
+    "work": {
+      "sources": [
+        "spec",
+        "plan",
+        "card"
+      ],
+      "specIdPattern": "\\b((UC|UF)-[0-9]{1,4}[a-z]?)\\b",
+      "specsDir": "docs/specs"
+    }
+  },
+  "quality": {
+    "conflicts": "## Conflitos de qualidade\n\n- `ts.sem-any` (contradiz, projeto widget): a regra do projeto contraria este item ligado. Nota do projeto: .github/review-rules.md:7",
+    "mapped": [
+      "ts.sem-any",
+      "seg.sem-segredo-no-codigo",
+      "pratica.erro-explicito",
+      "solid.responsabilidade-unica",
+      "fw.idempotencia-de-consumidor",
+      "estilo.consistencia-local"
+    ],
+    "ruleDocs": [
+      ".github/review-rules.md",
+      "CLAUDE.md"
+    ]
+  },
+  "stacks": {
+    "detected": [
+      "node-nx"
+    ],
+    "installed": [
+      "node-nx",
+      "pnpm-next",
+      "rust-cargo",
+      "tauri"
+    ]
+  },
+  "uncertain": [
+    {
+      "field": "identity.gh",
+      "suggestion": "informe o usuário ou o nome da variável com o token",
+      "why": "conta do gh do projeto não é inferível do repo"
+    },
+    {
+      "field": "identity.vocabulary",
+      "why": "nomes de serviços e scripts que só existem neste projeto (guarda de nome): só o dono sabe"
+    },
+    {
+      "field": "flow.bot.selfMarkers",
+      "why": "marcadores lidos do texto que o workflow posta; confira se cobrem os comentários que o fluxo e o bot geram"
+    },
+    {
+      "field": "card.create",
+      "why": "o perfil só descreve o card; criar card por script exige um bin/ no pacote"
+    },
+    {
+      "field": "branch.regex",
+      "why": "regex gerada do formato '<module>/<prefix>/<task-id>[-<slug>]'; confira com branches reais"
+    },
+    {
+      "field": "work.specIdPattern",
+      "why": "prefixos achados nos nomes de arquivo e no guia das specs; falta algum?"
+    },
+    {
+      "field": "rules.quality",
+      "why": "mapeado por palavra-chave nos documentos de regra (nota = arquivo:linha); confira cada id e as contradições antes de gravar"
+    },
+    {
+      "field": "env",
+      "why": "ambiente local fica fora por padrão (ver /hades env); pr.labels e refs também"
+    }
+  ],
+  "valid": true
+}

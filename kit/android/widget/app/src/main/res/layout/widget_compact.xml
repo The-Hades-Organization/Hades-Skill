@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget de status, tamanho compacto (4x2): contadores. Ids root e refresh obrigatórios. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:paddingBottom="8dp"
+    android:paddingEnd="6dp"
+    android:paddingStart="15dp"
+    android:paddingTop="4dp">
+    <include layout="@layout/widget_head" />
+    <include layout="@layout/widget_status_counters" />
+    <include layout="@layout/widget_status_line" />
+</LinearLayout>

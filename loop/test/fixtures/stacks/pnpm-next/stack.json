@@ -1,0 +1,13 @@
+{
+  "schema": "hades.stack/1",
+  "name": "pnpm-next",
+  "description": "Fixture da regressão (formato; o pacote real é da unidade stacks-fila).",
+  "detect": {"files": ["pnpm-lock.yaml", "next.config.*"], "all": true},
+  "steps": {
+    "typecheck": {"cmd": "pnpm tsc --noEmit", "kind": "build", "costGb": 2},
+    "lint": {"cmd": "pnpm eslint {files}", "kind": "lint", "costGb": 1, "parallel": 2},
+    "build": {"cmd": "pnpm next build", "kind": "build", "costGb": 3, "measuredAt": ""},
+    "test": {"cmd": "pnpm vitest run {files}", "kind": "test", "costGb": 2}
+  },
+  "guard": {"patterns": ["(^|[;&|]|\\s)pnpm\\s+(next\\s+build|vitest|eslint)"]}
+}

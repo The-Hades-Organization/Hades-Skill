@@ -1,0 +1,10 @@
+{
+  "titulo": "Teste não enfraquecido para passar",
+  "momentos": [
+    "done"
+  ],
+  "tipo": "regra",
+  "dono": "vigilia",
+  "origem": "SKILL.md §Invariantes de segurança",
+  "descricao": "Sem skip/xit, sem asserção removida, sem budget elevado."
+}

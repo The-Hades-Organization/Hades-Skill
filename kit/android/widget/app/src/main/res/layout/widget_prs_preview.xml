@@ -1,0 +1,413 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Prévia do seletor (previewLayout) do widget PRs: dados de exemplo. Gerada de widget_prs.xml. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:paddingBottom="8dp"
+    android:paddingEnd="6dp"
+    android:paddingStart="15dp"
+    android:paddingTop="4dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+        <ImageView
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_mark" />
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="7dp"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:text="@string/widget_label_prs"
+            android:textStyle="bold"
+            android:textColor="@color/hades_foreground"
+            android:textSize="13sp" />
+        <ImageView
+            android:id="@+id/refresh"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:importantForAccessibility="yes"
+            android:src="@drawable/ic_refresh"
+            android:padding="8dp"
+            android:contentDescription="@string/refresh_desc" />
+    </LinearLayout>
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <LinearLayout
+            android:id="@+id/prs_counts"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="2dp">
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+                    <ImageView
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_state_ok" />
+                    <TextView
+                        android:id="@+id/prs_green"
+                        android:text="3"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:layout_marginStart="4dp"
+                        android:maxLines="1"
+                        android:textColor="@color/hades_foreground"
+                        android:textSize="22sp" />
+                </LinearLayout>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/prs_green_label"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textColor="@color/hades_muted_foreground"
+                    android:textSize="10sp" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+                    <ImageView
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_state_bad" />
+                    <TextView
+                        android:id="@+id/prs_failing"
+                        android:text="1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:layout_marginStart="4dp"
+                        android:maxLines="1"
+                        android:textColor="@color/hades_foreground"
+                        android:textSize="22sp" />
+                </LinearLayout>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/prs_failing_label"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textColor="@color/hades_muted_foreground"
+                    android:textSize="10sp" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+                    <ImageView
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_state_run" />
+                    <TextView
+                        android:id="@+id/prs_running"
+                        android:text="1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:layout_marginStart="4dp"
+                        android:maxLines="1"
+                        android:textColor="@color/hades_foreground"
+                        android:textSize="22sp" />
+                </LinearLayout>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/prs_running_label"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textColor="@color/hades_muted_foreground"
+                    android:textSize="10sp" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+                    <ImageView
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_review" />
+                    <TextView
+                        android:id="@+id/prs_review"
+                        android:text="2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:layout_marginStart="4dp"
+                        android:maxLines="1"
+                        android:textColor="@color/hades_foreground"
+                        android:textSize="22sp" />
+                </LinearLayout>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/prs_review_label"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textColor="@color/hades_muted_foreground"
+                    android:textSize="10sp" />
+            </LinearLayout>
+        </LinearLayout>
+        <TextView
+            android:id="@+id/prs_summary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="6dp"
+            android:maxLines="1"
+            android:visibility="gone"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="13sp" />
+    </FrameLayout>
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="5dp"
+        android:layout_marginBottom="2dp"
+        android:layout_marginEnd="9dp"
+        android:background="@drawable/divider" />
+    <LinearLayout
+        android:id="@+id/pr_0"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginTop="3dp">
+        <ImageView
+            android:id="@+id/pr_0_ci"
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_state_bad" />
+        <TextView
+            android:id="@+id/pr_0_number"
+            android:text="#412"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+        <TextView
+            android:id="@+id/pr_0_title"
+            android:text="Fluxo de login com SSO"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="12sp" />
+        <ImageView
+            android:id="@+id/pr_0_review"
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_review"
+            android:layout_marginEnd="6dp"
+            android:layout_marginStart="6dp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/pr_1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginTop="3dp">
+        <ImageView
+            android:id="@+id/pr_1_ci"
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_state_ok" />
+        <TextView
+            android:id="@+id/pr_1_number"
+            android:text="#409"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+        <TextView
+            android:id="@+id/pr_1_title"
+            android:text="Tela de faturas"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="12sp" />
+        <ImageView
+            android:id="@+id/pr_1_review"
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_review"
+            android:layout_marginEnd="6dp"
+            android:layout_marginStart="6dp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/pr_2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginTop="3dp">
+        <ImageView
+            android:id="@+id/pr_2_ci"
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_state_run" />
+        <TextView
+            android:id="@+id/pr_2_number"
+            android:text="#405"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+        <TextView
+            android:id="@+id/pr_2_title"
+            android:text="Migração de usuários"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="12sp" />
+        <ImageView
+            android:id="@+id/pr_2_review"
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_review"
+            android:layout_marginEnd="6dp"
+            android:layout_marginStart="6dp" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/pr_3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginTop="3dp">
+        <ImageView
+            android:id="@+id/pr_3_ci"
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_state_ok" />
+        <TextView
+            android:id="@+id/pr_3_number"
+            android:text="#398"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+        <TextView
+            android:id="@+id/pr_3_title"
+            android:text="Ajuste de cache"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_foreground"
+            android:textSize="12sp" />
+        <ImageView
+            android:id="@+id/pr_3_review"
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_review"
+            android:layout_marginEnd="6dp"
+            android:layout_marginStart="6dp" />
+    </LinearLayout>
+    <TextView
+        android:id="@+id/prs_info"
+        android:text="dados de 2min atrás"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/hades_muted_foreground"
+        android:textSize="10sp" />
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <TextView
+            android:id="@+id/status"
+            android:text="atualizado 14:32"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/hades_muted_foreground"
+            android:textSize="11sp" />
+        <TextView
+            android:id="@+id/status_problem"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:visibility="gone"
+            android:textColor="@color/hades_bad"
+            android:textSize="11sp" />
+    </FrameLayout>
+</LinearLayout>

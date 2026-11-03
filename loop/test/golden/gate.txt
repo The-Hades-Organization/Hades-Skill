@@ -1,0 +1,20 @@
+gate-lock: sem systemd-run --user --scope: rodando sem teto de memoria
+lint rc=0
+gate-lock: sem systemd-run --user --scope: rodando sem teto de memoria
+test rc=3
+gate-lock: sem systemd-run --user --scope: rodando sem teto de memoria
+build rc=0
+gate-lock: kind invalido: 'bogus' (use lint | build | test | test:integration | gate)
+bogus rc=2
+gate-lock: run exige `-- <cmd...>`
+sem-comando rc=2
+nenhum gate na fila nem rodando
+enqueue	lint	demo	2	<T>/clone/monorepo
+admit	lint	demo	2	<T>/clone/monorepo	waited=<S>	avail=<MB>
+done	lint	demo	2	<T>/clone/monorepo	rc=0	dur=<S>	cmd=true
+enqueue	test	demo	4	<T>/clone/monorepo
+admit	test	demo	4	<T>/clone/monorepo	waited=<S>	avail=<MB>
+done	test	demo	4	<T>/clone/monorepo	rc=3	dur=<S>	cmd=sh -c exit 3
+enqueue	build	demo	2	<T>/clone/monorepo
+admit	build	demo	2	<T>/clone/monorepo	waited=<S>	avail=<MB>
+done	build	demo	2	<T>/clone/monorepo	rc=0	dur=<S>	cmd=true

@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4 # a do bun.lock (lockfileVersion 2)
+
+      - name: Instalar dependências (lockfile congelado)
+        run: bun install --frozen-lockfile
+
+      - name: Checagem de tipos (núcleo e testes)
+        run: bun x tsc --noEmit
+
+      - name: Checagem de tipos (globals da interface do painel)
+        run: bun x tsc --noEmit -p tsconfig.ui.json
+
+      - name: Guarda do pacote (nome, domínio e repositórios proibidos)
+        # a lista de repositórios proibidos é um segredo do repositório (mascarado no log público), nunca código; PR de fork roda sem ela
+        env:
+          HADES_FORBIDDEN_REPOS: ${{ secrets.HADES_FORBIDDEN_REPOS }}
+        run: bash kit/skill-release.sh guard
+
+      - name: Suíte loop/test/ts
+        # a mesma do check do release, com o mesmo paralelismo e prazo por teste
+        run: bun test loop/test/ts --parallel=4 --timeout=30000

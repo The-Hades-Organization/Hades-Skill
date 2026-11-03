@@ -1,0 +1,10 @@
+gate-lock: sem systemd-run --user --scope: rodando sem teto de memoria
+janela-leve rc=0
+gate-lock: aguardando: fora da janela de gates pesados (<JANELA>) (<S>/<S>)
+gate-lock: nao admitido apos <S> (fora da janela de gates pesados (<JANELA>)) — gate enfileirado, ceda o tick
+  <ticket>
+janela-pesado rc=75
+gate-lock: sem systemd-run --user --scope: rodando sem teto de memoria
+orcamento-projeto-vazio rc=0
+gate-lock: sem systemd-run --user --scope: rodando sem teto de memoria
+medido-sem-pico rc=0

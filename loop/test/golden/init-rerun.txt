@@ -1,0 +1,29 @@
+$ re-run: draft
+rc=0
+[
+  "pr",
+  "refs"
+]
+--- perfil atual
++++ rascunho
+@@ -9,7 +9,7 @@
+   },
+   "flow": {
+     "kind": "pr",
+-    "base": "main",
++    "base": "develop",
+     "ci": {
+       "workflow": "ci-pr.yml",
+       "bases": [
+
+$ re-run: save sem --force
+project-init: <T>/packs-init/widget/profile.json já existe e difere (diff acima): --force grava depois do ok do dono sobre o diff
+rc=1
+base no pacote: main
+$ re-run: save com --force
+<T>/packs-init/widget/profile.json
+resolvedor: código 0 (widget)
+rc=0
+base no pacote: develop · refs: {"deliver":"loop/deliver.md"}
+$ re-run sem mudança
+0

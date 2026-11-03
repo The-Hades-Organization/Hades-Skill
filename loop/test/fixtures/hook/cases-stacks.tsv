@@ -1,0 +1,11 @@
+# casos da etapa das stacks no hook; onde: nx = clone com perfil stacks:[node-nx] · cargo = perfil stacks:[rust-cargo] ·
+# plain = repo sem perfil (valem as stacks instaladas)
+nx-test-cru-com-perfil-nx	Pre	nx	0	s1	npx nx test app-alarms
+npm-build-cru-com-perfil-nx	Pre	nx	0	s1	npm run build -- app-x
+nx-na-fila-com-perfil-nx	Pre	nx	0	s1	"$GL" run --step node-nx:test --label x -- npx nx test app-alarms
+nx-test-cru-com-perfil-cargo	Pre	cargo	0	s1	npx nx test app-alarms
+cargo-build-cru-com-perfil-cargo	Pre	cargo	0	s1	cargo build --release
+cargo-test-na-fila	Pre	cargo	0	s1	"$GL" run test --label x -- cargo test
+nx-test-cru-sem-perfil	Pre	plain	0	s1	npx nx test app-alarms
+cargo-build-cru-sem-perfil	Pre	plain	0	s1	cargo build
+cargo-fundo	Pre	cargo	1	s1	cargo test

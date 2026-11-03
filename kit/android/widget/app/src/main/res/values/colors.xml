@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tokens do painel (kit/panel/ui/index.html, :root) convertidos de oklch para sRGB. É o único lugar com literal de
+     cor: layout, drawable e Java só referenciam @color/hades_*. O tema escuro está em values-night/colors.xml. -->
+<resources>
+    <color name="hades_background">#FFFFFFFF</color>
+    <color name="hades_foreground">#FF0C090C</color>
+    <color name="hades_card">#FFFFFFFF</color>
+    <color name="hades_primary">#FFC70036</color>
+    <color name="hades_primary_foreground">#FFFFF1F2</color>
+    <!-- carmesim legível como texto: no claro é a própria primária; no escuro, o sidebar-primary do painel -->
+    <color name="hades_primary_text">#FFC70036</color>
+    <color name="hades_muted">#FFF3F1F3</color>
+    <color name="hades_muted_foreground">#FF79697B</color>
+    <color name="hades_border">#FFE7E4E7</color>
+    <color name="hades_input">#FFE7E4E7</color>
+    <color name="hades_ring">#FFA89EA9</color>
+    <color name="hades_ok">#FF00AC5F</color>
+    <color name="hades_warn">#FFEBA002</color>
+    <color name="hades_bad">#FFE62B34</color>
+    <color name="hades_info">#FF0099E0</color>
+
+    <!-- marca (brand/hades.svg): fundo e glifo fixos nos dois temas; token hades_mark é o glifo nos layouts -->
+    <color name="brand_ground">#FF391A2C</color>
+    <color name="brand_glyph">#FFEDDECE</color>
+    <color name="hades_mark">#FFC70036</color>
+</resources>

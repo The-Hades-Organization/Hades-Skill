@@ -1,0 +1,30 @@
+$ list --group banco
+off  alta       banco     banco.migracao-reversivel         
+off  media      banco     banco.indice-para-consulta        
+off  alta       banco     banco.sem-n-mais-um               
+off  alta       banco     banco.transacao-curta             
+off  media      banco     banco.restricao-no-banco          
+off  baixa      banco     banco.sem-select-estrela          
+off  alta       banco     banco.dinheiro-sem-float          
+off  alta       banco     banco.data-hora-com-fuso          
+off  baixa      banco     banco.dado-fora-da-migracao       
+off  media      banco     banco.trava-pesada-anunciada      
+off  media      banco     banco.esquema-igual-as-migracoes  
+$ on --all (default)
+on: 114 off: 13
+$ off --all, on 2 regras
+on   alta       praticas  pratica.erro-explicito            
+on   alta       testes    teste.deterministico              
+$ id ruim
+hades-quality: regra desconhecida: nao.existe
+rc=2
+$ inject --phase review
+## Qualidade — regras ligadas: confira o diff contra elas e cite o id no achado
+
+Precedência: invariantes da Hades > pedido do dono > regras do projeto > estas regras > código vizinho. Regra do projeto que contraria uma destas vale; registre o conflito no relatório da passada.
+
+**alta**
+- `pratica.erro-explicito` [praticas]: Falha é tratada ou propagada com contexto; catch vazio e erro engolido são proibidos. Quem captura decide algo (repetir, traduzir, registrar e seguir), senão deixa subir. — checagem: `grep -E 'catch *(\([a-zA-Z_]*\))? *\{ *\}'` em `*`
+- `teste.deterministico` [testes]: Sem dependência de hora, ordem, rede ou acaso não controlado; relógio e aleatoriedade entram por injeção. Teste instável é bug aberto, não ruído.
+$ reset
+choices: ausente

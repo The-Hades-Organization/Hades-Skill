@@ -1,0 +1,5 @@
+# Widget prs. Só label e cells são obrigatórios; o resto tem padrão derivado do id:
+#   layout=widget_prs   renderer=PrsWidgetView   provider=PrsWidgetProvider (gerado no build)
+#   resize=horizontal|vertical (ou none, horizontal, vertical)
+label=Hades PRs
+cells=4x3

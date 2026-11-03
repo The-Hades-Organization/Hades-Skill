@@ -1,0 +1,6 @@
+nx-test-repo-sem-perfil	rc=2	gate-lock: test/lint/build fora da fila de gate. Embrulhe em ~/.claude/skills/hades/kit/ga
+npm-build-fora-de-git	rc=2	gate-lock: test/lint/build fora da fila de gate. Embrulhe em ~/.claude/skills/hades/kit/ga
+pnpm-do-stack-instalado	rc=2	gate-lock: test/lint/build fora da fila de gate. Embrulhe em ~/.claude/skills/hades/kit/ga
+pnpm-do-stack-na-fila	rc=0	
+ctx-clone-sem-perfil	rc=0	
+ctx-clone-com-perfil	rc=0	HADES: contexto do orquestrador em 260k, acima do teto (250k). Atualize o plan.md e o esta

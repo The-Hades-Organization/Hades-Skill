@@ -1,0 +1,16 @@
+{
+  "titulo": "O código do plugin se comporta dentro do sandbox",
+  "momentos": [
+    "plugin"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "limiar",
+    "ensaio"
+  ],
+  "timeoutS": 300,
+  "origem": "reference/cerberus/limiar.md §plugin-ensaio-isolado",
+  "descricao": "Ensaia o post-install.sh, o doctor.sh e os checks/ do plugin num bubblewrap (cópia descartável do $D, sem rede salvo declaração no plugin.json): escrita fora do $D, rede sem declarar ou falha no ensaio barra; docker não é ensaiado; sem bubblewrap é aviso."
+}

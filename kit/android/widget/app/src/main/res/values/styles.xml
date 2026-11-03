@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hierarquia tipográfica do painel (Figtree, com a pilha de sistema como fallback): rótulo, valor, apoio. -->
+<resources>
+    <style name="Hades.Label" parent="">
+        <item name="android:textColor">@color/hades_muted_foreground</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+    <style name="Hades.Body" parent="">
+        <item name="android:textColor">@color/hades_foreground</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="Hades.Field" parent="Hades.Body">
+        <item name="android:background">@drawable/field_bg</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">12dp</item>
+        <item name="android:textColorHint">@color/hades_muted_foreground</item>
+        <item name="android:singleLine">true</item>
+    </style>
+</resources>

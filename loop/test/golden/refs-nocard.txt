@@ -1,0 +1,16 @@
+$ hades agent new impl-t --role impl --branch svc/feat/sem-card-x
+  brief: <T>/agents/impl-t/.design-sync-reports/brief.md (complete Item e Contexto antes do prompt)
+
+agente impl-t: worktree <T>/agents/impl-t · branch svc/feat/sem-card-x · card — · lock deliver-svc_feat_sem-card-x.lock · painel w1:p1
+1. complete o brief (<T>/agents/impl-t/.design-sync-reports/brief.md): Item e Contexto
+2. o dono inicia (o classificador recusa quando é o orquestrador) — papel impl:
+   ! herdr agent start impl-t --kind claude --pane w1:p1 -- --permission-mode auto --model modelo-impl --effort alto
+3. depois: hades agent prompt impl-t
+rc=0
+$ hades agent new impl-u --role impl --branch svc/feat/y --card X-1
+hades: --card/--new-card: o perfil não usa card (card.provider none ou ausente)
+rc=2
+svc_feat_sem-card-x
+- Modo `deliver` · card `—` · specs `—` · PR `—`
+- Regras do projeto: `<T>/packs-refs/example-monorepo/loop/invariants.md`, `<T>/packs-refs/example-monorepo/loop/review.md`
+- Título da PR: `[Módulo] Título`. Pronta: assignee `dono-x`, labels `backend,extra`, reviewers

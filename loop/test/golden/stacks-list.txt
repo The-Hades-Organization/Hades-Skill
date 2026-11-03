@@ -1,0 +1,11 @@
+# stacks instaladas
+pnpm-next
+node-nx
+rust-cargo
+tauri
+# step
+node-nx:lint: lint	2	0	
+node-nx:test: test	4	0	
+rust-cargo:build: build	4	0	
+tauri:build: build	6	0	
+node-nx:nada: hades: etapa 'node-nx:nada' não existe nas stacks instaladas

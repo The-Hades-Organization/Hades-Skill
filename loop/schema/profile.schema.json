@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hades.profile/1",
+  "title": "Perfil de projeto da Hades (reference/projects.md §Perfil)",
+  "type": "object",
+  "required": ["schema", "name", "identity", "flow"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "hades.profile/1"},
+    "name": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$", "description": "igual ao nome da pasta do pacote"},
+    "description": {"type": "string"},
+    "core": {"type": "string", "minLength": 1, "description": "faixa de versões do núcleo da Hades que este plugin suporta (semver simples: >=4.3, >=4.3 <5, 4.3.x); o install.sh recusa núcleo fora dela. Opcional: sem ele só avisa"},
+    "identity": {
+      "type": "object",
+      "required": ["repo"],
+      "additionalProperties": false,
+      "properties": {
+        "repo": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", "description": "owner/name do remote.origin.url"},
+        "aliases": {"type": "array", "items": {"type": "string", "minLength": 3}, "description": "outros nomes do projeto (guarda de nome do núcleo); a guarda acha o termo em qualquer posição, sem caixa (nome colado em outra palavra, MAIÚSCULAS)"},
+        "vocabulary": {"type": "array", "items": {"type": "string", "x-regex": "ere", "minLength": 2}, "description": "ERE do vocabulário do projeto que o núcleo não cita (nomes de serviço, scripts do ambiente); a guarda procura sem caixa"},
+        "gh": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "user": {"type": "string", "description": "conta do gh cujo token o núcleo usa (gh auth token --user), sem trocar a conta ativa"},
+            "tokenEnv": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$", "description": "variável de ambiente com o token (vence o user)"}
+          }
+        }
+      }
+    },
+    "flow": {
+      "type": "object",
+      "required": ["kind", "base"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"enum": ["pr", "trunk"]},
+        "base": {"type": "string", "minLength": 1, "description": "branch de integração (pr: base das PRs; trunk: a própria)"},
+        "reviewRequired": {"type": "boolean", "description": "review humano é pré-condição de done-pending (padrão: true); false: awaiting-review só com review pedido (reviewRequests) ainda não feito"},
+        "ci": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "workflow": {"type": "string"},
+            "bases": {"type": "array", "items": {"type": "string"}, "description": "bases em que o CI dispara (padrão: [base])"},
+            "draft": {"type": "boolean", "description": "o CI roda em draft (padrão: false)"}
+          }
+        },
+        "bot": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mention": {"type": "string", "description": "como se aciona o review do bot no comentário"},
+            "bases": {"type": "array", "items": {"type": "string"}},
+            "selfMarkers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["pattern"],
+                "additionalProperties": false,
+                "properties": {"pattern": {"type": "string", "x-regex": "ere"}, "multiline": {"type": "boolean"}}
+              },
+              "description": "comentário que o fluxo ou o bot posta e não é achado de ninguém"
+            }
+          }
+        }
+      }
+    },
+    "work": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sources": {"type": "array", "items": {"enum": ["spec", "plan", "queue", "card"]}, "minItems": 1},
+        "specsDir": {"type": "string"},
+        "specIdPattern": {"type": "string", "x-regex": "ere", "description": "grupo 1 = o ID da spec"}
+      }
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "docs": {"type": "array", "items": {"type": "string"}, "description": "caminhos (glob) no repo, na ordem de precedência"},
+        "quality": {
+          "type": "array",
+          "description": "como o projeto se relaciona com o catálogo global (reference/quality.md): sobe severidade ou declara contradição",
+          "items": {
+            "type": "object",
+            "required": ["id"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {"type": "string", "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)+$"},
+              "severity": {"enum": ["bloqueante", "alta", "media", "baixa"]},
+              "contradicts": {"type": "boolean", "description": "a regra do projeto contraria este item do catálogo"},
+              "note": {"type": "string"}
+            }
+          }
+        },
+        "severity": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "codePattern": {"type": "string", "x-regex": "ere", "description": "código da regra no início do achado; grupo 1 = o código"},
+            "vocabulary": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["prefix", "level"],
+                "additionalProperties": false,
+                "properties": {
+                  "prefix": {"type": "string", "minLength": 1},
+                  "level": {"enum": ["bloqueante", "alta", "media", "baixa"]},
+                  "meaning": {"type": "string"},
+                  "doc": {"type": "string"}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "commit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "format": {"type": "string"},
+        "regex": {"type": "string", "x-regex": "ere"},
+        "footer": {"type": "string"},
+        "coAuthor": {"type": "boolean"}
+      }
+    },
+    "branch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "format": {"type": "string", "description": "como se lê na mensagem de uso"},
+        "regex": {"type": "string", "x-regex": "ere"},
+        "base": {"type": "string", "description": "ref de onde nasce a branch de trabalho (padrão: origin/<flow.base>)"}
+      }
+    },
+    "thanatos": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "regra de PR de fix de produção: o hades watch sugere o post-mortem ao ver a PR mergeada (reference/thanatos.md); sem a regra, não sugere",
+      "properties": {
+        "fixBranchPattern": {"type": "string", "x-regex": "ere", "description": "ERE (sem caixa) do nome da branch de fix de produção"},
+        "fixLabels": {"type": "array", "items": {"type": "string"}, "description": "labels da PR que marcam fix de produção (sem caixa)"}
+      }
+    },
+    "card": {
+      "type": "object",
+      "required": ["provider"],
+      "additionalProperties": false,
+      "properties": {
+        "provider": {"enum": ["clickup", "github", "none"]},
+        "required": {"type": "boolean", "description": "a branch exige card"},
+        "idPattern": {"type": "string", "x-regex": "ere", "description": "IDs de card lidos em título e branch (sem caixa); grupo 1 = o ID"},
+        "newIdPattern": {"type": "string", "x-regex": "ere", "description": "ID dos cards que este fluxo cria (a branch o contém)"},
+        "example": {"type": "string"},
+        "create": {"type": "string", "description": "script do pacote (relativo) que cria o card: create \"<título>\" \"<tags>\" \"<descrição>\" → ID no stdout; sem ele o new não cria card"}
+      }
+    },
+    "pr": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "labels": {"type": "array", "items": {"type": "string"}, "description": "labels das PRs que o loop abre"}
+      }
+    },
+    "domainTerms": {"type": "string", "minLength": 1, "description": "arquivo do pacote (relativo a ele) com o vocabulário de domínio que o núcleo não cita: um termo ou ERE por linha, # comenta; a guarda de domínio procura sem caixa"},
+    "refs": {
+      "type": "object",
+      "propertyNames": {"pattern": "^[a-z][a-z0-9-]*$"},
+      "additionalProperties": {"type": "string", "minLength": 1},
+      "description": "textos do projeto que o núcleo manda ler (nome → caminho relativo ao pacote): invariants · deliver · gates · review · spec"
+    },
+    "stacks": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
+    "reviewAgents": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "command": {"type": "string"},
+        "dir": {"type": "string"},
+        "agents": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "env": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "pack": {"type": "string", "description": "pasta do pacote de ambiente, relativa ao pacote do projeto"}
+      }
+    }
+  }
+}

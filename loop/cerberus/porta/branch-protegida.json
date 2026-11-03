@@ -1,0 +1,16 @@
+{
+  "titulo": "Destino não é a base do projeto nem branch protegida",
+  "momentos": [
+    "push",
+    "consolidacao"
+  ],
+  "tipo": "exec",
+  "cmd": [
+    "hades",
+    "cerberus-check",
+    "porta/branch-protegida"
+  ],
+  "timeoutS": 30,
+  "origem": "src/lib/cerberus-porta.ts (hades cerberus-check); reference/cerberus/porta.md",
+  "descricao": "Compara o destino com flow.base do perfil, nomes de tronco e a proteção da branch no GitHub (gh api)."
+}

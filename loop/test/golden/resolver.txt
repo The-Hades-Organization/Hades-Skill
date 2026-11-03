@@ -1,0 +1,25 @@
+# <T>/clone/monorepo
+  resolve: rc=0 {"packs":"<T>/packs","profile":"<T>/packs/example-monorepo/profile.json","project":"example-monorepo","repo":"example/monorepo","root":"<T>/clone/monorepo"}
+  get flow.base: rc=0 develop
+  get card.example: rc=0 SOFTWARE-N
+  get rules.severity.vocabulary: rc=0 [{"prefix":"B","level":"bloqueante","meaning":"regra bloqueante (B1–B16)","doc":".github/claude-review-rules.md"},{"prefix":"V","level":"alta","meaning":"verificação importante (V1–V10)","doc":".github/claude-review-rules.md"},{"prefix":"RB-","level":"alta","meaning":"backend; 🔴/🟡 por regra","doc":"docs/architecture/backend-review-rules.md"},{"prefix":"RF-","level":"alta","meaning":"frontend; 🔴/🟡 por regra","doc":"docs/architecture/frontend-review-rules.md"},{"prefix":"CMT-","level":"media","meaning":"comentário (CMT-1..6, CMT-X*)","doc":"docs/architecture/comment-guide.md"}]
+# <T>/clone/monorepo/sub
+  resolve: rc=0 {"packs":"<T>/packs","profile":"<T>/packs/example-monorepo/profile.json","project":"example-monorepo","repo":"example/monorepo","root":"<T>/clone/monorepo"}
+  get flow.base: rc=0 develop
+  get card.example: rc=0 SOFTWARE-N
+  get rules.severity.vocabulary: rc=0 [{"prefix":"B","level":"bloqueante","meaning":"regra bloqueante (B1–B16)","doc":".github/claude-review-rules.md"},{"prefix":"V","level":"alta","meaning":"verificação importante (V1–V10)","doc":".github/claude-review-rules.md"},{"prefix":"RB-","level":"alta","meaning":"backend; 🔴/🟡 por regra","doc":"docs/architecture/backend-review-rules.md"},{"prefix":"RF-","level":"alta","meaning":"frontend; 🔴/🟡 por regra","doc":"docs/architecture/frontend-review-rules.md"},{"prefix":"CMT-","level":"media","meaning":"comentário (CMT-1..6, CMT-X*)","doc":"docs/architecture/comment-guide.md"}]
+# <T>/wt-hook
+  resolve: rc=0 {"packs":"<T>/packs","profile":"<T>/packs/example-monorepo/profile.json","project":"example-monorepo","repo":"example/monorepo","root":"<T>/wt-hook"}
+  get flow.base: rc=0 develop
+  get card.example: rc=0 SOFTWARE-N
+  get rules.severity.vocabulary: rc=0 [{"prefix":"B","level":"bloqueante","meaning":"regra bloqueante (B1–B16)","doc":".github/claude-review-rules.md"},{"prefix":"V","level":"alta","meaning":"verificação importante (V1–V10)","doc":".github/claude-review-rules.md"},{"prefix":"RB-","level":"alta","meaning":"backend; 🔴/🟡 por regra","doc":"docs/architecture/backend-review-rules.md"},{"prefix":"RF-","level":"alta","meaning":"frontend; 🔴/🟡 por regra","doc":"docs/architecture/frontend-review-rules.md"},{"prefix":"CMT-","level":"media","meaning":"comentário (CMT-1..6, CMT-X*)","doc":"docs/architecture/comment-guide.md"}]
+# <T>/clone/plain
+  resolve: rc=3 {"packs":"<T>/packs","profile":null,"project":null,"repo":"other/plain","root":"<T>/clone/plain"} | hades: other/plain sem perfil em <T>/packs/ — rode /hades project init para criar o perfil do projeto (reference/projects.md)
+  get flow.base: rc=1 
+  get card.example: rc=1 
+  get rules.severity.vocabulary: rc=1 
+# <T>/nogit
+  resolve: rc=4 {"packs":"<T>/packs","profile":null,"project":null,"repo":null,"root":null} | hades: <T>/nogit não está num repositório git com remote.origin.url — o projeto ativo vem do repo do diretório atual
+  get flow.base: rc=1 
+  get card.example: rc=1 
+  get rules.severity.vocabulary: rc=1 

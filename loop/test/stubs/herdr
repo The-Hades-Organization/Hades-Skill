@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# herdr falso da regressão: só o que o hades-agent.sh usa, sem sessão real; anota as chamadas em FAKE_HERDR_LOG.
+echo "herdr $*" >> "${FAKE_HERDR_LOG:-/dev/null}"
+case "${1:-} ${2:-}" in
+  'worktree create')
+    shift 2; b= base= p=
+    while (($#)); do case $1 in
+      --branch) b=$2; shift 2 ;; --base) base=$2; shift 2 ;; --path) p=$2; shift 2 ;;
+      --label|--workspace|--cwd) shift 2 ;; *) shift ;; esac; done
+    git worktree add -q -b "$b" "$p" "$base" >&2 || exit 1
+    printf '{"result":{"workspace":{"workspace_id":"w1"},"pane":{"pane_id":"w1:p1","cwd":"%s"}}}\n' "$p" ;;
+  'workspace create') echo '{"result":{"workspace":{"workspace_id":"w2"},"pane":{"pane_id":"w2:p1"}}}' ;;
+  'pane split') echo '{"result":{"pane":{"pane_id":"w1:p9"}}}' ;;
+  'pane list') echo '{"result":{"panes":[]}}' ;;
+  'agent list') if [[ -n ${FAKE_HERDR_AGENTS:-} ]]; then echo "$FAKE_HERDR_AGENTS"; else echo '{"result":{"agents":[]}}'; fi ;;
+  *) echo '{}' ;;
+esac

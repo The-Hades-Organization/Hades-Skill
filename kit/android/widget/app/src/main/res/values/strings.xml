@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Hades</string>
+    <string name="config_title">Hades: configurar widget</string>
+    <string name="config_subtitle">Configurar widget</string>
+    <string name="config_widget_url_label">URL do widget</string>
+    <string name="config_token_label">Token</string>
+    <string name="config_panel_url_label">URL do painel</string>
+    <string name="config_widget_url">https://…/api/widget</string>
+    <string name="config_token">hdw_…</string>
+    <string name="config_token_kept">Token guardado; deixe em branco para manter</string>
+    <string name="config_panel_url">https://… (abre ao tocar)</string>
+    <string name="config_save">Salvar</string>
+    <string name="count_active_label">ativos</string>
+    <string name="count_stopped_label">parados</string>
+    <string name="count_asking_label">perguntando</string>
+    <string name="memory_label">memória</string>
+    <string name="prs_green_label">verde</string>
+    <string name="prs_failing_label">falhando</string>
+    <string name="prs_running_label">rodando</string>
+    <string name="prs_review_label">review</string>
+    <string name="refresh_desc">Atualizar agora</string>
+    <string name="err_widget_url">URL do widget inválida: só https (ou 127.0.0.1/localhost)</string>
+    <string name="err_panel_url">URL do painel inválida: só https (ou 127.0.0.1/localhost)</string>
+    <string name="err_token">Informe o token do widget (hdw_…)</string>
+    <string name="err_vault">Cofre do aparelho indisponível; o token não foi salvo</string>
+</resources>

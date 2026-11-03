@@ -1,0 +1,9 @@
+name: ci-pr
+on:
+  pull_request:
+    branches: [develop]
+jobs:
+  verify:
+    if: github.event.pull_request.draft == false
+    steps:
+      - run: echo verificar

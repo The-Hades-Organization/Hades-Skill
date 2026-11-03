@@ -1,0 +1,99 @@
+{
+ "schema": "hades.quality/1",
+ "packs": [
+  {
+   "id": "codigo-limpo",
+   "title": "Código limpo",
+   "text": "Nomes, funções, erro explícito, SOLID, comentários e commits: o núcleo que vale para qualquer código.",
+   "rules": ["pratica.nome-revela-intencao", "pratica.funcao-uma-coisa", "pratica.poucos-parametros", "pratica.sem-codigo-morto",
+    "pratica.sem-duplicacao-de-regra", "pratica.retorno-cedo", "pratica.sem-numero-magico", "pratica.escopo-minimo",
+    "pratica.erro-explicito", "pratica.efeito-colateral-na-borda", "pratica.dependencia-injetada", "pratica.imutabilidade-por-padrao",
+    "pratica.composicao-sobre-heranca", "pratica.sem-falha-silenciosa", "pratica.escolha-exaustiva",
+    "solid.responsabilidade-unica", "solid.aberto-fechado", "solid.substituicao", "solid.interface-enxuta", "solid.inversao-de-dependencia",
+    "comentario.explica-porque", "comentario.sem-historia", "comentario.sem-ruido", "comentario.referencia-perene",
+    "comentario.supressao-justificada", "estilo.formatacao-automatica", "estilo.consistencia-local", "estilo.commit-pequeno"]
+  },
+  {
+   "id": "servicos",
+   "title": "Backend de serviços",
+   "text": "API e serviço que roda em produção: camadas, configuração, timeout, desligamento, saúde, erro com código, paginação e limites.",
+   "rules": ["fw.controlador-fino", "fw.configuracao-por-ambiente", "fw.contrato-versionado", "fw.timeout-em-io-externo",
+    "fw.desligamento-gracioso", "fw.saude-viva-e-pronta", "fw.falha-cedo-na-subida", "fw.erro-com-codigo-estavel",
+    "fw.erro-mapeado-pela-causa", "fw.listagem-paginada-com-teto", "fw.efeito-apos-commit", "fw.agendamento-unico-entre-replicas",
+    "fw.recurso-com-dono", "pratica.fronteira-valida-entrada", "pratica.custo-limitado-pela-entrada",
+    "pratica.operacao-composta-atomica", "pratica.tempo-em-utc", "seg.autorizacao-no-servidor", "seg.erro-interno-sem-detalhe",
+    "seg.limite-de-tamanho-e-taxa"]
+  },
+  {
+   "id": "frontend",
+   "title": "Frontend",
+   "text": "Interface no navegador: componente sem regra de negócio, acessibilidade, tradução, tokens, ciclo de vida e corrida de respostas.",
+   "rules": ["fw.ui-sem-regra-de-negocio", "fw.acessibilidade-basica", "fw.ui-texto-traduzido", "fw.ui-tokens-de-design",
+    "fw.ui-estado-derivado", "fw.ui-resposta-obsoleta-descartada", "fw.recurso-com-dono", "fw.reenvio-com-chave-de-idempotencia",
+    "seg.html-sem-sanitizar", "seg.sem-segredo-no-codigo", "pratica.comparar-com-constante-do-contrato", "pratica.escolha-exaustiva",
+    "pratica.fronteira-de-modulo", "ts.sem-any", "ts.sem-assercao-cega", "ts.estreitar-em-vez-de-assertar",
+    "ts.async-sem-esquecer", "ts.configuracao-estrita", "js.igualdade-estrita", "js.sem-console-log", "estilo.um-publico-por-arquivo"]
+  },
+  {
+   "id": "mensageria",
+   "title": "Mensageria e eventos",
+   "text": "Fila, tópico e webhook: entrega repetida, mensagem inválida, contrato do evento, efeito depois do commit e tarefa agendada.",
+   "rules": ["fw.idempotencia-de-consumidor", "fw.mensagem-invalida-para-fila-morta", "fw.topico-no-contrato", "fw.contrato-versionado",
+    "fw.efeito-apos-commit", "fw.reenvio-com-chave-de-idempotencia", "fw.agendamento-unico-entre-replicas",
+    "fw.timeout-em-io-externo", "fw.desligamento-gracioso", "pratica.fronteira-valida-entrada"]
+  },
+  {
+   "id": "contratos",
+   "title": "Contratos e integração",
+   "text": "O que cruza a fronteira entre serviços, cliente e linguagens: evolução aditiva, fonte única, uma grafia e código de erro estável.",
+   "rules": ["fw.contrato-versionado", "fw.contrato-gerado-da-fonte", "fw.erro-com-codigo-estavel", "fw.topico-no-contrato",
+    "pratica.uma-grafia-por-conceito", "pratica.comparar-com-constante-do-contrato", "pratica.escolha-exaustiva",
+    "pratica.codigo-segue-a-spec", "teste.paridade-entre-implementacoes"]
+  },
+  {
+   "id": "observabilidade",
+   "title": "Observabilidade",
+   "text": "Log estruturado e correlacionado, métrica de cardinalidade limitada, caminho degradado visível e sondagens de saúde.",
+   "rules": ["obs.log-estruturado-com-correlacao", "obs.metrica-com-cardinalidade-limitada", "obs.caminho-degradado-visivel",
+    "fw.saude-viva-e-pronta", "seg.log-sem-dado-sensivel", "pratica.sem-falha-silenciosa", "pratica.tempo-em-utc",
+    "js.sem-console-log"]
+  },
+  {
+   "id": "seguranca",
+   "title": "Segurança",
+   "text": "Autorização no servidor, segredo, injeção, conteúdo externo, limites de abuso, erro sem detalhe e auditoria.",
+   "rules": ["seg.autorizacao-no-servidor", "seg.sem-concatenar-consulta", "seg.sem-segredo-no-codigo", "seg.log-sem-dado-sensivel",
+    "seg.dependencia-minima", "seg.erro-interno-sem-detalhe", "seg.limite-de-tamanho-e-taxa", "seg.caminho-e-url-contidos",
+    "seg.html-sem-sanitizar", "seg.origem-e-credencial-no-lugar-certo", "seg.auditoria-de-mutacao",
+    "pratica.fronteira-valida-entrada", "pratica.custo-limitado-pela-entrada"]
+  },
+  {
+   "id": "banco",
+   "title": "Banco e migrações",
+   "text": "Consulta, transação, restrição no banco, data com fuso e migração segura com a versão anterior no ar.",
+   "rules": ["banco.migracao-reversivel", "banco.indice-para-consulta", "banco.sem-n-mais-um", "banco.transacao-curta",
+    "banco.restricao-no-banco", "banco.sem-select-estrela", "banco.dinheiro-sem-float", "banco.data-hora-com-fuso",
+    "banco.dado-fora-da-migracao", "banco.trava-pesada-anunciada", "banco.esquema-igual-as-migracoes",
+    "seg.sem-concatenar-consulta", "pratica.operacao-composta-atomica"]
+  },
+  {
+   "id": "testes",
+   "title": "Testes",
+   "text": "Comportamento em vez de implementação, determinismo, limites e erro, bug com teste e rede antes de refatorar.",
+   "rules": ["teste.comportamento-nao-implementacao", "teste.um-motivo-para-falhar", "teste.deterministico", "teste.sem-mock-do-que-e-seu",
+    "teste.bug-ganha-teste", "teste.limites-e-vazios", "teste.dados-minimos", "teste.rede-antes-de-refatorar",
+    "teste.dependencia-real-ou-falha", "teste.paridade-entre-implementacoes", "teste.orcamento-de-desempenho"]
+  },
+  {
+   "id": "rust",
+   "title": "Rust",
+   "text": "Erro sem pânico, async sem bloqueio, unsafe justificado, tracing, lints no manifesto e testes determinísticos em projeto Rust.",
+   "rules": ["rs.sem-descartar-result", "rs.sem-panic-em-caminho-recuperavel", "rs.erro-tipado-na-api",
+    "rs.erro-preserva-causa", "rs.unsafe-com-safety", "rs.async-sem-bloqueio",
+    "rs.guarda-de-lock-sem-await", "rs.tarefa-com-dono", "rs.log-pelo-tracing",
+    "rs.conversao-numerica-explicita", "rs.visibilidade-minima", "rs.lints-no-manifesto",
+    "rs.gate-fmt-clippy", "rs.ordem-de-hashmap", "rs.tipo-fecha-dominio",
+    "rs.doc-comment-contrato", "rs.crates-em-uma-direcao", "rs.teste-sem-mutar-ambiente"]
+  }
+ ]
+}

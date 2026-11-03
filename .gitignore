@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+node_modules/
+# assinatura e artefatos do widget Android: a keystore nasce em $D/android no build, nunca na árvore
+*.jks
+*.keystore
+keystore.pass
+local.properties
+google-services.json
+kit/android/**/.gradle/
+kit/android/**/build/

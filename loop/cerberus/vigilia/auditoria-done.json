@@ -1,0 +1,9 @@
+{
+  "titulo": "Auditoria do DONE de agente",
+  "momentos": [
+    "done"
+  ],
+  "tipo": "emitida",
+  "origem": "hades agent done",
+  "descricao": "report.md começa com STATUS: DONE, worktree sem mudança, nada sem push e PR aberta (modo skill: só report e worktree)."
+}

@@ -1,0 +1,34 @@
+{
+  "schema": "hades.stack/1",
+  "name": "tauri",
+  "description": "App Tauri (front web + src-tauri em Rust). Some rust-cargo no perfil se o crate tem testes próprios. Custos estimados até a primeira medição.",
+  "detect": {
+    "files": [
+      "src-tauri/tauri.conf.json",
+      "src-tauri/Cargo.toml"
+    ],
+    "all": false
+  },
+  "steps": {
+    "typecheck": {
+      "cmd": "cargo check --manifest-path src-tauri/Cargo.toml",
+      "kind": "build",
+      "costGb": 2
+    },
+    "build": {
+      "cmd": "npx tauri build",
+      "kind": "build",
+      "costGb": 6
+    },
+    "test": {
+      "cmd": "cargo test --manifest-path src-tauri/Cargo.toml",
+      "kind": "test",
+      "costGb": 3
+    }
+  },
+  "guard": {
+    "patterns": [
+      "(^|[;&|]|\\s)(npx\\s+|cargo\\s+|pnpm\\s+)?tauri\\s+build\\b"
+    ]
+  }
+}

@@ -1,0 +1,41 @@
+[
+  [
+    "action",
+    "snapshots"
+  ],
+  {
+    "snapshots": [
+      {
+        "id": "20260101-000000"
+      }
+    ],
+    "bytes": 7
+  },
+  [
+    "Snapshot do banco",
+    "bash <T>/pt-X/snapshot.sh take --label manual",
+    false
+  ],
+  [
+    "Apagar o snapshot 20260101-000000-x",
+    "bash <T>/pt-X/snapshot.sh rm 20260101-000000-x",
+    false
+  ],
+  [
+    "Restaurar o snapshot 20260101-000000",
+    "bash <T>/pt-X/snapshot.sh restore 20260101-000000",
+    true
+  ],
+  "recusa:id de snapshot inválido",
+  "recusa:valor fora da lista: 'apaga'",
+  "recusa:ação desconhecida: nao-existe",
+  "recusa:ação desconhecida: sims",
+  "recusa:ação desconhecida: console",
+  "recusa:ação desconhecida: alarm-sim",
+  "recusa:ação desconhecida: alarm-sim",
+  "recusa:ação desconhecida: bootstrap",
+  "recusa:ação desconhecida: bootstrap",
+  {
+    "error": "plugin_sample"
+  }
+]

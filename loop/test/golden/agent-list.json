@@ -1,0 +1,26 @@
+[
+  {
+    "branch": "skill/demo",
+    "mode": "skill",
+    "name": "demo",
+    "registro": "ativo",
+    "role": "impl",
+    "worktree": "<T>/home/.claude/hades/skill-dev/demo"
+  },
+  {
+    "branch": "svc/feat/SOFTWARE-123-demo",
+    "mode": "deliver",
+    "name": "impl-a",
+    "registro": "ativo",
+    "role": "impl",
+    "worktree": "<T>/agents/impl-a"
+  },
+  {
+    "branch": "",
+    "mode": "deliver",
+    "name": "impl-x",
+    "registro": "ativo",
+    "role": "impl",
+    "worktree": "<T>/agents-hook/impl-x"
+  }
+]

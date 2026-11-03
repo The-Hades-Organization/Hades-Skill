@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Botão ↻ do cabeçalho. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path android:fillColor="@color/hades_primary_text" android:fillType="evenOdd" android:pathData="M17.65,6.35A7.96,7.96 0 0,0 12,4A8,8 0 1,0 19.73,14L17.65,14A6,6 0 1,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11L20,11L20,4Z" />
+</vector>

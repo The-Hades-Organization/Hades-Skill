@@ -1,0 +1,3 @@
+$ draft (dry-run, nada gravado)
+rc=0
+pacotes: 0 · rascunhos: 0

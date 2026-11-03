@@ -1,0 +1,12 @@
+$ guard strict
+guarda de nome (strict): 3 arquivo(s), 3 linha(s) citam projeto
+  foo_GUARD_x.md  1
+  sub/conf.txt  1
+  sub/vocab.md  1
+rc=1
+$ guard report
+guarda de nome (report): 3 arquivo(s), 3 linha(s) citam projeto
+rc=0
+$ pasta limpa
+guarda de nome: núcleo sem nome de projeto
+rc=0

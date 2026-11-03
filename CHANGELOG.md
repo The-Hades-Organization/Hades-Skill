@@ -4,6 +4,17 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.1.1 — 2026-11-03
+
+- **Suíte portável para o CI público.** Os golden deixam de guardar dado da máquina que os gravou, e a suíte
+  `loop/test/ts` volta a passar num runner limpo (o primeiro CI público teve 60 falhas em 23 testes). Agora são
+  normalizados no teste o usuário do `plan.json`, o conteúdo de hooks e objects de repositório git, as frases do `sh` e
+  do git e o tamanho dos worktrees do `clean`, que nascem sem modelo de hook nem compressão. A presença de `qrencode` e
+  `bwrap` é fixada por stub, e o doctor completo não lê pela rede a versão publicada. O comportamento do produto não muda.
+- Armadilha medida: simular o runner com `env -i HOME=<tmp>` não pega nada disso, porque as ferramentas continuam no PATH
+  e o uid é o mesmo. Use um container `ubuntu:24.04` com usuário `runner`, bun e node, sem herdr, docker, systemd nem
+  notify-send (`reference/evolving.md` §Golden que depende da máquina).
+
 ## 6.1.0 — 2026-11-03
 
 - **Painel: `Select` próprio no lugar do select nativo** (issue #2). `HadesCore.Select` e `HadesPanel.Select` (para plugins):

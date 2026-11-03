@@ -115,7 +115,8 @@ describe("contrato systemd", () => {
     rmSync(`${SC}/argv.log`, { force: true });
     calls();
     const o = r.X([`${r.env0.HADES_BUN}`, `${SKILL}/loop/test/ts/lib/contrato-painel.ts`, D], { env: base(), merge: true });
-    const chamadas = calls().split("\n").filter((l) => /list-units|show|journalctl/.test(l)).join("\n");
+    // o amostrador dispara as chamadas em paralelo: o contrato é o conjunto, não a ordem
+    const chamadas = calls().split("\n").filter((l) => /list-units|show|journalctl/.test(l)).sort().join("\n");
     secoes.push(norm(`## amostrador e log de unit\nrc=${o.rc}\n${o.out}-- systemctl (list-units e show)\n${chamadas}\n-- journalctl\n${rd(`${SC}/argv.log`).split("systemd-run")[0]}`));
     expect(o.rc).toBe(0);
   });

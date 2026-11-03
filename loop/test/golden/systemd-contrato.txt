@@ -222,9 +222,9 @@ extra panel {"state":"active","sub":"running","result":"success","restarts":2,"m
 log unit: {"text":"2026-01-01T00:00:00+0000 host hds-panel[1]: no ar\n"}
 -- systemctl (list-units e show)
 --user list-units hds-* --all --plain --no-legend
+--user list-units hds-pjob-* --plain --no-legend --state=active
 --user show -p Id,ActiveState,SubState,Result,NRestarts,MemoryCurrent,CPUUsageNSec,ActiveEnterTimestampMonotonic,ExecMainStatus hds-api.service hds-devtunnel.service hds-panel-tunnel.service hds-panel.service hds-widget-tunnel.service
 --user show hades.slice -p ControlGroup --value
---user list-units hds-pjob-* --plain --no-legend --state=active
 -- journalctl
 journalctl
   --user

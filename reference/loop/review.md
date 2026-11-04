@@ -151,3 +151,21 @@ local. Mais o que foi deduplicado, o que ficou de fora do lote por `--max`, e o 
 lock ou por `review.headOid` igual.
 
 Se um agente não teve nada a reportar, diga "sem achados" — omitir o agente esconde cobertura.
+
+## 6. Revisão pelo painel e `hades review`: fila e fases
+
+Isto vale para a revisão disparada pela página Revisões (units `hds-pjob-*`) e para o `hades review` no terminal, não
+para o lote deste modo.
+
+- **Teto.** No máximo `HADES_REVIEW_MAX_PARALLEL` revisões (padrão 4, Configurações → Modelos por papel) rodam juntas na
+  máquina: um semáforo por arquivo de lock (`~/.claude/hades/reviews/slots/slot-<i>.lock`, `flock` não bloqueante, sem
+  processo central; o kernel solta a vaga se o processo morrer). A revisão que excede o teto espera em `fila`, sem falhar
+  e sem prazo; 25 disparos juntos viram 4 rodando e 21 esperando. O que o dono não deve fazer: contornar com `xargs -P`.
+- **Prazo.** `GIT_TIMEOUT_MS` (300 s) do `fetch` e do `worktree add` só começa a correr depois da admissão: esperar na fila
+  não consome o prazo.
+- **Fases.** `fila` → `fetch` → `checkout` → `revisão` → `publicação` (esta só com `--post`, quando a sessão chama
+  `gh api` ou `hades review-record`). Aparecem como linha `[fase] <nome>` no log, em **Em curso** (Revisões) e na
+  página Execuções.
+- **Checkout leve (medido, não adotado).** `--no-checkout` ou sparse com os caminhos do diff tiram do worktree o código
+  vizinho que o `/review-pr` e os subagentes leem (chamadores, testes, contratos); o prazo deixa de estourar, mas o
+  review perde contexto. Com a fila, o checkout completo de ~4 por vez cabe no prazo. Medição no relatório da unidade.

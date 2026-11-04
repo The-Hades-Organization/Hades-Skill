@@ -163,7 +163,9 @@ Tour da página (§Tour por página): escalações, PRs com atividade, ações e
 
 Página **Orquestração** (grupo Loop): agentes do orquestrador, perguntas ao dono, relatórios e PRs de consolidação (`reference/loop/orchestrate.md`).
 
-Tour da página (§Tour por página): perguntas, agentes e o cartão deles, consolidações, decisões autônomas e encerrados, com prévia de quatro agentes de exemplo (nenhum com pane, e abrir arquivo ou terminal fica desligado). Código: `ui/pages/orchestration.tour.tsx`.
+**Publicar (Minos):** o card "Acompanhamento publicável" tem o botão *Publicar*, que chama `POST /api/orchestration/publish`: o servidor lê o plano aprovado (`plan.json`), gera a página offline em `$D/minos/offline/orquestracao.html` (a mesma do `hades minos publish --html`, pelo Cerberus antes de gravar) e a resposta traz o arquivo e o comando `hades minos publish orquestracao <plano>` para a sessão do Claude publicar no Artifact. Sem plano aprovado responde `ok: false` com a mensagem, sem erro; o Cerberus barrando devolve os motivos (sem o trecho achado). O painel não publica e não grava link. `reference/minos.md`.
+
+Tour da página (§Tour por página): publicar, perguntas, agentes e o cartão deles, consolidações, decisões autônomas e encerrados, com prévia de quatro agentes de exemplo (nenhum com pane, e abrir arquivo ou terminal fica desligado). Código: `ui/pages/orchestration.tour.tsx`.
 
 ### Autonomia do orquestrador (Configurações e Orquestração)
 
@@ -204,6 +206,13 @@ Cada PR escolhida vira um job `hds-pjob-*` que roda `hades review`:
    O executor grava `~/.claude/hades/reviews/<id>.json` com essa linha, o custo, os tokens e a duração do resultado do
    `claude -p` (tokens pelo `modelUsage`, que inclui os subagentes, com o detalhe em `tokensByModel`), e `<id>.md` com o
    relatório.
+
+**Fila e fases.** O `hades review` entra num semáforo por arquivo de lock (`~/.claude/hades/reviews/slots/slot-<i>.lock`,
+`flock` não bloqueante, solto pelo kernel se o processo morrer) com teto em `HADES_REVIEW_MAX_PARALLEL` (padrão 4), valendo
+para o painel e para o terminal. Quem passa do teto espera em `fila`, sem prazo e sem falhar; os prazos do git (`GIT_TIMEOUT_MS`)
+só correm depois da admissão. Cada job expõe a fase (`fila`, `fetch`, `checkout`, `revisão`, `publicação`): a linha
+`[fase] <nome>` no log, o campo `fase`/`faseDesde` do registro em `reviews/<id>.json` (card **Em curso** de Revisões) e o
+arquivo `logs/panel-jobs/<job>.phase` que a página **Execuções** lê enquanto o job roda.
 
 Para testar o preparo sem gastar tokens nem publicar: `hades review … --dry-run` faz o fetch, cria e remove o
 worktree e mostra o prompt.
@@ -585,8 +594,18 @@ observadores e descarta o terminal; a sessão **não** é fechada (para isso, `P
   verdadeiro) e o xterm a toma por tecla, o que somava ao texto composto (`aaá`). O `PtyTerminal` liga `composeGate`
   (`term-logic.tsx`) na captura do elemento do xterm: ele segura os `keydown`, `compositionupdate` e `input` da composição e
   entrega o caractere composto uma vez (`term.input`). Composição de IME (CJK) não passa por ele: fica com o xterm.
-- *Roda:* o xterm anda pelo histórico dele em buffer normal. Em tela alternativa (`claude`, `herdr-client`) a roda vai ao
-  programa, que a trata; a sessão PTY não conhece um pane, então o `/api/herdr/scrollback` só vale no nó do Argos.
+- *Roda:* o xterm anda pelo histórico dele em buffer normal. Em tela alternativa:
+  - **`herdr-client`** (a sessão PTY mostra um pane): a roda anda pelo histórico do pane, o mesmo `/api/herdr/scrollback` do nó
+    do Argos, com a mesma regra (`wheelStep`, `wheelScroll`, `historyLoaded` e a janela, hoje em `term-logic.tsx`, que o nó
+    importa). O servidor diz a sessão do herdr do cliente (`herdrSession` em `/api/term`); a página lê `/api/herdr` e usa o
+    pane em foco (workspace, aba e pane focados) e desenha a janela do histórico num xterm só de leitura por cima do terminal.
+    Volta ao vivo ao descer até o fim, ao digitar, ao sair da tela alternativa, ao mudar o tamanho ou em "Ir ao fim". Ctrl, Alt e
+    Meta com a roda seguem ao navegador (zoom).
+  - **Sem pane conhecido** (`claude`, `shell`): a roda continua indo ao programa e a página mostra uma dica (PageUp/PageDown ou o
+    atalho de rolagem do programa) na primeira vez em tela alternativa, uma vez por carga da página.
+  - *Como a sessão sabe o pane:* ela não sabe, e o ambiente não ajuda: o PTY herda o ambiente do painel, então um
+    `HERDR_PANE_ID` ali seria o do pane do próprio painel. Só o `herdr-client` mostra o herdr, e o pane é o que está em foco na
+    sessão dele (o foco é do servidor do herdr: com dois clientes na mesma sessão, o foco é o mesmo para os dois).
 - *Armadilhas medidas:* o `post()` da base não repassa o `Retry-After`, então o componente chama `open` com `fetch` próprio
   (mesmo token e mesma renovação); o xterm 6 não traz o addon de links (o componente registra o seu provedor, uma linha
   por vez, sem URL partida entre linhas); aba oculta mede 0 colunas e não manda resize.

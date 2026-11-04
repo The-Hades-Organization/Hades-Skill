@@ -27,7 +27,7 @@ preso no popover. `onboard.sh reset` esquece a escolha e o tour. Pela CLI: `$D/o
 ```bash
 $D/onboard.sh status [--json|--brief|--doctor|--line] [--quick]   # estado; --line = só a linha do que falta (vazia se completo)
 $D/onboard.sh tour seen|skip        # marca o tour do painel como visto ou pulado
-$D/onboard.sh show <feature>        # instruções e comandos: remoto · notificacoes · automatico · contas
+$D/onboard.sh show <feature>        # instruções e comandos: remoto · notificacoes · automatico · contas · minos
 $D/onboard.sh select <feature…>     # escolher para preparar   $D/onboard.sh skip <feature…>   # não preparar
 $D/onboard.sh done|undone <passo>   # marca um passo manual (instalar o PWA, assinar o ntfy)
 $D/onboard.sh run <passo>           # roda o comando de um passo da Hades (peça o ok do dono antes)
@@ -77,6 +77,7 @@ Passos de hoje:
 | Notificações | desktop (Hades) · ntfy ligado (Hades) · assinar o tópico no celular (dono, manual) · teste de envio (Hades, manual: feito quando o `run` sai com 0) |
 | Início automático | painel no login/boot (Hades) · linger (Hades, só no modo boot) · firewall docker → host (dono, sudo). No macOS (launchd) o linger é `na` (o painel sobe no login) e o firewall não sugere ufw nem firewalld |
 | Contas e loop | conta gh / `HADES_GH_USER` (dono) · ClickUp (dono) · herdr (dono) · coleta do % das janelas, `hades usage sample` no `statusLine` (dono; medido pelo `settings.json`, que a Hades não altera) · serviços, dados e processos de apoio do ambiente do projeto (Hades) |
+| Página do time (Minos) | liga a página do time, `config.sh set HADES_MINOS_TEAM=1` (Hades, manual; opcional, desligada por padrão; só conta se você escolher o recurso; `reference/minos.md`) |
 
 ### Checagens, sem duplicar o doctor
 

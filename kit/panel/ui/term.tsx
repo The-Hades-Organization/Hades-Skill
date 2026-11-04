@@ -139,9 +139,14 @@ function useTermRoots() {
  *  onState({phase, ...}) a cada mudança; onExit({code, signal}) quando o processo sai; onOpened(sessão) depois do `open`.
  *  `apiRef`: objeto do dono (barra de teclas do celular) que o terminal preenche com send/paste/focus/toBottom/appCursor/copyable
  *  enquanto está no ar; o dono pode pôr `filter(texto) -> texto` nele para mexer na entrada digitada (Ctrl fixo). */
+// a dica da roda sem pane aparece uma vez por carga da página (term-logic.tsx)
+const wheelHint = L.createWheelHint();
+const WHEEL_HINT_MS = 8000;
+
 function PtyTerminal({ id, open, onExit, onState, onOpened, className, fontSize, apiRef }) {
   const host = useRef(null);
   const [following, setFollowing] = useState(true);
+  const [hint, setHint] = useState('');
   const toEnd = useRef(() => {});
   const [phase, setPhase] = useState({ kind: 'opening' });
   const [nonce, setNonce] = useState(0);
@@ -154,7 +159,9 @@ function PtyTerminal({ id, open, onExit, onState, onOpened, className, fontSize,
     const key = `${id || ''}|${openKey}`;
     if (keyRef.current !== key) { keyRef.current = key; sidRef.current = null; }
     let dead = false, ws = null, term = null, fit = null, attempt = 0, off = L.offsetInitial(), last = null, gotHello = false;
-    let timer = 0, ping = 0, fitTimer = 0, settleTimer = 0, ro = null, xt = null, unbindCompose = null;
+    let timer = 0, ping = 0, fitTimer = 0, settleTimer = 0, hintTimer = 0, ro = null, xt = null, unbindCompose = null;
+    // roda em tela alternativa (#18): histórico do pane do herdr, com a regra de volta ao vivo do nó do Argos (term-logic.tsx)
+    let info = null, sc = L.scrollLive(), wheelRest = 0, loadingHistory = false, inHistory = false, ovXt = null, ovEl = null;
     const show = (p) => { if (dead) return; setPhase(p); cb.current.onState?.(p); };
     const note = (text) => term?.write(`\r\n\x1b[2m[${text}]\x1b[0m\r\n`);
     const send = (data) => { if (ws && ws.readyState === 1) ws.send(data); };
@@ -163,7 +170,85 @@ function PtyTerminal({ id, open, onExit, onState, onOpened, className, fontSize,
       if (!size || L.sameSize(size, last)) return;
       last = size; send(JSON.stringify({ t: 'resize', cols: size.cols, rows: size.rows }));
     };
-    const refit = () => { try { fit.fit(); } catch (e) { return; } sendSize(); };
+    // a janela do histórico tem a grade de antes: só um resize de verdade a descarta (o ResizeObserver também dispara sem mudança)
+    const refit = () => {
+      const [cols, rows] = [term.cols, term.rows];
+      try { fit.fit(); } catch (e) { return; }
+      sendSize();
+      if (inHistory && (term.cols !== cols || term.rows !== rows)) backToLive();
+    };
+
+    // a sessão que mostra um pane do herdr é o `herdr-client`: o painel guarda a sessão do herdr dele (a lista de sessões)
+    const sessionInfo = async () => {
+      if (info) return info;
+      try {
+        const d = await fetch('/api/term', { cache: 'no-store' }).then((r) => r.json());
+        const mine = Array.isArray(d.sessions) ? d.sessions.find((x) => x.id === sidRef.current) : null;
+        if (mine) info = mine;
+      } catch (e) { /* sem a lista, a roda segue ao programa */ }
+      return info;
+    };
+    const hasPane = () => !!info && info.kind === 'herdr-client' && typeof info.herdrSession === 'string';
+    const showHint = () => {
+      setHint(L.WHEEL_HINT_TEXT);
+      window.clearTimeout(hintTimer);
+      hintTimer = window.setTimeout(() => setHint(''), WHEEL_HINT_MS);
+    };
+    const drawHistory = () => {
+      if (!ovXt) {
+        ovEl = document.createElement('div');
+        ovEl.setAttribute('data-term-history', '');
+        ovEl.className = 'pointer-events-none absolute inset-2 overflow-hidden bg-term';
+        host.current.parentElement.appendChild(ovEl);
+        ovXt = createXterm(ovEl, { fontSize, scrollback: 0, readOnly: true });
+        ovXt.term.attachCustomKeyEventHandler(() => false);
+      }
+      if (ovXt.term.cols !== term.cols || ovXt.term.rows !== term.rows) ovXt.term.resize(term.cols, term.rows);
+      ovXt.term.write(L.screenOf(L.historyWindow(sc.lines, term.rows, sc.offset).join('\r\n')));
+    };
+    function backToLive() {
+      sc = L.scrollLive(); wheelRest = 0; inHistory = false;
+      if (ovXt) { ovXt.dispose(); ovXt = null; }
+      if (ovEl) { ovEl.remove(); ovEl = null; }
+      if (term) setFollowing(L.isFollowing(term.buffer.active.viewportY, term.buffer.active.baseY));
+    }
+    const loadHistory = async () => {
+      if (loadingHistory) return;
+      loadingHistory = true;
+      try {
+        const q = `session=${encodeURIComponent(info.herdrSession)}`;
+        const overview = await fetch(`/api/herdr?${q}`, { cache: 'no-store' }).then((r) => r.json());
+        const pane = L.focusedPaneOf(overview);
+        if (!pane) throw new Error('nenhum pane em foco no herdr');
+        const r = await fetch(`${L.HISTORY_URL}?pane=${encodeURIComponent(pane)}&lines=${L.HISTORY_LINES}&${q}`, { cache: 'no-store' });
+        const body = await r.json();
+        if (!r.ok) throw new Error(body && body.error ? String(body.error) : `http_${r.status}`);
+        if (dead) return;
+        sc = L.historyLoaded(sc, L.historyLinesOf(body.ansi), term.rows);
+        if (sc.lines === null) { backToLive(); return; }
+        inHistory = true; setFollowing(false); drawHistory();
+      } catch (err) {
+        if (dead) return;
+        backToLive();
+        note(`histórico indisponível: ${err instanceof Error ? err.message : 'erro'}`);
+      } finally { loadingHistory = false; }
+    };
+    const onWheel = (e) => {
+      const alt = term.buffer.active.type === 'alternate';
+      // Ctrl, Alt e Meta são do navegador (zoom); o buffer normal segue com o xterm
+      if (!alt || e.ctrlKey || e.altKey || e.metaKey) return true;
+      if (L.wheelRoute(alt, hasPane()) === 'program') { if (wheelHint.take()) showHint(); return true; }
+      e.preventDefault();
+      const grid = term.element?.querySelector('.xterm-screen');
+      const turn = L.wheelStep(wheelRest, e, term.rows, grid ? grid.getBoundingClientRect().height / term.rows : NaN);
+      wheelRest = turn.rest;
+      if (turn.lines === 0) return false;
+      const wasLive = sc.lines === null;
+      sc = L.wheelScroll(sc, turn.lines, term.rows);
+      if (wasLive) { if (sc.pending > 0) void loadHistory(); return false; }
+      if (sc.lines === null) backToLive(); else drawHistory();
+      return false;
+    };
 
     // queda sem hello: a sessão some da lista ou a chave desliga? Decide pelo dado, não pelo erro do navegador
     const probeServer = async () => {
@@ -195,6 +280,7 @@ function PtyTerminal({ id, open, onExit, onState, onOpened, className, fontSize,
       if (!m || typeof m !== 'object') return;
       if (m.t === 'hello') {
         gotHello = true; attempt = 0; off = L.onHello(off, m); last = null;
+        void sessionInfo();
         show({ kind: 'live', exited: m.state === 'exited' });
         sendSize();
         term.focus();
@@ -233,7 +319,9 @@ function PtyTerminal({ id, open, onExit, onState, onOpened, className, fontSize,
       ({ term, fit } = xt);
       refit();
       const sendText = (s) => { for (const c of L.chunkInput(enc.encode(s))) send(c); };
-      term.onData((s) => { const f = apiRef?.current?.filter; sendText(f ? f(s) : s); });
+      term.onData((s) => { if (inHistory) backToLive(); const f = apiRef?.current?.filter; sendText(f ? f(s) : s); });
+      term.attachCustomWheelEventHandler(onWheel);
+      term.buffer.onBufferChange(() => { if (inHistory) backToLive(); });
       term.onBinary((s) => { for (const c of L.chunkInput(Uint8Array.from(s, (ch) => ch.charCodeAt(0)))) send(c); });
       // tecla morta (´ ~ ^ + letra): o Firefox manda a letra base como keydown durante a composição e o xterm a toma por tecla
       const gate = L.composeGate((text) => term.input(text, true), { value: () => term.textarea.value, clear: () => { term.textarea.value = ''; } });
@@ -253,10 +341,10 @@ function PtyTerminal({ id, open, onExit, onState, onOpened, className, fontSize,
         if (mod && k === 'c' && (e.shiftKey || term.hasSelection())) { copyText(term.getSelection()); return false; }
         return true;
       });
-      const follow = () => setFollowing(L.isFollowing(term.buffer.active.viewportY, term.buffer.active.baseY));
+      const follow = () => setFollowing(!inHistory && L.isFollowing(term.buffer.active.viewportY, term.buffer.active.baseY));
       term.onScroll(follow);
       term.onWriteParsed(follow);
-      toEnd.current = () => { term.scrollToBottom(); setFollowing(true); };
+      toEnd.current = () => { backToLive(); term.scrollToBottom(); setFollowing(true); };
       const api = apiRef?.current;
       if (api) Object.assign(api, {
         send: sendText, paste: (t) => term.paste(t), focus: () => term.focus(), toBottom: toEnd.current,
@@ -294,8 +382,9 @@ function PtyTerminal({ id, open, onExit, onState, onOpened, className, fontSize,
 
     return () => {
       dead = true;
-      window.clearTimeout(timer); window.clearTimeout(fitTimer); window.clearTimeout(settleTimer); window.clearInterval(ping);
+      window.clearTimeout(timer); window.clearTimeout(fitTimer); window.clearTimeout(settleTimer); window.clearTimeout(hintTimer); window.clearInterval(ping);
       unbindCompose?.();
+      backToLive();
       window.removeEventListener('online', wake);
       document.removeEventListener('visibilitychange', wake);
       ro?.disconnect();
@@ -313,9 +402,10 @@ function PtyTerminal({ id, open, onExit, onState, onOpened, className, fontSize,
     : p.kind === 'reconnecting' ? `Conexão perdida. Tentativa ${p.attempt} em ${Math.max(1, Math.round(p.inMs / 1000))} s…`
     : p.kind === 'gaveup' ? 'Sem conexão com o painel.' : p.kind === 'ended' ? (p.reason === 'drop' ? '' : L.reasonText(p.reason)) : '';
   return <div className={cn('relative flex min-h-0 flex-col overflow-hidden bg-term text-term-foreground', className)} data-term-phase={p.kind} data-term-reason={p.reason || undefined}>
-    <div className={cn('min-h-0 flex-1 p-2', refused && 'invisible')}>
+    <div className={cn('relative min-h-0 flex-1 p-2', refused && 'invisible')}>
       <div ref={host} className="size-full" role="group" aria-label="Terminal" />
     </div>
+    {hint ? <div role="status" data-term-hint className="pointer-events-none absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] border border-border bg-popover px-2 py-1 t-meta text-term-muted">{hint}</div> : null}
     {following || refused ? null : <Button size="sm" variant="outline" icon={I.ArrowDownToLine} className="absolute right-3 bottom-3 min-h-11 bg-popover max-md:min-w-11" onClick={() => { toEnd.current(); apiRef?.current?.focus?.(); }}>Ir ao fim</Button>}
     {refused ? <div className="absolute inset-0 grid place-content-center justify-items-center gap-3 p-6 text-center" role="alert">
       <I.SquareTerminal className="size-6 text-term-muted" aria-hidden="true" />

@@ -185,7 +185,7 @@ describe("hades-review: worktree descartável, prompt, registro do histórico e 
     const fix = (s: string) => r.norm(s);
     let t = fix(rcLine(o)) + "\n";
     if (existsSync(rvh)) {
-      for (const f of readdirSync(rvh).filter((x) => x.endsWith(".json")).sort()) t += jqS(readFileSync(`${rvh}/${f}`, "utf8"), ["started", "ended", "claudePid"]);
+      for (const f of readdirSync(rvh).filter((x) => x.endsWith(".json")).sort()) t += jqS(readFileSync(`${rvh}/${f}`, "utf8"), ["started", "ended", "claudePid", "faseDesde"]);
       for (const f of readdirSync(rvh).filter((x) => x.endsWith(".md")).sort()) t += `--- ${f}\n${readFileSync(`${rvh}/${f}`, "utf8")}`;
     }
     t += lines(slurp(`${RV}/claude.log`)).filter((l) => l !== "" && !/^cwd=\S* --version$/.test(l)).map(fix).join("\n") + "\n";

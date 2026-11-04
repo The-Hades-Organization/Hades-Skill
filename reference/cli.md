@@ -96,6 +96,7 @@ Notas do `agent`:
 |---|---|---|
 | `skill-release drift\|check [--regressao]\|guard\|release <nível> "<resumo>"` | evolução da própria skill: drift, check (guardas, `bash -n`, `tsc`, perfis, regressão `bun test` pela fila de gates com pulo por HEAD verde, instalação descartável), release | `kit/skill-release.sh` |
 | `contrib suggest\|prepare\|pr\|html --title <t> --why <t> --gains <l> --proof <t> [--what <t>] [--base <ref>] [--slug <s>] [--yes]` | devolve ao repo da skill a melhoria do núcleo: guarda de nome/domínio/segredo, PR com confirmação (com acesso de escrita) ou `.html` (sem acesso); nada sai sozinho (`reference/contrib.md`) | — |
+| `minos list\|publish orquestracao <plano.md> [--html <arquivo>] [--team]\|link <saída> <url>\|open <saída> [--print]` | páginas publicáveis da Hades (v1: o acompanhamento da orquestração): monta a página e os dados, passa o Cerberus antes de gravar (recusa sai 1 e não grava nada) e devolve o arquivo que a sessão publica com a ferramenta Artifact; `--html` grava só o arquivo offline; `--team` recusa com `HADES_MINOS_TEAM=0`; `link` guarda o link para atualizar no mesmo lugar. `reference/minos.md` | — |
 
 ## install
 

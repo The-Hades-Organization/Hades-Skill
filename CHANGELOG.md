@@ -4,6 +4,44 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.7.0 — 2026-11-04
+
+Minos, o publicador do acompanhamento da orquestração (issue #15); fila de revisões com teto (issue #14); permissão do
+Argos respondível quando o aviso não nomeia a ferramenta (issue #16); roda em tela alternativa na página Terminal (issue #18).
+
+- **Minos** (`reference/minos.md`): `hades minos list|publish|link|open`. O modelo `orquestracao` declara um contrato JSON
+  (validado na fronteira) montado do plano, dos agentes, das PRs, das escalações e do consumo do Moirai; a página é
+  estática, gerada no servidor com tudo escapado, nos temas claro e escuro, e a mesma serve ao `--html` offline. Publicar
+  num Artifact é da sessão do Claude: o `publish` prepara a página e os dados e o `link` grava o endereço estável
+  (só `https://claude.ai/.../artifact/<id>`). O Cerberus roda antes de gerar qualquer saída (varredura em memória e o
+  momento `artefato`); recusa sai 1 sem gravar nada. Botão **Publicar** na página Orquestração
+  (`POST /api/orchestration/publish`). A **Página do time** é recurso opcional próprio no onboarding (`@minos`,
+  `HADES_MINOS_TEAM=0` por padrão): como passo de "Contas e loop" ela deixaria a feature pendente para sempre.
+- **Fila de revisões** (`reference/loop/review.md` §6): `hades review`, do painel ou do terminal, respeita
+  `HADES_REVIEW_MAX_PARALLEL` (padrão 4) por um semáforo de `flock(2)` em `reviews/slots/slot-<i>.lock`, sem processo
+  central; o kernel solta a vaga se a revisão morrer. O excedente espera em `fila` sem falhar, e o prazo de 300 s do
+  `fetch` e do `worktree add` só corre depois da admissão. Cada job mostra a fase (fila, fetch, checkout, revisão,
+  publicação) no log, em Revisões › Em curso e na página de jobs. Motivo: 25 revisões disparadas juntas derrubaram 23 por
+  prazo de checkout (load 62, 8 GB de swap). Medido e não adotado: checkout sparse ou `--no-checkout` pelo diff (108 ms
+  contra 7–22 ms num repo pequeno) tira do review o código vizinho que ele lê.
+- **Permissão no Argos:** quando o aviso do Claude Code não traz "use <Ferramenta>", o pedido chegava com `tool: null` e
+  Aprovar/Negar ficavam desabilitados. A ferramenta agora vem do último `tool_pre` sem `tool_post` antes do pedido (zera em
+  `stop`, `prompt` e no fim do agente); o texto "use X" continua vencendo. Com os botões desabilitados, o diálogo sempre
+  diz o motivo e manda ao terminal do agente; herdr fora de `blocked` cita o estado.
+- **Roda na página Terminal:** com o `herdr-client` em tela alternativa, a roda anda pelo histórico do pane em foco da
+  sessão (`/api/herdr/scrollback`, mesma regra e mesma volta ao vivo do nó do Argos, agora uma só em `term-logic.tsx`);
+  sem pane (`claude`, shell), a roda segue ao programa e uma dica de PageUp/PageDown aparece uma vez. `/api/term` ganha
+  `herdrSession`.
+- Armadilhas: o ambiente do PTY é o do painel, então `HERDR_PANE_ID` ali não identifica pane (o pane vem do foco da sessão
+  do herdr; dois clientes na mesma sessão veem o mesmo); o `Notification` do hook não traz a ferramenta em campo
+  estruturado; o ResizeObserver dispara sem mudança de tamanho, por isso o refit só descarta o histórico com cols/rows
+  novos; `readonly x` no construtor quebra o `erasableSyntaxOnly`; registro com hora real (`faseDesde`) precisa sair da
+  comparação dos goldens, como `started`; a Vigília lê todo caminho do parágrafo "não toque" do brief como proibido, então
+  arquivo compartilhado liberado para acréscimo vai em parágrafo próprio.
+- Consolidação: as quatro unidades rodaram em paralelo pelo `skill-new`; gate único no fim com o mesmo roteiro do CI
+  (`tsc` dos dois configs, guarda e suíte: 5952 passam). Os 4 testes de `notify-lock` falham igual na 6.6.0 nesta máquina
+  (causa ainda não investigada): anterior, não regressão.
+
 ## 6.6.0 — 2026-11-04
 
 Resumidores por stack entregues pelo rtk (issue #10) e terminais do painel com acentuação e rolagem corretas (issues #12 e #13).

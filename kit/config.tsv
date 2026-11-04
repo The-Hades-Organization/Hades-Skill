@@ -69,6 +69,7 @@ HADES_EFFORT_ESCALATE	high	enum:low,medium,high,xhigh,max	Modelos por papel	Esfo
 HADES_ESCALATE_GATE_WAVES	2	int:1:6	Modelos por papel	Escalar depois de quantas ondas de gate	next	Ondas de correção com o gate ainda falhando antes de o agente parar e pedir escalada.
 HADES_REVIEW_SUBAGENT_MODELS	default=sonnet,review-impact-judge=opus,review-database=opus,review-security=opus	modelmap	Modelos por papel	Modelo dos subagentes de review	agents	Por subagente em ~/.claude/agents (padrão = os demais). Valores: inherit, haiku, sonnet, opus. Aplicar grava o model: de cada um.
 HADES_CTX_GUARD	1	bool	Contexto e espera	Teto de contexto ligado	hooks	Hook em toda sessão: acima do teto, a sessão orquestrada grava o handoff e para; a interativa avisa para /clear.
+HADES_REVIEW_MAX_PARALLEL	4	int:1:32	Modelos por papel	Revisão de PR alheia: revisões ao mesmo tempo	next	Teto de revisões de PR rodando juntas (painel e `hades review`); as que passam do teto esperam na fila, sem falhar.
 HADES_CTX_CAP_ORCHESTRATOR	250000	int:50000:1000000	Contexto e espera	Teto: orquestrador (tokens)	hooks	
 HADES_CTX_CAP_SPEC	200000	int:50000:1000000	Contexto e espera	Teto: spec (tokens)	hooks	
 HADES_CTX_CAP_IMPL	200000	int:50000:1000000	Contexto e espera	Teto: implementação (tokens)	hooks	
@@ -186,3 +187,4 @@ HADES_LIMITS_WARN_SEVEN_PCT	90	int:1:100	Orquestração	Limites: aviso da janela
 HADES_RTK_FILTERS	auto	enum:auto,off	Resumidores (rtk)	Filtros de saída do rtk	next	auto liga os filtros por stack nos worktrees quando o rtk está instalado; off remove o .rtk/filters.toml gerado. Vale na próxima instalação ou criação de agente (ou `hades rtk apply`). Só o dono muda; o agente vê mais com `rtk proxy <comando>`.
 HADES_RTK_OFF_STACKS		tags	Resumidores (rtk)	Stacks sem resumidor	next	Stacks (node-nx, pnpm-next, rust-cargo, tauri; vírgulas) cujos filtros não entram no worktree.
 HADES_RTK_OFF_FILTERS		tags	Resumidores (rtk)	Filtros desligados	next	Nomes de filtro (node-nx-nx, node-nx-jest, pnpm-next-exec, pnpm-next-script, rust-cargo-extra, tauri-build, ou do plugin; vírgulas) que ficam de fora.
+HADES_MINOS_TEAM	0	bool	Minos	Página do time	next	Liga a página do time do Minos (hades minos publish --team). Ela expõe o estado do trabalho a terceiros, então vem desligada; a página pessoal é sempre possível. Compartilhar o artifact é decisão sua, no claude.ai.

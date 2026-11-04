@@ -29,7 +29,7 @@ HadesCore.registerTour('jobs', {
     {
       id: 'jobs-execucao',
       title: 'A execução escolhida',
-      body: 'O título, a primeira linha do comando, quando começou, quanto levou e, se falhou, o código de saída. Marca também se a ação é exclusiva e bloqueia outras do ciclo.',
+      body: 'O título, a primeira linha do comando, a fase quando a execução a declara (as revisões de PR: fila, fetch, checkout, revisão, publicação), quando começou, quanto levou e, se falhou, o código de saída. Marca também se a ação é exclusiva e bloqueia outras do ciclo.',
       fallback: 'Este detalhe fica ao lado do histórico e só em tela larga (a partir de 1024 px). No celular, toque numa execução para abrir o log na gaveta.',
       side: 'bottom',
     },

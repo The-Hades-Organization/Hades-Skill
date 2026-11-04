@@ -20,6 +20,8 @@ export function loadNodeTty(): Promise<Dict> {
       useEffect: () => undefined, useRef: (v: unknown) => ({ current: v }), cn: (...a: unknown[]) => a.filter(Boolean).join(" "),
     };
     const scope: Dict = { CanvasModel: holder.CanvasModel };
+    // a regra de rolagem vem de term-logic.tsx, que o painel carrega antes do node-tty
+    new Function("globalThis", "window", createUiTranspiler().transpile(join(uiDir, "term-logic.tsx")))(scope, scope);
     new Function("globalThis", "window", "React", "HadesCore", createUiTranspiler().transpile(join(uiDir, "argos/node-tty.tsx")))(scope, scope, mod.exports, HadesCore);
     return scope.ArgosNodeTty;
   })();

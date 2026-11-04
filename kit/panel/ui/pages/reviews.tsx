@@ -10,6 +10,8 @@ const REVIEW_CMD = { 'review-pr': ['/review-pr', 'Uma sessão revisa sozinha. R�
 const VERDICT = { red: ['Bloqueia', 'text-bad', I.OctagonX], yellow: ['Pede ajustes', 'text-warn', I.TriangleAlert], green: ['Aprova', 'text-ok', I.CircleCheck] };
 const EFFORT = { low: 'baixo', medium: 'médio', high: 'alto' };
 const MAX_PRS = 6;
+const FASE_ROTULO = { fila: 'na fila', fetch: 'buscando a PR', checkout: 'preparando o worktree', 'revisão': 'revisando', 'publicação': 'publicando' };
+const faseDe = (r) => r.fase ? FASE_ROTULO[r.fase] || r.fase : 'iniciando';
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const usd = (v) => 'US$ ' + v.toFixed(2).replace('.', ',');
 const tok = (v) => v == null ? '—' : v >= 1e6 ? (v / 1e6).toFixed(v >= 1e7 ? 0 : 1).replace('.', ',') + 'M' : v >= 1000 ? Math.round(v / 1000) + 'k' : String(v);
@@ -99,8 +101,9 @@ function EmCurso({ list, openJob }) {
             <span className="min-w-0 flex-1 truncate t-body">{r.title || howLine(r)}</span>
             <span className="shrink-0 t-meta text-muted-foreground tnum">{'começou ' + ago(r.started)}</span>
           </div>
-          <Fio s="fiando" label={`Revisão de #${r.pr}: rodando desde ${ago(r.started)}`} />
+          <Fio s={r.fase === 'fila' ? 'parado' : 'fiando'} label={`Revisão de #${r.pr}: ${faseDe(r)} desde ${ago(r.fase ? r.faseDesde || r.started : r.started)}`} />
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 t-meta text-muted-foreground">
+            <span className="shrink-0 font-medium text-foreground" data-tour-step-id="reviews-fase">{faseDe(r)}</span>
             <span className="min-w-0 flex-1">{(r.title ? howLine(r) + ' · ' : '') + (r.post ? 'publica ao terminar' : 'só local')}</span>
             {r.job ? <Button variant="ghost" size="xs" icon={I.SquareTerminal} onClick={() => openJob(r.job)}>Ver a execução</Button> : null}
           </div>
@@ -223,7 +226,7 @@ function Reviews() {
   const launch = async () => {
     const list = nums.map((n) => '#' + n).join(' ');
     if (!(await confirm({ title: `Revisar ${list}?`, icon: postGh ? I.Send : I.ScanSearch, confirmLabel: postGh ? 'Revisar e publicar' : 'Revisar',
-      description: `${REVIEW_CMD[cmd][0]} · ${cap1(model)} · esforço ${EFFORT[effort] || effort}. Uma sessão claude -p por PR, em paralelo, num worktree descartável (sem build nem teste).\n\n`
+      description: `${REVIEW_CMD[cmd][0]} · ${cap1(model)} · esforço ${EFFORT[effort] || effort}. Uma sessão claude -p por PR, num worktree descartável (sem build nem teste); acima do teto de revisões ao mesmo tempo, as demais esperam na fila.\n\n`
         + (postGh ? 'Publica um review por PR, só comentário (nunca aprova nem pede mudanças), in-line e com resumo.' : 'Não publica: o relatório fica só aqui.') }))) return;
     setBusy(true);
     let ok = 0;

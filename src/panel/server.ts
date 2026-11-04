@@ -652,6 +652,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
         throw error;
       }
     }
+    if (path === "/api/orchestration/publish") return send(200, orchestration.publishPage());
     if (path === "/api/herdr/act") return send(200, await herdrPage.act(body, remote));
     if (path === "/api/herdr/input") {
       const target = await herdrPage.input(body, remote);

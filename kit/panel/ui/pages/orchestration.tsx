@@ -3,7 +3,7 @@
  * consolidações e as decisões tomadas sozinho. */
 (() => {
 const { useState, useEffect, I, cn, dur, getJSON, Button, Dot, Card, CardHeader, CardContent, Skeleton, Mono, Tip,
-  Empty, Sheet, Fio, LinhaDeEstado, renderMd, Loading, CopyButton, useTourPreview, ExampleSeal, OpenTerminalButton } = HadesCore;
+  Empty, Sheet, Fio, LinhaDeEstado, renderMd, Loading, CopyButton, useTourPreview, ExampleSeal, OpenTerminalButton, post, useApp } = HadesCore;
 
 // estado do agente em palavras, o ponto e o fio (trabalhando fia; esperando você é o fio frouxo)
 const AGENT_LIVE = { working: ['trabalhando', 'busy', 'fiando'], idle: ['ocioso', 'ok', 'parado'], blocked: ['espera por você', 'warn', 'frouxo'],
@@ -30,6 +30,49 @@ function OrchFile({ open, onClose, src }) {
       // o renderMd descarta o HTML cru do markdown (renderer html() vazio no app.tsx)
       : <article className="md" dangerouslySetInnerHTML={{ __html: renderMd(x.text) }} />}
   </Sheet>;
+}
+
+// Minos: gera a página offline do plano aprovado (passa pelo Cerberus no servidor) e mostra o comando que a sessão usa para publicar
+function Publicar({ example }) {
+  const { toast } = useApp();
+  const [busy, setBusy] = useState(false);
+  const [r, setR] = useState(null);
+  const gerar = async () => {
+    if (busy || example) return;
+    setBusy(true);
+    try { setR(await post('/api/orchestration/publish', {})); }
+    catch (e) { toast({ kind: 'bad', title: 'Não foi possível gerar a página', desc: e.message }); }
+    finally { setBusy(false); }
+  };
+  return <Card data-tour-step-id="orchestration-publicar">
+    <CardHeader title="Acompanhamento publicável" summary="página do plano aprovado, com agentes, PRs e consumo"
+      description="Gera o arquivo offline aqui. Para publicar no Artifact, peça à sessão do Claude: ela usa o comando abaixo e o Minos guarda o link." />
+    <CardContent>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button size="sm" onClick={gerar} disabled={busy || !!example}>
+          <I.Upload />
+          {busy ? 'Gerando…' : 'Publicar'}
+        </Button>
+        {r?.ok ? <Mono className="min-w-0 flex-1 truncate" title={r.file}>
+          {r.file}
+        </Mono> : null}
+      </div>
+      {r?.ok ? <div className="mt-3 flex flex-wrap items-center gap-2 t-body">
+        <code className="min-w-0 break-all">
+          {r.command}
+        </code>
+        <CopyButton text={r.command} label="Copiar o comando de publicação" />
+      </div> : null}
+      {r && !r.ok ? <div className="mt-3 grid gap-1 t-body text-bad" role="alert">
+        <span>
+          {r.message}
+        </span>
+        {(r.reasons || []).map((m) => <Mono key={m} className="text-muted-foreground">
+          {m}
+        </Mono>)}
+      </div> : null}
+    </CardContent>
+  </Card>;
 }
 
 function Perguntas({ agents, show, example }) {
@@ -173,6 +216,7 @@ function Orchestration() {
     <LinhaDeEstado main={openQ ? plural(openQ, 'pergunta aberta', 'perguntas abertas') : 'nenhuma pergunta aberta'}
       rest={[`${plural(active.length, 'agente ativo', 'agentes ativos')}, ${working} trabalhando`, reports ? `${plural(reports, 'relatório pronto', 'relatórios prontos')}: abra em Relatório no cartão` : null,
         x.consolidations.length ? plural(x.consolidations.length, 'consolidação', 'consolidações') : null]} />
+    <Publicar example={!!exemplo} />
     {openQ ? <Perguntas agents={asking} show={show} example={!!exemplo} /> : null}
     <Card data-tour-step-id="orchestration-agentes">
       <CardHeader title="Agentes" summary={`<worktree>/${x.reportsDir}`} />

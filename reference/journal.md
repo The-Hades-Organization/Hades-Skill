@@ -8,7 +8,7 @@ Um JSONL por agente com o que ele fez e esperou: ferramentas, pedidos de permiss
 
 | Fonte (`source`) | Quem escreve | `kind` |
 |---|---|---|
-| `guard` | o hook (`src/hook.ts`, `hades guard`) | `tool_pre`, `tool_post` (com `ok:`/`erro:` no resumo, sem a saída), `tool_blocked` (o guard barrou), `permission` (Notification de permissão; `tool` = a ferramenta pedida), `notification` (outros avisos), `stop`, `prompt` |
+| `guard` | o hook (`src/hook.ts`, `hades guard`) | `tool_pre`, `tool_post` (com `ok:`/`erro:` no resumo, sem a saída), `tool_blocked` (o guard barrou), `permission` (Notification de permissão; `tool` = a ferramenta do texto "use <Ferramenta>"; sem ela o campo fica ausente e o Argos infere a ferramenta do último `tool_pre` sem `tool_post` antes do pedido, desde a última parada, prompt ou `agent.end`; o diário não é reescrito), `notification` (outros avisos), `stop`, `prompt` |
 | `watch` | `hades watch`, cada evento que emite | `watch.<evento>` (`watch.question`, `watch.done`, …) |
 | `gate` | gate-lock | `gate.enqueue`, `gate.admit`, `gate.timeout`, `gate.done` (`rc=` e duração) |
 | `cerberus` | Cerberus | `cerberus.barra`, `cerberus.aviso` (o ok não grava) |

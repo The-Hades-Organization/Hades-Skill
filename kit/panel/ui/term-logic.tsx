@@ -422,7 +422,7 @@ function makeTermLogic() {
   /** Há SGR 7 (vídeo inverso) no texto. Cor estendida (`38;5;n`, `38;2;r;g;b`) tem o 7 como valor, não como atributo: salta. */
   function hasInverse(ansi: string): boolean {
     for (const m of ansi.matchAll(SGR_SEQ)) {
-      const params = m[1].split(";");
+      const params = (m[1] ?? "").split(";");
       for (let i = 0; i < params.length; i++) {
         const p = params[i];
         if (p === "7") return true;
@@ -443,9 +443,9 @@ function makeTermLogic() {
     if (hasInverse(ansi)) return null;
     const lines = ansi.split(/\r?\n/);
     let row = Math.min(lines.length, rows) - 1;
-    while (row >= 0 && lines[row].replace(ANSI_SEQ, "").trim() === "") row -= 1;
+    while (row >= 0 && (lines[row] ?? "").replace(ANSI_SEQ, "").trim() === "") row -= 1;
     if (row < 0) return { row: 0, col: 0 };
-    const text = lines[row].replace(ANSI_SEQ, "").replace(/\s+$/, "");
+    const text = (lines[row] ?? "").replace(ANSI_SEQ, "").replace(/\s+$/, "");
     const width = [...text].length + (PROMPT_END.test(text) ? 1 : 0);
     return { row, col: Math.min(width, cols - 1) };
   }

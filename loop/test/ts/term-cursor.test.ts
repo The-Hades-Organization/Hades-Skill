@@ -133,7 +133,9 @@ describe("createXterm: o cursor é o do PtyTerminal nos dois usos", () => {
     (globalThis as Dict).MutationObserver = class { observe() {} disconnect() {} };
     (globalThis as Dict).document = { documentElement: {}, createElement: () => { throw new Error("sem canvas"); } };
     try { factory({}, opts); } finally { delete (globalThis as Dict).getComputedStyle; delete (globalThis as Dict).MutationObserver; delete (globalThis as Dict).document; }
-    return seen[seen.length - 1];
+    const last = seen[seen.length - 1];
+    if (!last) throw new Error("createXterm não chamou o Terminal");
+    return last;
   };
 
   test("dado o nó do Argos (readOnly), então o cursor pisca e vira contorno sem foco, e o xterm não gera entrada", () => {

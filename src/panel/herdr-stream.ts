@@ -22,7 +22,7 @@ export const IDLE_POLL_MAX_MS = 1000;
  * `nudge`, até duas releituras curtas (esperas em ms, a partir do fim da leitura anterior), só no pane que recebeu a entrada
  * e só até o quadro mudar; nessa janela o intervalo não dobra e o teto de FRAME_INTERVAL_MS cede ao primeiro passo.
  */
-export const ECHO_RETRY_MS: readonly number[] = [15, 30];
+export const ECHO_RETRY_MS = [15, 30] as const;
 const KEEP_ALIVE_MS = 15_000;
 const RECONNECT_MS = 3000;
 const RETRY_AFTER_S = 5;
@@ -276,7 +276,7 @@ function createSessionHub(ctx: HubContext, session: string, socketPath: string, 
       }
     } finally {
       w.reading = false;
-      if (alive(w)) schedule(w, w.again ? earliestRead(w) : w.echoStep < ECHO_RETRY_MS.length ? ECHO_RETRY_MS[w.echoStep++] : w.pollMs);
+      if (alive(w)) schedule(w, w.again ? earliestRead(w) : w.echoStep < ECHO_RETRY_MS.length ? (ECHO_RETRY_MS[w.echoStep++] ?? w.pollMs) : w.pollMs);
     }
   }
 

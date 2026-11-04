@@ -12,6 +12,7 @@
 @notificacoes	Notificações	Avisos de gate, serviço caído e review, no desktop e no celular.
 @automatico	Início automático	O painel sobe sozinho no login ou com a máquina; a rede docker fica liberada no firewall.
 @contas	Contas e loop	Contas, orquestração e dados extras para o loop e os testes.
+@minos	Página do time	Opcional: a página do time do Minos (acompanhamento publicado para o time). Desligada por padrão; a página pessoal não depende dela.			
 remoto	devtunnel-login	Login do devtunnel	dono	devtunnel-login	1	devtunnel user login -g -d	reference/tunnel.md		Conta GitHub no devtunnel (código no navegador). Sem o CLI: {D}/tunnel.sh install.
 remoto	panel-tunnel	Túnel do painel	dono	panel-tunnel	0	{D}/tunnel.sh panel-start	reference/panel.md	remote	Em Acesso remoto, clique em Publicar painel (ou rode o comando). É acesso externo, por isso o passo é seu: só a sua conta do GitHub entra, e o painel ainda pede a chave de acesso.
 remoto	remote-key	Chave de acesso	dono	remote-key	0		reference/panel.md	remote	Nasce ao publicar o painel; só a página Acesso remoto do painel local a mostra.
@@ -30,4 +31,4 @@ contas	gh-account	Conta do GitHub de trabalho	dono	gh	1	gh auth login	reference/
 contas	clickup	ClickUp	dono	clickup	0	/clickup-setup			Rode /clickup-setup no Claude Code: grava token e contexto em ~/.claude/clickup.
 contas	herdr	herdr para orquestração	dono	herdr	0	herdr --version	reference/loop/orchestrate.md		Só para /hades orchestrate; instale o herdr e confira o PATH.
 contas	limites	Coleta do % das janelas (statusLine)	dono	limites	0		reference/limites.md	usage	Põe `hades usage sample` no statusLine do ~/.claude/settings.json (a Hades não altera o arquivo). Habilita o % das janelas de 5 h e semanal no painel, no Argos e no aviso do watch.
-contas	minos-time	Página do time (Minos)	hades	manual	0	{D}/config.sh set HADES_MINOS_TEAM=1	reference/minos.md	config	Opcional, desligado por padrão: liga a página do time do Minos (hades minos publish --team), que expõe o estado do trabalho a terceiros. A página pessoal já funciona sem este passo; marque como feito depois de ligar.
+minos	minos-time	Página do time (Minos)	hades	manual	0	{D}/config.sh set HADES_MINOS_TEAM=1	reference/minos.md	config	Opcional, desligado por padrão: liga a página do time do Minos (hades minos publish --team), que expõe o estado do trabalho a terceiros. A página pessoal já funciona sem este passo; marque como feito depois de ligar.

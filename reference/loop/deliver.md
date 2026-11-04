@@ -36,7 +36,7 @@ unidades salvo se o projeto o permitir (`ref deliver`); mais de ~10-15 arquivos 
 
 Antes de mexer, rode `hades thanatos cited --base <base>`: arquivo citado em post-mortem anterior vem com aviso, e vale ler o post-mortem (`hades thanatos show <id>`). Só avisa, não barra.
 
-Integralmente, do específico ao geral: o item (o _que_), o pai, o contrato do servico/modulo, a fonte das regras de
+Integralmente, do específico ao geral: o item (o _que_), o pai, o contrato do serviço/módulo, a fonte das regras de
 negócio e as regras do projeto (`rules.docs` do perfil). Item incompleto (`TBD`, critério não observável, contrato
 vago) **não** se resolve inventando: aponte o gap e pergunte. Cheque `decisions` no estado antes de escalar uma
 dúvida: pergunta já respondida não se repergunta.

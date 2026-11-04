@@ -38,7 +38,14 @@ vão inteiras, para o grep achar.
 ### Fila de gates
 | Chaves | Aplicar |
 |---|---|
-| prefixo `HADES_GATE_`: `HADES_GATE_BUDGET_GB` (8), `HADES_GATE_RESERVE_GB` (2), `HADES_GATE_HEADROOM_GB` (3), `HADES_GATE_PSI_MAX` (10), `HADES_GATE_HEAVY_MAX` (1), `HADES_GATE_PAR_LINT` (0), `HADES_GATE_PAR_BUILD` (0), `HADES_GATE_COST_MEASURED` (0), `HADES_GATE_PRIORITY` (0), `HADES_GATE_WINDOW` (vazio), `HADES_GATE_PROJECT_BUDGET_GB` (0), `HADES_GATE_SCOPE` (projeto \| maquina), `HADES_GATE_OVERRUN_MIN` (90), `HADES_GATE_OVERRUN_FACTOR` (5) | próximo `gate-lock run` (lê o `config.sh` da instalação a cada chamada; variável exportada vence). Os padrões são o comportamento de antes: 8 GB, um pesado por vez, FIFO. `HADES_GATE_COST_MEASURED=1` troca o custo da etapa pelo maior pico das 5 últimas execuções; `HADES_GATE_WINDOW` (`HH:MM-HH:MM`) vale só para gate pesado; `HADES_GATE_PAR_LINT`, `HADES_GATE_PAR_BUILD` e o `parallel` da etapa limitam quantos do tipo rodam juntos; `HADES_GATE_PROJECT_BUDGET_GB` reparte o orçamento entre projetos; `HADES_GATE_SCOPE=maquina` junta todos os projetos numa fila só (`reference/stacks.md` §A fila) |
+| prefixo `HADES_GATE_`: `HADES_GATE_BUDGET_GB` (8), `HADES_GATE_RESERVE_GB` (2), `HADES_GATE_HEADROOM_GB` (3), `HADES_GATE_PSI_MAX` (10), `HADES_GATE_HEAVY_MAX` (1), `HADES_GATE_PAR_LINT` (0), `HADES_GATE_PAR_BUILD` (0), `HADES_GATE_COST_MEASURED` (0), `HADES_GATE_PRIORITY` (0), `HADES_GATE_WINDOW` (vazio), `HADES_GATE_PROJECT_BUDGET_GB` (0), `HADES_GATE_SCOPE` (projeto \| maquina), `HADES_GATE_OVERRUN_MIN` (90), `HADES_GATE_OVERRUN_FACTOR` (5) | próximo `gate-lock run` (lê o `config.sh` da instalação a cada chamada; variável exportada vence) |
+
+Os padrões são o comportamento de antes: 8 GB, um pesado por vez, FIFO.
+- `HADES_GATE_COST_MEASURED=1` troca o custo da etapa pelo maior pico das 5 últimas execuções.
+- `HADES_GATE_WINDOW` (`HH:MM-HH:MM`) vale só para gate pesado.
+- `HADES_GATE_PAR_LINT`, `HADES_GATE_PAR_BUILD` e o `parallel` da etapa limitam quantos do tipo rodam juntos.
+- `HADES_GATE_PROJECT_BUDGET_GB` reparte o orçamento entre projetos.
+- `HADES_GATE_SCOPE=maquina` junta todos os projetos numa fila só (`reference/stacks.md` §A fila).
 
 ### Subida (run-hades)
 | Chaves | Aplicar |
@@ -65,14 +72,24 @@ vão inteiras, para o grep achar.
 | `HADES_SUPERVISOR_CLAUDE` (1) | próximo pedido do painel: a consulta e o resumo das notas do supervisor do canvas vão ao `claude -p` (o texto sai da máquina); 0 deixa só o cartão local e as anotações (`reference/argos.md` §Supervisor) |
 | `HADES_PANEL_AUTOSTART` (off \| login \| boot) | na hora: `panel.sh autostart` habilita/desabilita a unit `hds-panel` e, em `boot`, liga o linger (`reference/panel.md` §Início automático) |
 | `HADES_PLUGIN_GIT_TIMEOUT` (120 s) | próxima operação da página Plugins: teto de cada clone e fetch do `plugins.sh` (`reference/projects.md` §Plugin do Hades) |
-| `HADES_VERSION_CHECK_REPO` (`The-Hades-Organization/Hades-Skill`) | próxima checagem: repositório (dono/nome) cuja `VERSION` do branch padrão é lida **sem login** (GET anônimo em `<HADES_VERSION_CHECK_RAW_BASE>/<repo>/HEAD/VERSION`); se o repo não responder como público (404, sem rede, erro do servidor) a checagem cai no `gh api` com o tempo que sobrou. Resposta que não é `X.Y.Z` (ou maior que 256 bytes) é recusada sem tentar o `gh` |
-| `HADES_VERSION_CHECK_HOURS` (1; 0 desliga) | próxima checagem: intervalo entre consultas ao GitHub; dentro dele painel e doctor leem o cache `$D/version-check.json` |
-| `HADES_VERSION_CHECK_TIMEOUT` (8 s) | próxima checagem: teto da consulta inteira (o GET e, se couber no que sobrou, o `gh`); passou disso, a checagem fica oculta até o próximo intervalo |
-| `HADES_VERSION_CHECK_GH_USER` (vazio = conta ativa do `gh`) | próxima checagem: conta cujo token (`gh auth token --user`) lê o repo da skill. Preenchida, a checagem usa **só** o `gh` com essa conta (nunca o GET anônimo). **Não herda `HADES_GH_USER`**, que é a conta do projeto e costuma não ter acesso ao repo da skill. Conta que não existe ou sem acesso: checagem oculta e calada. Trocar a conta vence o cache |
-| `HADES_VERSION_CHECK_RAW_BASE` (`https://raw.githubusercontent.com`) | próxima checagem: servidor do GET anônimo da `VERSION`. Só se muda para um espelho próprio; os testes apontam para uma porta local |
+| `HADES_VERSION_CHECK_REPO` (`The-Hades-Organization/Hades-Skill`), `HADES_VERSION_CHECK_HOURS` (1; 0 desliga), `HADES_VERSION_CHECK_TIMEOUT` (8 s), `HADES_VERSION_CHECK_GH_USER` (vazio = conta ativa do `gh`), `HADES_VERSION_CHECK_RAW_BASE` (`https://raw.githubusercontent.com`) | próxima checagem (detalhe em "Checagem de versão", abaixo) |
 | `HADES_WIDGET_EVENTS` (8) | próxima leitura do widget: quantos eventos recentes `GET /api/widget` devolve (`reference/panel.md` §Widget Android) |
 | `HADES_WIDGET_PORT` (21221) | reiniciar o painel (o listener do widget sobe com ele) e refazer `tunnel.sh widget-create`; só pelo painel local. Instância extra recebe a primeira porta livre no install (`reference/projects.md` §Várias instâncias) |
 | `HADES_WIDGET_PRS_TTL` (300) | próxima leitura do widget: idade do cache das PRs da seção `prs` do `GET /api/widget` (coletor do loop; nunca abaixo de 300 s) |
+
+**Checagem de versão** (as cinco chaves `HADES_VERSION_CHECK_*`):
+- **`_REPO`:** repositório (dono/nome) cuja `VERSION` do branch padrão é lida **sem login** (GET anônimo em
+  `<HADES_VERSION_CHECK_RAW_BASE>/<repo>/HEAD/VERSION`). Se o repo não responder como público (404, sem rede, erro do
+  servidor), a checagem cai no `gh api` com o tempo que sobrou. Resposta que não é `X.Y.Z` (ou maior que 256 bytes) é
+  recusada sem tentar o `gh`.
+- **`_HOURS`:** intervalo entre consultas ao GitHub; dentro dele painel e doctor leem o cache `$D/version-check.json`.
+- **`_TIMEOUT`:** teto da consulta inteira (o GET e, se couber no que sobrou, o `gh`); passou disso, a checagem fica
+  oculta até o próximo intervalo.
+- **`_GH_USER`:** conta cujo token (`gh auth token --user`) lê o repo da skill. Preenchida, a checagem usa **só** o `gh`
+  com essa conta (nunca o GET anônimo). **Não herda `HADES_GH_USER`**, que é a conta do projeto e costuma não ter acesso
+  ao repo da skill. Conta que não existe ou sem acesso: checagem oculta e calada. Trocar a conta vence o cache.
+- **`_RAW_BASE`:** servidor do GET anônimo da `VERSION`. Só se muda para um espelho próprio; os testes apontam para uma
+  porta local.
 
 ### Orquestração
 | Chaves | Aplicar |

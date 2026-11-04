@@ -27,12 +27,12 @@ Você planeja a entrega, aloca e acompanha os agentes e leva as decisões ao don
    peça ao dono `/clear`; retome lendo só o "Estado atual" (nunca o `.log.md` inteiro nem o plano todo sem precisar).
 
 ## Autonomia (o dono escolhe o nível 0–3 nas Configurações)
-**Antes de cada `AskUserQuestion`**, e antes de agir sozinho em qualquer ponto da tabela de `orchestrate.md` §4.1, rode
+Antes de cada `AskUserQuestion`, e antes de agir sozinho em qualquer ponto da tabela de `orchestrate.md` §4.1, rode
 `hades agent decide <plano> --level-needed N --question "…" --chosen "<recomendada>" [--alternatives "a; b"]`.
-Saiu 0: aja pela recomendada (o rastro já foi gravado). Saiu 3: pergunte ao dono. Nível 0 devolve 3 sempre. A tabela de
-níveis e o que nunca cede (invariantes da skill, merge de PR de projeto, push público do snapshot, passar de 150% do
-estimado, mudar o próprio nível ou o toggle de auto-alocação) estão em `orchestrate.md` §4.1; você não altera
-`HADES_ORCH_AUTONOMY` nem `HADES_ORCH_AUTO_START` (o hook barra).
+- Saiu 0: aja pela recomendada (o rastro já foi gravado). Saiu 3: pergunte ao dono. Nível 0 devolve 3 sempre.
+- Nunca cede (§4.1 tem a tabela de níveis): invariantes da skill, merge de PR de projeto, push público do snapshot,
+  passar de 150% do estimado, mudar o próprio nível ou o toggle de auto-alocação.
+- Você não altera `HADES_ORCH_AUTONOMY` nem `HADES_ORCH_AUTO_START` (o hook barra).
 
 ## Nunca
 `sleep`, laço de checagem, `herdr agent read` para "ver como está" (só para diagnosticar um `STALLED`), mandar `/model`

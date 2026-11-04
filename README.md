@@ -4,178 +4,96 @@
 
 # Hades
 
-**Uma skill do Claude Code que leva a spec até a PR, responde aos reviews e sobe o ambiente local das suas PRs, sem nunca
-fazer merge e sem estourar a memória da sua máquina.**
+Uma skill do Claude Code que leva a spec até a PR, responde aos reviews e sobe o ambiente local das suas PRs. Nunca faz
+merge e mantém a memória da máquina sob um teto.
 
-Hades é o conjunto de trabalho de quem desenvolve com agentes: um comando (`/hades`), uma CLI (`hades`), um painel web e
-uma guarda (o Cerberus) que decide o que pode sair, entrar e acontecer na máquina. Fica em `~/.claude`, serve qualquer
-clone e conhece cada projeto por um perfil, sem levar nada de projeto no núcleo.
-
-> Roda em Bun + TypeScript: a CLI roda do fonte, sem build; o painel é TypeScript (servidor) e TSX (interface).
-> Versão atual em [`VERSION`](VERSION), histórico em [`CHANGELOG.md`](CHANGELOG.md).
-
-## Sumário
-
-- [Termos](#termos)
-- [O que ela faz](#o-que-ela-faz)
-- [O que é](#o-que-é)
-- [Pré-requisitos](#pré-requisitos)
-- [Instalação](#instalação)
-- [Quickstart](#quickstart)
-- [Exemplos de uso](#exemplos-de-uso)
-- [Arquitetura](#arquitetura)
-- [Configuração](#configuração)
-- [Projetos e plugins](#projetos-e-plugins)
-- [Contribuição e evolução](#contribuição-e-evolução)
-- [Segurança](#segurança)
-- [Licença](#licença)
-
-## Termos
-
-**A Hades** é a skill (o que você instala em `~/.claude/skills/hades`); **o Hades** é o ambiente local no ar (branch,
-infra, serviços e painel). **Você** é quem instala e opera, e só você decide o que a Hades não decide sozinha; o
-**mantenedor da skill** é quem revisa as contribuições e publica as versões. **Gate** é uma checagem pesada antes da PR
-(tipos, testes, build) que passa por uma fila com teto de memória; **spec** é a especificação escrita do que entregar;
-**stack de PRs** é uma cadeia de PRs em que cada uma parte da anterior; **herdr** é o multiplexador de agentes do
-terminal que a Hades usa para orquestrar; **slice** é o grupo de memória do systemd em que tudo o que o Hades roda
-fica contido.
+Ela vive em `~/.claude`, atende qualquer clone e conhece cada projeto por um perfil, sem levar nada de projeto no núcleo.
+Você usa por um comando (`/hades`), uma CLI (`hades`), um painel web e uma guarda (o Cerberus) que decide o que pode sair,
+entrar e acontecer na máquina. Roda em Bun + TypeScript, do fonte, sem build. Versão atual em [`VERSION`](VERSION),
+histórico em [`CHANGELOG.md`](CHANGELOG.md).
 
 ## O que ela faz
 
-A premissa é que a máquina não morra por falta de memória, e que quem decide abrir mão disso seja você. Todo gate passa
-por uma fila com teto de memória; o ambiente local pausa sozinho quando um gate espera memória. Para mudar o combinado,
-desligue a regra de ceder (`HADES_CEDE=0`), peça uma exceção ao Cerberus ou, se você sabe que não há outra sessão
-rodando, libere a fila no pedido.
-
 | Recurso | O que entrega | Detalhe |
 |---|---|---|
-| **Fila de gates e teto de memória** | tipos, testes e build um de cada vez, com orçamento de memória; um hook barra o gate que tenta furar a fila | [Arquitetura](#arquitetura) |
-| **Loop de engenharia** | spec até a PR, reviews recebidos, revisão de PRs de terceiros, cascata da stack, consolidação; para antes do merge, que é sempre seu | [O que é](#o-que-é) |
-| **Orquestração de agentes** | agentes pelo herdr, um brief para cada, acompanhamento e auditoria; quem espera por você estaciona e volta depois | [`reference/loop/orchestrate.md`](reference/loop/orchestrate.md) |
-| **Ambiente local das PRs** | a branch `hades/local` (base mais as PRs), infra em docker e serviços sob demanda, com snapshot dos bancos pelo plugin do projeto | [Quickstart](#quickstart) |
-| **Painel web** | loop, fila, consumo, logs e Configurações ao vivo, o herdr, um chat com o Claude Code e acesso de fora, também como PWA no celular | [`reference/panel.md`](reference/panel.md) |
-| **Notificações e widget Android** | aviso no desktop e no celular (ntfy) quando algo espera por você; o widget conta agentes ativos, parados e perguntando | [`reference/notify.md`](reference/notify.md) |
-| **Cerberus** | confere o que sai (Porta), o que entra (Limiar) e o que acontece dentro (Vigília), com veredito e evidência | [`reference/cerberus.md`](reference/cerberus.md) |
-| **Regras de qualidade** | pacotes de regras de engenharia que você liga e desliga, injetados nos briefs; as do projeto valem por cima | [`reference/quality.md`](reference/quality.md) |
-| **Perfis de projeto e plugins** | o que é de cada projeto num perfil; o plugin acrescenta ambiente, páginas e rotas, com prévia do que executa | [Projetos e plugins](#projetos-e-plugins) |
-| **Doctor e onboarding** | `hades doctor` confere a instalação e diz o comando que corrige cada item; `/hades env onboard` entrega os passos que são seus | [Quickstart](#quickstart) |
-| **Consumo de tokens** | consumo por papel, agente e dia (`hades usage`), com modelo, esforço e teto de contexto por papel | [`reference/loop/tokens.md`](reference/loop/tokens.md) |
-
-## O que é
-
-A Hades tem duas partes que dividem a fila de gates, as Configurações e o painel.
-
-**Parte I — Ambiente local.** Roda o estado mais recente de um conjunto de PRs para validação manual: branch
-`hades/local` (base do projeto mais as PRs, reconstruída em ordem topológica), infra em docker própria, serviços sob um
-teto de memória, dados e processos de apoio do projeto, painel e túnel. O Hades **cede**: se um gate pesado espera
-memória, o ambiente pausa sem perder dados e volta quando a fila esvazia.
-
-**Parte II — Loop de engenharia.** Orquestra o que já existe, em vez de reescrevê-lo:
-
-| Modo | Faz |
-|---|---|
-| `deliver` | spec → código → gates → `/review-agents` → PR |
-| `inbox` | triagem dos reviews recebidos nas suas PRs e correção dos achados vivos |
-| `review` | revisa PRs de terceiros em paralelo e publica como comentário |
-| `cascade` · `sweep` | cascata da stack de PRs nos quatro sentidos |
-| `orchestrate` · `consolidate` | aloca agentes pelo herdr, junta PRs numa só, com gate único |
-| `status` · `locks` · `answer` · `ready` · `watch` · `resume` | manutenção do loop |
-| `usage` | consumo de tokens por papel, agente e dia |
-
-Cada PR tem um estado (`ci-red`, `conflict`, `needs-response`, `done-pending`…) calculado por um coletor só de leitura; o
-loop sabe o que fazer a seguir e **para em `done-pending`** (tudo pronto, esperando você): o merge é seu.
-
-**Cerberus.** Três cabeças guardam as fronteiras e emitem um veredito com evidência em cada momento:
-
-| Cabeça | Observa |
-|---|---|
-| **Porta** | o que sai da máquina: push, comentário de PR, artefato, túnel, release |
-| **Limiar** | o que entra: plugin, `post-install.sh`, hooks, páginas e rotas do painel |
-| **Vigília** | o que acontece dentro: auditoria do DONE, coerência entre plano, registro e realidade |
-
-Cada cabeça tem um modo (`barra` ou `avisa`) em Configurações; exceção e mudança de modo só você abre.
-
-**Painel.** Um painel web em `http://127.0.0.1:21220` (porta configurável) para operar tudo em tempo real: páginas como
-Visão geral, Branch e PRs, Fila de gates, Consumo, Orquestração, Revisões, Loop, Herdr, Logs, Notificações, Onboarding,
-Plugins, Qualidade, Cerberus e Configurações, mais a página **Claude**: um chat com o Claude Code, também pelo celular
-(PWA) por um túnel.
+| Loop de engenharia | spec até a PR, reviews recebidos, revisão de PRs de terceiros, cascata da stack e consolidação; para antes do merge, que é sempre seu | [Uso](#uso) |
+| Fila de gates e teto de memória | tipos, testes e build um de cada vez, com orçamento de memória; um hook barra o gate que tenta furar a fila | [Arquitetura](#arquitetura) |
+| Orquestração de agentes | agentes pelo herdr, um brief para cada, acompanhamento e auditoria; quem espera por você estaciona e volta depois | [`reference/loop/orchestrate.md`](reference/loop/orchestrate.md) |
+| Ambiente local das PRs | a branch `hades/local` (base mais as PRs), infra em docker e serviços sob demanda, com snapshot dos bancos pelo plugin do projeto | [Primeiros passos](#primeiros-passos) |
+| Painel web | loop, fila, consumo, logs e Configurações ao vivo, o herdr, terminais, um chat com o Claude Code e acesso de fora, também como PWA no celular | [`reference/panel.md`](reference/panel.md) |
+| Cerberus | confere o que sai (Porta), o que entra (Limiar) e o que acontece dentro (Vigília), com veredito e evidência | [`reference/cerberus.md`](reference/cerberus.md) |
+| Regras de qualidade | pacotes de regras de engenharia que você liga e desliga, injetados nos briefs; as do projeto valem por cima | [`reference/quality.md`](reference/quality.md) |
+| Perfis de projeto e plugins | o que é de cada projeto fica num perfil; o plugin acrescenta ambiente, páginas e rotas, com prévia do que executa | [Projetos e plugins](#projetos-e-plugins) |
+| Notificações e widget Android | aviso no desktop e no celular (ntfy) quando algo espera por você; o widget conta agentes ativos, parados e perguntando | [`reference/notify.md`](reference/notify.md) |
+| Consumo de tokens | consumo por papel, agente e dia (`hades usage`), com modelo, esforço e teto de contexto por papel | [`reference/loop/tokens.md`](reference/loop/tokens.md) |
+| Doctor e onboarding | `hades doctor` confere a instalação e diz o comando que corrige cada item; `/hades env onboard` entrega os passos que são seus | [Primeiros passos](#primeiros-passos) |
 
 Garantias que não cedem a pedido: nunca faz merge, nunca faz push sem conferir o upstream, nunca pula hook, nunca
-enfraquece teste, nunca declara verde um gate que não rodou e nunca escreve estado dentro do repositório do projeto
-(vive em `~/.claude/hades/`).
+enfraquece teste, nunca declara verde um gate que não rodou e nunca escreve estado dentro do repositório do projeto (ele
+vive em `~/.claude/hades/`).
 
-## Pré-requisitos
+## Requisitos
 
-O **Bun** (>= 1.1) é a única dependência de runtime da CLI. Tudo o mais é externo e está num **registro único**
-(`src/deps/registry.tsv`): cada comando que precisa de uma delas falha cedo, com saída `69` e a instrução de instalar.
-O `hades doctor` reporta **erro** para as obrigatórias e **aviso** para as que só um recurso usa.
+Linux com systemd é o alvo; o macOS é suportado via launchd (ver
+[ADR 0001](reference/adr/0001-gerenciador-de-servico.md)). O Bun (>= 1.1) é a única dependência de runtime da CLI. As
+demais ficam num registro único (`src/deps/registry.tsv`): o comando que precisa de uma falha cedo, com saída `69` e a
+instrução de instalar. O `hades doctor` reporta erro para as obrigatórias e aviso para as que só um recurso usa.
 
 | Dependência | Nível | Para quê |
 |---|---|---|
 | `bun` | obrigatória | CLI, hook e painel |
 | `git` | obrigatória | clones, worktrees e branches |
 | `gh` (logado) | obrigatória | PRs, reviews e checagem de versão |
-| `jq`, `node`, `rsync`, `unzip` | obrigatórias | JSON dos registros, build do projeto, cópia do kit e pacotes |
-| `docker` com compose v2 | obrigatória só se o projeto declara `env.pack` | infra do ambiente do projeto |
-| `systemd` com sessão de usuário (`systemctl`, `systemd-run`, `loginctl`, `journalctl`) | aviso | units, slice de memória, timers, início automático e túnel |
+| `jq`, `node`, `unzip` | obrigatórias | JSON dos registros, build do projeto e pacotes |
+| `docker` com compose v2 | aviso (exigida se o projeto declara `env.pack`) | infra do ambiente do projeto |
+| `systemctl`, `systemd-run`, `loginctl`, `journalctl` | aviso | units, slice de memória, timers, início automático e túnel |
 | `herdr` | aviso | orquestração de agentes |
 | `devtunnel` | aviso | túnel público do painel |
 | `claude` | aviso | revisões de PR pelo painel |
+| `bwrap` | aviso | ensaio dos scripts de plugin num sandbox, no Limiar do Cerberus |
 | `curl`, `ss`, `notify-send`, `ufw` ou `firewall-cmd` | aviso | baixar o devtunnel, portas em uso, notificações no desktop e o comando de firewall sugerido |
 
-O que falta, e como instalar cada item:
+Sem `systemd` o `doctor` avisa e o ambiente local (slice de memória, units) não sobe. O clone do projeto precisa ter
+`origin` apontando para o GitHub e o `gh` logado: a Hades nomeia a fila de gates e o projeto pelo remote, e `hades prs`
+consulta as PRs por ele.
 
 ```bash
-hades deps            # lista, com a instrução das ausentes
-hades deps --json     # contrato version: 1, o mesmo que o painel consome
+hades deps                  # lista, com a instrução das ausentes
+hades deps --json           # contrato version: 1, o mesmo que o painel consome
 hades deps need gh docker   # sai 69 se faltar alguma
 ```
 
-Linux com systemd é o alvo. Sem `systemd` o `doctor` avisa e o ambiente local (slice de memória, units) não sobe;
-o `docker` só é exigido de quem tem projeto com `env.pack`.
-
-macOS: suportado via launchd (ver ADR 0001, `reference/adr/0001-gerenciador-de-servico.md`). Antes de instalar:
+No macOS, antes de instalar:
 
 ```bash
-brew install bash jq rsync   # o /bin/bash do macOS é o 3.2; o kit precisa do 4+ primeiro no PATH
-brew install coreutils             # só para rodar a suíte de testes (timeout, stat -c, sha256sum do GNU)
+brew install bash jq          # o /bin/bash do macOS é o 3.2; o kit precisa do 4+ primeiro no PATH
+brew install coreutils        # só para rodar a suíte de testes (timeout, stat -c, sha256sum do GNU)
 ```
 
-No macOS a fila de gates mede a memória pelo `kern.memorystatus_level` (o mesmo número do `memory_pressure`) em vez do
-`MemAvailable`, roda sem teto de memória (não há `systemd-run`) e o `hades logrotate` não confere se o log está aberto
-sem `O_APPEND` (sem `/proc`, não dá para ver as flags de quem tem o arquivo aberto).
-
-O clone do projeto precisa ter `origin` apontando para o GitHub e o `gh` logado: a Hades nomeia a fila de gates e o
-projeto pelo remote, e `hades prs` consulta as PRs por ele.
+Diferenças no macOS: a fila de gates mede a memória pelo `kern.memorystatus_level` (o mesmo número do `memory_pressure`)
+em vez do `MemAvailable` e roda sem teto de memória (não há `systemd-run`). O `hades logrotate` não confere se o log está
+aberto sem `O_APPEND`, porque sem `/proc` não dá para ver as flags de quem tem o arquivo aberto.
 
 ## Instalação
 
-A skill vive em `~/.claude/skills/hades`. Clone o repositório nesse caminho e instale o Bun:
+A skill vive em `~/.claude/skills/hades`. Instale o Bun e clone o repositório nesse caminho:
 
 ```bash
-curl -fsSL https://bun.sh/install | bash          # baixa e executa o instalador do Bun: confira em https://bun.sh
+curl -fsSL https://bun.sh/install | bash     # executa o instalador do Bun; confira o script em https://bun.sh
 mkdir -p ~/.claude/skills
 git clone https://github.com/The-Hades-Organization/Hades-Skill ~/.claude/skills/hades
 ```
 
-Atualizar é `git -C ~/.claude/skills/hades pull` seguido do `install.sh` (abaixo); é o comando que o aviso de versão
-nova do painel e do `doctor` mostra quando o `VERSION` da `main` passa o instalado.
-
-Alternativa sem git: o pacote `hades-skill-v<versão>.tar.gz`, o mesmo que o `hades skill-release release` gera, já traz
-a pasta `hades/` na raiz. Extraia com `tar -xzf hades-skill-v<versão>.tar.gz -C ~/.claude/skills`. Para atualizar,
-apague a pasta antiga antes de extrair o pacote novo, senão arquivos removidos na versão nova ficam para trás (o estado
-fica em `~/.claude/hades/`, fora dela, e não se perde).
-
-Para rodar, não há build nem `bun install`: a CLI executa do fonte (o `bun install` é só de quem contribui, mais
-abaixo). Crie o atalho `hades` (a skill não grava alias no seu shell):
+Não há build nem `bun install` para rodar: a CLI executa do fonte (o `bun install` é de quem contribui). Crie o atalho
+`hades`; a skill não grava alias no seu shell:
 
 ```bash
 alias hades='bun ~/.claude/skills/hades/src/cli.ts'    # ponha no ~/.bashrc ou ~/.zshrc
 ```
 
 Instale o ambiente a partir de um clone do projeto com `origin` no GitHub (sem ele o `install.sh` para com o erro
-`não tem remote.origin.url`). Ele cria `<clone>-hades` na branch `hades/local`, os dados em
-`<worktree>-data`, a slice de memória, liga o `rerere` e registra o hook da skill no `~/.claude/settings.json`:
+`não tem remote.origin.url`). Ele cria `<clone>-hades` na branch `hades/local`, os dados em `<worktree>-data` e a slice de
+memória, liga o `rerere` e registra o hook da skill no `~/.claude/settings.json`:
 
 ```bash
 cd <clone-do-projeto>
@@ -183,11 +101,34 @@ cd <clone-do-projeto>
 hades doctor
 ```
 
-O `install.sh` também instala o comando `/hades` (`~/.claude/commands/hades.md`), sem passo manual. Ele é idempotente
-e nunca toca em estado ou segredos já gravados. Várias instâncias convivem na mesma máquina, uma por projeto
+O `install.sh` também instala o comando `/hades` (`~/.claude/commands/hades.md`), é idempotente e nunca toca em estado ou
+segredos já gravados. Várias instâncias convivem na mesma máquina, uma por projeto
 (`HADES_ID=<id> HADES_WT=<worktree> kit/install.sh`), cada uma com units, slice, compose e porta de painel próprias.
 
-Para **testar com o mínimo de efeito na máquina**, instale numa pasta descartável:
+### Atualizar
+
+```bash
+git -C ~/.claude/skills/hades pull
+~/.claude/skills/hades/kit/install.sh
+```
+
+É o comando que o aviso de versão nova do painel e do `doctor` mostra quando o `VERSION` da `main` passa o instalado.
+
+### Sem git
+
+O pacote `hades-skill-v<versão>.tar.gz`, o mesmo que o `hades skill-release release` gera, já traz a pasta `hades/` na
+raiz:
+
+```bash
+tar -xzf hades-skill-v<versão>.tar.gz -C ~/.claude/skills
+```
+
+Para atualizar, apague a pasta antiga antes de extrair o pacote novo; senão, arquivos removidos na versão nova ficam para
+trás. O estado fica em `~/.claude/hades/`, fora dela, e não se perde.
+
+### Testar com o mínimo de efeito na máquina
+
+Instale numa pasta descartável:
 
 ```bash
 export HADES_WT=<clone> HADES_DATA=/tmp/hades-teste
@@ -195,30 +136,30 @@ SKIP_SYSTEMD=1 SKIP_WORKTREE=1 SKIP_DOCTOR=1 ~/.claude/skills/hades/kit/install.
 ```
 
 Esse modo não cria worktree, units nem slice e não registra o hook, mas ainda grava a configuração da instância
-(`config.env`, portas, `HADES_ID`) em `HADES_DATA`. Mantenha `HADES_WT` e `HADES_DATA` exportados nos comandos
-seguintes: é por eles que a CLI acha essa instância. O hook só entra no `settings.json` se você apontar
-`HADES_CLAUDE_SETTINGS` para um arquivo seu.
+(`config.env`, portas, `HADES_ID`) em `HADES_DATA`. Mantenha `HADES_WT` e `HADES_DATA` exportados nos comandos seguintes:
+é por eles que a CLI acha essa instância. O hook só entra no `settings.json` se você apontar `HADES_CLAUDE_SETTINGS` para
+um arquivo seu.
 
-## Quickstart
+## Primeiros passos
 
 ```bash
 hades doctor                  # 1. pré-requisitos, máquina e instalação, com o comando que corrige cada item
-hades project resolve         # 2. o projeto ativo e o perfil do repo atual (sai 3 sem perfil:
-                              #    na primeira vez é o esperado, o passo 3 cria o perfil)
+hades project resolve         # 2. o projeto ativo e o perfil do repo atual
 ```
 
-No Claude Code, dentro do clone do projeto:
+O passo 2 sai com `3` quando o repo ainda não tem perfil, o esperado na primeira vez: o passo 3 o cria. No Claude Code,
+dentro do clone do projeto:
 
 ```text
 /hades project init           # 3. gera o perfil do repo (só grava com o seu ok)
-/hades env up                 # 4. sobe o ambiente local (ver a nota abaixo)
+/hades env up                 # 4. sobe o ambiente local
 /hades                        # 5. o loop: inbox primeiro e, se nada estiver acionável, deliver
 ```
 
-**O que o `env up` entrega.** A infra, os dados e os serviços do projeto (docker, seeds) vêm do pacote do projeto,
-o plugin com `env.pack` (veja [Projetos e plugins](#projetos-e-plugins)). Sem plugin, o `install.sh` avisa que instala
-só a parte da máquina e você ainda tem o painel, o loop de engenharia, a fila de gates, o Cerberus, a qualidade e as
-notificações; o ambiente local das suas PRs depende do plugin, então escreva ou instale um antes do passo 4.
+A infra, os dados e os serviços do projeto (docker, seeds) vêm do pacote do projeto, o plugin com `env.pack` (veja
+[Projetos e plugins](#projetos-e-plugins)). Sem plugin, o `install.sh` avisa que instala só a parte da máquina; você
+ainda tem o painel, o loop, a fila de gates, o Cerberus, a qualidade e as notificações, mas o ambiente local das PRs
+depende do plugin. Escreva ou instale um antes do passo 4.
 
 Abra o painel:
 
@@ -226,9 +167,9 @@ Abra o painel:
 hades panel serve --port 21220      # http://127.0.0.1:21220
 ```
 
-Para deixar o painel subir com a máquina: Configurações → Painel → *Iniciar o painel automaticamente*.
+Para ele subir com a máquina: Configurações → Painel → *Iniciar o painel automaticamente*.
 
-## Exemplos de uso
+## Uso
 
 ### No Claude Code (`/hades …`)
 
@@ -247,6 +188,19 @@ Para deixar o painel subir com a máquina: Configurações → Painel → *Inici
 ```
 
 `--dry-run` em qualquer modo que escreve produz plano e relatório locais e não publica nada.
+
+| Modo | Faz |
+|---|---|
+| `deliver` | spec → código → gates → `/review-agents` → PR |
+| `inbox` | triagem dos reviews recebidos nas suas PRs e correção dos achados vivos |
+| `review` | revisa PRs de terceiros em paralelo e publica como comentário |
+| `cascade` · `sweep` | cascata da stack de PRs nos quatro sentidos |
+| `orchestrate` · `consolidate` | aloca agentes pelo herdr, junta PRs numa só, com gate único |
+| `status` · `locks` · `answer` · `ready` · `watch` · `resume` | manutenção do loop |
+| `usage` | consumo de tokens por papel, agente e dia |
+
+Cada PR tem um estado (`ci-red`, `conflict`, `needs-response`, `done-pending`…) calculado por um coletor só de leitura. O
+loop sabe o que fazer a seguir e para em `done-pending` (tudo pronto, esperando você): o merge é seu.
 
 ### Na linha de comando (`hades …`)
 
@@ -268,8 +222,24 @@ hades usage --days 7 --json                   # consumo de tokens
 hades plugins list                            # pacotes de plugin instalados
 ```
 
-Referência completa dos subcomandos, argumentos e códigos de saída: [`reference/cli.md`](reference/cli.md). Sem argumento,
-`hades` imprime a lista.
+Sem argumento, `hades` imprime a lista de subcomandos. Argumentos e códigos de saída de cada um:
+[`reference/cli.md`](reference/cli.md).
+
+### Cerberus e painel
+
+O Cerberus tem três cabeças, cada uma com um veredito e a evidência dele:
+
+| Cabeça | Observa |
+|---|---|
+| Porta | o que sai da máquina: push, comentário de PR, artefato, túnel, release |
+| Limiar | o que entra: plugin, `post-install.sh`, hooks, páginas e rotas do painel |
+| Vigília | o que acontece dentro: auditoria do DONE, coerência entre plano, registro e realidade |
+
+Cada cabeça tem um modo (`barra` ou `avisa`) em Configurações; exceção e mudança de modo só você abre.
+
+O painel escuta em `http://127.0.0.1:21220` (porta configurável). Tem páginas como Visão geral, Branch e PRs, Fila de
+gates, Consumo, Orquestração, Revisões, Loop, Herdr, Logs, Notificações, Onboarding, Plugins, Qualidade, Cerberus e
+Configurações, mais a página Claude: um chat com o Claude Code, também pelo celular (PWA) por um túnel.
 
 ## Arquitetura
 
@@ -307,10 +277,17 @@ flowchart TB
   state[(estado fora do repo<br/>~/.claude/hades)] --- cli
 ```
 
-Em resumo: **a skill é global e o projeto é um perfil**. Estado, locks e relatórios ficam em `~/.claude/hades/`, por
-repositório e não por clone, e nunca dentro da árvore do projeto. A fila de gates é única para o loop e para o ambiente:
-um gate pesado por vez, com orçamento de memória, e o ambiente cede quando um gate espera. Detalhes em
-[`reference/architecture.md`](reference/architecture.md).
+A Hades tem duas partes que dividem a fila de gates, as Configurações e o painel:
+
+- Parte I, ambiente local: roda o estado mais recente de um conjunto de PRs para validação manual. Branch `hades/local`
+  (base do projeto mais as PRs, reconstruída em ordem topológica), infra em docker própria, serviços sob um teto de
+  memória, dados e processos de apoio do projeto, painel e túnel. O ambiente cede: se um gate pesado espera memória, ele
+  pausa sem perder dados e volta quando a fila esvazia.
+- Parte II, loop de engenharia: orquestra o que já existe, em vez de reescrevê-lo (modos na tabela de [Uso](#uso)).
+
+A skill é global e o projeto é um perfil. Estado, locks e relatórios ficam em `~/.claude/hades/`, por repositório e não
+por clone, e nunca dentro da árvore do projeto. A fila de gates é única para o loop e para o ambiente: um gate pesado por
+vez, com orçamento de memória. Detalhes em [`reference/architecture.md`](reference/architecture.md).
 
 | Onde | O quê |
 |---|---|
@@ -333,7 +310,7 @@ hades config export                        # leva suas configurações para outr
 hades config import <arquivo> --dry-run
 ```
 
-O mesmo está no painel, em Configurações (com busca, exportar e importar). Algumas chaves que você vai querer conhecer:
+O mesmo está no painel, em Configurações (com busca, exportar e importar). Algumas chaves:
 
 | Chave | Efeito |
 |---|---|
@@ -341,24 +318,28 @@ O mesmo está no painel, em Configurações (com busca, exportar e importar). Al
 | `HADES_PANEL_PORT` · `HADES_PANEL_AUTOSTART` | porta e início automático (`off`, `login` ou `boot`) do painel |
 | `HADES_NOTIFY` · `HADES_NOTIFY_NTFY` | notificações no desktop e no celular |
 | `HADES_CHAT` | liga e desliga o chat com o Claude no painel |
+| `HADES_CEDE` | liga e desliga a regra de o ambiente ceder a um gate que espera memória (`0` desliga) |
 | `HADES_CERBERUS_*` | modo e limites de cada cabeça |
 
 Variáveis de ambiente úteis: `HADES_WT` (worktree), `HADES_DATA` (pasta de dados), `HADES_WORK_ROOT` (raiz do estado do
 loop), `HADES_BUN` (outro executável do Bun) e, para a release, `HADES_NAME_GUARD` e `HADES_DOMAIN_GUARD` (`report` ou
 `strict`: guardas de nome de projeto e de domínio).
 
-**Qualidade.** O catálogo traz regras genéricas de engenharia (linguagem, framework, práticas, estilo, testes, banco), em
-pacotes que você liga e desliga (`hades quality on|off [--pack <id>]`); as ligadas entram nos briefs e nas fases do loop.
-As do projeto vêm do perfil e valem por cima. Ver [`reference/quality.md`](reference/quality.md).
+Para mudar o combinado de memória, desligue a regra de ceder (`HADES_CEDE=0`), peça uma exceção ao Cerberus ou, se você
+sabe que não há outra sessão rodando, libere a fila no pedido.
 
-**Acesso remoto.** O painel de fora passa por um devtunnel. Hades prepara o túnel e entrega os comandos; publicar o
-acesso e fazer login são passos **seus**, e o painel ainda exige a chave. Ver [`reference/tunnel.md`](reference/tunnel.md)
-e `hades onboard`.
+Qualidade: o catálogo traz regras genéricas de engenharia (linguagem, framework, práticas, estilo, testes, banco), em
+pacotes que você liga e desliga (`hades quality on|off [--pack <id>]`). As ligadas entram nos briefs e nas fases do loop;
+as do projeto vêm do perfil e valem por cima. Ver [`reference/quality.md`](reference/quality.md).
+
+Acesso remoto: o painel de fora passa por um devtunnel. A Hades prepara o túnel e entrega os comandos; publicar o acesso
+e fazer login são passos seus, e o painel ainda exige a chave. Ver [`reference/tunnel.md`](reference/tunnel.md) e
+`hades onboard`.
 
 ## Projetos e plugins
 
 O núcleo não conhece projeto: o texto específico (fluxo de entrega, gates, invariantes, vocabulário, ambiente) mora num
-**pacote de projeto**, e o `profile.json` dele diz o que o núcleo deve ler. O projeto ativo é o do repo do diretório atual
+pacote de projeto, e o `profile.json` dele diz o que o núcleo deve ler. O projeto ativo é o do repo do diretório atual
 (`remote.origin.url` → perfil em `~/.claude/hades/packs/`).
 
 ```bash
@@ -367,96 +348,51 @@ hades project validate       # confere o perfil
 hades project core-check     # a faixa `core` do perfil contra a versão do núcleo
 ```
 
-Um pacote pode ser um **plugin**: acrescenta ao núcleo o ambiente do projeto (`env/`: infra, dados, serviços), páginas e
-rotas do painel e diagnósticos. Contrato:
+Um pacote pode ser um plugin: acrescenta ao núcleo o ambiente do projeto (`env/`: infra, dados, serviços), páginas e
+rotas do painel e diagnósticos. O contrato:
 
-- o perfil declara a faixa `core` que suporta; **desde a 5.0.0 o contrato exige `core >=5`**, e o `install.sh` recusa núcleo fora
-  da faixa;
-- as rotas e ações do painel vêm de **`panel/api.ts`**, carregado uma vez por um host em processo à parte; os tipos estão
-  em `src/panel/plugin-api.ts`;
+- o perfil declara a faixa `core` que suporta; desde a 5.0.0 o contrato exige `core >=5`, e o `install.sh` recusa núcleo
+  fora da faixa;
+- as rotas e ações do painel vêm de `panel/api.ts`, carregado uma vez por um host em processo à parte; os tipos estão em
+  `src/panel/plugin-api.ts`;
 - páginas em `panel/ui/`, diagnósticos em `doctor.sh` e `checks/`.
 
 Instalar, atualizar e desligar passa pela página Plugins do painel ou por `hades plugins add <url>`, `update`, `enable`,
-`disable` e `remove`, sempre com a prévia do commit e do que vai executar, e pelo Limiar do Cerberus. Escrever o primeiro
-perfil: `/hades project init`, e a referência de formatos em [`reference/projects.md`](reference/projects.md).
+`disable` e `remove`, sempre com a prévia do commit e do que vai executar, e pelo Limiar do Cerberus. Para escrever o
+primeiro perfil, use `/hades project init`; os formatos estão em [`reference/projects.md`](reference/projects.md).
 
-## Contribuição e evolução
+## Contribuição
 
-### Para quem é de fora
-
-Issues e PRs são bem-vindas. Para bug ou pedido, abra uma issue pelos modelos (bug ou feature); para vulnerabilidade,
-siga o [`SECURITY.md`](SECURITY.md), nunca uma issue pública. Para mandar código:
-
-1. faça um fork e crie uma branch a partir da `main`;
-2. mude o necessário, seguindo as regras do projeto (abaixo), e documente na referência do assunto em `reference/`;
-3. rode o gate local antes de abrir a PR:
-
-   ```bash
-   bun install                                     # traz typescript e @types/bun
-   bun x tsc --noEmit                              # tipos
-   bun test loop/test/ts                           # regressão do núcleo
-   bun src/cli.ts skill-release guard              # guardas de nome de projeto e de domínio (o `hades skill-release guard`)
-   ```
-
-4. abra a PR contra a `main`, dizendo o que muda, por quê e como você provou.
-
-Não há DCO nem CLA. Ao abrir uma PR, você concorda que a contribuição é distribuída sob a licença MIT do projeto
-(veja [Licença](#licença)). Não mexa em `VERSION` nem no `CHANGELOG.md`: o mantenedor faz isso na release.
-
-Regras do projeto: TypeScript do fonte, sem build; sem `any`; comentário só onde explica o porquê; nada de caminho
-absoluto, usuário, host, URL de túnel, segredo nem nome de projeto no núcleo (a guarda reprova). A ajuda dos comandos e
-os textos do painel são em pt-BR.
-
-### Do lado do mantenedor
-
-A skill evolui com o uso: pedido que ela ainda não cobre termina numa versão nova. O caminho completo está em
-[`reference/evolving.md`](reference/evolving.md); em curto:
-
-1. resolver no vivo e medir o que importa;
-2. generalizar na skill (nunca só na pasta de dados): comando no `src/` ou no `kit/`, sem caminho absoluto, usuário,
-   host, URL de túnel nem segredo;
-3. documentar a referência do assunto e a tabela de pedidos do `SKILL.md`;
-4. reinstalar e provar;
-5. `hades skill-release drift` (zero) e `hades skill-release release minor|patch "<resumo>"`, que roda as guardas, a
-   regressão e gera o pacote.
-
-`VERSION` e `CHANGELOG.md` mudam na release, não em cada PR. Verificações locais:
-
-```bash
-bun run typecheck                               # tipos (tsc --noEmit)
-bun test loop/test/ts --parallel=8              # regressão do núcleo (pela fila: hades gate-lock run test …)
-hades skill-release guard                       # guardas de nome de projeto e de domínio
-```
-
-Várias mudanças em paralelo viram **unidades** de evolução, cada uma na própria worktree e branch (`hades agent
-skill-new <unidade>`), consolidadas pelo orquestrador. Uma PR de fora entra pelo mesmo caminho: é revisada na
-PR, a consolidação traz o diff para a `main`, a mudança sai na release seguinte e a PR é fechada citando a versão
-([`reference/contrib.md`](reference/contrib.md)).
+Issues e PRs são bem-vindas. O caminho completo, do fork à PR, está no [`CONTRIBUTING.md`](CONTRIBUTING.md). Para bug ou
+pedido, abra uma issue pelos modelos; para vulnerabilidade, siga o [`SECURITY.md`](SECURITY.md), nunca uma issue pública.
 
 ## Segurança
 
-- **Modelo de confiança.** A Hades roda com as suas permissões, na sua máquina. O Cerberus barra e avisa, mas não é um
-  sandbox: o que você instala e aprova executa como você.
-- **O que ela grava.** Estado, locks, relatórios e configuração em `~/.claude/hades/`; o hook e o comando em
-  `~/.claude/settings.json` e `~/.claude/commands/hades.md`; units, slice e timers de usuário do systemd; a worktree
-  `<clone>-hades` e a pasta de dados. Nada dentro do repositório do projeto.
-- **Executam código.** O `curl … | bash` do Bun, o `post-install.sh` e os plugins (`hades plugins add <url>`, com
-  `panel/api.ts` e `doctor.sh`) rodam código na sua máquina: leia a prévia do commit e só instale de fonte em que você
-  confia. O Limiar do Cerberus passa por cada um.
-- **Segredos.** O painel exige a chave de acesso; o túnel só publica quando você faz o login e o acesso.
-- **Superfície de shell remoto.** Com o túnel do painel no ar, o painel, o chat com o Claude Code e os terminais dos
-  agentes ficam ao alcance de quem passa pelas duas camadas (a conta dona do túnel e a chave de acesso): trate a chave
-  como uma senha de shell. O painel escuta só em `127.0.0.1`, confere `Host` e `Origin` e roda o chat sempre em
-  `--permission-mode auto`. O modelo de ameaça, camada por camada, está no [`SECURITY.md`](SECURITY.md), a partir de
-  [`reference/panel.md`](reference/panel.md), [`reference/tunnel.md`](reference/tunnel.md) e
-  [`reference/cerberus.md`](reference/cerberus.md).
-- **Reportar.** Encontrou uma vulnerabilidade? Não abra issue pública: siga o [`SECURITY.md`](SECURITY.md), que
-  explica como reportar pelo GitHub em privado, o que está no escopo e o prazo de resposta.
+A Hades roda com as suas permissões, na sua máquina. O Cerberus barra e avisa, mas não é um sandbox: o que você instala e
+aprova (o `curl … | bash` do Bun, o `post-install.sh`, os plugins) executa como você. Estado, locks e configuração ficam
+em `~/.claude/hades/`, e o hook e o comando em `~/.claude/settings.json` e `~/.claude/commands/hades.md`, mais as units,
+a slice e os timers de usuário do systemd; nada dentro do repositório do projeto.
+
+Com o túnel do painel no ar, o painel, o chat e os terminais ficam ao alcance de quem passa pelas duas camadas (a conta
+dona do túnel e a chave de acesso): trate a chave como uma senha de shell. O painel escuta só em `127.0.0.1`, confere
+`Host` e `Origin` e roda o chat sempre em `--permission-mode auto`. O modelo de ameaça, camada por camada, e como reportar
+uma vulnerabilidade em privado estão no [`SECURITY.md`](SECURITY.md).
+
+## Glossário
+
+- A Hades é a skill (o que você instala em `~/.claude/skills/hades`); o Hades é o ambiente local no ar (branch, infra,
+  serviços e painel).
+- Você é quem instala e opera; o mantenedor da skill revisa as contribuições e publica as versões.
+- Gate é uma checagem pesada antes da PR (tipos, testes, build) que passa por uma fila com teto de memória.
+- Spec é a especificação escrita do que entregar; stack de PRs é uma cadeia de PRs em que cada uma parte da anterior.
+- herdr é o multiplexador de agentes do terminal que a Hades usa para orquestrar.
+- Slice é o grupo de memória do systemd em que tudo o que o Hades roda fica contido.
 
 ## Licença
 
 Distribuída sob a [licença MIT](LICENSE), Copyright (c) 2026 Hadson Ramalho.
 
 O painel redistribui bibliotecas, fontes e código de terceiros (React, lucide-react, marked, mermaid, htm, motion,
-Tailwind, Figtree, Geist Mono, Marcellus, o tour de tonghohin, o Number Ticker do Magic UI e o padrão de componentes do shadcn/ui), cada um sob a própria
-licença. A lista, com versão, origem e o texto de cada licença, está em [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+Tailwind, Figtree, Geist Mono, Marcellus, o tour de tonghohin, o Number Ticker do Magic UI e o padrão de componentes do
+shadcn/ui), cada um sob a própria licença. A lista, com versão, origem e o texto de cada licença, está em
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

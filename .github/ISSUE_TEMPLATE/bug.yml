@@ -13,7 +13,7 @@ body:
     attributes:
       label: Versão da skill
       description: Conteúdo do arquivo `VERSION` (`cat ~/.claude/skills/hades/VERSION`).
-      placeholder: "5.14.1"
+      placeholder: "o número que o arquivo VERSION mostra"
     validations:
       required: true
   - type: dropdown

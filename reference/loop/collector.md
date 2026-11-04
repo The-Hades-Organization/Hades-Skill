@@ -59,7 +59,7 @@ Campos por PR que o fluxo consome (`--json`):
 
 - **Identidade**: `number`, `title`, `url`, `author`, `isDraft`, `baseRefName`, `headRefName`,
   `headRefOid`, `labels`, `stacked`, `claudeEligible` (base em `flow.bot.bases`), `ciEligible` (base em
-  `flow.ci.bases` e, se `flow.ci.draft` for falso, nao-draft).
+  `flow.ci.bases` e, se `flow.ci.draft` for falso, não-draft).
 - **Estado**: `state` (ver `SKILL.md` §"Máquina de estados"), `mergeable`, `mergeStateStatus`,
   `reviewDecision` (informativo, **não** é gate), `stackParent`, `stackDepth`.
 - **Achados**: `live` (acionável), `triage` (outdated), `awaitingReviewer` (refutado/indeterminado),

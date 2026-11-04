@@ -41,13 +41,13 @@ Estado: <antes> → <depois> · commits: <n> · push: <sha ou "não">
 ## Regras que valem literalmente
 
 - **Gate que não rodou se declara como não rodado, com o motivo.** Nunca ✅ por omissão. Teste que
-  falhou aparece com a saída real, não parafraseada. Gate que voltou `75` do `gate-lock.sh` e
-  **enfileirado**: "não rodou: `<motivo>` (fila/orcamento/MemAvailable)", nunca "passou" nem "falhou".
+  falhou aparece com a saída real, não parafraseada. Gate que voltou `75` do `gate-lock.sh` é
+  **enfileirado**: "não rodou: `<motivo>` (fila/orçamento/MemAvailable)", nunca "passou" nem "falhou".
   Gate morto com `137` **ou `143`** e a nota `provavel estouro de memoria` é "não rodou: teto de
-  memória" — nunca "falhou". (`143` é o systemd derrubando o scope depois do oom-kill matar um
-  processo irmão; é o mesmo estouro de teto, não alguém matando o gate. Ver `gates.md` §3.2.)
+  memória" — nunca "falhou". (`143` é o systemd derrubando o scope depois que o oom-kill mata um
+  processo irmão: é o mesmo estouro de teto, não alguém matando o gate. Ver `gates.md` §3.2.)
 - **A faixa aparece junto do projeto**: "suite completa" é Faixa A, "specs relacionados" é Faixa B
-  (`gates.md` §1). Faixa B relatada como se fosse suite completa e gate inflado no relatório.
+  (`gates.md` §1). Faixa B relatada como suíte completa é gate inflado no relatório.
 - **Um achado = uma linha**, com `arquivo:linha` e o código da regra quando existir. Mesmo defeito em
   N locais = uma linha com a contagem.
 - **Escalação aberta volta em todo relatório** até ter `answeredAt`. É o único bloco que reaparece
@@ -62,21 +62,21 @@ Estado: <antes> → <depois> · commits: <n> · push: <sha ou "não">
 
 ## Blocos por modo
 
-| Modo      | Blocos obrigatórios                                                                                                                                                                                |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `deliver` | alvo (spec + PR), card, commits, gates, achados do `/review-agents`, ficou de fora                                                                                                                       |
-| `inbox`   | estado antes/depois, aplicados, refutados, triados, esperando reviewer, gates                                                                                                                      |
-| `review`  | por PR: autor, veredito, 🔴/🟡, in-line publicados, achados que foram para o resumo por caírem fora de hunk, caminho do relatório local; mais o que foi deduplicado e o que ficou fora por `--max` |
-| `cascade` | o sentido da cascata, PRs afetadas, o que propagou, o que escalou                                                                                                                                  |
-| `sweep`   | padrão, PRs irmãs afetadas, itens enfileirados por PR, nada aplicado em silêncio                                                                                                                   |
-| `status`  | tabela do coletor, locks ativos, escalações abertas                                                                                                                                                |
-| `ready`   | PRs em `done-pending` com o que falta para o merge (que é manual)                                                                                                                                  |
+| Modo | Blocos obrigatórios |
+|---|---|
+| `deliver` | alvo (spec + PR), card, commits, gates, achados do `/review-agents`, ficou de fora |
+| `inbox` | estado antes/depois, aplicados, refutados, triados, esperando reviewer, gates |
+| `review` | por PR: autor, veredito, 🔴/🟡, in-line publicados, achados que foram para o resumo por caírem fora de hunk, caminho do relatório local; mais o que foi deduplicado e o que ficou fora por `--max` |
+| `cascade` | o sentido da cascata, PRs afetadas, o que propagou, o que escalou |
+| `sweep` | padrão, PRs irmãs afetadas, itens enfileirados por PR, nada aplicado em silêncio |
+| `status` | tabela do coletor, locks ativos, escalações abertas |
+| `ready` | PRs em `done-pending` com o que falta para o merge (que é manual) |
 | `orchestrate` | plano e estado atual, agentes (nome, papel, estado), eventos tratados, decisões do dono, o que espera o dono |
 | `consolidate` | PRs juntadas, conflitos e como foram resolvidos, gate único (Faixas rodadas), PR de consolidação |
-| `locks`   | locks de PR e tickets da fila com a classificação (ativo, suspeito), o que foi liberado e por quê |
-| `answer`  | escalação respondida, decisão gravada (`appliesTo`), PR que voltou a ser acionável |
-| `resume`  | rastro achado, o que foi retomado e de qual etapa, o que ficou para perguntar |
-| ops       | o que mudou no próprio loop (lock liberado, escalação respondida, tick retomado)                                                                                                                   |
+| `locks` | locks de PR e tickets da fila com a classificação (ativo, suspeito), o que foi liberado e por quê |
+| `answer` | escalação respondida, decisão gravada (`appliesTo`), PR que voltou a ser acionável |
+| `resume` | rastro achado, o que foi retomado e de qual etapa, o que ficou para perguntar |
+| ops | o que mudou no próprio loop (lock liberado, escalação respondida, tick retomado) |
 
 Modo `review` que rodou N agentes e não teve achado em um deles **diz "sem achados"** para aquele
 agente: omitir esconde cobertura.

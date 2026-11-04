@@ -197,7 +197,11 @@ perfil mostra o diff e nunca sobrescreve calado. Fluxo completo, heurísticas e 
   da guarda de nome: `HADES_DOMAIN_GUARD=strict|report` (padrão: o de `HADES_NAME_GUARD`, `strict` se nenhum); `strict`
   reprova o `check` e o `release`. Sem `domainTerms` em nenhum perfil, a guarda passa em silêncio. `project init` não
   gera o arquivo: o vocabulário é do dono do projeto.
-- **Regressão** (`bun test loop/test/ts --parallel=8`, pela fila de gates): HOME, raízes e PATH isolados (gh, herdr e npx falsos em `stubs/`), sem rede, um rig por arquivo. As saídas de referência ficam em `loop/test/golden/` (e `golden/legado/` para o que os originais, removidos na 5.0.0, produziam); JSON compara por subconjunto (campo novo passa). Regrave um golden só quando a mudança de saída é intencional e conferida à mão.
+- **Regressão** (`bun test loop/test/ts --parallel=8`, pela fila de gates): HOME, raízes e PATH isolados (gh, herdr e npx
+  falsos em `stubs/`), sem rede, um rig por arquivo.
+  - Saídas de referência em `loop/test/golden/` (e `golden/legado/` para o que os originais, removidos na 5.0.0, produziam).
+  - JSON compara por subconjunto (campo novo passa).
+  - Regrave um golden só quando a mudança de saída é intencional e conferida à mão.
 
 O núcleo nunca cita o projeto: o `check` reprova (`HADES_NAME_GUARD=strict`, padrão) qualquer ocorrência do nome, repo,
 owner ou alias de um perfil instalado fora de `loop/test` e dos relatórios (o `CHANGELOG.md` também é varrido: o histórico anterior à 4.0.0 mora no pacote do projeto).

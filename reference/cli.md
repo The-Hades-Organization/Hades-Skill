@@ -2,15 +2,15 @@
 
 Toda a lógica da Hades mora em `src/`, roda do fonte pelo Bun (sem binário compilado, sem build) e a skill não tem
 dependência de runtime: `package.json` só lista `typescript` e `@types/bun`, ambas de desenvolvimento
-(`bun x tsc --noEmit`). Não há mais wrappers `.sh`, `.py` ou `.mjs` de lógica: tudo é `hades <subcomando>`. O HELP
+(`bun x tsc --noEmit`). Não há wrappers `.sh`, `.py` ou `.mjs` de lógica: tudo é `hades <subcomando>`. O HELP
 (`bun src/cli.ts --help`) é a fonte desta tabela.
 
 ```bash
 bun src/cli.ts <subcomando> [argumentos]     # o mesmo que `hades <subcomando>` quando o alias existe
 ```
 
-Coluna "Shim": `kit/<arquivo>` é um shim permanente de uma linha (via `kit/hades-ts.sh`) que o `$D` instalado e o
-painel chamam (a exceção, `config.sh`, está em §Shims). Sem shim, só a CLI. Os subcomandos vêm agrupados por área.
+Os subcomandos vêm agrupados por área. Coluna "Shim": `kit/<arquivo>` é um shim permanente de uma linha (via
+`kit/hades-ts.sh`) que o `$D` instalado e o painel chamam (a exceção, `config.sh`, está em §Shims); `—` = só a CLI.
 
 ### Loop e agentes
 
@@ -32,7 +32,7 @@ painel chamam (a exceção, `config.sh`, está em §Shims). Sem shim, só a CLI.
 | `gate-lock run <kind> [--label L] [--timeout S] [--cost-gb N] [--step S:E] [--priority N] -- <cmd>`, `status`, `peak <label>` | fila de admissão de gates (FIFO por projeto, memória, scope systemd); saída 75 = não admitido até o timeout; `status` e o notify overrunam gate longo (`HADES_GATE_OVERRUN_MIN`, `HADES_GATE_OVERRUN_FACTOR`) | `kit/gate/gate-lock.sh` |
 | `json-merge3 <arquivo>…` | merge estrutural de 3 vias de JSON em conflito | — |
 | `keep-both <arquivo>…` | resolve conflitos de merge mantendo os dois lados | — |
-| `agent new\|adopt\|reassign-orchestrator\|review\|prompt\|answer\|phase\|resume\|park\|escalate\|status\|list\|done\|plan-approve\|plan-trim\|start-cmd\|decide\|auto-start\|skill-new\|skill-clean …` | agentes do orquestrador: alocação, tarefa, fases, estado e encerramento (argumento faltando sai 2 com `hades: faltou <x>`); `reassign-orchestrator <nome>…\|--all`: aponta o `orchestrator` dos registros para o pane atual; `phase <nome> <fase> --no-commit`: a fase não faz commit e o `DONE` do `hades watch` exige só a prova (`resume` mantém, `phase` sem a flag reseta); `prompt\|resume\|answer\|phase` avisam quando o `report.md` ainda começa com `STATUS: DONE` | — |
+| `agent new\|adopt\|reassign-orchestrator\|review\|prompt\|answer\|phase\|resume\|park\|escalate\|status\|list\|done\|plan-approve\|plan-trim\|start-cmd\|decide\|auto-start\|skill-new\|skill-clean …` | agentes do orquestrador: alocação, tarefa, fases, estado e encerramento (argumento faltando sai 2 com `hades: faltou <x>`); notas abaixo da tabela | — |
 | `agent decide <plano> --level-needed 1\|2\|3 --question "…" --chosen "…" [--alternatives "a; b"] [--class <c>]` | o nível `HADES_ORCH_AUTONOMY` cobre a decisão? Sai 0 e grava log do plano, diário (`decision`) e notificação; sai 3 = pergunta ao dono (sempre nas classes que nunca cedem); 2 = argumento inválido (`reference/autonomia.md`) | — |
 | `agent auto-start on\|off\|status` | liga/desliga o interruptor e grava/remove só a regra allow `Bash(herdr agent start:*)` no `settings.json` do usuário (idempotente, preserva o resto); só o dono (o hook barra `on\|off` vindo do Claude) | — |
 | `agent park <nome> ["<motivo>"]` | pede ao agente o `handoff.md` (`STATUS: PARKED`) e que pare; marca o registro `parked` quando o handoff chega fresco. Não mata a sessão nem fecha o painel; já estacionado ou encerrado: avisa e sai 0 | — |
@@ -43,6 +43,12 @@ painel chamam (a exceção, `config.sh`, está em §Shims). Sem shim, só a CLI.
 | `usage [--days N] [--json] [--baseline]` | consumo de tokens por papel de sessão (custo equivalente de API, polling, reescrita de contexto) e, ao lado do US$, `% 5h` e `% semana` estimados pela calibração mais o % medido das janelas; grava `~/.claude/hades/usage/` | — |
 | `usage sample [--quiet]` | comando do `statusLine`: lê o JSON do Claude Code no stdin e grava o % das janelas de 5 h e semanal em `~/.claude/hades/limits/samples.jsonl` (`reference/limites.md`) | — |
 | `guard [context <cwd>]` · `guard register` | hook PreToolUse/PostToolUse (JSON no stdin) e o registro dele no `settings.json` (abaixo) | — |
+
+Notas do `agent`:
+- `reassign-orchestrator <nome>…|--all` aponta o `orchestrator` dos registros para o pane atual.
+- `phase <nome> <fase> --no-commit`: a fase não faz commit e o `DONE` do `hades watch` exige só a prova (`resume` mantém,
+  `phase` sem a flag reseta).
+- `prompt|resume|answer|phase` avisam quando o `report.md` ainda começa com `STATUS: DONE`.
 
 ### Ambiente
 

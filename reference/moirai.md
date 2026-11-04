@@ -88,13 +88,18 @@ a seção, sem a linha da unidade ou sem p75, nada é emitido nem gravado. Nunca
 | Limite (Configurações) | O que sai |
 |---|---|
 | `HADES_MOIRAI_WARN_PCT` (100) do p75 | linha `BUDGET <agente> <pct>` ao orquestrador (também notificação `agent`) |
-| `HADES_MOIRAI_ASK_PCT` (150) do p75 | pergunta `## Q<n> — custo passou de <N>% do estimado` gravada no `questions.md` do agente (seguir, reestimar ou estacionar) e a `QUESTION <agente> <abertas>` de sempre; responde-se com `hades agent answer`. Sai uma vez por agente e fase: a marca fica em `<orquestração>/budget-ask/<agente>.<fase>`, não no visto do watch nem no `questions.md`, então relançar o watch ou reescrever o arquivo não a repete; outra fase pergunta de novo |
+| `HADES_MOIRAI_ASK_PCT` (150) do p75 | pergunta `## Q<n> — custo passou de <N>% do estimado` gravada no `questions.md` do agente (seguir, reestimar ou estacionar) e a `QUESTION <agente> <abertas>` de sempre; responde-se com `hades agent answer` (detalhe da marca abaixo) |
 
-- **Um aviso por limite por fase:** a chave de cada limite leva a fase do registro (`phase`, ou o papel). Mesma fase, mesmo
-  limite, nada de repetir a cada evento; mudar de fase (`hades agent phase`) rearma. Passar dos dois de uma vez emite os dois.
-  A pergunta do limite já gravada no `questions.md` para a fase (aberta ou respondida) vale: a resposta do dono não se
-  repete mesmo que o "visto" do watch se perca. Uma unidade com o mesmo nome nas duas raízes (projeto e `_skill`) gera
-  um evento só: o watch varre cada nome uma vez, e a primeira raiz vence.
+- **A pergunta sai uma vez por agente e fase.** A marca fica em `<orquestração>/budget-ask/<agente>.<fase>`, não no visto
+  do watch nem no `questions.md`: relançar o watch ou reescrever o arquivo não a repete; outra fase pergunta de novo.
+
+- **Um aviso por limite por fase:** a chave de cada limite leva a fase do registro (`phase`, ou o papel). Mesma fase,
+  mesmo limite, nada de repetir a cada evento; mudar de fase (`hades agent phase`) rearma. Passar dos dois de uma vez
+  emite os dois.
+- **Pergunta já gravada vale:** a do limite no `questions.md` para a fase (aberta ou respondida) não se repete, mesmo que
+  o "visto" do watch se perca.
+- **Mesmo nome nas duas raízes** (projeto e `_skill`): um evento só. O watch varre cada nome uma vez, e a primeira raiz
+  vence.
 - **Custo corrente:** soma do `usage` dos transcripts do worktree (`~/.claude/projects/<cwd codificado>`), mesma tabela de
   preço do `hades usage` e mesma regra de pedido (um `requestId` conta uma vez). Cache incremental por arquivo em
   `<estado do watch>/<agente>.cost.json` (`{offset, costUsd, ids}`): cada ciclo lê só os bytes novos, até a última linha

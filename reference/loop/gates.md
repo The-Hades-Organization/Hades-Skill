@@ -112,7 +112,7 @@ if mkdir "$WORK/locks/pr-<n>.lock" 2>/dev/null; then
     "$(git rev-parse --show-toplevel)" "$(hostname)" "$$" "$(date -u +%FT%TZ)" "<modo>" \
     > "$WORK/locks/pr-<n>.lock/owner"
 else
-  cat "$WORK/locks/pr-<n>.lock/owner"   # outra sessao tem a PR: siga para a proxima
+  cat "$WORK/locks/pr-<n>.lock/owner"   # outra sessão tem a PR: siga para a próxima
 fi
 ```
 
@@ -189,7 +189,7 @@ ao mesmo tempo, muito além dos ~8 GB livres depois do desktop e dos agentes). A
 
 ```bash
 GL="$HOME/.claude/skills/hades/kit/gate/gate-lock.sh"
-"$GL" status                                                          # fila, orcamento, MemAvailable
+"$GL" status                                                          # fila, orçamento, MemAvailable
 "$GL" run test --label <projeto> -- <comando de teste>                # entra na fila, roda, sai
 "$GL" run gate --label pr-<n> --cost-gb 5 -- bash "$WORK/gate-<n>/run.sh"   # concessao (abaixo)
 ```
@@ -252,7 +252,7 @@ consulta o estado antes.**
 O estado é **um arquivo global + um shard por PR**, não um monolito:
 
 ```
-state/global.json        # o que nao pertence a uma PR so
+state/global.json        # o que não pertence a uma só PR
 state/pr-<n>.json        # tudo de uma PR
 ```
 
@@ -340,7 +340,7 @@ Semântica dos campos que mais erram:
 - `comments` é o mesmo para comentário top-level, chaveado pelo `databaseId`. Sem ele, todo pedido
   top-level é eterno, porque comentário solto não tem `isOutdated` nem `isResolved`.
 - `lastClaudeTrigger` guarda `headOid` junto do `commentId`: só re-dispare o bot (`flow.bot.mention`) se o head mudou
-  **materialmente** — OID diferente **e** o diff `<ultimo trigger>..HEAD` tocando algo fora de docs/markdown e da
+  **materialmente** — OID diferente **e** o diff `<último trigger>..HEAD` tocando algo fora de docs/markdown e da
   pasta de agentes. Um gatilho por push, no máximo.
 - `lastSeenReviewAt` é o que impede o loop de girar em PR aprovada sem comentário. Grave sempre que
   ler os reviews de uma PR, mesmo quando não havia nada a fazer.
@@ -419,7 +419,7 @@ Herdado de `code-review-local` §"Loop de correção", que é o padrão já prat
   específico que acabou de ser disparado (e aí o modo certo é `watch`), e depois de um tick encerrado
   por **gate enfileirado** (saída 75) — a fila anda sozinha e nada notifica quando isso
   acontece. Não encurte para "poll" de coisa que notifica sozinha.
-- Tick encerrado por gate enfileirado mantem o lock da PR e reporta o motivo (`fila`, `orcamento`,
+- Tick encerrado por gate enfileirado mantém o lock da PR e reporta o motivo (`fila`, `orcamento`,
   `MemAvailable`) e os `clone` que estavam na frente. `noop: false` se houve commit antes da fila; `noop: true` se a passada não mudou nada.
 - Encerrar o loop quando não há PR em estado acionável **ou** quando tudo que resta são escalações
   esperando o dono — nesse caso relate as escalações e pare.

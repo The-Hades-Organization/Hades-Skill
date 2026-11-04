@@ -24,18 +24,22 @@ Os dados do dono e do time (assignee, reviewers, labels, owners de spec, assigne
 
 `plan.md` a partir de `reference/loop/plan-template.md` (unidades e ordem, dependências e stack, specs novas com agente
 de spec antes do de implementação, dono de cada arquivo compartilhado, consolidação, papel e modelo de cada agente).
-Aprove com o dono por `AskUserQuestion` e registre com `hades agent plan-approve <plan.md>`. Do repo da skill (ou de um diretório sem `origin`) o `plan-approve` grava em
-`<raiz de trabalho>/_skill/orchestration/plan.json`, com `escopo: "skill"`; é o plano que o `skill-release.sh` e o Cerberus usam
-na release (nunca o `plan.json` mais novo de outro projeto). Com a Configuração
-"Exigir plan.md aprovado" ligada, o `new` recusa alocar sem plano, ou com plano mudado depois da aprovação (a seção
-"Estado atual", inclusive com sufixo no título, não conta: ela fica fora do hash, que é o mesmo no `hades agent` e no
-Cerberus; fim de linha CRLF e newline final também não mudam o hash).
+Aprove com o dono por `AskUserQuestion` e registre com `hades agent plan-approve <plan.md>`.
+
+- **Plano da skill:** do repo da skill (ou de um diretório sem `origin`), o `plan-approve` grava em
+  `<raiz de trabalho>/_skill/orchestration/plan.json`, com `escopo: "skill"`. É o plano que o `skill-release.sh` e o
+  Cerberus usam na release (nunca o `plan.json` mais novo de outro projeto).
+- **Plano exigido:** com a Configuração "Exigir plan.md aprovado" ligada, o `new` recusa alocar sem plano, ou com plano
+  mudado depois da aprovação.
+- **O que não muda o hash** (o mesmo no `hades agent` e no Cerberus): a seção "Estado atual" (inclusive com sufixo no
+  título), fim de linha CRLF e newline final.
 
 **Estimar antes de aprovar.** Com o plano escrito e antes do `plan-approve`, rode `hades moirai estimate <plan.md> --write`:
 a seção `## Estimativa` traz custo (US$) e duração por unidade, com faixa p25–p75 e confiança, a partir das unidades
-encerradas (`reference/moirai.md`). Mostre ao dono junto com o plano; confiança baixa vem escrita na seção. A seção entra
-no hash: reestimar depois pede nova aprovação. O `plan-approve` avisa (sem barrar) quando ela falta. Declare o tamanho no
-escopo da unidade ("~300 linhas" ou "5 arquivos"): sem isso a estimativa compara só papel e modo.
+encerradas (`reference/moirai.md`).
+- Mostre ao dono junto com o plano; confiança baixa vem escrita na seção.
+- A seção entra no hash: reestimar depois pede nova aprovação. O `plan-approve` avisa (sem barrar) quando ela falta.
+- Declare o tamanho no escopo da unidade ("~300 linhas" ou "5 arquivos"): sem isso a estimativa compara só papel e modo.
 
 **Cabe na janela?** Antes de alocar unidades em paralelo, compare o p75 do plano com o que resta da janela de 5 h: a linha
 "cabe na janela atual?" do `hades moirai estimate <plan.md>` (soma das unidades em paralelo contra 100 − % usado,
@@ -107,18 +111,24 @@ da skill (pode ter remote; push nunca é automático), branch `skill/<u>`, em `~
 4. Auditar o report e o diff; merge da branch na `main` da skill (consolidação); reinstalar (`kit/install.sh`; o `skill-release`
    que aborta por drift só de arquivo novo do kit imprime o comando de reinstalar);
    `kit/skill-release.sh release` (`reference/evolving.md` §Passos, item 5).
-5. `skill-clean [<u>…|--merged] [--force-data] [--dry-run]`: por unidade, **recusa** se a branch não está contida em `main`, se a
-   worktree tem mudança rastreada (ou arquivo novo fora do git: a recusa lista os arquivos), se o agente está ativo no herdr (`working`/`idle`) ou se
-   `_data/<u>` tem algo além dos artefatos das provas (`data/`, `data-rt/`, `install.log`, `check.log`, `install<N>.log`, `check<N>.log` das provas repetidas, `panel.log`, `wt`, `clone`: a
-   instalação descartável e o `hades skill-release check`; a lista é `DISPOSABLE_DATA` em `src/commands/agent-skill.ts`). Export, patch
-   e captura ali se perderiam: a recusa lista só o que não é conhecido, e `--force-data` apaga mesmo assim, depois de você conferir, **só das unidades
-   nomeadas** na linha (as que o `--merged` pega são conferidas como sempre, com ou sem a opção).
-   Senão: fecha o workspace herdr cujo único cwd é a worktree, arquiva `brief.md`, `report*.md`, `questions.md`,
-   `handoff.md`, qualquer outro `*.md` avulso, capturas e `*.patch`, `*.diff`, `*.tsv`, `*.json`, `*.txt` (<2 MB) em `~/.claude/hades/skill-dev/_arquivo/<pasta>/`, remove a worktree, a branch e
-   `_data/<u>`, e marca o registro `archived`. A unidade é o sufixo da branch; o nome da pasta pode diferir
-   (`_onda1` ↔ `skill/onda1`), os dois valem como argumento. `--merged` pega todas as `skill/*` já na `main`, exceto as
-   com agente ativo e as recém-criadas (registro que não é `done`/`archived` e branch sem commit próprio: estar "contida na
-   `main`" ali não é entrega); essas só saem pelo nome. Idempotente. Workspaces herdr que não casam pelo cwd ficam: feche à mão.
+5. `skill-clean [<u>…|--merged] [--force-data] [--dry-run]`. Idempotente.
+   - **Recusa**, por unidade, se: a branch não está contida em `main`; a worktree tem mudança rastreada (ou arquivo novo
+     fora do git: a recusa lista os arquivos); o agente está ativo no herdr (`working`/`idle`); ou `_data/<u>` tem algo
+     além dos artefatos das provas: `data/`, `data-rt/`, `install.log`, `check.log`, `install<N>.log`/`check<N>.log` das
+     provas repetidas, `panel.log`, `wt`, `clone` (a instalação descartável e o `hades skill-release check`; a lista é
+     `DISPOSABLE_DATA` em `src/commands/agent-skill.ts`). Export, patch e captura ali se perderiam: a recusa lista só o
+     que não é conhecido.
+   - **`--force-data`** apaga mesmo assim, depois de você conferir, **só das unidades nomeadas** na linha (as que o
+     `--merged` pega são conferidas como sempre, com ou sem a opção).
+   - **Quando passa:** fecha o workspace herdr cujo único cwd é a worktree; arquiva `brief.md`, `report*.md`,
+     `questions.md`, `handoff.md`, qualquer outro `*.md` avulso, capturas e `*.patch`, `*.diff`, `*.tsv`, `*.json`,
+     `*.txt` (<2 MB) em `~/.claude/hades/skill-dev/_arquivo/<pasta>/`; remove a worktree, a branch e `_data/<u>`; marca
+     o registro `archived`. Workspaces herdr que não casam pelo cwd ficam: feche à mão.
+   - **Nome:** a unidade é o sufixo da branch; o nome da pasta pode diferir (`_onda1` ↔ `skill/onda1`), os dois valem como
+     argumento.
+   - **`--merged`** pega todas as `skill/*` já na `main`, exceto as com agente ativo e as recém-criadas (registro que não
+     é `done`/`archived` e branch sem commit próprio: estar "contida na `main`" ali não é entrega); essas só saem pelo
+     nome.
 
 ## 3. Brief
 
@@ -148,10 +158,10 @@ vivo) ou `hades agent reassign-orchestrator <nome>…|--all` apontam o registro 
 Eventos: `QUESTION`, `PR-OPEN`, `DONE`, `DONE-HELD`, `REVIEW`, `MERGED`/`CLOSED`, `PARKED`, `CONTEXT`, `STALLED`, `BUDGET`, `LIMITE`.
 - **`LIMITE <5h|semana> <pct> renova <hora>`**: a janela do plano passou de `HADES_LIMITS_WARN_FIVE_PCT` (80) ou
   `HADES_LIMITS_WARN_SEVEN_PCT` (90). É da máquina, não de um agente: sai para todo observador (o filtro de dono não vale),
-  uma vez por janela e por renovação, e de novo só depois que ela renova. Só aviso: diga ao dono e pese antes de alocar
-  mais em paralelo (`reference/limites.md`). Sem coleta ligada, nada sai.
+  uma vez por janela e por renovação. Só aviso: diga ao dono e pese antes de alocar mais em paralelo. Sem coleta
+  ligada, nada sai (`reference/limites.md`).
 - **`BUDGET <agente> <pct>`** (Moirai): o custo corrente passou de `HADES_MOIRAI_WARN_PCT` (100) do p75 da estimativa do
-  plano. É só aviso: o agente segue. Diga ao dono, sem agir; ao passar de `HADES_MOIRAI_ASK_PCT` (150) o watch grava a
+  plano. Só aviso: o agente segue; diga ao dono, sem agir. Ao passar de `HADES_MOIRAI_ASK_PCT` (150) o watch grava a
   pergunta no `questions.md` do agente (seguir, reestimar ou estacionar) e emite a `QUESTION` de sempre: leve ao dono e
   `hades agent answer`. Um aviso por limiar por fase; sem estimativa no plano nada sai (`reference/moirai.md`).
 - **`DONE <agente>`**: `report.md` começando com `STATUS: DONE`, **escrito depois do último prompt** do agente (o report

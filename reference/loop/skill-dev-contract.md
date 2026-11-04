@@ -6,7 +6,8 @@ script que você vai mexer e a referência do assunto (`reference/*.md`).
 
 ## O que muda em relação ao cartão `roles/impl.md`
 Siga o cartão em esperar, estacionar, escalar e dúvidas. **Não se aplicam:** spec, card, PR, push,
-checagem de tipos, build/teste de projeto, `/review-agents` e `gate-lock.sh`. Não há nada do repositório de projeto aqui.
+checagem de tipos de projeto, build/teste de projeto, `/review-agents` e `gate-lock.sh`. Não há nada do repositório de
+projeto aqui.
 
 - **Onde trabalhar:** só na sua worktree `~/.claude/hades/skill-dev/<unidade>` (branch `skill/<unidade>` do git
   local da skill; ele pode ter remote, mas push nunca é automático: o `skill-new` grava

@@ -6,7 +6,7 @@ sentido #3 tem superfície própria: `/hades sweep`.
 ## #1 — Stack de PRs dependentes
 
 A maioria das PRs vive empilhada (base != a base do fluxo), então corrigir uma PR do meio propaga para as
-filhas. Use a skill/extensao **`gh-stack`**, e respeite as regras que a tornam automatizável:
+filhas. Use a skill/extensão **`gh-stack`** e respeite as regras que a tornam automatizável:
 
 - **Tudo non-interactive.** Prompt pendura a sessão indefinidamente.
 - `gh stack view` **sempre com `--json`** — sem isso abre TUI.
@@ -14,8 +14,8 @@ filhas. Use a skill/extensao **`gh-stack`**, e respeite as regras que a tornam a
 - `init`/`add`/`checkout` sempre com o nome da branch como argumento posicional.
 - Mudança em camada inferior: `gh stack down`/`checkout` → commit → `git merge` da camada de baixo em cada
   camada acima, de baixo para cima (nunca rebase: as branches estão sob review, §#2) → voltar ao topo.
-- **`gh pr merge` não funciona em stack.** Merge seria `gh stack merge --yes` — e **este fluxo não
-  faz merge**, então isso é informação para o dono, não ação do loop.
+- **`gh pr merge` não funciona em stack.** O merge seria `gh stack merge --yes`, mas **este fluxo não faz merge**:
+  isso é informação para o dono, não ação do loop.
 - Branch compartilhada entre stacks devolve **exit 6**: pare e reporte.
 
 Ordem de trabalho: **fundo da stack primeiro** (`stackDepth` menor no coletor). A filha recebe o
@@ -31,7 +31,7 @@ Este é o procedimento **canônico** para os dois estados; `inbox.md` (Fase 3) a
 repetir.
 
 **Merge da base na branch, nunca rebase.** A branch está sob review: rebase reescreve o que os
-reviewers ancoraram, invalida threads e apaga a correspondência entre comentário e linha. A prática e
+reviewers ancoraram, invalida threads e apaga a correspondência entre comentário e linha. A prática é
 merge da base na branch (`ref review`).
 
 ```bash
@@ -42,7 +42,7 @@ git merge origin/<base>         # nunca rebase, nunca --force depois
 Depois do merge: gate das faixas do projeto (`gates.md` §1), e só então push. Conflito trivial e mecânico resolve-se aqui;
 conflito que exige decidir semântica **escala**.
 
-Meca o drift antes de decidir, em vez de estimar:
+Meça o drift antes de decidir, em vez de estimar:
 
 ```bash
 git rev-list --count HEAD..origin/<base>      # commits que a base andou

@@ -19,11 +19,10 @@ base junto (ela não aparece como PR própria no STATUS). O `watch.sh` compara o
 3. Para cada PR: `git fetch origin pull/<n>/head:refs/hades/pr-<n>` e merge `--no-ff`.
    - **Stack desalinhada** (a base foi rebaseada e a PR de cima ainda está sobre o histórico antigo): detectada por
      `git merge-base --is-ancestor pr-<base> pr-<n>` falso → tenta primeiro o merge direto (entra limpo quando a PR
-     já absorveu por merge a base ou outra PR do conjunto — #5277 sobre #5283 com a #5276 dentro, 29/09: o
-     cherry-pick reaplicava os commits da #5276 e conflitava nos docs). Conflito no merge direto → aborta e aplica só
-     os commits próprios com
-     `git rev-list --no-merges --right-only --cherry-pick pr-<base>...pr-<n>` + `cherry-pick -x`. Em 28/09 a #4959
-     sobre a #4937 dava 25 conflitos no merge direto e 3 pequenos no cherry-pick.
+     já absorveu por merge a base ou outra PR do conjunto; o cherry-pick reaplicaria os commits dessa PR e conflitaria
+     nos docs). Conflito no merge direto → aborta e aplica só os commits próprios com
+     `git rev-list --no-merges --right-only --cherry-pick pr-<base>...pr-<n>` + `cherry-pick -x`. Medido: uma PR
+     sobre outra dava 25 conflitos no merge direto e 3 pequenos no cherry-pick.
    - Conflito que o **rerere** resolve sozinho → commit automático (`rerere.autoupdate=true`).
    - Conflito novo → `CONFLITO-NOVO` no `rebuild.report` e para.
 4. `fixups.sh` (quebras silenciosas) e `last-build.heads` / `last-build.develop` (o sha da base; o nome do arquivo ficou).
@@ -48,8 +47,8 @@ conflitam em dezenas de arquivos. Conferir que nenhum commit da fatia fica de fo
 
 ## Quebra silenciosa (o git não acusa, o build quebra)
 
-O rerere só reaplica hunks **em conflito**. Uma correção numa linha sem conflito (ex.: a #4968 moveu `isRefusal`
-para `RegistryNamesAnswer` e a #4937 acrescentou uma chamada a `CamerasHttpClient.isRefusal`) precisa ir para o
+O rerere só reaplica hunks **em conflito**. Uma correção numa linha sem conflito (ex.: uma PR moveu uma função
+para outro módulo e outra acrescentou uma chamada ao nome antigo) precisa ir para o
 `fixups.sh`, idempotente e guardado por condição, que commita `Hades: fixups`. Descobre-se pelo build.
 
 ## Ordem de migration

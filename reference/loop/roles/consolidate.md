@@ -5,8 +5,12 @@ Regras e passos completos: `~/.claude/skills/hades/reference/loop/consolidate.md
 
 ## Fluxo (pelo hades consolidate, de dentro da sua worktree)
 `plan` → `merge` (só merge; conflito: escale se não for trivial) → `verify` antes de cada push → PR em draft →
-`comment ... --post` → gate único (eslint nos arquivos do diff, unit `--findRelatedTests`, integração só dos specs que
-cobrem o diff com `--maxWorkers=2`, um comando por vez, pela fila, em segundo plano) → `ready ... --post`.
+`comment ... --post` → gate único → `ready ... --post`.
+
+Gate único, um comando por vez, pela fila, em segundo plano:
+- eslint nos arquivos do diff;
+- unit com `--findRelatedTests`;
+- integração só dos specs que cobrem o diff, com `--maxWorkers=2`.
 
 - Falha de gate vai para a PR dona do código (o orquestrador repassa ao agente dela); você espelha por `merge` e
   roda de novo só o que falhou. Só o que nasce da combinação das PRs se corrige aqui.

@@ -17,9 +17,9 @@ alias run-hades='<worktree>-data/run-hades.sh'
 ```bash
 run-hades                 # reusa o conjunto de PRs atual (prs.list); se não houver, só a base
 run-hades develop         # só a base, sem PRs
-run-hades 4937 4959       # base + PRs 4937 e 4959
+run-hades 101 102         # base + PRs 101 e 102
 run-hades @me             # base + minhas PRs abertas (não-draft)
-run-hades @me -4964       # idem, excluindo a 4964
+run-hades @me -103       # idem, excluindo a 103
 run-hades author:fulano   # base + PRs abertas de <fulano>
 ```
 

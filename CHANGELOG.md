@@ -4,6 +4,26 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.4.0 — 2026-11-04
+
+Documentação revista com o Impeccable (critique, clarify, distill, typeset, quieter, polish, optimize, delight, document).
+
+- **Página Documentação** do painel: linha 1.7, código inline com folga curta, código em título sem bloco cinza, 1ª coluna
+  de tabela sem quebrar no meio da palavra; índice de documentos com rolagem própria (os tópicos ficam à vista) e, no
+  celular, "Tópicos" mostrando o atual e o caminho escondido. Documento cortado em seções por `## ` com
+  `content-visibility:auto` (o de 3.249 linhas não pinta tudo de uma vez); o salto ao tópico respeita
+  `prefers-reduced-motion` e corrige a posição depois que as seções adiadas pintam. Botão "Copiar" nos blocos de código.
+  `DESIGN.md` novo, com o sistema de design do painel.
+- **Textos públicos:** README com os recursos no topo e menos ênfase (462 → 398 linhas); requisitos corrigidos (`rsync`
+  saiu, o install copia em TypeScript; entram `bwrap` e `launchctl`); `CONTRIBUTING.md` novo, com o caminho único de
+  contribuição; SECURITY e modelos de issue mais enxutos.
+- **`reference/`** inteira: parágrafos densos e células longas viram listas, sem vocabulário de domínio nem número de PR
+  de projeto, acentos corrigidos. Nenhuma seção renomeada; regras, comandos, chaves e caminhos conferidos token a token
+  contra a versão anterior. O cartão do orquestrador mantém a lista do que nunca cede.
+- Armadilhas: um agente commitou o relatório da própria pasta `.design-sync-reports/` (saiu no merge); a faixa de portas
+  de teste das unidades (21270–21289) esgota com worktrees não limpas (`skill-clean`, ou `skill-new --port N`); o guard não
+  barra um laço `while pgrep …; do sleep 5; done`.
+
 ## 6.3.0 — 2026-11-04
 
 Consumo em % das janelas de 5 h e semanal (issue #4) e `hades watch` por orquestrador (issue #5).

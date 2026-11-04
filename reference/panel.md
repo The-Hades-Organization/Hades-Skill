@@ -1,7 +1,8 @@
 # Painel do Hades (`panel/`, unit `hds-panel`)
 
 Tela do dono para **monitorar e operar** o Hades em tempo real: http://127.0.0.1:21220 (`HADES_PANEL_PORT`; uma instância
-a mais ganha outra porta livre). Os nomes de unit, slice, projeto compose e túnel citados aqui são os da instância original; numa instância com `HADES_ID` o prefixo vira `hds_<id>` e o slice/projeto `hades_<id>` (`reference/projects.md` §Várias instâncias).
+a mais ganha outra porta livre). Os nomes de unit, slice, projeto compose e túnel citados aqui são os da instância original; numa instância com `HADES_ID`
+o prefixo vira `hds_<id>` e o slice/projeto `hades_<id>` (`reference/projects.md` §Várias instâncias).
 
 ```bash
 $D/panel.sh start|stop|restart|status|url|autostart     # o run-hades já sobe o painel (passo 10)
@@ -63,9 +64,14 @@ A unit fica **fora** do slice `hades` (~40 MB): não conta no teto e segue no ar
 | Plugins (§Página Plugins) | um card por pacote de plugin; tour com prévia de dois pacotes de exemplo (`plugins.tour.tsx`) | adicionar, atualizar, ligar/desligar, remover (só localmente) |
 | Qualidade (`reference/quality.md`) | catálogo global de regras de qualidade por grupo, com o estado de cada uma e os conflitos com o projeto; tour sem prévia (`quality.tour.tsx`) | ligar/desligar regra, grupo ou tudo, voltar ao padrão (grava `~/.claude/hades/quality/choices.tsv`); cartão Pacotes: interruptor por pacote, selo Ligado/Desligado/Parcial e filtro por pacote |
 | Configurações (`reference/config.md`) | todo parâmetro do `config.tsv`, por grupo, com o padrão e o modo de aplicar; tour sem prévia (`config.tour.tsx`) | salvar no `config.env`; aplicar teto no slice, reiniciar serviços ou painel, o modo que o plugin declarar (`panel.applies`), aplicar início automático (painel) e subida automática (`boot.sh apply`, só pelo painel local); **Exportar** e **Importar** (prévia do diff em diálogo, grava pelo mesmo `POST /api/config`); busca fixa no topo com `/` e filtros (`#/config?q=…&f=alt,falta`) |
-| Documentação | esta skill inteira: SKILL.md, referências, changelog, com subabas e tópicos; tour sem prévia (`docs.tour.tsx`) | — |
+| Documentação | esta skill inteira: SKILL.md, referências, changelog, com subabas e tópicos; leitura em medida de 68ch, documento longo em seções que só pintam perto da tela, botão Copiar nos blocos de código (design em `DESIGN.md`); tour sem prévia (`docs.tour.tsx`) | — |
 
-Páginas do plugin entram na sidebar do grupo que declaram e não têm linha fixa aqui: §Plugin: páginas, rotas e ações (as do ambiente instalado: `ref env-extensions`, o que o ambiente do projeto acrescenta, em `reference/projects.md`). Ctrl K abre a busca de ações (navegação, ciclo, reiniciar e logs por serviço). O grupo "Ir para" lista todas as páginas mesmo antes do primeiro snapshot (só Ambiente e Serviços esperam por ele); a busca casa todos os termos em grupo, nome e `desc` da página, sem acento (`cfgNorm`): "post-mortem" acha o Thanatos, "tunel" acha o Acesso remoto. No Argos o Ctrl K abre a paleta da página, com as mesmas páginas no grupo "Painel" e a mesma busca pela descrição.
+- **Páginas do plugin** entram na sidebar do grupo que declaram e não têm linha fixa aqui: §Plugin: páginas, rotas e ações
+  (as do ambiente instalado: `ref env-extensions`; o que o ambiente do projeto acrescenta, em `reference/projects.md`).
+- **Ctrl K** abre a busca de ações (navegação, ciclo, reiniciar e logs por serviço). O grupo "Ir para" lista todas as
+  páginas mesmo antes do primeiro snapshot (só Ambiente e Serviços esperam por ele). A busca casa todos os termos em
+  grupo, nome e `desc` da página, sem acento (`cfgNorm`): "post-mortem" acha o Thanatos, "tunel" acha o Acesso remoto.
+- **No Argos** o Ctrl K abre a paleta da página, com as mesmas páginas no grupo "Painel" e a mesma busca pela descrição.
 
 ### Navegação lateral
 - **Grupos** (`CORE_GROUPS`; cabeçalho clicável, `aria-expanded`, Enter/Espaço): Ambiente (Visão geral, Branch e PRs, e as páginas do plugin que pedirem esse grupo), Loop (Loop, Orquestração, Revisões, Fila de gates, Consumo), Operação (Claude, Herdr, Execuções, Logs, Notificações, Acesso remoto), Hades (Argos, Cerberus, Thanatos, Caronte) e Sistema (Onboarding, Plugins, Qualidade, Configurações, Documentação). Argos, Cerberus, Thanatos, Caronte e Herdr levam um subtítulo de função sob o nome (campo `sub` do `CORE_NAV`). A lista plana `CORE_NAV` segue valendo para rota e paleta de comandos.
@@ -89,9 +95,20 @@ geral lê a mesma lista. Nada vivo: um fio parado de 1 px.
 
 Cada botão chama o **script do kit instalado** como unit transitória `hds-pjob-<id>`, fora do slice. O log e o código de saída ficam em `$D/logs/panel-jobs/`. A unit sobrevive a um restart do painel; "Interromper" faz `systemctl --user stop`.
 
-**No macOS (launchd)** o job é um plist por job em `~/.claude/hades/launchd` (`com.hades.<HU>.pjob-<id>`, `StandardOutPath` no mesmo log, sem `KeepAlive`), carregado com `launchctl bootstrap`; "Interromper" faz `bootout` e apaga o plist. O launchd não recolhe sozinho: quem terminou deixa o plist e o serviço carregado, e a listagem do painel (a cada 3 s) e o `clean.sh run` os recolhem (`collectFinished`, só plist com mais de 10 s). O chat é igual, com `StandardInPath` no arquivo `.in` da mensagem. O amostrador no macOS lê as units por `launchctl list/print` e a memória e a CPU somando a árvore de processos do `ps` (`src/lib/service-manager-launchd-stats.ts`); não há slice, então o painel mostra a soma da memória das units ativas, sem teto. O log de uma unit (`unit:<nome>`) é o arquivo que o plist declara, não o journal.
+**No macOS (launchd):**
+- **Job:** um plist por job em `~/.claude/hades/launchd` (`com.hades.<HU>.pjob-<id>`, `StandardOutPath` no mesmo log, sem
+  `KeepAlive`), carregado com `launchctl bootstrap`. "Interromper" faz `bootout` e apaga o plist.
+- **Recolher:** o launchd não recolhe sozinho: quem terminou deixa o plist e o serviço carregado, e a listagem do painel
+  (a cada 3 s) e o `clean.sh run` os recolhem (`collectFinished`, só plist com mais de 10 s).
+- **Chat:** igual, com `StandardInPath` no arquivo `.in` da mensagem.
+- **Amostrador:** lê as units por `launchctl list/print` e a memória e a CPU somando a árvore de processos do `ps`
+  (`src/lib/service-manager-launchd-stats.ts`). Não há slice: o painel mostra a soma da memória das units ativas, sem teto.
+- **Log:** o de uma unit (`unit:<nome>`) é o arquivo que o plist declara, não o journal.
 
-Ações de ciclo não rodam em paralelo: o servidor recusa com 409 se outra estiver rodando, ou se houver um script da skill vivo vindo de outro lugar (terminal, agente), detectado no `/proc`. A ação `doctor` (card Diagnóstico) roda `doctor.sh --json` e grava `$D/doctor.json`; não é de ciclo. São ações de ciclo: subir, atualizar, pausar, retomar, dados, infra, ligar serviço, seleção de PRs e fetch.
+Ações de ciclo não rodam em paralelo: o servidor recusa com 409 se outra estiver rodando, ou se houver um script da skill
+vivo vindo de outro lugar (terminal, agente), detectado no `/proc`.
+- **São de ciclo:** subir, atualizar, pausar, retomar, dados, infra, ligar serviço, seleção de PRs e fetch.
+- **Não é de ciclo:** `doctor` (card Diagnóstico): roda `doctor.sh --json` e grava `$D/doctor.json`.
 
 Tour da página Execuções (§Tour por página): oito passos (a página, resumo, histórico, a execução escolhida, abrir terminal, interromper, o fio e o
 log); sem prévia, porque o log é lido de uma execução real por id; os passos que dependem de execução ou de tela larga levam
@@ -415,7 +432,13 @@ levam `fallback`. Código: `ui/pages/herdr.tour.tsx`.
 
 
 ### Herdr no celular
-Aba Terminais: lista das sessões abertas; tocar em uma abre o terminal em tela cheia com a barra de teclas. Aba Workspaces: lista de painéis; tocar abre o painel do agente em tela cheia (saída, teclas, prompt). **Agente pedindo você** (selo "espera por você" do herdr, Orquestração, Argos): o toque leva a `#/herdr?pane=<id>`, que no celular abre direto o painel dele; com o agente em `blocked` a primeira linha são as respostas **1 / 2 / 3 / y / n** (texto sem Enter pelo `herdr pane send-text`, sem servidor novo). "Abrir o cliente do herdr" e "Abrir terminal na pasta" (só dentro das raízes permitidas) abrem a sessão PTY na hora e levam ao terminal em tela cheia; desligado o `HADES_TERMINAL`, o aviso diz como ligar.
+- **Aba Terminais:** lista das sessões abertas; tocar em uma abre o terminal em tela cheia com a barra de teclas.
+- **Aba Workspaces:** lista de painéis; tocar abre o painel do agente em tela cheia (saída, teclas, prompt).
+- **Agente pedindo você** (selo "espera por você" do herdr, Orquestração, Argos): o toque leva a `#/herdr?pane=<id>`, que
+  no celular abre direto o painel dele. Com o agente em `blocked`, a primeira linha são as respostas **1 / 2 / 3 / y /
+  n** (texto sem Enter pelo `herdr pane send-text`, sem servidor novo).
+- **"Abrir o cliente do herdr" e "Abrir terminal na pasta"** (só dentro das raízes permitidas): abrem a sessão PTY na hora
+  e levam ao terminal em tela cheia. Com `HADES_TERMINAL` desligado, o aviso diz como ligar.
 
 ## Terminal
 

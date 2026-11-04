@@ -54,7 +54,7 @@ duas versões do mesmo trabalho é desperdício: escolha a mais recente do grupo
 que a irmã foi preterida, com o número.
 
 Depois do dedup, ordene por: pediram review para mim > sem nenhum review ainda > mais antiga sem
-atividade. Prefira PR nao-draft; draft entra só se o dono pedir, e o relatório diz que é draft.
+atividade. Prefira PR não-draft; draft entra só se o dono pedir, e o relatório diz que é draft.
 
 Anuncie o lote escolhido (números, autores, o que foi deduplicado) **antes** de disparar.
 

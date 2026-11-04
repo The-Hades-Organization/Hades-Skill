@@ -48,11 +48,12 @@ não para a skill — a skill não corrige PR nem serviço.
      `<pacote>/test/` quando há `*.test.ts`; o `test/run.sh` de pacote antigo é recusado), **pela fila de gates**
      (`gate-lock`, tipo `test`, label `skill-release`, fila da máquina `_maquina`, visível no status global): ela disputa a
      memória como qualquer teste. A regressão é o último passo: guardas e varredura de segredos, baratas, vêm antes e a
-     reprovam sem rodá-la. Todo processo que um teste dispara (`Rig.X`, `loop/test/ts/lib/rig.ts`) tem prazo de 120 s:
-     estourado, o grupo inteiro é morto e o teste falha com `processo travou: excedeu … ms: <comando>`, em vez de a
-     regressão ficar presa num worker; `timeoutMs` na chamada ajusta o prazo de um caso. O `Rig.X` não usa o `Bun.spawnSync`
-     (no bun 1.4.2 ele girou a 100% de CPU num worker do `--parallel` com o filho já morto): cria o filho com `Bun.spawn`,
-     com a saída em arquivos, e espera pelo arquivo de status que o invólucro grava.
+     reprovam sem rodá-la.
+     - **Prazo por processo:** todo processo que um teste dispara (`Rig.X`, `loop/test/ts/lib/rig.ts`) tem 120 s;
+       estourado, o grupo inteiro é morto e o teste falha com `processo travou: excedeu … ms: <comando>`, em vez de a
+       regressão ficar presa num worker. `timeoutMs` na chamada ajusta o prazo de um caso.
+     - **Sem `Bun.spawnSync`:** no bun 1.4.2 ele girou a 100% de CPU num worker do `--parallel` com o filho já morto. O
+       `Rig.X` cria o filho com `Bun.spawn`, com a saída em arquivos, e espera pelo arquivo de status que o invólucro grava.
    - **Regressão verde em cache**: quando o HEAD (commit e árvore limpa) já tem regressão **completa e verde** registrada
      em `~/.claude/hades/work/_skill/regressao-verde.json` (nunca no repo), o `check` pula a regressão e diz de qual
      registro; árvore suja não pula, e `check --regressao` força a rodada. Só a regressão completa e verde grava o registro.

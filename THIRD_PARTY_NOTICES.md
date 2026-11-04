@@ -1,9 +1,9 @@
 # Avisos de terceiros
 
-A Hades-Skill (https://github.com/The-Hades-Organization/Hades-Skill) é distribuída sob a licença MIT (`LICENSE`). O painel redistribui os componentes abaixo, cada um sob a
-própria licença, reproduzida nesta página (ou no arquivo indicado). Os arquivos de `kit/panel/ui/vendor/` são cópias
-sem alteração de código; os que não traziam cabeçalho de licença ganharam uma linha `/*! nome vVersão | licença | url */`
-no topo.
+A [Hades-Skill](https://github.com/The-Hades-Organization/Hades-Skill) é distribuída sob a licença MIT (`LICENSE`). O
+painel redistribui os componentes abaixo, cada um sob a própria licença, reproduzida nesta página (ou no arquivo
+indicado). Os arquivos de `kit/panel/ui/vendor/` são cópias sem alteração de código; os que não traziam cabeçalho de
+licença ganharam uma linha `/*! nome vVersão | licença | url */` no topo.
 
 | Item | Versão | Origem | Licença | Caminho |
 |---|---|---|---|---|

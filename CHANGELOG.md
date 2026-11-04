@@ -26,6 +26,10 @@ Modo de loop de revisão (issue #26); rolagem do terminal do nó do Argos e limi
   há tamanho por pane), vence o último que anexou ou redimensionou, e o terminal criado no canvas também é pane do herdr.
   Os nós seguem só com escala. O cursor do nó segue estimado: o herdr 0.8.2 não entrega a posição, e o Claude Code usa
   o cursor real do terminal, sem vídeo reverso.
+- **Teste instável do rig** (`plugin.test.ts`, prazo de cada processo): falhou na CI da 6.9.0 e da 6.11.0 com "o neto não
+  ficou vivo". O SIGTERM do `timeout` chega ao grupo junto com a morte do sh, mas o neto só morre quando é escalonado, e em
+  CI carregada isso passava do instante em que o rc era gravado. O teste agora espera a morte do neto por até 2 s (ele viveria
+  60 s), e a asserção segue exigindo que ele morra.
 
 ## 6.10.0 — 2026-11-04
 

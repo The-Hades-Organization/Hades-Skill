@@ -15,6 +15,7 @@ describe("rig: prazo de cada processo (um travamento vira falha rápida, nunca u
   const vivo = (pid: number) => { try { process.kill(pid, 0); return !zumbi(pid); } catch { return false; } };
   // o neto vive muito mais que qualquer folga razoável: esperar por ele seria o defeito, e a asserção de tempo é relativa a ele, não à carga da máquina
   const VIDA_DO_NETO_S = 60;
+  const PRAZO_DA_MORTE_MS = 2_000;
   test("processo que não termina lança erro legível dentro do prazo e morre com os netos", () => {
     const pidf = `${r.T}/neto.pid`;
     let msg = "";
@@ -23,6 +24,10 @@ describe("rig: prazo de cada processo (um travamento vira falha rápida, nunca u
       r.X(["sh", "-c", `sleep ${VIDA_DO_NETO_S} & echo $! > '${pidf}'; wait`], { timeoutMs: 700 });
     } catch (e) { msg = (e as Error).message; }
     const neto = Number(readFileSync(pidf, "utf8"));
+    // o SIGTERM do `timeout` chega ao grupo junto com a morte do sh, mas o neto só morre quando é escalonado: em CI carregada isso
+    // passa do instante em que o rc é gravado
+    const ateMorrer = performance.now() + PRAZO_DA_MORTE_MS;
+    while (vivo(neto) && performance.now() < ateMorrer) Bun.sleepSync(10);
     const vivoDepois = vivo(neto);
     if (vivoDepois) process.kill(neto, "SIGKILL"); // não vaza o neto se o rig falhar
     expect(msg).toMatch(/processo travou: excedeu 700 ms .*pid \d+, decorridos \d+ ms\): sh -c/);

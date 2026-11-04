@@ -340,6 +340,35 @@ acontecem sem `await` no meio, então dois `PUT` simultâneos com o mesmo `rev` 
 
 Fora isso valem as recusas do painel (401 sem a chave, 403 sem o token ou com Origin fora da lista).
 
+### Quando um nó sai do canvas
+
+Nó só sai do documento por ação do dono ou porque o grafo, lido com confiança, não o tem mais. Nota nunca sai sozinha.
+
+- **Nó vivo** (`agent`, `unit`, `pr`, `gate`): `mergeWithGraph` não remove nada quando o grafo vem **vazio** (documento com 2 nós
+  vivos ou mais), **parcial** (3 ou mais ausentes e mais da metade dos nós vivos do documento) ou marcado `trusted: false`;
+  o resultado leva `held` (os ausentes que ficaram) e `heldReason` (`graph_empty`, `graph_partial`, `graph_untrusted`,
+  `graph_unconfirmed`). Com `SyncOptions.absence` (`createAbsenceTracker`), o nó também só sai depois de faltar em
+  `ABSENCE_MIN_READS` (2) leituras seguidas; a mesma leitura sincronizada duas vezes conta uma.
+- **Nó do usuário** (nota, terminal, desenho…): o `PUT` que tira `USER_REMOVAL_GUARD.minNodes` (5) ou mais deles, e mais da
+  metade dos que o documento tinha, é recusado com `422 canvas_mass_removal` (o documento não muda), a não ser que venha o
+  cabeçalho `X-Canvas-Confirm-Removal: 1`. Remoção menor grava.
+- **Diário.** Toda gravação que tira nó ou aresta registra `canvas remoção` (`info`) ou, se recusada, `canvas remoção recusada`
+  (`warn`) no `panel.log`: `canvas`, `cause` (`user`, `graph`, `undo`, `rebase` pelo cabeçalho `X-Canvas-Cause`; sem ele, `graph`
+  se só saiu nó vivo, senão `unknown`), `overwritten_rev`, `nodes_before`, `nodes_after`, `removed_nodes`, `removed_user_nodes`,
+  `removed_edges`, `graph_nodes` (cabeçalho `X-Canvas-Graph-Size`, tamanho do grafo lido), `ids` (os 20 primeiros, `tipo:id`).
+  A versão sobrescrita por gravação que tira nó do usuário fica em `$D/canvas-trash/<canvas>-rev<N>.json` (as 20 mais novas).
+- **Onde fica o evento.** No `panel.log` (`$D/logs/panel.log`), não no diário JSONL por agente: a remoção não tem agente. A página
+  (`kit/panel/ui/pages/argos.tsx`) manda `X-Canvas-Cause` (`user`, `undo` ou `graph`), `X-Canvas-Graph-Size` (nós do grafo da
+  última sincronia) e, só quando o gesto é apagar nó (`delete`), `X-Canvas-Confirm-Removal: 1`; desfazer não confirma.
+- **Limite de `canvas-trash/`.** No máximo 20 versões por canvas (`TRASH_KEEP`), as mais novas; a gravação seguinte apaga as mais
+  velhas. Apagar o canvas não apaga as versões dele.
+- **Gravação com base velha** segue recusada (`409 canvas_stale_revision`); o gravador da página reaplica a edição sobre o
+  servidor (`rebaseDoc`) e a nota que só o servidor tinha fica.
+- **Um pane, um nó.** O agente do grafo cujo `herdr` (`{session, pane}`) já é o `data.herdr` de um terminal do documento não
+  ganha nó (`claimed`: id do agente → id do terminal); se já tinha ganho antes (grafo lido no meio da criação), sai como
+  `duplicates`. `agent adopt` registra o agente no mesmo pane sem criar segundo nó; `reassign` troca só o `data` do nó. A
+  chave é `paneKey` (`src/lib/canvas-doc.ts`), reutilizável por quem juntar nós ao mesmo processo.
+
 ### Gravação e conflitos
 
 Cada gravação leva a `rev` que a aba leu; se o servidor já passou dela, responde `409 canvas_stale_revision` com a `rev` dele.

@@ -1604,7 +1604,7 @@ describe("peças ligadas na página", () => {
 
   test("W2: canvas por escopo pela rota _scope, gravação no canvas aberto e seletor na barra do card", () => {
     expect(page).toContain("const SCOPE_URL = '/api/canvases/_scope';");
-    expect(page).toContain("put: (doc, options) => putCanvas(canvasUrl(canvasIdRef.current), doc, options)");
+    expect(page).toContain("put: (doc, options) => putCanvas(canvasUrl(canvasIdRef.current), doc, options, takeSaveMeta())");
     expect(page).toContain("const SWITCH_UNSAVED = 'canvas_switch_unsaved';");
     expect(page).toContain('<Choice label="Canvas aberto"');
   });

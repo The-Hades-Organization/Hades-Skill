@@ -67,3 +67,11 @@ Sessão sem agente: `<raiz>/_maquina/journal/_sessions/<session_id>.jsonl`.
 - Painel: `GET /api/journal?agent=&since=&kind=&limit=` e `GET /api/journal/stream?agent=` (`reference/panel.md`).
 - Direto: o JSONL (uma linha por evento, ordem de gravação). Quem consome tolera `v` maior ignorando campos
   desconhecidos e pula linha que não parseia (a última pode estar em escrita).
+
+## Remoção de nó do canvas (`panel.log`, fora do diário por agente)
+
+O painel registra em `$D/logs/panel.log` (não no JSONL por agente) cada gravação do canvas que tira nó ou aresta: evento
+`canvas remoção` (`info`) e, se o servidor recusar a remoção em massa, `canvas remoção recusada` (`warn`, com `code`
+`canvas_mass_removal`). Campos: `canvas`, `cause` (`user|graph|undo|rebase|unknown`), `overwritten_rev`, `rev`, `nodes_before`,
+`nodes_after`, `removed_nodes`, `removed_user_nodes`, `removed_edges`, `graph_nodes`, `ids`, `remote`. Detalhe em
+`reference/argos.md` §Quando um nó sai do canvas.

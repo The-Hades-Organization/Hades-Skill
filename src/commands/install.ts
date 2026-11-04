@@ -4,7 +4,7 @@
 //     ambiente do projeto grava (ex.: seed/state.json), conflicts.log, notes.md, *.sha, logs/, services.enabled,
 //     config.env, snapshots/, panel/remote.key, panel/widget-token.json, panel-tunnel.*, panel-linger.mine, linger.mine,
 //     boot.json, doctor.json, clean.lock, ntfy.topic, notify/, claude/, onboard.json, plugins.disabled, plugins-staging/,
-//     plugins.lock, version-check.json, kit.manifest, rtk/, canvas.json, canvases/)
+//     plugins.lock, version-check.json, kit.manifest, rtk/, canvas-trash/, canvas.json, canvases/)
 //   - grava $D/kit.manifest (sha256 de cada arquivo do kit instalado) e, na reinstalação, remove do $D o que estava no
 //     manifesto anterior, o kit não tem mais e não foi editado à mão (editado: só avisa e fica); sem manifesto anterior,
 //     só avisa os *.py e panel/ui/** que o kit não tem mais.

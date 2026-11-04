@@ -257,9 +257,9 @@ describe("canvas-doc: mescla com o grafo vivo", () => {
   });
 
   test("dado nó que não é vivo, então a mescla nunca o remove", () => {
-    const out = mergeWithGraph(base(), []);
-    expect(out.doc.nodes.map((n) => n.id)).toEqual(["n1", "n2"]);
-    expect(out.removed).toEqual(["agent:proj:impl-a", "agent:proj:impl-b", "pr:proj:7"]);
+    const out = mergeWithGraph(base(), [ref("agent", "impl-a")]);
+    expect(out.doc.nodes.map((n) => n.id)).toEqual(["agent:proj:impl-a", "n1", "n2"]);
+    expect(out.removed).toEqual(["agent:proj:impl-b", "pr:proj:7"]);
   });
 
   test("dado tipo desconhecido ou repetido no grafo, então é ignorado", () => {

@@ -13,8 +13,12 @@ import {
   type CanvasErrorCode,
   type CanvasDoc,
   emptyCanvasDoc,
+  isMassUserRemoval,
   parseCanvasText,
   readCanvasDoc,
+  type Removals,
+  removalsBetween,
+  userRemovals,
 } from "../lib/canvas-doc.ts";
 import { CANVAS_EXPORT_ENVELOPE_BYTES, CanvasExportError, exportCanvas, parseCanvasExport } from "../lib/canvas-export.ts";
 import {
@@ -62,7 +66,21 @@ const CREATED_STATUS = 201;
 const INVALID_STATUS = 400;
 const NOT_FOUND_STATUS = 404;
 const CONFLICT_STATUS = 409;
+const UNPROCESSABLE_STATUS = 422;
 const UNREADABLE_STATUS = 500;
+/** Cabeçalhos aditivos do PUT: quem grava diz a causa e o tamanho do grafo lido (vão para o diário) e confirma a remoção em massa. */
+const CAUSE_HEADER = "x-canvas-cause";
+const GRAPH_SIZE_HEADER = "x-canvas-graph-size";
+const CONFIRM_REMOVAL_HEADER = "x-canvas-confirm-removal";
+/** Causas que o cliente pode declarar (lista fechada); fora dela vale `unknown`. */
+const REMOVAL_CAUSES = ["user", "graph", "undo", "rebase"] as const;
+const CAUSE_UNKNOWN = "unknown";
+const CAUSE_GRAPH = "graph";
+/** Pasta (em `$D`) das versões sobrescritas por gravação que tirou nó do usuário, e quantas ficam por canvas. */
+const TRASH_FOLDER = "canvas-trash";
+const TRASH_KEEP = 20;
+/** Quantos ids de nó removido vão para o diário (o resto vira só a contagem). */
+const LOGGED_IDS = 20;
 /** Corpo de criar e renomear: só um nome (e um id); bem abaixo do teto do documento. */
 const SMALL_BODY_BYTES = 4096;
 
@@ -153,6 +171,21 @@ async function readBody(req: Request, max: number = CANVAS_LIMITS.bodyBytes): Pr
 type Dict = Record<string, unknown>;
 const isDict = (value: unknown): value is Dict => typeof value === "object" && value !== null && !Array.isArray(value);
 
+/** Causa declarada pelo cliente; sem declaração, só remoção de nó vivo (que sai pelo grafo) tem causa inferida. */
+function removalCause(req: Request, removals: Removals): string {
+  const declared = req.headers.get(CAUSE_HEADER);
+  const known = REMOVAL_CAUSES.find((cause) => cause === declared);
+  if (known) return known;
+  return removals.nodes.length > 0 && userRemovals(removals).length === 0 ? CAUSE_GRAPH : CAUSE_UNKNOWN;
+}
+
+/** Tamanho do grafo que o cliente leu ao decidir a remoção; ausente ou fora de 0..100000 é `null`. */
+function graphSizeOf(req: Request): number | null {
+  const raw = req.headers.get(GRAPH_SIZE_HEADER);
+  const size = raw === null || !/^\d{1,6}$/.test(raw) ? Number.NaN : Number(raw);
+  return Number.isInteger(size) && size <= 100_000 ? size : null;
+}
+
 export function createCanvasRoutes(dir: string, now: () => Date = () => new Date(), hooks: CanvasHooks = {}): CanvasRoutes {
   const defaultPath = join(dir, FILE);
   const folder = join(dir, FOLDER);
@@ -165,6 +198,26 @@ export function createCanvasRoutes(dir: string, now: () => Date = () => new Date
     const full = resolve(folder, `${id}${EXT}`);
     if (!full.startsWith(folderPrefix)) throw new CanvasStoreError(CANVAS_STORE_ERRORS.invalidId, "id de canvas inválido");
     return full;
+  }
+
+  const trashFolder = join(dir, TRASH_FOLDER);
+
+  /**
+   * Guarda a versão que a gravação vai sobrescrever (só quando ela tira nó do usuário): é o que permite recuperar uma nota levada
+   * por engano. Fica `TRASH_KEEP` por canvas, as mais novas. Falha ao guardar vai para o log e não impede a gravação do dono.
+   */
+  function keepOverwritten(id: string, overwritten: CanvasDoc): void {
+    try {
+      mkdirSync(trashFolder, { recursive: true });
+      const name = `${id}-rev${String(overwritten.rev).padStart(10, "0")}.json`;
+      const path = join(trashFolder, name);
+      writeFileSync(`${path}.tmp`, JSON.stringify(overwritten));
+      renameSync(`${path}.tmp`, path);
+      const mine = readdirSync(trashFolder).filter((file) => file.startsWith(`${id}-rev`) && file.endsWith(EXT)).sort();
+      for (const old of mine.slice(0, Math.max(0, mine.length - TRASH_KEEP))) rmSync(join(trashFolder, old), { force: true });
+    } catch (error) {
+      log("error", "canvas: versão sobrescrita não guardada", { canvas: id, rev: overwritten.rev, reason: error instanceof Error ? error.name : "erro" });
+    }
   }
 
   const unreadableError = (): CanvasError => new CanvasError(CANVAS_ERRORS.unreadable, "arquivo do canvas ilegível");
@@ -252,6 +305,24 @@ export function createCanvasRoutes(dir: string, now: () => Date = () => new Date
     throw error;
   }
 
+  /** O que o diário guarda de uma gravação que tira nó ou aresta: causa, tamanhos e a revisão sobrescrita (ids só os primeiros). */
+  function removalFields(canvas: string, before: CanvasDoc, after: CanvasDoc, removals: Removals, req: Request, caller: CanvasCaller): Record<string, string | number | boolean | null> {
+    const user = userRemovals(removals);
+    return {
+      canvas,
+      cause: removalCause(req, removals),
+      overwritten_rev: before.rev,
+      nodes_before: before.nodes.length,
+      nodes_after: after.nodes.length,
+      removed_nodes: removals.nodes.length,
+      removed_user_nodes: user.length,
+      removed_edges: removals.edges.length,
+      graph_nodes: graphSizeOf(req),
+      ids: removals.nodes.slice(0, LOGGED_IDS).map((node) => `${node.type}:${node.id}`).join(","),
+      remote: caller.remote,
+    };
+  }
+
   /** PUT do documento inteiro de um canvas que já existe (o padrão sempre existe), com a regra de revisão de sempre. */
   async function putTo(id: string, req: Request, caller: CanvasCaller): Promise<Response> {
     const raw = await readBody(req);
@@ -274,8 +345,17 @@ export function createCanvasRoutes(dir: string, now: () => Date = () => new Date
         log("warn", "canvas recusado", { canvas: id, code: CANVAS_ERRORS.staleRevision, sent: incoming.rev, rev: current.doc.rev, remote: caller.remote });
         return refusal(CONFLICT_STATUS, CANVAS_ERRORS.staleRevision, { rev: current.doc.rev });
       }
+      const removals = removalsBetween(current.doc, incoming);
+      const removing = removals.nodes.length > 0 || removals.edges.length > 0;
+      const detail = removing ? removalFields(id, current.doc, incoming, removals, req, caller) : undefined;
+      if (detail && isMassUserRemoval(current.doc, removals) && req.headers.get(CONFIRM_REMOVAL_HEADER) !== "1") {
+        log("warn", "canvas remoção recusada", { ...detail, code: CANVAS_ERRORS.massRemoval });
+        return refusal(UNPROCESSABLE_STATUS, CANVAS_ERRORS.massRemoval, { removed: userRemovals(removals).length });
+      }
       const saved: CanvasDoc = { ...incoming, v: CANVAS_VERSION, rev: current.doc.rev + 1 };
+      if (userRemovals(removals).length > 0) keepOverwritten(id, current.doc);
       store(id, { ...current, doc: saved });
+      if (detail) log("info", "canvas remoção", { ...detail, rev: saved.rev });
       log("info", "canvas gravado", { canvas: id, rev: saved.rev, nodes: saved.nodes.length, edges: saved.edges.length, remote: caller.remote });
       return send(OK_STATUS, { v: CANVAS_VERSION, ok: true, rev: saved.rev });
     } catch (error) {

@@ -38,6 +38,7 @@ export const CANVAS_ERRORS = {
   limitExceeded: "canvas_limit_exceeded",
   staleRevision: "canvas_stale_revision",
   unreadable: "canvas_unreadable",
+  massRemoval: "canvas_mass_removal",
 } as const;
 export type CanvasErrorCode = (typeof CANVAS_ERRORS)[keyof typeof CANVAS_ERRORS];
 
@@ -359,6 +360,30 @@ export interface GraphNodeRef {
   type: string;
 }
 
+/** Por que a mescla segurou a remoção de nós vivos (códigos estáveis: só ganham valores). */
+export const HELD_REASONS = { empty: "graph_empty", partial: "graph_partial", untrusted: "graph_untrusted", unconfirmed: "graph_unconfirmed" } as const;
+export type HeldReason = (typeof HELD_REASONS)[keyof typeof HELD_REASONS];
+
+/**
+ * Confiança no grafo para remover nó vivo (reference/argos.md §Quando um nó sai do canvas). Um grafo que perde muitos nós de uma
+ * vez é leitura parcial (herdr reiniciando, registro ilegível), não o fim de tudo: nada sai e a próxima leitura decide.
+ */
+export const GRAPH_TRUST = {
+  /** Remoção de pelo menos tantos nós vivos numa leitura só... */
+  massMinRemoved: 3,
+  /** ...que também passe da metade dos nós vivos do documento, é tratada como leitura parcial. */
+  massShareOver: 0.5,
+  /** Grafo sem nenhum nó vivo só vale como "vazio de verdade" quando o documento tem menos que isto de nós vivos. */
+  emptyMinLive: 2,
+} as const;
+
+export interface MergeOptions {
+  /** `false`: o chamador sabe que a leitura do grafo falhou ou veio incompleta; nenhum nó vivo sai. */
+  trusted?: boolean;
+  /** Ids de nós vivos do documento que o chamador já confirmou ausentes em leituras seguidas; só estes saem (ausente: todos os ausentes). */
+  confirmedAbsent?: ReadonlySet<string>;
+}
+
 export interface MergeResult {
   /** O documento salvo sem os nós vivos que saíram do grafo (e as arestas e membros de grupo que apontavam para eles). */
   doc: CanvasDoc;
@@ -366,14 +391,18 @@ export interface MergeResult {
   unplaced: string[];
   /** Ids de nós vivos do documento que sumiram do grafo. */
   removed: string[];
+  /** Nós vivos ausentes do grafo que ficaram no documento por falta de confiança na leitura (`heldReason` diz por quê). */
+  held?: string[];
+  heldReason?: HeldReason;
 }
 
 /**
- * Mescla o documento salvo com o grafo atual. Nó vivo que sumiu do grafo sai (e deixa a lista de ocultos); nó vivo novo vai
- * em `unplaced`. Nó oculto que segue no grafo fica oculto: o grafo nunca o devolve ao desenho. Nó que não é vivo (nota,
- * desenho…) nunca é tocado. Não escolhe posição e não altera `doc`.
+ * Mescla o documento salvo com o grafo atual. Nó vivo que sumiu do grafo sai (e deixa a lista de ocultos) só quando a leitura é
+ * confiável: grafo vazio, parcial (remoção em massa) ou marcado `trusted: false` não remove nada. Nó vivo novo vai em
+ * `unplaced`. Nó oculto que segue no grafo fica oculto: o grafo nunca o devolve ao desenho. Nó que não é vivo (nota, desenho,
+ * terminal…) nunca é tocado. Não escolhe posição e não altera `doc`.
  */
-export function mergeWithGraph(doc: CanvasDoc, graphNodes: readonly GraphNodeRef[]): MergeResult {
+export function mergeWithGraph(doc: CanvasDoc, graphNodes: readonly GraphNodeRef[], options: MergeOptions = {}): MergeResult {
   const inGraph = new Set<string>();
   const unplaced: string[] = [];
   const saved = new Set(doc.nodes.map((node) => node.id));
@@ -382,9 +411,27 @@ export function mergeWithGraph(doc: CanvasDoc, graphNodes: readonly GraphNodeRef
     inGraph.add(ref.id);
     if (!saved.has(ref.id)) unplaced.push(ref.id);
   }
-  const removed = doc.nodes.filter((node) => isLiveNodeType(node.type) && !inGraph.has(node.id)).map((node) => node.id);
-  if (removed.length === 0) return { doc: { ...doc }, unplaced, removed };
-  const gone = new Set(removed);
+  const live = doc.nodes.filter((node) => isLiveNodeType(node.type));
+  const absent = live.filter((node) => !inGraph.has(node.id)).map((node) => node.id);
+  const heldReason = absent.length === 0 ? undefined : holdReason(live.length, absent.length, inGraph.size, options.trusted !== false);
+  if (heldReason !== undefined) return { doc: { ...doc }, unplaced, removed: [], held: absent, heldReason };
+  const confirmed = options.confirmedAbsent;
+  const removed = confirmed === undefined ? absent : absent.filter((id) => confirmed.has(id));
+  const held = absent.filter((id) => !removed.includes(id));
+  const kept = held.length > 0 ? { held, heldReason: HELD_REASONS.unconfirmed } : {};
+  if (removed.length === 0) return { doc: { ...doc }, unplaced, removed, ...kept };
+  return { doc: withoutNodes(doc, new Set(removed)), unplaced, removed, ...kept };
+}
+
+function holdReason(liveInDoc: number, absent: number, liveInGraph: number, trusted: boolean): HeldReason | undefined {
+  if (!trusted) return HELD_REASONS.untrusted;
+  if (liveInGraph === 0 && liveInDoc >= GRAPH_TRUST.emptyMinLive) return HELD_REASONS.empty;
+  if (absent >= GRAPH_TRUST.massMinRemoved && absent > liveInDoc * GRAPH_TRUST.massShareOver) return HELD_REASONS.partial;
+  return undefined;
+}
+
+/** O documento sem os nós `gone`, com as arestas, os membros de grupo (e grupos que ficam vazios) e os ocultos que apontavam para eles. */
+export function withoutNodes(doc: CanvasDoc, gone: ReadonlySet<string>): CanvasDoc {
   const groups = doc.groups
     .map((group) => ({ ...group, members: group.members.filter((member) => !gone.has(member)) }))
     .filter((group) => group.members.length > 0);
@@ -394,5 +441,40 @@ export function mergeWithGraph(doc: CanvasDoc, graphNodes: readonly GraphNodeRef
     edges: doc.edges.filter((edge) => !gone.has(edge.from) && !gone.has(edge.to)),
     groups,
   };
-  return { doc: doc.hidden ? withHidden(merged, doc.hidden.filter((id) => !gone.has(id))) : merged, unplaced, removed };
+  return doc.hidden ? withHidden(merged, doc.hidden.filter((id) => !gone.has(id))) : merged;
+}
+
+/** Chave de identidade de um pane do herdr: um pane, um nó. Reutilizada por quem junta nós ao mesmo processo. */
+export const paneKey = (target: { session: string; pane: string }): string => `${target.session}\u0000${target.pane}`;
+
+/** O que uma gravação tira do documento: nós (por tipo) e arestas que sumiram entre `before` e `after`. */
+export interface Removals {
+  nodes: { id: string; type: string }[];
+  edges: string[];
+}
+
+export function removalsBetween(before: CanvasDoc, after: CanvasDoc): Removals {
+  const keptNodes = new Set(after.nodes.map((node) => node.id));
+  const keptEdges = new Set(after.edges.map((edge) => edge.id));
+  return {
+    nodes: before.nodes.filter((node) => !keptNodes.has(node.id)).map((node) => ({ id: node.id, type: node.type })),
+    edges: before.edges.filter((edge) => !keptEdges.has(edge.id)).map((edge) => edge.id),
+  };
+}
+
+/** Nós do usuário (nota, terminal, desenho…) que a gravação tira; nó vivo sai pelo grafo e tem a regra própria acima. */
+export const userRemovals = (removals: Removals): { id: string; type: string }[] => removals.nodes.filter((node) => !isLiveNodeType(node.type));
+
+/** Teto de remoção de nós do usuário (nota, terminal, desenho…) numa gravação só, sem confirmação do dono. */
+export const USER_REMOVAL_GUARD = { minNodes: 5, shareOver: 0.5 } as const;
+
+/**
+ * Remoção em massa de nós do usuário numa gravação só: pelo menos `minNodes` e mais da metade dos nós do usuário que o documento
+ * tinha. O servidor recusa sem confirmação (`canvas_mass_removal`): é o jeito de uma aba defasada ou um bug de cliente não
+ * levar notas e terminais embora em silêncio.
+ */
+export function isMassUserRemoval(before: CanvasDoc, removals: Removals): boolean {
+  const total = before.nodes.filter((node) => !isLiveNodeType(node.type)).length;
+  const lost = userRemovals(removals).length;
+  return lost >= USER_REMOVAL_GUARD.minNodes && lost > total * USER_REMOVAL_GUARD.shareOver;
 }

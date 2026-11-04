@@ -154,7 +154,9 @@ const USAGE = `Agentes alocados pelo orquestrador (reference/loop/orchestrate.md
   hades agent prompt <nome> ["<texto>"]             manda a tarefa (padrão: ler o brief e executar) e confere o cwd
   hades agent answer <nome> <Qn> "<resposta>"       grava a resposta do dono em questions.md e avisa o agente
   hades agent start-cmd <nome>                     o comando de start do dono, com modelo e esforço do papel (Configurações)
-  hades agent phase <nome> <fase> ["<texto>"]      /clear + prompt da fase (sessão nova por fase; continuidade = handoff.md)
+  hades agent phase <nome> <fase> ["<texto>"] [--no-commit]
+                                                       /clear + prompt da fase (sessão nova por fase; continuidade = handoff.md);
+                                                       --no-commit: a fase não faz commit, o DONE do watch exige só a prova
   hades agent resume <nome>                         /clear + retomar do handoff (depois de PARKED ou do teto de contexto)
   hades agent park <nome> ["<motivo>"]              pede o handoff.md (STATUS: PARKED) e que o agente pare; a sessão e o painel ficam
                                                        (já estacionado ou encerrado: avisa e sai 0; é o que o caronte pack exige)

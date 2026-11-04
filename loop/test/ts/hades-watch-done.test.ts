@@ -20,9 +20,9 @@ function repo(name: string): { worktree: string; sha: string } {
   r.git(worktree, "commit", "-qm", "base");
   return { worktree, sha: shaCitavel(worktree, gitOut) };
 }
-const register = (name: string, worktree: string, promptedAt: string): void => {
+const register = (name: string, worktree: string, promptedAt: string, noCommit = false): void => {
   mkdirSync(orch, { recursive: true });
-  writeFileSync(`${orch}/${name}.json`, JSON.stringify({ name, mode: "skill", role: "impl", worktree, state: "working", branch: "main", promptedAt }));
+  writeFileSync(`${orch}/${name}.json`, JSON.stringify({ name, mode: "skill", role: "impl", worktree, state: "working", branch: "main", promptedAt, noCommit }));
 };
 const report = (worktree: string, body: string): void => writeFileSync(`${worktree}/.design-sync-reports/report.md`, `STATUS: DONE\n${body}`);
 const COM_PROVA = "- Teste: `bun test x.test.ts` passou, 0 fail.\n";
@@ -91,4 +91,79 @@ describe("hades watch: DONE", () => {
     report(worktree, `Commit \`${sha}\` na branch.\n- Teste: \`bun test x.test.ts\` falhou, 2 fail.\n`);
     expect(watch(`${r.T}/st-falhou`, "d-falhou")).toEqual([]);
   }, 15_000);
+});
+
+const REPORT = (worktree: string): string => `${worktree}/.design-sync-reports/report.md`;
+const touch = (file: string, offsetMs: number): void => {
+  const when = new Date(Date.now() + offsetMs);
+  utimesSync(file, when, when);
+};
+/** As linhas DONE e DONE-HELD do agente `unit`. */
+const events = (state: string, unit: string): string[] =>
+  r.X(["timeout", "5", BUN, `${SKILL}/src/cli.ts`, "watch", "1"], { cwd: r.C, merge: true, env: { HADES_WATCH_STATE: state } })
+    .out.split("\n").filter((l) => l.startsWith(`DONE ${unit}`) || l.startsWith(`DONE-HELD ${unit}`));
+
+describe("hades watch: report de rodada anterior", () => {
+  test("dado report DONE mais velho que o prompt, então nada; reescrito depois do prompt, então DONE", () => {
+    const { worktree, sha } = repo("v-velho");
+    report(worktree, `Commit \`${sha}\` na branch.\n${COM_PROVA}`);
+    touch(REPORT(worktree), -3_600_000);
+    register("v-velho", worktree, new Date().toISOString().slice(0, 19) + "Z");
+    const state = `${r.T}/st-velho`;
+    expect(events(state, "v-velho")).toEqual([]);
+    touch(REPORT(worktree), 60_000);
+    expect(events(state, "v-velho")).toEqual(["DONE v-velho"]);
+  }, 20_000);
+
+  test("dado report reescrito no mesmo prompt, então o DONE não reemite", () => {
+    const { worktree, sha } = repo("v-mesmo");
+    register("v-mesmo", worktree, "2026-01-02T00:00:00Z");
+    report(worktree, `Commit \`${sha}\` na branch.\n${COM_PROVA}`);
+    const state = `${r.T}/st-mesmo`;
+    expect(events(state, "v-mesmo")).toEqual(["DONE v-mesmo"]);
+    touch(REPORT(worktree), 60_000);
+    expect(events(state, "v-mesmo")).toEqual([]);
+  }, 20_000);
+});
+
+describe("hades watch: DONE-HELD", () => {
+  test("dado DONE sem prova, então DONE-HELD sem-prova uma vez; reescrito sem prova não reemite; com prova sai o DONE", () => {
+    const { worktree, sha } = repo("h-prova");
+    register("h-prova", worktree, "2026-01-02T00:00:00Z");
+    report(worktree, `Commit \`${sha}\` na branch.\n`);
+    const state = `${r.T}/st-h-prova`;
+    expect(events(state, "h-prova")).toEqual(["DONE-HELD h-prova sem-prova"]);
+    expect(events(state, "h-prova")).toEqual([]);
+    appendFileSync(REPORT(worktree), "- Ajuste de redação.\n");
+    touch(REPORT(worktree), 60_000);
+    expect(events(state, "h-prova")).toEqual([]);
+    appendFileSync(REPORT(worktree), COM_PROVA);
+    touch(REPORT(worktree), 120_000);
+    expect(events(state, "h-prova")).toEqual(["DONE h-prova"]);
+  }, 30_000);
+
+  test("dado prova sem commit citado, então DONE-HELD sem-commit", () => {
+    const { worktree } = repo("h-commit");
+    register("h-commit", worktree, "2026-01-02T00:00:00Z");
+    report(worktree, COM_PROVA);
+    expect(events(`${r.T}/st-h-commit`, "h-commit")).toEqual(["DONE-HELD h-commit sem-commit"]);
+  }, 15_000);
+
+  test("dado commit citado fora da branch, então DONE-HELD commit-fora-da-branch", () => {
+    const { worktree } = repo("h-fora");
+    register("h-fora", worktree, "2026-01-02T00:00:00Z");
+    report(worktree, `Commit \`deadbee1\` na branch.\n${COM_PROVA}`);
+    expect(events(`${r.T}/st-h-fora`, "h-fora")).toEqual(["DONE-HELD h-fora commit-fora-da-branch"]);
+  }, 15_000);
+
+  test("dado fase --no-commit com prova e sem commit, então DONE; sem prova, DONE-HELD sem-prova", () => {
+    const ok = repo("h-nc-ok");
+    register("h-nc-ok", ok.worktree, "2026-01-02T00:00:00Z", true);
+    report(ok.worktree, COM_PROVA);
+    expect(events(`${r.T}/st-nc-ok`, "h-nc-ok")).toEqual(["DONE h-nc-ok"]);
+    const sem = repo("h-nc-sem");
+    register("h-nc-sem", sem.worktree, "2026-01-02T00:00:00Z", true);
+    report(sem.worktree, "Sem nada a provar.\n");
+    expect(events(`${r.T}/st-nc-sem`, "h-nc-sem")).toEqual(["DONE-HELD h-nc-sem sem-prova"]);
+  }, 20_000);
 });

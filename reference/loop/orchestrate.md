@@ -71,7 +71,8 @@ Tudo pelo `hades agent`, de dentro de um clone. A **pasta de relatórios** é `.
 
 - `start` respondendo `agent_name_taken` com o agente rodando é só comando repetido. Pane do herdr preso a sessão morta: abra
   outro (`herdr pane split <pane> --direction right`) ou use outro nome.
-- Reusar a worktree numa rodada nova: renomeie o `<pasta>/report.md` anterior (`report-1.md`) antes do `prompt`.
+- Reusar a worktree numa rodada nova: renomeie o `<pasta>/report.md` anterior (`report-1.md`) antes do `prompt`
+  (`prompt`, `resume`, `phase` e `answer` avisam quando o report ainda começa com `STATUS: DONE`; o watch ignora report mais velho que o prompt).
 
 ### Evoluir a própria skill (unidades `skill`)
 
@@ -130,15 +131,22 @@ da fila barra o texto do comando.
 
 `hades watch --next` em segundo plano (run_in_background), de dentro de um clone:
 sai no primeiro evento novo e acorda o orquestrador, que trata e relança. Sem `Monitor`, sem religar a cada 30 min.
-Eventos: `QUESTION`, `PR-OPEN`, `DONE`, `REVIEW`, `MERGED`/`CLOSED`, `PARKED`, `CONTEXT`, `STALLED`, `BUDGET`.
+Eventos: `QUESTION`, `PR-OPEN`, `DONE`, `DONE-HELD`, `REVIEW`, `MERGED`/`CLOSED`, `PARKED`, `CONTEXT`, `STALLED`, `BUDGET`.
 - **`BUDGET <agente> <pct>`** (Moirai): o custo corrente passou de `HADES_MOIRAI_WARN_PCT` (100) do p75 da estimativa do
   plano. É só aviso: o agente segue. Diga ao dono, sem agir; ao passar de `HADES_MOIRAI_ASK_PCT` (150) o watch grava a
   pergunta no `questions.md` do agente (seguir, reestimar ou estacionar) e emite a `QUESTION` de sempre: leve ao dono e
   `hades agent answer`. Um aviso por limiar por fase; sem estimativa no plano nada sai (`reference/moirai.md`).
-- **`DONE <agente>`**: `report.md` começando com `STATUS: DONE`, **uma vez por prompt** do agente (reescrever o report no
-  mesmo prompt não reemite; um `agent prompt`/`phase`/`resume` novo abre outro DONE) e **só com commit e prova**: o
-  report cita um commit (em linha que fala de commit) que é ancestral do HEAD da worktree, e traz uma linha de prova
-  (`passou`, `ok`, `rc=0`… junto de `test`, `gate`, `tsc`…; `falhou` não vale). Sem isso o DONE espera, sem sair.
+- **`DONE <agente>`**: `report.md` começando com `STATUS: DONE`, **escrito depois do último prompt** do agente (o report
+  da rodada anterior continua no disco e não vale), **uma vez por prompt** (reescrever o report no mesmo prompt não
+  reemite; um `agent prompt`/`phase`/`resume` novo abre outro DONE) e **só com commit e prova**: o report cita um commit
+  (em linha que fala de commit) que é ancestral do HEAD da worktree, e traz uma linha de prova (`passou`, `ok`, `rc=0`…
+  junto de `test`, `gate`, `tsc`…; `falhou` não vale). Fase que não faz commit: `hades agent phase <nome> <fase>
+  --no-commit` e o DONE exige só a prova.
+- **`DONE-HELD <agente> sem-prova|sem-commit|commit-fora-da-branch`**: o agente se declarou pronto (`STATUS: DONE`,
+  report novo) mas falta prova ou commit; o vigia segurou o DONE e diz por quê (uma vez por prompt e motivo; também no
+  diário do agente). Não espere calado: audite o report e o `git log` da worktree, e então (a) devolva o report pedindo a
+  linha de prova ou o commit citado (`hades agent prompt`), (b) aceite à mão (`hades agent done`, se a entrega está de
+  fato pronta, ex.: relatório de teste que falhou de propósito) ou (c) se a fase nunca comita, relance-a com `--no-commit`.
 - **`PARKED`** (agente estacionou com o handoff) e **`CONTEXT`** (passou do teto do papel): `resume <nome>`, ou
   `phase` se a fase mudou. Não saem: `PARKED` de handoff mais velho que o último prompt (o `resume` não apaga o arquivo,
   e a sessão retomada já o leu) e nenhum evento de unidade `archived` ou `done` (vale também quando o mesmo nome ficou em outra raiz do registro, resto de um clone antigo).

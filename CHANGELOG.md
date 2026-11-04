@@ -4,6 +4,23 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.2.1 — 2026-11-04
+
+Correções do `hades watch` (issues #6 e #8).
+
+- **DONE de report antigo** (#6): o `scanDone` só emite `DONE` com `mtime(report.md)` posterior ao último prompt (a mesma
+  regra do `PARKED`). Antes, um `prompt`/`resume`/`phase` novo liberava o DONE do report da rodada anterior e o orquestrador
+  auditava um relatório velho com o agente ainda trabalhando. `prompt`, `resume`, `answer` e `phase` avisam quando o
+  `report.md` existente já começa com `STATUS: DONE` (renomear para `report-<n>.md`); só aviso.
+- **DONE segurado em silêncio** (#8): report `STATUS: DONE` sem prova ou commit agora sai como
+  `DONE-HELD <agente> sem-prova|sem-commit|commit-fora-da-branch`, uma vez por prompt e motivo, também no diário
+  (`watch.done-held`). Quando a prova ou o commit entram, sai o `DONE`. `hades agent phase <nome> <fase> --no-commit` marca a
+  fase que dispensa commit (o DONE exige só a prova).
+- Cartões `roles/impl.md` e `skill-dev-contract.md`: o report precisa de uma linha de prova positiva e do commit citado na
+  linha da palavra "commit". `orchestrate.md` §4: o que fazer com o `DONE-HELD` (auditar, devolver pedindo prova, aceitar).
+- Armadilha: o `answer` não muda o `promptedAt`; report DONE escrito antes do `answer` continua valendo para o ciclo do
+  último prompt. O mtime é em segundos: report reescrito no mesmo segundo do prompt não conta.
+
 ## 6.2.0 — 2026-11-03
 
 Terminal completo no painel e páginas Claude e Herdr de primeira classe no celular (issue #3).

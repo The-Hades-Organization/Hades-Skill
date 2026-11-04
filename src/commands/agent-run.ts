@@ -6,7 +6,7 @@ import { settled } from "../lib/caronte.ts";
 import { afterFreshSession, deliverySet, isoNow, jqText, regUpdate, roleCard } from "../lib/agent-registry.ts";
 import { phaseQuality } from "../lib/agent-project.ts";
 import { need } from "../lib/deps.ts";
-import { isDir, isFile, readText } from "../lib/fs.ts";
+import { firstLine, isDir, isFile, readText } from "../lib/fs.ts";
 import { findAgent, herdr, herdrWait, listAgents, paneFrom } from "../lib/herdr.ts";
 import { die, out } from "../lib/output.ts";
 import { selfCli, skillRoot } from "../lib/paths.ts";
@@ -22,6 +22,7 @@ const CLEAR_POLL_MS = 500;
 const ENTER_EVERY_POLLS = 4;
 const PANE_LINES = "8";
 const GH_TIMEOUT_MS = 60_000;
+const NO_COMMIT_FLAG = "--no-commit";
 const CLEAR_ON_PROMPT = /❯ *\/clear/;
 
 function needArg(value: string | undefined, label: string): string {
@@ -69,7 +70,16 @@ export function sessionPrompt(input: { sub: "phase" | "resume"; label: string; c
   return `Sessão nova, fase "${label}". Leia ${card}, ${worktree}/${reports}/brief.md e, se existir, ${worktree}/${reports}/handoff.md (continue de onde ele parou; troque a primeira linha para STATUS: ACTIVE). Trabalhe só em ${worktree}.${queue} ${extra}`;
 }
 
-export function phaseOrResume(sub: "phase" | "resume", args: string[], work: WorkEnv): number {
+/** Report de rodada anterior ainda no lugar: o watch só confia em report escrito depois do prompt, mas o agente pode tomá-lo por feito. */
+function warnStaleReport(work: WorkEnv, name: string, worktree: string): void {
+  const report = join(worktree, work.reports, "report.md");
+  if (firstLine(report).startsWith("STATUS: DONE")) out(`AVISO: ${report} já começa com STATUS: DONE (rodada anterior). Renomeie para report-<n>.md para o agente não tomá-lo por entregue.`);
+}
+
+export function phaseOrResume(sub: "phase" | "resume", argv: string[], work: WorkEnv): number {
+  const noCommit = argv.includes(NO_COMMIT_FLAG);
+  if (noCommit && sub === "resume") die(`${NO_COMMIT_FLAG} é da fase: use hades agent phase <nome> <fase> ${NO_COMMIT_FLAG}`);
+  const args = argv.filter((a) => a !== NO_COMMIT_FLAG);
   const name = needArg(args[0], "nome");
   const worktree = registered(work, name);
   const role = regGet(work, name, "role");
@@ -79,8 +89,13 @@ export function phaseOrResume(sub: "phase" | "resume", args: string[], work: Wor
   let text = sessionPrompt({ sub, label, card: roleCard(skillRoot, role || "impl"), worktree, reports: work.reports, extra });
   const quality = phaseQuality(work, worktree, label);
   if (quality) text += ` Regras de qualidade ligadas desta fase: ${quality}.`;
+  warnStaleReport(work, name, worktree);
   freshPrompt(name, text);
-  regUpdate(work, name, (r) => afterFreshSession(r, sub, label, isoNow()));
+  // a dispensa de commit vale pela fase: phase nova a reseta, resume a mantém
+  regUpdate(work, name, (r) => {
+    const next = afterFreshSession(r, sub, label, isoNow());
+    return sub === "phase" ? { ...next, noCommit } : next;
+  });
   out(`${name}: sessão limpa, fase ${label}`);
   return 0;
 }
@@ -147,6 +162,7 @@ export function prompt(args: string[], work: WorkEnv): number {
   if (!agent) die(`agente ${name} não está no herdr: o dono precisa rodar o herdr agent start`);
   const cwd = String(agent.foreground_cwd ?? "");
   if (!cwd.startsWith(worktree)) out(`AVISO: a sessão abriu em ${cwd}, não em ${worktree}. O prompt leva os caminhos absolutos; monitore o clone principal.`);
+  warnStaleReport(work, name, worktree);
   const sent = herdr(["agent", "prompt", name, text], { showStderr: true });
   if (sent.status !== 0) return sent.status;
   regUpdate(work, name, (r) => ({ ...r, state: "working", promptedAt: isoNow() }));
@@ -169,6 +185,7 @@ export function answer(args: string[], work: WorkEnv): number {
   if (!text.split("\n").some((line) => header.test(line))) die(`${question} não está em ${file}`);
   const marked = text.split("\n").map((line) => (header.test(line) ? `${line} (respondida)` : line).replace(/ \(respondida\) \(respondida\)$/, " (respondida)")).join("\n");
   writeFileSync(file, `${marked}\n## Resposta do dono (${question})\n\n${reply}\n\nNão cite estas perguntas nas specs nem no body.\n`);
+  warnStaleReport(work, name, regGet(work, name, "worktree"));
   need("herdr");
   const sent = herdr(["agent", "prompt", name, `O dono respondeu ${question} em ${work.reports}/questions.md. Leia e siga.`], { showStderr: true });
   if (sent.status !== 0) return sent.status;

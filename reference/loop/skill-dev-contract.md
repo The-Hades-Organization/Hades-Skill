@@ -42,7 +42,9 @@ checagem de tipos, build/teste de projeto, `/review-agents` e `gate-lock.sh`. N�
 
 ## Entrega
 `.design-sync-reports/report.md`, com:
-- primeira linha `STATUS: DONE`;
+- primeira linha `STATUS: DONE`, escrita depois do último prompt (report mais velho que o prompt não conta);
+- uma linha de prova positiva (`passou`/`ok`/`rc=0` junto de `test`, `tsc`, `gate`…; "falhou" não vale) e o commit na mesma
+  linha da palavra "commit" (sha na branch); sem isso o vigia emite `DONE-HELD` e o orquestrador tem de intervir;
 - o que fez e os arquivos mexidos;
 - a prova (comandos e saída resumida, caminho das capturas);
 - acréscimos nos arquivos compartilhados;

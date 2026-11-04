@@ -14,7 +14,10 @@ só no trecho que a situação pedir (`gates.md` §1.0 e §2 para gate e push, `
 4. `/review-agents` antes de pôr a PR para review (subagentes sem build, teste nem checagem de tipos).
 5. Commit (formato, footer do perfil, `commit.*`, e nunca trailer de co-author; corpo até 100 colunas, sem `--force`, sem pular hook do
    repo; `git branch --show-current` antes) e push com a guarda `@{upstream}` = branch da PR.
-6. PR em draft cedo; pronta conforme o brief. `<pasta de relatórios>/report.md` (a `.design-sync-reports/` da worktree) começando com `STATUS: DONE`.
+6. PR em draft cedo; pronta conforme o brief. `<pasta de relatórios>/report.md` (a `.design-sync-reports/` da worktree) começando com `STATUS: DONE`. O vigia só aceita o DONE
+   com uma linha de prova positiva (`passou`/`ok`/`rc=0` junto de `test`, `tsc`, `gate`…; `falhou` não vale) e um commit citado
+   na mesma linha da palavra "commit" (sha que está na branch); fase marcada `--no-commit` dispensa só o commit. Sem isso
+   sai `DONE-HELD` para o orquestrador. Report de rodada anterior fica em `report-<n>.md`; escreva o novo depois do prompt.
 
 ## Esperar sem gastar
 - Nunca `sleep`, laço de checagem, `tail -f`, ou a mesma checagem repetida: o hook barra.

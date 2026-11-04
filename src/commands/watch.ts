@@ -37,6 +37,8 @@ function pctKey(key: string, fallback: number): number {
   return fallback;
 }
 
+type DoneHeld = "sem-prova" | "sem-commit" | "commit-fora-da-branch";
+
 const isoNow = (): string => `${new Date().toISOString().slice(0, 19)}Z`;
 
 class Watcher {
@@ -123,7 +125,7 @@ class Watcher {
     // antes das perguntas: a QUESTION de custo é gravada aqui e sai pelo mesmo caminho das do agente
     this.scanBudget(name, file, worktree, text(reg.phase) || text(reg.role) || "impl");
     this.scanQuestions(name, worktree);
-    this.scanDone(name, join(reports, "report.md"), worktree, promptedAt);
+    this.scanDone(name, join(reports, "report.md"), worktree, promptedAt, promptedEpoch, reg.noCommit === true);
     const pr = this.scanPrOpen(name, file, reg, text(reg.pr));
     if (pr) this.scanReview(name, pr);
     this.scanParked(name, join(reports, "handoff.md"), promptedEpoch);
@@ -173,15 +175,29 @@ class Watcher {
   }
 
   /**
-   * DONE uma vez por prompt do agente, e só com o que a Vigília cobra do report: um commit citado que está na branch e uma
-   * prova de execução. Reescrever o report no mesmo prompt não reemite; sem commit ou prova o DONE espera (o visto só é
-   * gravado ao emitir).
+   * DONE uma vez por prompt do agente, só com report escrito depois dele (o de rodada anterior continua no disco depois do
+   * prompt novo) e só com o que a Vigília cobra: uma prova de execução e um commit citado que está na branch (fase
+   * `--no-commit` dispensa o commit). Reescrever o report no mesmo prompt não reemite. Report que se declara DONE mas
+   * falta prova ou commit sai como DONE-HELD, uma vez por prompt e motivo, para o orquestrador não esperar calado.
    */
-  private scanDone(name: string, report: string, worktree: string, promptedAt: string): void {
-    if (!firstLine(report).startsWith("STATUS: DONE")) return;
-    const body = readText(report) ?? "";
-    if (!reportTemProva(body) || !this.commitNaBranch(worktree, commitsCitados(body))) return;
-    if (this.seen(`${name}.done`, promptedAt || "sem-prompt")) this.emit(`DONE ${name}`);
+  private scanDone(name: string, report: string, worktree: string, promptedAt: string, promptedEpoch: number, noCommit: boolean): void {
+    if (!firstLine(report).startsWith("STATUS: DONE") || this.mtimeSeconds(report) <= promptedEpoch) return;
+    const held = this.heldReason(readText(report) ?? "", worktree, noCommit);
+    const cycle = promptedAt || "sem-prompt";
+    if (held === undefined) {
+      if (this.seen(`${name}.done`, cycle)) this.emit(`DONE ${name}`);
+      return;
+    }
+    if (this.seen(`${name}.done-held`, `${cycle}|${held}`)) this.emit(`DONE-HELD ${name} ${held}`);
+  }
+
+  /** Por que o DONE do report ainda não vale; undefined quando vale. */
+  private heldReason(body: string, worktree: string, noCommit: boolean): DoneHeld | undefined {
+    if (!reportTemProva(body)) return "sem-prova";
+    if (noCommit) return undefined;
+    const shas = commitsCitados(body);
+    if (shas.length === 0) return "sem-commit";
+    return this.commitNaBranch(worktree, shas) ? undefined : "commit-fora-da-branch";
   }
 
   private commitNaBranch(worktree: string, shas: string[]): boolean {

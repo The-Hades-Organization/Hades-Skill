@@ -585,8 +585,18 @@ observadores e descarta o terminal; a sessão **não** é fechada (para isso, `P
   verdadeiro) e o xterm a toma por tecla, o que somava ao texto composto (`aaá`). O `PtyTerminal` liga `composeGate`
   (`term-logic.tsx`) na captura do elemento do xterm: ele segura os `keydown`, `compositionupdate` e `input` da composição e
   entrega o caractere composto uma vez (`term.input`). Composição de IME (CJK) não passa por ele: fica com o xterm.
-- *Roda:* o xterm anda pelo histórico dele em buffer normal. Em tela alternativa (`claude`, `herdr-client`) a roda vai ao
-  programa, que a trata; a sessão PTY não conhece um pane, então o `/api/herdr/scrollback` só vale no nó do Argos.
+- *Roda:* o xterm anda pelo histórico dele em buffer normal. Em tela alternativa:
+  - **`herdr-client`** (a sessão PTY mostra um pane): a roda anda pelo histórico do pane, o mesmo `/api/herdr/scrollback` do nó
+    do Argos, com a mesma regra (`wheelStep`, `wheelScroll`, `historyLoaded` e a janela, hoje em `term-logic.tsx`, que o nó
+    importa). O servidor diz a sessão do herdr do cliente (`herdrSession` em `/api/term`); a página lê `/api/herdr` e usa o
+    pane em foco (workspace, aba e pane focados) e desenha a janela do histórico num xterm só de leitura por cima do terminal.
+    Volta ao vivo ao descer até o fim, ao digitar, ao sair da tela alternativa, ao mudar o tamanho ou em "Ir ao fim". Ctrl, Alt e
+    Meta com a roda seguem ao navegador (zoom).
+  - **Sem pane conhecido** (`claude`, `shell`): a roda continua indo ao programa e a página mostra uma dica (PageUp/PageDown ou o
+    atalho de rolagem do programa) na primeira vez em tela alternativa, uma vez por carga da página.
+  - *Como a sessão sabe o pane:* ela não sabe, e o ambiente não ajuda: o PTY herda o ambiente do painel, então um
+    `HERDR_PANE_ID` ali seria o do pane do próprio painel. Só o `herdr-client` mostra o herdr, e o pane é o que está em foco na
+    sessão dele (o foco é do servidor do herdr: com dois clientes na mesma sessão, o foco é o mesmo para os dois).
 - *Armadilhas medidas:* o `post()` da base não repassa o `Retry-After`, então o componente chama `open` com `fetch` próprio
   (mesmo token e mesma renovação); o xterm 6 não traz o addon de links (o componente registra o seu provedor, uma linha
   por vez, sem URL partida entre linhas); aba oculta mede 0 colunas e não manda resize.

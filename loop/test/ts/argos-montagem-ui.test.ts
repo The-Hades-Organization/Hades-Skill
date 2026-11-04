@@ -34,7 +34,7 @@ function load(): Promise<Dict> {
     };
     const scope: Dict = { CanvasModel: holder.CanvasModel };
     const transpiler = createUiTranspiler();
-    for (const rel of ["argos/node-terminal.tsx", "argos/node-tty.tsx", "argos/commands-canvas.tsx", "argos/types-user.tsx", "argos/types-live.tsx",
+    for (const rel of ["term-logic.tsx", "argos/node-terminal.tsx", "argos/node-tty.tsx", "argos/commands-canvas.tsx", "argos/types-user.tsx", "argos/types-live.tsx",
       "argos/canvas-toolbar.tsx"]) {
       new Function("globalThis", "window", "React", "HadesCore", transpiler.transpile(join(uiDir, rel)))(scope, scope, React, HadesCore);
     }

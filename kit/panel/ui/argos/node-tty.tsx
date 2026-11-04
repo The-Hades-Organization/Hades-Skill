@@ -12,6 +12,8 @@
 (() => {
 const { useState, useEffect, useRef, cn } = HadesCore;
 const T = window.CanvasModel.termAnsi;
+// a regra de rolagem do histórico é a da página Terminal (term-logic.tsx, carregado antes): uma só
+const { HISTORY_LINES, HISTORY_URL, historyLinesOf, clampOffset, historyWindow, wheelStep, scrollLive, wheelScroll, historyLoaded, screenOf } = window.TermLogic;
 
 // célula do terminal na escala 1: Geist Mono (e as fontes mono do fallback) avançam 0,6 em por caractere
 const FONT_PX = 13;
@@ -130,57 +132,6 @@ function clipboardIntent(e, hasSelection) {
  */
 const wheelIntent = (e) => (e.ctrlKey || e.altKey ? 'canvas' : 'own');
 
-// histórico: linhas pedidas ao servidor (teto dele: SCROLLBACK_LINES_MAX em herdr-page.ts) e rótulo do botão de volta
-const HISTORY_LINES = 1000;
-const HISTORY_URL = '/api/herdr/scrollback';
-
-/** Linhas de ANSI do histórico (a saída de `pane read --source recent`): sem o fim de linha e sem as linhas vazias do rodapé. */
-function historyLinesOf(ansi) {
-  const lines = String(ansi).split(/\r?\n/);
-  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
-  return lines;
-}
-
-/** Deslocamento (linhas a partir do fim) preso entre 0 e o que o histórico tem acima de uma tela de `rows` linhas. */
-const clampOffset = (offset, total, rows) => Math.min(Math.max(0, offset), Math.max(0, total - rows));
-
-/** As `rows` linhas do histórico que terminam `offset` linhas antes do fim. */
-function historyWindow(lines, rows, offset) {
-  const end = lines.length - clampOffset(offset, lines.length, rows);
-  return lines.slice(Math.max(0, end - rows), end);
-}
-
-/**
- * Linhas inteiras de um giro da roda (positivo = rola para trás no histórico) e o resto em pixels que fica para o próximo giro.
- * `linePx` é a altura de uma linha NA TELA (a grade vem escalada pelo quadro e pelo zoom do canvas). O trackpad manda dezenas
- * de eventos de poucos pixels: cada um somado ao resto, nunca arredondado para uma linha. Linhas e páginas viram pixels.
- */
-function wheelStep(rest, e, rows, linePx) {
-  const px = Number.isFinite(linePx) && linePx > 0 ? linePx : CELL_H;
-  const dy = Number.isFinite(e.deltaY) ? e.deltaY : 0;
-  const deltaPx = e.deltaMode === 1 ? dy * px : e.deltaMode === 2 ? dy * rows * px : dy;
-  const acc = (Number.isFinite(rest) ? rest : 0) - deltaPx;
-  const lines = Math.trunc(acc / px) || 0;
-  return { lines, rest: acc - lines * px };
-}
-
-/**
- * Estado da rolagem: `lines` é o histórico (null = ao vivo), `offset` as linhas a partir do fim e `pending` os passos que
- * chegaram antes de o histórico carregar. Funções puras: a roda dispara em rajada e o estado do render fica velho entre eventos.
- */
-const scrollLive = () => ({ lines: null, offset: 0, pending: 0 });
-
-function wheelScroll(state, step, rows) {
-  if (state.lines === null) return { ...state, pending: Math.max(0, state.pending + step) };
-  const offset = clampOffset(state.offset + step, state.lines.length, rows);
-  return offset === 0 ? scrollLive() : { ...state, offset };
-}
-
-function historyLoaded(state, lines, rows) {
-  const offset = clampOffset(state.pending, lines.length, rows);
-  return offset === 0 ? scrollLive() : { lines, offset, pending: 0 };
-}
-
 /** Altura de uma linha NA TELA: a medida inclui a escala do quadro e o zoom do canvas, que é o que a roda precisa (a escala de encaixe usa o tamanho de layout). */
 const screenLinePx = (grid, rows) => (grid && rows > 0 ? grid.getBoundingClientRect().height / rows : CELL_H);
 
@@ -266,18 +217,6 @@ function rowsToShow(rows, lines) {
   let n = lines.length;
   while (n > rows && lines[n - 1].length === 0) n--;
   return Math.max(rows, n);
-}
-
-/**
- * Texto que desenha o quadro como tela inteira: atributos zerados, cursor ao canto e tela limpa (sem apagar scrollback, que não
- * existe), as linhas separadas por CRLF, e o cursor do quadro (se vier) posicionado e visível. Nunca termina em quebra de linha:
- * a última linha da grade não rola a tela.
- */
-function screenOf(ansi, cursor = null) {
-  const body = String(ansi).split(/\r?\n/);
-  while (body.length > 1 && body[body.length - 1] === '') body.pop();
-  const place = cursor ? `\x1b[${cursor.row + 1};${cursor.col + 1}H\x1b[?25h` : '';
-  return `\x1b[?25l\x1b[0m\x1b[H\x1b[2J${body.join('\r\n')}\x1b[0m${place}`;
 }
 
 /** O que o nó desenha para o nível de detalhe: o xterm (texto legível) ou o resumo leve (só o cabeçalho). */

@@ -8,6 +8,7 @@ NODE_BIN="__NODE_BIN__"     # node absoluto: units systemd (console, serviços) 
 HADES_ID="__HADES_ID__"     # instância nesta máquina: vazio = a original (hds-*, hades.slice); senão hds_<id>-*, hades_<id>.slice
 export HADES_WT="$W" HADES_DATA="$D" NX_DAEMON=false
 export PATH="$(dirname "$NODE_BIN"):$HOME/.local/bin:$PATH"
+export RTK_RECALL_DB="$D/rtk/recall.db" RTK_TEE_DIR="$D/rtk/tee"   # saída inteira que o rtk guarda ao filtrar (reference/rtk.md)
 
 # configurações (config.tsv + config.env, editáveis no painel → Configurações): exporta HADES_* e as chaves do plugin do projeto
 [[ -f $D/config.sh ]] && source "$D/config.sh"

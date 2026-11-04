@@ -17,6 +17,7 @@ const TERMINAL_KEYS = ["HADES_TERMINAL", "HADES_TERMINAL_MAX", "HADES_TERMINAL_I
 /** Chaves que o acesso remoto não muda (a porta e o início automático do painel); o import respeita o mesmo bloqueio. */
 export const CONFIG_LOCAL_ONLY = ["HADES_PANEL_PORT", "HADES_WIDGET_PORT", "HADES_PANEL_AUTOSTART", "HADES_CHAT", "HADES_CHAT_BIN", ...TERMINAL_KEYS];
 const CERBERUS_PREFIX = "HADES_CERBERUS_";
+const RTK_PREFIX = "HADES_RTK_";
 const EXC_TTL_KEY = "HADES_CERBERUS_EXC_TTL_H";
 const HOUR_SECONDS = 3600;
 
@@ -59,6 +60,7 @@ export function remoteConfigRefusal(keys: string[]): string | undefined {
   if (keys.includes("HADES_PANEL_AUTOSTART")) return "o início automático do painel só se muda pelo painel local";
   if (keys.some((k) => k === "HADES_ORCH_AUTONOMY" || k === "HADES_ORCH_AUTO_START")) return "o nível de autonomia e a auto-alocação só se mudam pelo painel local";
   if (keys.some((k) => k.startsWith(CERBERUS_PREFIX))) return "o Cerberus só se configura pelo painel local";
+  if (keys.some((k) => k.startsWith(RTK_PREFIX))) return "a política dos filtros do rtk só se muda pelo painel local";
   return undefined;
 }
 

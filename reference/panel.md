@@ -173,6 +173,15 @@ controle deslizante é o `<input type="range">` do `CfgControl` para a chave `in
 `HADES_ORCH_AUTO_START` grava ou remove a regra allow `Bash(herdr agent start:*)` do `settings.json` na hora. As duas
 chaves só mudam pelo painel local: `POST /api/config` pelo acesso remoto responde 400 (`remoteConfigRefusal`).
 
+### Resumidores do rtk (Configurações)
+
+Configurações → grupo **Resumidores (rtk)** (`reference/rtk.md`): `HADES_RTK_FILTERS` (`auto`/`off`), **Stacks sem resumidor**
+(`HADES_RTK_OFF_STACKS`) e **Filtros desligados** (`HADES_RTK_OFF_FILTERS`), as duas listas com o controle de tags do `CfgControl`
+(um valor por tag: `node-nx`, `pnpm-next`, `rust-cargo`, `tauri`; nomes de filtro da tabela de `reference/rtk.md`). Aplicar é `next`:
+vale na próxima instalação ou criação de agente, ou na hora com `hades rtk apply`. As três chaves só mudam pelo painel local:
+`POST /api/config` pelo acesso remoto responde 400 (`remoteConfigRefusal`). O estado (rtk presente, filtros ativos, confiança, saída
+inteira) está no grupo *Resumidores (rtk)* do `doctor` e em `hades rtk status [--json]`.
+
 Página Orquestração: card **Decisões autônomas** (as 20 mais recentes do diário `kind: decision`, mais novas primeiro: nível,
 pergunta, opção tomada, alternativas). `GET /api/orchestration` ganha `autonomy: {level, label}` e `decisions: [{ts, level,
 needed, question, chosen, alternatives}]` (`reference/autonomia.md`).
@@ -572,6 +581,12 @@ observadores e descarta o terminal; a sessão **não** é fechada (para isso, `P
   contraste mínimo 4,5. Copiar: seleção + Ctrl/Cmd+C (sem seleção, Ctrl+C segue como interrupção) ou Ctrl+Shift+C. Colar:
   Ctrl/Cmd+V ou Ctrl+Shift+V (o xterm cuida do colar entre aspas). Link clicável **só `http(s)`** (também OSC 8): `javascript:`,
   `data:`, `file:` nunca abrem; abre com `noopener`.
+- *Tecla morta (´ ~ ^ + letra):* o Firefox manda a letra base como `keydown` durante a composição (`isComposing`
+  verdadeiro) e o xterm a toma por tecla, o que somava ao texto composto (`aaá`). O `PtyTerminal` liga `composeGate`
+  (`term-logic.tsx`) na captura do elemento do xterm: ele segura os `keydown`, `compositionupdate` e `input` da composição e
+  entrega o caractere composto uma vez (`term.input`). Composição de IME (CJK) não passa por ele: fica com o xterm.
+- *Roda:* o xterm anda pelo histórico dele em buffer normal. Em tela alternativa (`claude`, `herdr-client`) a roda vai ao
+  programa, que a trata; a sessão PTY não conhece um pane, então o `/api/herdr/scrollback` só vale no nó do Argos.
 - *Armadilhas medidas:* o `post()` da base não repassa o `Retry-After`, então o componente chama `open` com `fetch` próprio
   (mesmo token e mesma renovação); o xterm 6 não traz o addon de links (o componente registra o seu provedor, uma linha
   por vez, sem URL partida entre linhas); aba oculta mede 0 colunas e não manda resize.

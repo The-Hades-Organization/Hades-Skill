@@ -282,7 +282,73 @@ function makeTermLogic() {
     return { level: "list", history: null };
   }
 
+  // ------------------------------------------------------------------ tecla morta (´ + a = á)
+  /** O que a máquina lê de um KeyboardEvent / CompositionEvent / InputEvent (o DOM entrega mais campos; estes bastam). */
+  interface ComposeEvent { type: string; key?: string; keyCode?: number; isComposing?: boolean; data?: string | null; inputType?: string }
+  /** O campo de texto escondido do xterm, visto só pelo que a máquina precisa: ler o que ele tem e esvaziá-lo. */
+  interface ComposeField { value(): string; clear(): void }
+  interface ComposeGate {
+    /** `true`: o evento é desta máquina, quem o ligou deve impedir que o xterm o veja (sem preventDefault: o navegador segue compondo). */
+    handle(e: ComposeEvent): boolean;
+    /** Fim da espera pelo texto que o Firefox entrega depois do `compositionend` vazio. */
+    settle(): void;
+  }
+  /**
+   * Composição por tecla morta, entregue UMA vez a `emit`. Só a composição que começa logo depois de um keydown `Dead` é daqui:
+   * o IME (japonês, chinês…) segue com o xterm, que desenha o texto em composição. Na dead key o navegador manda, no meio da
+   * composição, keydown da letra base (Firefox: key `a`, keyCode 65, isComposing true; Chrome: keyCode 229): o xterm o tomaria
+   * por uma tecla e mandaria a letra antes do texto composto (`aaá`). O texto composto sai no `compositionend` (Chrome) ou, com o
+   * `compositionend` vazio, no `input` insertText que o Firefox manda logo depois. Fonte: sequência medida no Firefox 157 (Wayland).
+   */
+  const COMPOSE_SETTLE_MS = 100;
+  function composeGate(emit: (text: string) => void, field: ComposeField): ComposeGate {
+    let dead = false, owned = false, awaitInsert = false;
+    const deliver = (text: string): void => { field.clear(); if (text !== "") emit(text); };
+    const processKey = (e: ComposeEvent): boolean => e.isComposing === true || e.keyCode === 229 || e.key === "Process" || e.key === "Dead";
+    return {
+      settle() { awaitInsert = false; },
+      handle(e) {
+        switch (e.type) {
+          case "keydown":
+            if (e.key === "Dead") { if (!owned) dead = true; return true; }
+            if (owned || awaitInsert) {
+              if (processKey(e)) return true;
+              awaitInsert = false;
+            }
+            dead = false;
+            return false;
+          case "compositionstart":
+            if (!dead) return false;
+            dead = false; owned = true;
+            return true;
+          case "compositionupdate":
+            return owned;
+          case "compositionend": {
+            if (!owned) return false;
+            owned = false;
+            const text = typeof e.data === "string" && e.data !== "" ? e.data : field.value();
+            if (text === "") awaitInsert = true;
+            deliver(text);
+            return true;
+          }
+          case "beforeinput":
+          case "input":
+            if (owned) return true;
+            if (awaitInsert && e.inputType === "insertCompositionText") return true;
+            if (awaitInsert && e.inputType === "insertText") {
+              if (e.type === "input" && typeof e.data === "string" && e.data !== "") { awaitInsert = false; deliver(e.data); }
+              return true;
+            }
+            return false;
+          default:
+            return false;
+        }
+      },
+    };
+  }
+
   return {
+    composeGate, COMPOSE_SETTLE_MS,
     RESUME_RE, layoutEmpty, layoutNorm, layoutAdd, layoutSelect, layoutSplit, layoutRemove, layoutReplace, layoutPrune, layoutParse,
     CLOSE, CODES, LIMITS, BACKOFF, RESIZE_DEBOUNCE_MS, PING_MS, decideClose, reasonText, backoffMs, gaveUp,
     offsetInitial, onHello, onBytes, onWarn, resumeOffset, warnNotice, socketUrl, chunkInput, clampSize, sameSize,

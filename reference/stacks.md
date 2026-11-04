@@ -65,6 +65,18 @@ por vez, FIFO). O `gate-lock.sh` lê o `config.sh` da instalação a cada chamad
 
 `scope=maquina` muda onde ficam os tickets (`work/_maquina/locks`); a página **Fila de gates** lê as duas filas e marca a da máquina com o selo "Máquina" (`reference/panel.md` §Fila de gates).
 
+## Filtros do rtk da stack
+
+`<stack>/rtk-filters.toml` (opcional; `node-nx`, `pnpm-next`, `rust-cargo` e `tauri` trazem o seu) são filtros de saída do
+[rtk](https://github.com/rtk-ai/rtk) para os comandos da stack que o rtk não resume por conta própria. A Hades só os usa com o
+rtk no `PATH`: junta os das stacks do worktree no `.rtk/filters.toml` dele (`hades rtk apply`, `install`, `agent new`).
+
+- Formato do rtk (`schema_version = 1`, `[filters.<nome>]` com `match_command`, `strip_ansi`, `replace`, `head_lines`, `tail_lines`…).
+  Pode cortar só pelo que o rtk anuncia (`head_lines`/`tail_lines`/`max_lines`, `truncate_lines_at`), mais `strip_ansi`, `replace` e
+  `strip_lines_matching` de linha em branco: o corte sempre se anuncia, e a regressão falha se um filtro descartar linha com conteúdo.
+- Stack do dono (`<stacks>/<n>/rtk-filters.toml`) vence a da skill, como o `stack.json`.
+- Filtro novo exige uma linha de amostra em `loop/test/ts/rtk-filters.test.ts`. Tudo em `reference/rtk.md`.
+
 ## `/hades stack add`
 
 Cria um pacote para um repo que nenhuma stack instalada cobre. O agente conduz; `hades stack-add` faz o trabalho

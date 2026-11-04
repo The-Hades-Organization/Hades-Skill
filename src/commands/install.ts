@@ -4,7 +4,7 @@
 //     ambiente do projeto grava (ex.: seed/state.json), conflicts.log, notes.md, *.sha, logs/, services.enabled,
 //     config.env, snapshots/, panel/remote.key, panel/widget-token.json, panel-tunnel.*, panel-linger.mine, linger.mine,
 //     boot.json, doctor.json, clean.lock, ntfy.topic, notify/, claude/, onboard.json, plugins.disabled, plugins-staging/,
-//     plugins.lock, version-check.json, kit.manifest, canvas.json, canvases/)
+//     plugins.lock, version-check.json, kit.manifest, rtk/, canvas.json, canvases/)
 //   - grava $D/kit.manifest (sha256 de cada arquivo do kit instalado) e, na reinstalação, remove do $D o que estava no
 //     manifesto anterior, o kit não tem mais e não foi editado à mão (editado: só avisa e fica); sem manifesto anterior,
 //     só avisa os *.py e panel/ui/** que o kit não tem mais.
@@ -22,6 +22,8 @@
 //   - recusa (exit 1) núcleo fora da faixa `core` do perfil do plugin do projeto (reference/projects.md §Plugin); sem `core`, só avisa
 //   - plugin desligado ($D/plugins.disabled): instala só a máquina, sem conferir o `core`, e tira do $D o que o env/ dele
 //     tinha posto (só arquivo idêntico ao do pacote e ausente do kit). Reinstalar nunca religa
+//   - rtk presente (HADES_RTK_FILTERS=auto): gera o .rtk/filters.toml do worktree (filtros das stacks + do plugin), põe no
+//     .git/info/exclude e confia nele (rtk trust --yes); off remove. env.sh exporta RTK_RECALL_DB/RTK_TEE_DIR em $D/rtk/ (reference/rtk.md)
 //   - liga o rerere no worktree; registra o hook (guard register) e o slash-command /hades
 //   - instância (reference/projects.md §Várias instâncias): HADES_ID no env.sh novo; instância a mais ganha porta de painel
 //     (a partir de 21220) e de widget (a partir de 21221) provadas por bind. Registra o $D em ~/.claude/hades/instances/<projeto>
@@ -40,6 +42,7 @@ import {
   copyKit, copyPack, kitManifest, manifestText, mirrorPlugin, readOldManifest, retireOldKit, retireShadowedUiJs, warnLegacyCode,
 } from "../lib/install-copy.ts";
 import { renderEnvSh, upgradeEnvSh } from "../lib/install-env.ts";
+import { installForWorktree } from "../lib/rtk-filters.ts";
 import {
   assignPanelPort, assignWidgetPort, otherInstances, registerInstance, resolveHadesId,
 } from "../lib/install-instance.ts";
@@ -48,7 +51,7 @@ import { removeDisabledPackFiles, removeRenamedOrphans, runPostInstall } from ".
 import { applySystemd } from "../lib/install-systemd.ts";
 import { enableRerere, ensureHadesWorktree, installSlashCommand, registerGuardHook, worktreeOf } from "../lib/install-worktree.ts";
 import { EXIT, HadesError, warn } from "../lib/output.ts";
-import { hadesHome, skillRoot } from "../lib/paths.ts";
+import { hadesHome, home, skillRoot } from "../lib/paths.ts";
 import { workRoot } from "../lib/cerberus.ts";
 import { coreCheck, getField, loadProfile } from "../lib/profile.ts";
 import { packOf, resolveProject, slugOf } from "../lib/project.ts";
@@ -189,6 +192,7 @@ async function install(): Promise<void> {
 
   mkdirSync(join(data, "logs"), { recursive: true });
   mkdirSync(join(data, "gate"), { recursive: true });
+  mkdirSync(join(data, "rtk", "tee"), { recursive: true });
   mkdirSync(locks, { recursive: true });
   const manifestFile = join(data, "kit.manifest");
   const oldManifest = readOldManifest(manifestFile);
@@ -233,6 +237,8 @@ async function install(): Promise<void> {
   if (!flag("SKIP_WORKTREE")) {
     enableRerere(worktree);
     runPostInstall(packEnv, worktree, data);
+    const rtkLine = installForWorktree(worktree, data, home());
+    if (rtkLine !== "") say(rtkLine);
   }
   registerGuardHook();
   if (!flag("SKIP_WORKTREE") || process.env.HADES_CLAUDE_COMMANDS) installSlashCommand(skillRoot);

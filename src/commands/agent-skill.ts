@@ -8,7 +8,8 @@ import { need } from "../lib/deps.ts";
 import { isDir, isFile, readText } from "../lib/fs.ts";
 import { agentActiveIn, herdr, listPanes, paneFrom, paneInCwd } from "../lib/herdr.ts";
 import { die, out, warn } from "../lib/output.ts";
-import { hadesHome, skillRoot } from "../lib/paths.ts";
+import { hadesHome, home, skillRoot } from "../lib/paths.ts";
+import { dataDirOf, installForWorktree } from "../lib/rtk-filters.ts";
 import { run, which } from "../lib/proc.ts";
 import { agentFiles, configValue, readJson, regGet, type WorkEnv } from "../lib/work.ts";
 
@@ -113,6 +114,8 @@ export function skillNew(args: string[], work: WorkEnv): number {
   else {
     mkdirSync(join(worktree, work.reports), { recursive: true });
     excludeReports(work, worktree);
+    const rtkLine = installForWorktree(worktree, dataDirOf(), home());
+    if (rtkLine !== "") out(`  ${rtkLine}`);
   }
   const brief = join(worktree, work.reports, "brief.md");
   if (dry) out(`  [dry-run] brief ${brief} (modelo brief-skill-template.md)`);

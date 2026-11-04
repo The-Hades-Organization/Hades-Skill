@@ -100,6 +100,8 @@ function createTextInput(box, emit) {
   };
   return {
     compositionStart() { composing = true; },
+    /** Há composição aberta: o navegador ainda monta o texto, e os keydown da letra base não são teclas (nem todos marcam isComposing). */
+    busy() { return composing; },
     compositionEnd(data) {
       composing = false;
       flush(typeof data === 'string' && data !== '' ? data : box.value);
@@ -148,13 +150,42 @@ function historyWindow(lines, rows, offset) {
   return lines.slice(Math.max(0, end - rows), end);
 }
 
-/** Linhas de um giro da roda (positivo = rola para trás no histórico): pixels em células, linhas como vêm, páginas em telas. */
-function wheelLines(e, rows) {
+/**
+ * Linhas inteiras de um giro da roda (positivo = rola para trás no histórico) e o resto em pixels que fica para o próximo giro.
+ * `linePx` é a altura de uma linha NA TELA (a grade vem escalada pelo quadro e pelo zoom do canvas). O trackpad manda dezenas
+ * de eventos de poucos pixels: cada um somado ao resto, nunca arredondado para uma linha. Linhas e páginas viram pixels.
+ */
+function wheelStep(rest, e, rows, linePx) {
+  const px = Number.isFinite(linePx) && linePx > 0 ? linePx : CELL_H;
   const dy = Number.isFinite(e.deltaY) ? e.deltaY : 0;
-  if (dy === 0) return 0;
-  const n = e.deltaMode === 1 ? Math.abs(dy) : e.deltaMode === 2 ? Math.abs(dy) * rows : Math.max(1, Math.round(Math.abs(dy) / CELL_H));
-  return dy < 0 ? Math.round(n) : -Math.round(n);
+  const deltaPx = e.deltaMode === 1 ? dy * px : e.deltaMode === 2 ? dy * rows * px : dy;
+  const acc = (Number.isFinite(rest) ? rest : 0) - deltaPx;
+  const lines = Math.trunc(acc / px) || 0;
+  return { lines, rest: acc - lines * px };
 }
+
+/**
+ * Estado da rolagem: `lines` é o histórico (null = ao vivo), `offset` as linhas a partir do fim e `pending` os passos que
+ * chegaram antes de o histórico carregar. Funções puras: a roda dispara em rajada e o estado do render fica velho entre eventos.
+ */
+const scrollLive = () => ({ lines: null, offset: 0, pending: 0 });
+
+function wheelScroll(state, step, rows) {
+  if (state.lines === null) return { ...state, pending: Math.max(0, state.pending + step) };
+  const offset = clampOffset(state.offset + step, state.lines.length, rows);
+  return offset === 0 ? scrollLive() : { ...state, offset };
+}
+
+function historyLoaded(state, lines, rows) {
+  const offset = clampOffset(state.pending, lines.length, rows);
+  return offset === 0 ? scrollLive() : { lines, offset, pending: 0 };
+}
+
+/** Altura de uma linha NA TELA: a medida inclui a escala do quadro e o zoom do canvas, que é o que a roda precisa (a escala de encaixe usa o tamanho de layout). */
+const screenLinePx = (grid, rows) => (grid && rows > 0 ? grid.getBoundingClientRect().height / rows : CELL_H);
+
+/** O terminal só é dono da roda quando é legível: distante (cabeçalho) ou com problema no quadro, a roda é do canvas (zoom). */
+const ownsWheel = ({ headerOnly, problem }) => !headerOnly && !problem;
 
 /** Texto selecionado dentro de `grid` (a seleção do navegador, que acompanha o DOM mesmo com a grade escalada); `''` se não há. */
 function selectedText(grid) {
@@ -278,12 +309,17 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   const textIn = useRef(null);
   const [fit, setFit] = useState(null);
   const [notice, setNotice] = useState('');
-  const [history, setHistory] = useState(null);
+  const [scrolling, setScrolling] = useState(scrollLive());
+  const scroll = useRef(scrollLive());
+  const wheelRest = useRef(0);
   const loadingHistory = useRef(false);
   const fixed = validScale(scale);
   const problem = frameProblem(frame);
+  const history = scrolling.lines === null ? null : scrolling;
+  const setScroll = (next) => { scroll.current = next; setScrolling(next); };
+  const backToLive = () => { wheelRest.current = 0; setScroll(scrollLive()); };
 
-  live.current = { onInput, setNotice, focused, onWheel: null, paint: () => {} };
+  live.current = { onInput, setNotice, focused, onWheel: null, ownsWheel: ownsWheel({ headerOnly, problem }), paint: () => {} };
   // a composição precisa de um campo de texto: com o foco do teclado no nó, ele vai para o `textarea` escondido
   if (textIn.current === null) {
     textIn.current = createTextInput({
@@ -372,7 +408,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
     e.preventDefault();
     e.stopPropagation();
     setNotice('');
-    setHistory(null);
+    backToLive();
     if (onInput) onInput(input);
   };
   // `wheel` nativo e não passivo: o do React é passivo e não deixaria impedir a rolagem da página por baixo
@@ -380,7 +416,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
     const el = root.current;
     if (!el) return undefined;
     const onWheel = (e) => {
-      if (wheelIntent(e) !== 'own') return;
+      if (wheelIntent(e) !== 'own' || !live.current.ownsWheel) return;
       e.preventDefault();
       if (live.current.onWheel) live.current.onWheel(e);
     };
@@ -394,20 +430,17 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
     const url = `${HISTORY_URL}?pane=${encodeURIComponent(frame.pane)}&lines=${HISTORY_LINES}${session}`;
     return fetch(url, { cache: 'no-store' })
       .then((r) => r.json().then((body) => { if (!r.ok) throw new Error(body && body.error ? String(body.error) : `http_${r.status}`); return body; }))
-      .then((body) => { setNotice(''); setHistory({ lines: historyLinesOf(body.ansi), offset: 0 }); })
-      .catch((err) => setNotice(`Histórico indisponível: ${err instanceof Error ? err.message : 'erro'}`))
+      .then((body) => { setNotice(''); setScroll(historyLoaded(scroll.current, historyLinesOf(body.ansi), frame.rows)); })
+      .catch((err) => { setNotice(`Histórico indisponível: ${err instanceof Error ? err.message : 'erro'}`); backToLive(); })
       .finally(() => { loadingHistory.current = false; });
   };
   live.current.onWheel = (e) => {
-    if (problem || headerOnly) return;
-    const step = wheelLines(e, frame.rows);
-    if (step === 0) return;
-    if (!history) {
-      if (step > 0) loadHistory().then(() => setHistory((h) => (h ? { ...h, offset: clampOffset(step, h.lines.length, frame.rows) } : h)));
-      return;
-    }
-    const offset = clampOffset(history.offset + step, history.lines.length, frame.rows);
-    setHistory(offset === 0 ? null : { ...history, offset });
+    const turn = wheelStep(wheelRest.current, e, frame.rows, screenLinePx(gridOf(), shownRows));
+    wheelRest.current = turn.rest;
+    if (turn.lines === 0) return;
+    const wasLive = scroll.current.lines === null;
+    setScroll(wheelScroll(scroll.current, turn.lines, frame.rows));
+    if (wasLive && scroll.current.pending > 0) void loadHistory();
   };
   const copySelection = (text) => {
     const done = () => setNotice('');
@@ -433,6 +466,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
     }
     const field = entry.current;
     if (field && e.target !== field && !selected) field.focus({ preventScroll: true });
+    if (textIn.current.busy()) return;
     const input = translateKey(e);
     if (input) send(e, input);
   };
@@ -480,7 +514,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   const label = problem ? 'Terminal' : `Terminal ${frame.pane}`;
   const factor = fixed !== null ? fixed : fit && !problem ? fitScale(fit, { cols: frame.cols, rows: shownRows }) : 1;
   const message = notice || drawError;
-  return <div ref={root} role="region" aria-label={label} tabIndex={0} data-tty-wheel data-tty-focused={focused ? 'true' : 'false'}
+  return <div ref={root} role="region" aria-label={label} tabIndex={0} data-tty-wheel={ownsWheel({ headerOnly, problem }) ? '' : undefined} data-tty-focused={focused ? 'true' : 'false'}
     onKeyDown={onKeyDown} onPaste={onPaste} onCopy={onCopy} onPointerDown={onPointerDown}
     className={cn('relative flex h-full min-h-0 flex-col border bg-term text-term-foreground', FOCUS_RING, focused ? 'border-foreground' : 'border-border')}>
     <div className="flex shrink-0 items-center gap-2 border-b border-border px-2 t-meta text-term-muted" style={{ height: HEADER_H }}>
@@ -498,10 +532,10 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
         style={{ width: cols * CELL_W, height: shownRows * CELL_H, transform: `scale(${factor})`, transformOrigin: '0 0', overflow: 'hidden' }} /> : null}
       {message ? <span role="status" className="absolute right-2 bottom-2 left-2 t-meta text-term-warn">{message}</span> : null}
       {history ? <button type="button" data-tty-to-end className="absolute right-2 bottom-2 cursor-pointer border border-border bg-term px-2 py-0.5 t-meta text-term-foreground outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
-        aria-label="Ir ao fim do terminal" onClick={() => setHistory(null)}>↓ ir ao fim</button> : null}
+        aria-label="Ir ao fim do terminal" onClick={backToLive}>↓ ir ao fim</button> : null}
     </div>}
   </div>;
 }
 
-window.ArgosNodeTty = { NodeTty, TTY_GLOBAL_KEYS, TTY_CANVAS_KEYS, minSize, translateKey, clipboardIntent, clipboardAction, selectedText, wheelIntent, historyLinesOf, historyWindow, clampOffset, wheelLines, createTextInput, isCompositionKey, fitScale, areaBox, fitForNode, rowsToShow, cursorOf, screenOf, screenRows, ttyDrawing, oversize, selectionOf };
+window.ArgosNodeTty = { NodeTty, TTY_GLOBAL_KEYS, TTY_CANVAS_KEYS, minSize, translateKey, clipboardIntent, clipboardAction, selectedText, wheelIntent, historyLinesOf, historyWindow, clampOffset, wheelStep, scrollLive, wheelScroll, historyLoaded, ownsWheel, screenLinePx, createTextInput, isCompositionKey, fitScale, areaBox, fitForNode, rowsToShow, cursorOf, screenOf, screenRows, ttyDrawing, oversize, selectionOf };
 })();

@@ -10,6 +10,7 @@ import { need } from "../lib/deps.ts";
 import { isDir, isFile, readText } from "../lib/fs.ts";
 import { findAgent, herdr, paneFrom, paneInCwd } from "../lib/herdr.ts";
 import { die, out } from "../lib/output.ts";
+import { dataDirOf, installForWorktree } from "../lib/rtk-filters.ts";
 import { run } from "../lib/proc.ts";
 import { home, skillRoot } from "../lib/paths.ts";
 import { agentFiles, configValue, readJson, regGet, writeJsonAtomic, type WorkEnv } from "../lib/work.ts";
@@ -31,6 +32,12 @@ function worktreeRoot(work: WorkEnv): string {
 
 function sedFirstPerLine(text: string, token: string, value: string): string {
   return text.split("\n").map((line) => line.replace(token, () => value)).join("\n");
+}
+
+/** Filtros do rtk no worktree novo (reference/rtk.md): gera, confia (caminho do dono) e diz o que fez; nunca derruba o agent new. */
+function rtkFilters(worktree: string): void {
+  const line = installForWorktree(worktree, dataDirOf(), home());
+  if (line !== "") out(`  ${line}`);
 }
 
 /** Brief da worktree a partir do modelo (write_brief). */
@@ -169,6 +176,7 @@ export async function newAgent(args: string[], work: WorkEnv): Promise<number> {
   let pane = paneFrom(created);
   if (!pane && !o.dry) pane = paneInCwd(herdr(["pane", "list"]).stdout, worktree);
   prepWorktree(work, worktree, o.dry, home());
+  if (!o.dry) rtkFilters(worktree);
   const shortSha = run("git", ["-C", work.repoTop, "rev-parse", "--short", o.base]).stdout.trim();
   const baseSha = shortSha || "?";
   // 2. lock (protocolo de reference/loop/gates.md §3.1) e entrega no estado
@@ -327,6 +335,7 @@ export function reviewAgent(args: string[], work: WorkEnv): number {
   const created = dry ? "{}" : herdr(["workspace", "create", "--cwd", worktree, "--label", name, "--no-focus"], { showStderr: true }).stdout;
   const pane = paneFrom(created);
   prepWorktree(work, worktree, dry, home());
+  if (!dry) rtkFilters(worktree);
   if (!dry) {
     mkdirSync(join(worktree, work.reports), { recursive: true });
     phaseQuality(work, worktree, "review");

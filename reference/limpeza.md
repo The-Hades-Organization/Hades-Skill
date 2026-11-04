@@ -20,14 +20,16 @@ escrita cai no início. As gerações descem (`.1.gz` → `.2.gz` …) até `HAD
   A janela de perda é o intervalo entre a última conferência de tamanho e o `ftruncate` (microssegundos).
 - `logs/panel-jobs/`: por quantidade (`HADES_CLEAN_JOBS_KEEP`) e idade (`HADES_CLEAN_JOBS_DAYS`); execução em andamento fica.
   `logs/panel-cache/`: arquivos mais velhos que `HADES_CLEAN_CACHE_DAYS`.
+- `rtk/tee/` (categoria `rtk-tee`, segura): a saída inteira que um filtro do rtk cortou (`RTK_TEE_DIR`, `reference/rtk.md`); arquivos
+  mais velhos que `HADES_CLEAN_CACHE_DAYS`. O sqlite do recall (`rtk/recall.db`) tem retenção própria do rtk.
 
 ## `clean.sh`
 
 | Comando | Faz |
 |---|---|
-| `status [--tsv]` | uso e o que dá para liberar, por categoria (logs, panel-jobs, panel-cache, images, releases, worktrees, dist) |
+| `status [--tsv]` | uso e o que dá para liberar, por categoria (logs, panel-jobs, panel-cache, journal, rtk-tee, images, releases, worktrees, dist) |
 | `list <cat>` | o que a categoria tiraria (item, bytes, nota) |
-| `run [--dry-run] [--quiet] [--yes <cat>]…` | limpa o **seguro** (logs, panel-jobs, panel-cache); o resto só lista até receber `--yes` |
+| `run [--dry-run] [--quiet] [--yes <cat>]…` | limpa o **seguro** (logs, panel-jobs, panel-cache, journal, rtk-tee); o resto só lista até receber `--yes` |
 | `yes <cat>` | só uma categoria de apagar artefato (o botão do painel) |
 | `rotate [--dry-run]` | só a rotação dos logs |
 | `apply` | grava/ajusta a unit e o timer `hds-logrotate` |

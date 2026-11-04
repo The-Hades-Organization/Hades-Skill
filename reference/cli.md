@@ -60,6 +60,7 @@ Notas do `agent`:
 | `linger sync\|state` | linger do systemd para o painel em modo boot | `kit/linger.sh` |
 | `svc run\|stop\|status\|list` | serviços de apoio do pacote (`env/svc.sh`) pelo gerenciador da máquina; o caminho do macOS (`reference/projects.md` §Serviços de apoio no macOS) | — |
 | `clean status [--tsv]\|list <cat>\|run [--dry-run] [--quiet] [--yes <cat>]\|yes <cat>\|rotate\|apply` | rotação de logs e limpeza de disco (categorias, timer do usuário) | `kit/clean.sh` |
+| `rtk status [<dir>] [--json]\|apply [<dir>] [--trust]` | resumidores por stack do rtk: estado do worktree, gera ou remove o `.rtk/filters.toml` (`--trust` é do dono; o hook barra) | — |
 | `notify send\|test\|topic [rotate]\|status [--json] [--reveal]\|apply\|restart\|watch` | notificações no desktop (notify-send) e no celular (ntfy), dedupe, histórico e o vigia `<HU>-notify` | `kit/notify.sh` |
 | `onboard status\|show\|select\|skip\|done\|undone\|run\|pick\|reset` | onboarding dos recursos (`reference/onboard.md`) | `kit/onboard.sh` |
 | `rebuild-branch` | reconstrói a `hades/local`: base + conjunto de PRs em ordem topológica (`rebuild.report`, `prs.tsv`) | `kit/rebuild-branch.sh` |

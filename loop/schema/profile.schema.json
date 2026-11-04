@@ -172,6 +172,13 @@
       "additionalProperties": {"type": "string", "minLength": 1},
       "description": "textos do projeto que o núcleo manda ler (nome → caminho relativo ao pacote): invariants · deliver · gates · review · spec"
     },
+    "rtk": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "filters": {"type": "string", "minLength": 1, "description": "arquivo do pacote (relativo a ele) com filtros do rtk do projeto, no formato do rtk-filters.toml das stacks; entra no .rtk/filters.toml do worktree"}
+      }
+    },
     "stacks": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
     "reviewAgents": {
       "type": "object",

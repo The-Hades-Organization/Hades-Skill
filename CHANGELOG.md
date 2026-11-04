@@ -4,6 +4,32 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.6.0 — 2026-11-04
+
+Resumidores por stack entregues pelo rtk (issue #10) e terminais do painel com acentuação e rolagem corretas (issues #12 e #13).
+
+- **Resumidores do rtk** (`reference/rtk.md`): `stacks/{node-nx,pnpm-next,rust-cargo,tauri}/rtk-filters.toml` mais os
+  filtros do plugin (`rtk.filters` no perfil, validado no `project validate`) viram `.rtk/filters.toml` em cada worktree
+  (install, `agent new`, `skill-new`), no `.git/info/exclude`; nunca tocam `~/.config/rtk/*`. `HADES_RTK_FILTERS=auto|off`,
+  `HADES_RTK_OFF_STACKS` e `HADES_RTK_OFF_FILTERS` no grupo "Resumidores (rtk)" das Configurações; `hades rtk status|apply`.
+  O rtk entra como `warn` no registro de dependências; o `doctor` mostra estado, confiança e recomenda política (sem gravar).
+- **Corte sempre anunciado:** os filtros entregues só descartam por mecanismo que o rtk anuncia (`head_lines`/`tail_lines`,
+  `... (N lines omitted)` e a saída inteira no `rtk recall`); `strip_lines_matching` só tira linha em branco. Teste na
+  regressão das stacks barra corte sem anúncio. `env.sh` aponta `RTK_RECALL_DB`/`RTK_TEE_DIR` para `$D/rtk/` (rotação pelo `clean`).
+- **Só o dono muda a política:** o guard barra `HADES_RTK_*=`, `config set` dessas chaves e `rtk trust` vindos das
+  ferramentas do agente; o painel remoto recusa as chaves. O agente vê mais com `rtk proxy <cmd>`. O install e a criação
+  de agente rodam `rtk trust --yes` no worktree que geram (confia no conteúdo do plugin do projeto).
+- **Terminal e Herdr:** tecla morta (`´ ~ ^` + letra) no Firefox chegava duplicada (`aaá`): o navegador manda keydown da
+  letra base com a composição aberta e o xterm a tomava por tecla. `composeGate` segura a composição e entrega o
+  caractere composto uma vez (`c3 a1` = `á`). O nó do Argos também ignora tecla com composição aberta.
+- **Roda no nó de terminal do Argos:** pixels do trackpad somam pela altura de linha na tela (antes cada evento valia uma
+  linha), rajadas não perdem passos, topo e fim presos, volta ao vivo; nó distante deixa a roda para o zoom do canvas.
+- Armadilhas: rtk 1.x trocou o `[tee]` por `[retriever]`/`rtk recall`; filtro de projeto só vale depois de `rtk trust`
+  (SHA-256 do arquivo); o TOML do rtk é só o fallback de comando sem handler próprio; o painel de teste serve a cópia
+  instalada (reinstale para provar); Firefox sem monitor não pinta (prova por bytes do WebSocket).
+- Pendente: medição de tokens com e sem filtros numa rodada real de gate (rtk ausente na máquina de desenvolvimento); roda
+  em tela alternativa na página Terminal.
+
 ## 6.5.0 — 2026-11-04
 
 Espera por processo no `hades wait` (issue #11), `agent resume` sem rótulo de papel (issue #9), Argos sem permissão

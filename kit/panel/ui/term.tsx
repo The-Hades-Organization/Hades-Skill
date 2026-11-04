@@ -154,7 +154,7 @@ function PtyTerminal({ id, open, onExit, onState, onOpened, className, fontSize,
     const key = `${id || ''}|${openKey}`;
     if (keyRef.current !== key) { keyRef.current = key; sidRef.current = null; }
     let dead = false, ws = null, term = null, fit = null, attempt = 0, off = L.offsetInitial(), last = null, gotHello = false;
-    let timer = 0, ping = 0, fitTimer = 0, ro = null, xt = null;
+    let timer = 0, ping = 0, fitTimer = 0, settleTimer = 0, ro = null, xt = null, unbindCompose = null;
     const show = (p) => { if (dead) return; setPhase(p); cb.current.onState?.(p); };
     const note = (text) => term?.write(`\r\n\x1b[2m[${text}]\x1b[0m\r\n`);
     const send = (data) => { if (ws && ws.readyState === 1) ws.send(data); };
@@ -235,6 +235,17 @@ function PtyTerminal({ id, open, onExit, onState, onOpened, className, fontSize,
       const sendText = (s) => { for (const c of L.chunkInput(enc.encode(s))) send(c); };
       term.onData((s) => { const f = apiRef?.current?.filter; sendText(f ? f(s) : s); });
       term.onBinary((s) => { for (const c of L.chunkInput(Uint8Array.from(s, (ch) => ch.charCodeAt(0)))) send(c); });
+      // tecla morta (´ ~ ^ + letra): o Firefox manda a letra base como keydown durante a composição e o xterm a toma por tecla
+      const gate = L.composeGate((text) => term.input(text, true), { value: () => term.textarea.value, clear: () => { term.textarea.value = ''; } });
+      const onCompose = (e) => { if (e.target === term.textarea && gate.handle(e)) e.stopPropagation(); };
+      const composeEvents = ['keydown', 'compositionstart', 'compositionupdate', 'compositionend', 'beforeinput', 'input'];
+      const onComposeEnd = () => { window.clearTimeout(settleTimer); settleTimer = window.setTimeout(gate.settle, L.COMPOSE_SETTLE_MS); };
+      for (const name of composeEvents) term.element.addEventListener(name, onCompose, true);
+      term.element.addEventListener('compositionend', onComposeEnd, true);
+      unbindCompose = () => {
+        for (const name of composeEvents) term.element.removeEventListener(name, onCompose, true);
+        term.element.removeEventListener('compositionend', onComposeEnd, true);
+      };
       term.attachCustomKeyEventHandler((e) => {
         if (e.type !== 'keydown') return true;
         const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
@@ -283,7 +294,8 @@ function PtyTerminal({ id, open, onExit, onState, onOpened, className, fontSize,
 
     return () => {
       dead = true;
-      window.clearTimeout(timer); window.clearTimeout(fitTimer); window.clearInterval(ping);
+      window.clearTimeout(timer); window.clearTimeout(fitTimer); window.clearTimeout(settleTimer); window.clearInterval(ping);
+      unbindCompose?.();
       window.removeEventListener('online', wake);
       document.removeEventListener('visibilitychange', wake);
       ro?.disconnect();

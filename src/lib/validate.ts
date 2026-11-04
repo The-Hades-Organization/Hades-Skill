@@ -3,6 +3,7 @@
 import { basename, dirname, join, sep } from "node:path";
 import { isFile, listDir, readText, realpathMissingOk } from "./fs.ts";
 import { hadesHome, skillRoot } from "./paths.ts";
+import { filterFileProblems } from "./rtk-filters.ts";
 import { type Json, type JsonObject, coreRange, isObject, pyRepr, pyText, readJson, stacksRoot } from "./profile.ts";
 import { packsRoot } from "./project.ts";
 
@@ -159,6 +160,11 @@ export function validateFile(path: string): string[] {
     const create = isObject(doc.card) ? (doc.card.create ?? null) : null;
     for (const [key, rel] of [...refs, ["card.create", create], ["domainTerms", doc.domainTerms ?? null]] as [string, Json][]) {
       if (typeof rel === "string" && rel && !insidePack(pack, rel)) errors.push(`$.${key}: ${pyRepr(rel)} não é arquivo do pacote`);
+    }
+    const rtkFilters = isObject(doc.rtk) ? doc.rtk.filters : undefined;
+    if (typeof rtkFilters === "string" && rtkFilters) {
+      if (!insidePack(pack, rtkFilters)) errors.push(`$.rtk.filters: ${pyRepr(rtkFilters)} não é arquivo do pacote`);
+      else for (const problem of filterFileProblems(readText(realpathMissingOk(join(pack, rtkFilters))) ?? "")) errors.push(`$.rtk.filters: ${problem}`);
     }
   }
   return errors;

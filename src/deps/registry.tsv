@@ -27,3 +27,4 @@ systemd-run	systemd-run		warn	own	instale o systemd (systemd-run) da sua distrib
 claude	claude	--version	warn	own	instale o Claude Code (https://claude.com/claude-code) e deixe-o no PATH	revisões de PR do painel (hades review)
 ss	ss		warn	own	instale o pacote iproute2 da sua distribuição	portas de teste em uso (hades agent skill-new)
 bwrap	bwrap	--version	warn	registry	instale o pacote bubblewrap da sua distribuição (pacman -S bubblewrap · apt install bubblewrap)	ensaio isolado do código do plugin antes de ativá-lo (guarda plugin-ensaio-isolado do Cerberus; sem ele a guarda só avisa)
+rtk	rtk	--version	warn	own	instale o rtk (https://github.com/rtk-ai/rtk) e rode: rtk init -g	filtros de saída por stack nos worktrees (hades rtk, reference/rtk.md); sem ele nada muda

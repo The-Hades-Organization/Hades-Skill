@@ -1,0 +1,15 @@
+# Filtros do rtk desta stack (reference/rtk.md). A Hades junta este arquivo ao .rtk/filters.toml do worktree.
+# Só entra aqui o que o rtk anuncia sozinho ao cortar: strip_ansi, redesenho de progresso colapsado, linha em branco,
+# e o teto head_lines/tail_lines (o rtk escreve "... (N lines omitted)" e guarda a saída inteira para `rtk recall`).
+# Não use strip_lines_matching em linha com conteúdo: o TOML não conta nem anuncia o corte (loop/test/ts/rtk-filters.test.ts barra).
+# Só vale para comando sem handler próprio do rtk (a busca no TOML é o fallback do rtk 1.x).
+schema_version = 1
+
+[filters.tauri-build]
+description = "tauri build/dev: sem linhas em branco nem progresso, teto de 300 linhas"
+match_command = '^(npx\s+|pnpm\s+|cargo\s+)?tauri\s+(build|dev|bundle)\b'
+strip_ansi = true
+replace = [{ pattern = '^.*\r(.+)$', replacement = "$1" }]
+strip_lines_matching = ['^\s*$']
+head_lines = 60
+tail_lines = 240

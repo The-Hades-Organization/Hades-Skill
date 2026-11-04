@@ -18,6 +18,7 @@ import { pyDumps } from "../lib/pyjson.ts";
 import { LISTENERS_TOOL, listenersToolPresent, memTotalMb, procCmdline, run, tcpListeners, which, type Listener } from "../lib/proc.ts";
 import { unitPrefix } from "../lib/config.ts";
 import { serviceManager } from "../lib/service-manager.ts";
+import { FILTERS_REL, planWorktree, policyAdvice, rtkBinary, rtkConfig, settingsFor, trustState } from "../lib/rtk-filters.ts";
 
 export const HELP = `Diagnóstico do Hades: pré-requisitos, máquina, instalação e painel, uma linha por item (ok / aviso / erro + o comando
 que corrige). Só diagnostica: nunca altera nada.
@@ -420,6 +421,34 @@ function checkInstallation(r: Report, ctx: Ctx): void {
   checkNodeModules(r, ctx);
 }
 
+/** Resumidores do rtk (reference/rtk.md): presença, filtros que valem para o worktree, confiança, onde a saída inteira vai e a política recomendada (só lê). */
+function checkRtk(r: Report, ctx: Ctx): void {
+  const g = "Resumidores (rtk)";
+  const rtk = rtkBinary();
+  if (!rtk) return r.warn(g, "rtk", "rtk não encontrado: sem resumidores por stack (nada muda)", "instale o rtk (https://github.com/rtk-ai/rtk) e rode: rtk init -g");
+  const settings = settingsFor(ctx.d);
+  const plan = planWorktree(ctx.w, settings, rtk);
+  const file = join(ctx.w, FILTERS_REL);
+  if (settings.mode === "off") {
+    if (isFile(file)) r.warn(g, "rtk-filtros", `rtk ${rtk.version}; HADES_RTK_FILTERS=off, mas ${file} ainda existe`, `hades rtk apply ${ctx.w}`);
+    else r.ok(g, "rtk-filtros", `rtk ${rtk.version}; filtros desligados (HADES_RTK_FILTERS=off), worktree sem ${FILTERS_REL}`);
+  } else if (plan.action === "write") {
+    const state = isFile(file) ? trustState(ctx.w, rtk) : "";
+    const stacks = `${plan.stacks.join(",")}: ${plan.filters.join(",")}`;
+    if (!isFile(file)) r.warn(g, "rtk-filtros", `rtk ${rtk.version}; filtros previstos (${stacks}), mas ${file} não existe`, `hades rtk apply ${ctx.w} --trust (no terminal, com \`!\`)`);
+    else if (state === "confiado") r.ok(g, "rtk-filtros", `rtk ${rtk.version}; filtros ativos (${stacks})`);
+    else r.warn(g, "rtk-filtros", `rtk ${rtk.version}; ${file} ${state === "alterado" ? "mudou depois de confiado" : "ainda não confiado"}: o rtk o ignora em silêncio (${stacks})`, `cd ${ctx.w} && rtk trust`);
+  } else r.ok(g, "rtk-filtros", `rtk ${rtk.version}; sem filtro para este worktree (${plan.why})`);
+  if (settings.offStacks.length || settings.offFilters.length) r.ok(g, "rtk-ajuste", `ajuste do dono: stacks fora ${settings.offStacks.join(",") || "—"} · filtros fora ${settings.offFilters.join(",") || "—"}`);
+  const db = process.env.RTK_RECALL_DB ?? "";
+  const tee = process.env.RTK_TEE_DIR ?? "";
+  if (db.startsWith(`${ctx.d}/`) && tee.startsWith(`${ctx.d}/`)) r.ok(g, "rtk-recall", `saída inteira em ${db} (rtk recall) e ${tee}`);
+  else r.warn(g, "rtk-recall", "RTK_RECALL_DB/RTK_TEE_DIR não apontam para os dados da instância: a saída inteira que um filtro corta vai para o padrão do rtk", `reinstale o kit (o env.sh passa a exportar) e abra um shell novo; no agente, exporte RTK_RECALL_DB=${ctx.d}/rtk/recall.db RTK_TEE_DIR=${ctx.d}/rtk/tee`);
+  const advice = policyAdvice(rtkConfig(home()), rtk.version);
+  if (advice.length) r.warn(g, "rtk-politica", `política do rtk com ajuste recomendado: ${advice.join(" · ")}`, "edite o config.toml do rtk (rtk config); a Hades só recomenda, não grava");
+  else r.ok(g, "rtk-politica", "política do rtk coerente com o recomendado");
+}
+
 function checkPanel(r: Report, ctx: Ctx): void {
   const g = "Painel";
   const mode = env("HADES_PANEL_AUTOSTART", "off");
@@ -607,6 +636,7 @@ export function doctorCommand(args: string[]): number {
   checkTools(report, ctx);
   checkMachine(report, ctx);
   checkInstallation(report, ctx);
+  checkRtk(report, ctx);
   checkPanel(report, ctx);
   checkBoot(report, ctx);
   checkCleaning(report, ctx);

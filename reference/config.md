@@ -122,10 +122,15 @@ Os padrões são o comportamento de antes: 8 GB, um pesado por vez, FIFO.
 |---|---|
 | `HADES_DOCTOR_DISK_WARN_GB` (10), `HADES_DOCTOR_DISK_MIN_GB` (2), `HADES_DOCTOR_SUBNET`, `HADES_DOCTOR_NODE_BINS` (os dois últimos: padrão do plugin) | próxima execução do `doctor.sh` (`reference/doctor.md`) |
 
+### Resumidores (rtk)
+| Chaves | Aplicar |
+|---|---|
+| `HADES_RTK_FILTERS` (auto; `off` remove o `.rtk/filters.toml` gerado), `HADES_RTK_OFF_STACKS` (stacks sem filtro), `HADES_RTK_OFF_FILTERS` (filtros desligados, por nome; listas separadas por vírgula). Só o dono muda: o hook e o painel remoto barram | próxima instalação ou criação de agente; na hora com `hades rtk apply` (`reference/rtk.md`) |
+
 ### Limpeza
 | Chaves | Aplicar |
 |---|---|
-| `HADES_CLEAN_LOG_MAX` (50M), `HADES_CLEAN_PRIO_LOG_MAX` (20M), `HADES_CLEAN_PRIO_LOGS`, `HADES_CLEAN_LOG_TOTAL` (500M), `HADES_CLEAN_LOG_KEEP` (3), `HADES_CLEAN_JOBS_KEEP` (100), `HADES_CLEAN_JOBS_DAYS` (14), `HADES_CLEAN_CACHE_DAYS` (1), `HADES_CLEAN_RELEASES_DIR`, `HADES_CLEAN_RELEASES_KEEP` (2), `HADES_CLEAN_TIMER` (on), `HADES_CLEAN_EVERY` (6h) | na hora: `clean.sh apply` regrava o timer `hds-logrotate`; o resto vale na próxima limpeza (`reference/limpeza.md`) |
+| `HADES_CLEAN_LOG_MAX` (50M), `HADES_CLEAN_PRIO_LOG_MAX` (20M), `HADES_CLEAN_PRIO_LOGS`, `HADES_CLEAN_LOG_TOTAL` (500M), `HADES_CLEAN_LOG_KEEP` (3), `HADES_CLEAN_JOBS_KEEP` (100), `HADES_CLEAN_JOBS_DAYS` (14), `HADES_CLEAN_CACHE_DAYS` (1; também a idade da saída inteira dos filtros do rtk, categoria `rtk-tee`), `HADES_CLEAN_RELEASES_DIR`, `HADES_CLEAN_RELEASES_KEEP` (2), `HADES_CLEAN_TIMER` (on), `HADES_CLEAN_EVERY` (6h) | na hora: `clean.sh apply` regrava o timer `hds-logrotate`; o resto vale na próxima limpeza (`reference/limpeza.md`) |
 
 ### Snapshots
 | Chaves | Aplicar |

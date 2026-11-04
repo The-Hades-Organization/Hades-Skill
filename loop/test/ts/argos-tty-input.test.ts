@@ -282,18 +282,4 @@ describe("#13 histórico do terminal (scrollback)", () => {
     const Tty = await load();
     expect(Tty.historyWindow(["a", "b"], 24, 5)).toEqual(["a", "b"]);
   });
-
-  test("dado giro da roda, então para cima é positivo (histórico) e para baixo é negativo, por modo de delta", async () => {
-    const Tty = await load();
-    expect(Tty.wheelLines({ deltaY: -3, deltaMode: 1 }, 24)).toBe(3);
-    expect(Tty.wheelLines({ deltaY: 2, deltaMode: 1 }, 24)).toBe(-2);
-    expect(Tty.wheelLines({ deltaY: -1, deltaMode: 2 }, 24)).toBe(24);
-    expect(Tty.wheelLines({ deltaY: -1, deltaMode: 0 }, 24)).toBeGreaterThanOrEqual(1);
-  });
-
-  test("dado deltaY zero ou inválido, então não rola", async () => {
-    const Tty = await load();
-    expect(Tty.wheelLines({ deltaY: 0, deltaMode: 0 }, 24)).toBe(0);
-    expect(Tty.wheelLines({ deltaY: Number.NaN, deltaMode: 0 }, 24)).toBe(0);
-  });
 });

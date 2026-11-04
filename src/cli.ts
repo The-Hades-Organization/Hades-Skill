@@ -37,6 +37,7 @@ const commands: Record<string, () => Promise<Command>> = {
   tunnel: async () => (await import("./commands/tunnel.ts")).tunnelCommand,
   "env-watch": async () => (await import("./commands/env-watch.ts")).envWatchCommand,
   doctor: async () => (await import("./commands/doctor.ts")).doctorCommand,
+  rtk: async () => (await import("./commands/rtk.ts")).rtkCommand,
   "stack-add": async () => (await import("./commands/stack-add.ts")).stackAddCommand,
   "project-init": async () => (await import("./commands/project-init.ts")).projectInitCommand,
   agent: async () => (await import("./commands/agent.ts")).agentCommand,
@@ -75,6 +76,7 @@ const HELP = `hades <subcomando> [argumentos]
   tunnel install|create|publish-cmds|url|status|panel-start|widget-…  túnel público do front, do painel e do widget
   env-watch                      plantão: HEADS-CHANGED, CEDE e GATES-CLEAR, uma linha por evento
   doctor [--quick] [--json]      diagnóstico: pré-requisitos, máquina, instalação e painel
+  rtk status|apply [<dir>]       resumidores por stack entregues pelo rtk (reference/rtk.md)
   config show|get|set|unset|export|import  configurações do dono (config.sh)
   version-check status|doctor [--refresh] [--json]  checagem de versão da skill (hades version-check)
   panel serve [--port <porta>]   servidor do painel em TypeScript

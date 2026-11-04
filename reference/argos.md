@@ -2462,10 +2462,16 @@ Acréscimos ao contrato acima; onde divergem das linhas anteriores, estes valem.
   Copiar do navegador usa o texto da grade. O foco do campo escondido espera o ponteiro soltar e não desfaz uma seleção
   existente. A grade é escalada por `transform`, então a seleção pode ficar imprecisa em escalas muito baixas. A nota em modo
   leitura (formatada) tem seleção e `Ctrl+C` nativos.
-- **Roda e histórico.** A roda comum sobre o terminal é consumida por ele (`data-tty-wheel`, ouvinte nativo não passivo) e o
-  motor do canvas a ignora; `Ctrl`/`Alt`+roda seguem como zoom e pan. Para cima, o nó busca o histórico em
+- **Tecla morta.** `´`+`a` chega ao pane como `á`, uma vez: enquanto a composição do campo escondido está aberta
+  (`compositionstart` até `compositionend`, `createTextInput.busy()`), os `keydown` da letra base não viram tecla, e o texto
+  composto sai pelo `input`/`compositionend`.
+- **Roda e histórico.** A roda comum sobre o terminal legível é consumida por ele (`data-tty-wheel`, ouvinte nativo não passivo) e o
+  motor do canvas a ignora; `Ctrl`/`Alt`+roda seguem como zoom e pan. O nó distante (só cabeçalho) ou com problema no quadro não
+  leva `data-tty-wheel` nem segura a roda: o canvas dá zoom sobre ele. A roda é proporcional: linhas e páginas valem o que
+  dizem e pixels (trackpad) somam num resto, dividido pela altura de linha na tela (escala do quadro e zoom do canvas), então
+  evento miúdo não vale uma linha. O estado da rolagem fica em ref: rajada de giros antes de o histórico chegar soma os passos. Para cima, o nó busca o histórico em
   `GET /api/herdr/scrollback?pane=&lines=[&session=]` (`pane read --source recent --format ansi`, que devolve linhas acima do
-  quadro: medido 306 linhas contra 39 visíveis) e passa a mostrar uma janela dele; a roda para baixo volta, e o botão
+  quadro: medido 306 linhas contra 39 visíveis) e passa a mostrar uma janela dele, presa ao topo e ao fim; a roda para baixo volta (no fim, ao vivo), e o botão
   "↓ ir ao fim" (`data-tty-to-end`) ou qualquer tecla enviada ao pane retorna ao quadro ao vivo. `lines` vai de 1 a 2000
   (fora disso a rota recusa, não trunca; padrão 500; o nó pede 1000); erro de leitura responde genérico. O `NodeTty` usa
   `frame.session` e, sem ele, a sessão padrão.

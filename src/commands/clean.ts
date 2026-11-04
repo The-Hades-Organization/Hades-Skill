@@ -22,7 +22,7 @@ export const USAGE = `Rotação de logs e limpeza de disco do Hades. Política n
 Uso: clean.sh status [--tsv]                  tamanho e o que dá para liberar, por categoria
      clean.sh list <categoria>                o que a categoria apagaria (item, bytes, nota)
      clean.sh run [--dry-run] [--quiet] [--yes <categoria>]...
-                                              seguro (logs, panel-jobs, panel-cache, journal) pela política; o que apaga
+                                              seguro (logs, panel-jobs, panel-cache, journal, rtk-tee) pela política; o que apaga
                                               artefato (images, releases, worktrees) só lista até receber --yes
      clean.sh yes <categoria>                 limpa só uma categoria que apaga artefato (o botão do painel)
      clean.sh rotate [--dry-run]              só a rotação dos logs (hades logrotate)
@@ -30,7 +30,7 @@ Uso: clean.sh status [--tsv]                  tamanho e o que dá para liberar, 
 Categoria nova: as funções size_<cat>, list_<cat>, clean_<cat> e uma linha em SAFE ou CONFIRM; o painel e o`;
 
 const DEFAULT_JOURNAL_DAYS = 14;
-const SAFE = ["logs", "panel-jobs", "panel-cache", "journal"];
+const SAFE = ["logs", "panel-jobs", "panel-cache", "journal", "rtk-tee"];
 const CONFIRM = ["images", "releases", "worktrees"];
 const INFO = ["dist"];
 const ALL = [...SAFE, ...CONFIRM, ...INFO];
@@ -38,6 +38,7 @@ const LABELS: Record<string, string> = {
   logs: "Logs",
   "panel-jobs": "Execuções do painel",
   "panel-cache": "Cache do painel",
+  "rtk-tee": "Saída inteira dos filtros do rtk",
   journal: "Diário de eventos dos agentes",
   dist: "Build dos serviços (dist)",
   images: "Imagens docker sem uso",
@@ -73,6 +74,7 @@ interface Ctx {
   hadesId: string;
   jobs: string;
   cache: string;
+  rtkTee: string;
   cfg: (name: string) => string;
   num: (name: string) => number;
 }
@@ -92,6 +94,7 @@ function context(): Ctx {
     hadesId,
     jobs: join(d, "logs", "panel-jobs"),
     cache: join(d, "logs", "panel-cache"),
+    rtkTee: join(d, "rtk", "tee"),
     cfg,
     num: (name) => Number(cfg(name)),
   };
@@ -284,6 +287,28 @@ function cleanPanelCache(c: Ctx): string {
   const old = cacheOld(c);
   for (const p of old) rmSync(p, { force: true });
   return `panel-cache: ${old.length} arquivo(s) removido(s)\n`;
+}
+
+// ---- rtk-tee: saída inteira que o rtk guardou ao filtrar (RTK_TEE_DIR); o sqlite do recall tem retenção própria ----
+function rtkTeeOld(c: Ctx): string[] {
+  const days = c.num("HADES_CLEAN_CACHE_DAYS");
+  const now = Date.now();
+  return findFiles(c.rtkTee).filter((p) => Math.floor((now - statSync(p).mtimeMs) / MS_PER_DAY) > days);
+}
+
+const sizeRtkTee = (c: Ctx): Size => ({
+  bytes: sumFiles(findFiles(c.rtkTee)),
+  reclaim: sumFiles(rtkTeeOld(c)),
+  items: findFiles(c.rtkTee).length,
+  detail: `arquivos com mais de ${c.cfg("HADES_CLEAN_CACHE_DAYS")} dia(s)`,
+});
+
+const listRtkTee = (c: Ctx): Item[] => rtkTeeOld(c).map((p) => ({ name: p, bytes: sizeOfFile(p), note: "saída do rtk" }));
+
+function cleanRtkTee(c: Ctx): string {
+  const old = rtkTeeOld(c);
+  for (const p of old) rmSync(p, { force: true });
+  return `rtk-tee: ${old.length} arquivo(s) removido(s)\n`;
 }
 
 // ---- dist: só informa (apagar derruba os serviços até o próximo build) ----
@@ -546,6 +571,7 @@ const sizers: Record<string, (c: Ctx) => Size> = {
   logs: sizeLogs,
   "panel-jobs": sizePanelJobs,
   "panel-cache": sizePanelCache,
+  "rtk-tee": sizeRtkTee,
   journal: sizeJournal,
   dist: sizeDist,
   images: sizeImages,
@@ -556,6 +582,7 @@ const listers: Record<string, (c: Ctx) => Item[]> = {
   logs: listLogs,
   "panel-jobs": listPanelJobs,
   "panel-cache": listPanelCache,
+  "rtk-tee": listRtkTee,
   journal: listJournal,
   dist: () => [],
   images: listImages,
@@ -566,6 +593,7 @@ const cleaners: Record<string, (c: Ctx) => string> = {
   logs: cleanLogs,
   "panel-jobs": cleanPanelJobs,
   "panel-cache": cleanPanelCache,
+  "rtk-tee": cleanRtkTee,
   journal: cleanJournal,
   images: cleanImages,
   releases: cleanReleases,

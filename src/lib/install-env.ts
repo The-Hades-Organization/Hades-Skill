@@ -42,5 +42,8 @@ export function upgradeEnvSh(text: string, nodeBin: string): string {
   if (!/^NODE_BIN=/m.test(result)) {
     result += `\n# acrescentado pelo install.sh (env.sh anterior à 1.4.0)\nNODE_BIN="${nodeBin}"\nexport PATH="$(dirname "$NODE_BIN"):$PATH"\n`;
   }
+  if (!/^export RTK_RECALL_DB=/m.test(result)) {
+    result += '\n# acrescentado pelo install.sh: onde o rtk guarda a saída inteira que um filtro cortou\nexport RTK_RECALL_DB="$D/rtk/recall.db" RTK_TEE_DIR="$D/rtk/tee"\n';
+  }
   return result;
 }

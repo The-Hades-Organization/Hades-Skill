@@ -79,7 +79,7 @@ guarda nunca vira `ok` em silêncio.
 | `continuo` | dentro, a qualquer hora (hook, fila) | ninguém avalia: só guardas `emitida` registram aqui |
 | `publicacao` | comentário ou review publicado em PR, artefato publicado | o agente, antes de publicar; não há script do núcleo |
 | `comentario` | antes de postar texto numa PR | `hades review` (o `claude -p` que posta), `hades consolidate`, a reconciliação (`reference/loop/inbox.md`) |
-| `artefato` | antes de publicar artefato | o agente, antes de publicar; não há script do núcleo |
+| `artefato` | antes de publicar artefato | `hades minos publish` (a página preparada passa por aqui antes de existir; o agente só publica o que o comando devolveu) |
 | `tunel` | antes de abrir túnel para fora | `kit/tunnel.sh` (`publish-cmds` no front, `panel-start` no painel) |
 
 Contexto do `plugin`: `plugin`, `op` (`add`, `update` ou `enable`), `commit` e `pack_dir`: no `add`, o clone em prévia

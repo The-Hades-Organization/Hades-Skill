@@ -153,6 +153,11 @@ Os padrões são o comportamento de antes: 8 GB, um pesado por vez, FIFO.
 | `HADES_TERMINAL` (0), `HADES_TERMINAL_MAX` (4), `HADES_TERMINAL_IDLE_MIN` (30; 0 = sem limite), `HADES_TERMINAL_SCROLLBACK_KB` (256) | na hora: o painel lê a cada requisição; o anel vale na próxima sessão aberta. **As quatro só mudam pelo painel local** (`reference/panel.md` §Terminal), inclusive no import. |
 | `HADES_TERMINAL_KEYS` (esc,tab,ctrl,up,down,left,right,enter,pipe,tilde,slash,dash,paste,copy,1,2,3,y,n,shift-tab,ctrl-c) | ao recarregar a página: lista de ids da barra de teclas do celular (`reference/panel.md` §Terminal › Interface). Id desconhecido invalida a lista: cai no padrão e a tela avisa. Não é da lista "só painel local": só muda a barra, não abre acesso. |
 
+### Minos
+| Chaves | Aplicar |
+|---|---|
+| `HADES_MINOS_TEAM` (0; 1 liga a página do time, `hades minos publish --team`: ela expõe o estado do trabalho a terceiros, então vem desligada; a página pessoal não depende dela) | próximo `hades minos publish`. Ver `reference/minos.md` |
+
 ### Cerberus
 | Chaves | Aplicar |
 |---|---|

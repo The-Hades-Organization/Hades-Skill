@@ -45,6 +45,15 @@ HadesCore.registerTour('orchestration', {
       side: 'bottom',
     },
     {
+      id: 'orchestration-publicar',
+      title: 'Publicar o acompanhamento',
+      body: 'Gera a página do plano aprovado (agentes, PRs, escalações e consumo) como um arquivo offline, depois de o Cerberus conferir que nada sensível sai nela. Para publicar no Artifact, a sessão do Claude usa o comando mostrado e o Minos guarda o link, para atualizar sempre no mesmo lugar.',
+      command: 'hades minos publish orquestracao <plano.md>',
+      ref: 'minos.md',
+      fallback: 'Sem plano aprovado o botão avisa. Aprove um com hades agent plan-approve.',
+      side: 'bottom',
+    },
+    {
       id: 'orchestration-agentes',
       title: 'Agentes',
       body: 'Um cartão por agente ativo, com o fio do estado: trabalhando, ocioso, esperando você ou fora do herdr. Quem espera por você vem primeiro. A pasta no resumo é onde cada agente deixa brief, perguntas, relatório e handoff.',

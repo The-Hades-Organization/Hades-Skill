@@ -1,10 +1,13 @@
 // Agentes alocados pelo orquestrador e consolidações: o registro que os scripts do loop gravam em <work>/orchestration/, o
 // estado vivo do `herdr agent list` e os arquivos de cada agente. Somente leitura.
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { readText } from "../lib/fs.ts";
 import { LEVEL_LABELS, MAX_LEVEL, MIN_LEVEL } from "../lib/autonomy.ts";
 import { readEvents } from "../lib/journal.ts";
+import { collectOrchestration } from "../lib/minos-collect.ts";
+import { publish } from "../lib/minos-publish.ts";
+import { skillRoot } from "../lib/paths.ts";
 import type { PanelEnv } from "./env.ts";
 import { exec, out } from "./exec.ts";
 import { BadRequest } from "./http.ts";
@@ -19,6 +22,9 @@ const TERMINAL_TIMEOUT_MS = 8000;
 const TERMINAL_LINES = "160";
 const DEFAULT_REPORTS_DIR = ".design-sync-reports";
 const DECISIONS_SHOWN = 20;
+/** A página offline do painel fica fora de `$D/minos/<saída>/`, que é do registro de saídas publicadas (`hades minos`). */
+const OFFLINE_DIR = "minos/offline";
+const OFFLINE_FILE = "orquestracao.html";
 /** O diário do orquestrador (sem agente): hades agent decide grava em _sessions/_orch. */
 const ORCH_JOURNAL = "_sessions/_orch";
 const ANSI = /\x1b\[[0-9;?]*[A-Za-z]|\r/g;
@@ -27,6 +33,8 @@ export interface Orchestration {
   snapshot(): Promise<Dict>;
   file(name: string, which: string): Dict;
   terminal(name: string): Promise<Dict>;
+  /** Botão "Publicar": gera a página offline do plano aprovado (passando pelo Cerberus) e devolve o comando de publicação. */
+  publishPage(): Dict;
 }
 
 const jsonFiles = (dir: string): string[] => {
@@ -127,5 +135,22 @@ export function createOrchestration(env: PanelEnv, config: () => Record<string, 
     return { name, text: raw.replace(ANSI, "") };
   }
 
-  return { snapshot, file, terminal };
+  function publishPage(): Dict {
+    const plan = root ? readJson(join(root, "plan.json"))?.path : undefined;
+    if (!root || typeof plan !== "string" || !existsSync(plan)) {
+      return { ok: false, message: "Sem plano aprovado: aprove um com hades agent plan-approve <plano.md> e tente de novo." };
+    }
+    const dir = join(env.dir, OFFLINE_DIR);
+    mkdirSync(dir, { recursive: true });
+    const htmlFile = join(dir, OFFLINE_FILE);
+    const result = publish({
+      model: "orquestracao", plan, scope: "personal", htmlFile, state: env.dir, teamEnabled: false,
+      credentials: readText(join(env.dir, "credenciais.md")), skillRoots: [skillRoot], cwd: env.worktree,
+      collect: (planPath, scope, now) => collectOrchestration(planPath, scope, now, { orch: root, skillOrch: root, skillScope: true }),
+    });
+    if (!result.ok) return { ok: false, message: "A página não foi gerada.", reasons: result.reasons, guard: result.kind === "guard" };
+    return { ok: true, file: result.file, command: `hades minos publish orquestracao ${plan}` };
+  }
+
+  return { snapshot, file, terminal, publishPage };
 }

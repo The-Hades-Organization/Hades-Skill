@@ -265,6 +265,8 @@ Pedido do dono → comando e referência, por tema. Na dúvida entre duas linhas
 | algo que a skill não cobre | Fase 8 (`reference/evolving.md`) — termina em `hades-skill-v<versão>.tar.gz` |
 | "gera o pacote da skill" | `kit/skill-release.sh release patch "<resumo>"` (ou `check` para só validar). A instalação principal é `git clone` + `kit/install.sh` (README §Instalação); o `.tar.gz` é a alternativa sem git |
 | "devolve a melhoria ao repo da skill" · "manda essa evolução para o mantenedor da skill" · "abre PR da skill" | `hades contrib suggest\|prepare\|pr\|html`: só o núcleo, varredura de nome/domínio/segredo; com acesso de escrita prepara a PR e só abre com confirmação, sem acesso grava `~/.claude/hades/contrib/<slug>.html` (`reference/contrib.md`) |
+| "publica o acompanhamento da orquestração" · "atualiza a página do acompanhamento" · "gera o HTML offline" | `hades minos publish orquestracao <plano.md> [--html <arquivo>] [--team]` prepara a página (Cerberus antes); você publica o arquivo com a ferramenta Artifact e grava o link com `hades minos link <saída> <url>` (`reference/minos.md`) |
+| "lista o que o Minos já publicou" · "abre a página publicada" | `hades minos list` · `hades minos open <saída>` (`reference/minos.md`) |
 | "evolui a skill com agentes" · "abre uma unidade da skill" · "limpa as unidades antigas" · "quem está rodando" | `hades agent skill-new <u>` → brief → start do dono → `adopt`/`prompt` → merge → `skill-release.sh release` → `skill-clean --merged`; `hades agent list [--all]` (`reference/loop/orchestrate.md` §Evoluir a própria skill) |
 
 ## Parte II — Loop de engenharia

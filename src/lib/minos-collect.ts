@@ -9,7 +9,7 @@ import {
   type AgentState, type Confidence, type EstimateData, type OrchestrationData, type PlanUnitData, type Scope,
 } from "./minos-model.ts";
 import { openQuestionHeads } from "./argos.ts";
-import { agentFiles, loadWorkEnv, readJson, DEFAULT_REPORTS, configValue, type Json } from "./work.ts";
+import { agentFiles, loadWorkEnv, readJson, DEFAULT_REPORTS, configValue, type Json, type WorkEnv } from "./work.ts";
 
 const TEXT_CAP = 480;
 const UNKNOWN_TITLE = "Orquestração";
@@ -126,10 +126,13 @@ function agentSource(record: Json, reportsDir: string): AgentSource {
   };
 }
 
-export function collectOrchestration(planPath: string, scope: Scope, now: Date = new Date()): OrchestrationData {
+/** Onde estão os registros dos agentes; o painel (que não roda dentro de um clone) informa o dele, a CLI deixa o padrão. */
+export type AgentRegistry = Pick<WorkEnv, "orch" | "skillOrch" | "skillScope">;
+
+export function collectOrchestration(planPath: string, scope: Scope, now: Date = new Date(), registry?: AgentRegistry): OrchestrationData {
   const planText = readText(planPath);
   if (planText === undefined) throw new Error(`plano não encontrado: ${planPath}`);
-  const work = loadWorkEnv();
+  const work = registry ?? loadWorkEnv();
   const reportsDir = configValue("HADES_ORCH_REPORTS_DIR", DEFAULT_REPORTS);
   const agents = agentFiles(work).flatMap((file) => {
     const record = readJson(file);

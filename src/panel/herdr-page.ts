@@ -10,6 +10,7 @@ import { exec } from "./exec.ts";
 import type { PanelEnv } from "./env.ts";
 import { createHerdrSocket, type Herdr, HerdrSocketError, type HerdrSocket } from "./herdr.ts";
 import { BadRequest } from "./http.ts";
+import { configValues } from "./routes-core.ts";
 
 type Dict = Record<string, unknown>;
 
@@ -85,6 +86,9 @@ export function scrollbackLinesOf(raw: string | undefined): number {
   if (n < 1 || n > SCROLLBACK_LINES_MAX) throw new BadRequest(`lines fora de 1 a ${SCROLLBACK_LINES_MAX}`);
   return n;
 }
+
+/** Exigir o nome do alvo em `confirm` (HADES_CONFIRM_TYPED): só o "0" gravado desliga; chave ausente ou lixo fecha. */
+export const typedConfirmRequired = (values: Record<string, string>): boolean => values.HADES_CONFIRM_TYPED !== "0";
 
 export interface HerdrPage {
   overview(session?: string): Promise<Dict>;
@@ -460,7 +464,7 @@ export function createHerdrPage(env: PanelEnv, herdr: Herdr, socket: HerdrSocket
     if ((what !== "stop" && what !== "delete") || !SESSION_NAME.test(name)) throw new BadRequest("ação inválida");
     const s = (await sessions()).find((x) => x.name === name);
     if (!s) throw new BadRequest("sessão do herdr desconhecida");
-    if (body.confirm !== name) throw new BadRequest("digite o nome da sessão para confirmar");
+    if (typedConfirmRequired(configValues(env)) && body.confirm !== name) throw new BadRequest("digite o nome da sessão para confirmar");
     if (what === "delete" && s.running) throw new BadRequest("pare a sessão antes de apagá-la");
     if (what === "stop" && !s.running) throw new BadRequest("a sessão já está parada");
     const working = s.running ? countStatus(rows((await herdr.snap(name))?.agents), "working") : 0;
@@ -479,7 +483,7 @@ export function createHerdrPage(env: PanelEnv, herdr: Herdr, socket: HerdrSocket
     const snap = await herdr.snap(session);
     if (!snap) throw new BadRequest("servidor herdr desta sessão fora do ar");
     const plan = adminPlan(what as AdminAction, body, snap);
-    if (plan.confirmName !== undefined && body.confirm !== plan.confirmName) throw new BadRequest("digite o nome para confirmar");
+    if (plan.confirmName !== undefined && typedConfirmRequired(configValues(env)) && body.confirm !== plan.confirmName) throw new BadRequest("digite o nome para confirmar");
     const r = await herdr.call(session, plan.argv, plan.timeoutMs);
     const created = r.rc === 0 ? createdIdOf(r.out) : undefined;
     record(session, what, created ?? plan.target, remote, r.rc === 0);

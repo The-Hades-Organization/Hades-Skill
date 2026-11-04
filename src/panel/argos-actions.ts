@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { ARGOS_ERRORS, ARGOS_SCHEMA_VERSION, ArgosError, type PendingPermission, isSimplePermissionTool } from "../lib/argos.ts";
 import { selfCli } from "../lib/paths.ts";
 import { type Exec, exec } from "./exec.ts";
-import type { HerdrPage } from "./herdr-page.ts";
+import { type HerdrPage, typedConfirmRequired } from "./herdr-page.ts";
 import { BadRequest } from "./http.ts";
 
 type Dict = Record<string, unknown>;
@@ -182,7 +182,7 @@ export function createActions(deps: ActionDeps): Actions {
     const target = deps.target(typeof body.node === "string" ? body.node : "");
     const spec: Spec = SPECS[action];
     const parsed = spec.parse(raw as Dict);
-    if (spec.destructive && body.confirm !== target.name) throw new ArgosError(400, ARGOS_ERRORS.confirmRequired, "digite o nome do alvo em confirm");
+    if (spec.destructive && typedConfirmRequired(deps.config()) && body.confirm !== target.name) throw new ArgosError(400, ARGOS_ERRORS.confirmRequired, "digite o nome do alvo em confirm");
     return { action, target, parsed };
   }
 

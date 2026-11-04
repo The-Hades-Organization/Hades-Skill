@@ -91,6 +91,10 @@ describe("ações e confirmação", () => {
     expect(L.confirmMatches("fin ", a)).toBe(false);
     expect(L.confirmMatches("", a)).toBe(false);
   });
+  test("com digitar o nome desligado, confirmMatches aceita qualquer texto", () => {
+    expect(L.confirmMatches("", a, false)).toBe(true);
+    expect(L.confirmMatches("", a, true)).toBe(false);
+  });
   test("corpo leva confirm só na destrutiva", () => {
     expect(L.buildBody(a, act("done"), { keepPane: true }, "fin")).toEqual({ node: a.id, action: "done", args: { keepPane: true }, confirm: "fin" });
     expect(L.buildBody(a, act("prompt"), {}, "lixo")).toEqual({ node: a.id, action: "prompt", args: {} });

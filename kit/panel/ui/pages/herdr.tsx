@@ -1,7 +1,7 @@
 /* Página Herdr (#/herdr): usa a base (ui/app.js) pelo HadesCore e se registra pelo registerPage dela. */
 (() => {
 const { useState, useEffect, useRef, useCallback, I, cn, dur, post, getJSON, Button, Dot, Card,
-  CardHeader, CardContent, HoldConfirm, Switch, Input, Mono, Tip, Empty, Dialog, DialogHeader, DialogFooter, Sheet, useApp,
+  CardHeader, CardContent, HoldConfirm, useConfirmPrefs, Switch, Input, Mono, Tip, Empty, Dialog, DialogHeader, DialogFooter, Sheet, useApp,
   Fio, LinhaDeEstado, Loading, useWide, Choice, Select, Segmented, PtyTerminal } = HadesCore;
 const L = window.TermLogic;
 
@@ -153,6 +153,7 @@ const HERDR_AGENT_KINDS = ['claude', 'codex', 'gemini'];
 const HERDR_SPLITS = [{ value: 'right', label: 'Para a direita' }, { value: 'down', label: 'Para baixo' }];
 function HerdrAdmin({ session, ask, onClose, onDone }) {
   const { toast } = useApp();
+  const prefs = useConfirmPrefs(true);
   const [f, setF] = useState({});
   const [busy, setBusy] = useState(false);
   useEffect(() => { setF(ask ? { label: ask.label || '', cwd: '', name: '', kind: 'claude', args: '', direction: 'right', confirm: '' } : {}); }, [ask]);
@@ -163,7 +164,7 @@ function HerdrAdmin({ session, ask, onClose, onDone }) {
     try {
       const body = { session, action: ask.action, ...ask.target };
       for (const k of ask.fields) body[k] = k === 'args' ? f.args.split(/\s+/).filter(Boolean) : f[k];
-      if (ask.confirmName !== undefined) body.confirm = f.confirm;
+      if (ask.confirmName !== undefined && prefs.typed) body.confirm = f.confirm;
       await post('/api/herdr/admin', body);
       toast({ kind: 'ok', title: ask.done });
       onClose(); onDone();
@@ -171,18 +172,18 @@ function HerdrAdmin({ session, ask, onClose, onDone }) {
     finally { setBusy(false); }
   };
   const danger = ask.confirmName !== undefined;
-  const blocked = (ask.fields.includes('label') && ask.labelRequired && !f.label?.trim()) || (ask.fields.includes('name') && !f.name) || (danger && f.confirm !== ask.confirmName);
+  const blocked = (ask.fields.includes('label') && ask.labelRequired && !f.label?.trim()) || (ask.fields.includes('name') && !f.name) || (danger && prefs.typed && f.confirm !== ask.confirmName);
   return <Dialog open onClose={onClose} label={ask.title}>
     <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); if (!danger && !blocked && !busy) run(); }}>
       <DialogHeader icon={ask.icon} tone={danger ? 'danger' : undefined} title={ask.title}
-        description={ask.description + (danger ? `\n\nDigite ${ask.confirmName} para confirmar.` : '')} />
+        description={ask.description + (danger && prefs.typed ? `\n\nDigite ${ask.confirmName} para confirmar.` : '')} />
       {ask.fields.includes('label') ? <Input value={f.label || ''} onInput={set('label')} maxLength={64} placeholder={ask.labelRequired ? 'Nome' : 'Nome (opcional)'} aria-label="Nome" autoFocus /> : null}
       {ask.fields.includes('cwd') ? <Input value={f.cwd || ''} onInput={set('cwd')} placeholder="Pasta (opcional, dentro do home)" aria-label="Pasta" /> : null}
       {ask.fields.includes('direction') ? <Select value={f.direction || 'right'} onChange={(v) => setF((x) => ({ ...x, direction: v }))} label="Direção" items={HERDR_SPLITS} className="w-full" /> : null}
       {ask.fields.includes('name') ? <Input value={f.name || ''} onInput={set('name')} maxLength={32} placeholder="Nome do agente (minúsculas, números, _ e -)" aria-label="Nome do agente" autoFocus /> : null}
       {ask.fields.includes('kind') ? <Select value={f.kind || 'claude'} onChange={(v) => setF((x) => ({ ...x, kind: v }))} label="Agente" items={HERDR_AGENT_KINDS.map((k) => ({ value: k, label: k }))} className="w-full" /> : null}
       {ask.fields.includes('args') ? <Input value={f.args || ''} onInput={set('args')} placeholder="Argumentos do agente (separados por espaço)" aria-label="Argumentos do agente" /> : null}
-      {danger ? <Input value={f.confirm || ''} onInput={set('confirm')} placeholder={ask.confirmName} aria-label="Nome do alvo" autoFocus /> : null}
+      {danger && prefs.typed ? <Input value={f.confirm || ''} onInput={set('confirm')} placeholder={ask.confirmName} aria-label="Nome do alvo" autoFocus /> : null}
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>Cancelar</Button>
         {danger ? <HoldConfirm size="default" loading={busy} disabled={busy || blocked} icon={ask.icon} onHold={run}>Segure 1,2 s: Fechar</HoldConfirm>
@@ -206,13 +207,14 @@ const askAgentStart = (p) => ({ action: 'agent-start', icon: I.Play, title: 'Ini
 // parar/apagar sessão do herdr: digitar o nome confirma (e mostra quantos agentes estão trabalhando)
 function HerdrSessions({ open, onClose, sessions, onDone }) {
   const { toast } = useApp();
+  const prefs = useConfirmPrefs(open);
   const [ask, setAsk] = useState(null);
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => { setTyped(''); }, [ask]);
   const run = async () => {
     setBusy(true);
-    try { await post('/api/herdr/session', { action: ask.what, name: ask.s.name, confirm: typed }); toast({ kind: 'ok', title: ask.what === 'stop' ? 'Sessão parada' : 'Sessão apagada', desc: ask.s.name }); setAsk(null); onDone(); }
+    try { await post('/api/herdr/session', { action: ask.what, name: ask.s.name, ...(prefs.typed ? { confirm: typed } : {}) }); toast({ kind: 'ok', title: ask.what === 'stop' ? 'Sessão parada' : 'Sessão apagada', desc: ask.s.name }); setAsk(null); onDone(); }
     catch (e) { toast({ kind: 'bad', title: 'Não foi possível', desc: e.message }); }
     finally { setBusy(false); }
   };
@@ -243,11 +245,11 @@ function HerdrSessions({ open, onClose, sessions, onDone }) {
           : 'Remove a sessão parada e o que o herdr guardou.')
           + (s.default && ask.what === 'stop' ? '\n\nSessão padrão: a Orquestração e os agentes do loop rodam nela.' : '')
           + (s.own && ask.what === 'stop' ? '\n\nO painel ou o orquestrador roda nesta sessão: parar derruba os dois.' : '')
-          + `\n\nDigite ${s.name} para confirmar.`} />
-        <Input value={typed} onInput={(e) => setTyped(e.target.value)} placeholder={s.name} aria-label="Nome da sessão" autoFocus />
+          + (prefs.typed ? `\n\nDigite ${s.name} para confirmar.` : '')} />
+        {prefs.typed ? <Input value={typed} onInput={(e) => setTyped(e.target.value)} placeholder={s.name} aria-label="Nome da sessão" autoFocus /> : null}
         <DialogFooter>
           <Button variant="outline" onClick={() => setAsk(null)}>Cancelar</Button>
-          <HoldConfirm size="default" loading={busy} disabled={busy || typed !== s.name} icon={ask.what === 'stop' ? I.Power : I.Trash2} onHold={run}>
+          <HoldConfirm size="default" loading={busy} disabled={busy || (prefs.typed && typed !== s.name)} icon={ask.what === 'stop' ? I.Power : I.Trash2} onHold={run}>
             {ask.what === 'stop' ? 'Segure 1,2 s: Parar' : 'Segure 1,2 s: Apagar'}
           </HoldConfirm>
         </DialogFooter>

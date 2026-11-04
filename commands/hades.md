@@ -24,7 +24,7 @@ local-only: skill, comando, coletor e `hades gate-lock` vivem em `~/.claude`, e 
 - **`usage [--days N]`** — `hades usage`.
 - **`--orchestrated`** (deliver, inbox, cascade, consolidate) — passada de agente alocado: cartao do papel,
   brief e gate do modo orquestrado (`gates.md` §1.0).
-- **`--max N`** (review) — teto de PRs no lote. Default 3, maximo 6.
+- **`--max N`** (review) — tamanho do lote, sem máximo. Default 3 só na chamada sem escopo explícito; com `--pr` repetido ou `--author`, revisa todas as PRs do escopo. O que protege a máquina é `HADES_REVIEW_MAX_PARALLEL`: as excedentes esperam na fila.
 - **`--author <login>`** (review) — restringe ao autor. Ausente → `review-requested:@me`, com fallback
   para PRs abertas de outros autores.
 - **`--pr N`** (inbox, review, cascade, watch, locks) — restringe a essa PR; repetivel.

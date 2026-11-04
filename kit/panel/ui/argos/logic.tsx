@@ -295,7 +295,8 @@ function makeArgosLogic() {
   };
 
   const needsConfirm = (actionId: string): boolean => ACTIONS.find((a) => a.id === actionId)?.destructive === true;
-  const confirmMatches = (typed: string, node: Pick<ArgosNode, "label">): boolean => typed === node.label;
+  /** `typedRequired` = a preferência "digitar o nome" (HADES_CONFIRM_TYPED); desligada, o servidor também dispensa o `confirm`. */
+  const confirmMatches = (typed: string, node: Pick<ArgosNode, "label">, typedRequired = true): boolean => !typedRequired || typed === node.label;
 
   const questionIds = (detail: ArgosDetail | null | undefined): string[] =>
     (detail?.files?.questions?.openQuestions ?? []).map((q) => /^(Q\d+)\b/.exec(q)?.[1]).filter((q): q is string => !!q);

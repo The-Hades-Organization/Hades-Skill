@@ -59,6 +59,7 @@ export function remoteConfigRefusal(keys: string[]): string | undefined {
   if (keys.some((k) => TERMINAL_KEYS.includes(k))) return "o terminal do painel (HADES_TERMINAL e seus limites) só se muda pelo painel local";
   if (keys.includes("HADES_PANEL_AUTOSTART")) return "o início automático do painel só se muda pelo painel local";
   if (keys.some((k) => k === "HADES_ORCH_AUTONOMY" || k === "HADES_ORCH_AUTO_START")) return "o nível de autonomia e a auto-alocação só se mudam pelo painel local";
+  if (keys.some((k) => k === "HADES_CONFIRM_HOLD" || k === "HADES_CONFIRM_TYPED")) return "as travas de confirmação só se mudam pelo painel local";
   if (keys.some((k) => k.startsWith(CERBERUS_PREFIX))) return "o Cerberus só se configura pelo painel local";
   if (keys.some((k) => k.startsWith(RTK_PREFIX))) return "a política dos filtros do rtk só se muda pelo painel local";
   return undefined;

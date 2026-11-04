@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { readText } from "../lib/fs.ts";
 import { home } from "../lib/paths.ts";
 import { which } from "../lib/proc.ts";
+import { maxParallel } from "../lib/review-queue.ts";
 import { serviceManager } from "../lib/service-manager.ts";
 import { type Exec, exec, out as execOut, shlexJoin } from "./exec.ts";
 import { BadRequest } from "./http.ts";
@@ -245,6 +246,7 @@ export function createMisc(deps: MiscDeps): Misc {
     const cfg = deps.config();
     return {
       items,
+      maxParallel: maxParallel(),
       defaults: { model: (cfg.HADES_MODEL_REVIEW ?? "").includes("sonnet") ? "sonnet" : "opus", effort: EFFORTS.includes(cfg.HADES_EFFORT_REVIEW ?? "") ? cfg.HADES_EFFORT_REVIEW : "medium" },
     };
   }

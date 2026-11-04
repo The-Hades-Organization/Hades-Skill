@@ -4,6 +4,26 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.7.1 — 2026-11-04
+
+Nós do canvas não somem mais sem ação do dono (issue #23) e um pane do herdr é um nó só (issue #24).
+
+- **Remoção com guarda**: `mergeWithGraph` só tira nó vivo com grafo confiável, e `createAbsenceTracker` exige duas leituras
+  seguidas sem o nó; grafo vazio ou parcial não remove nada. Gravação que levaria notas ou terminais em massa (5 ou mais, e mais
+  da metade dos nós do usuário) é recusada com 422 `canvas_mass_removal`, salvo pelo gesto de apagar, que manda
+  `X-Canvas-Confirm-Removal: 1`.
+- **Rastro**: cada remoção vai ao `panel.log` (`canvas remoção`) com causa, tamanho do grafo, versão sobrescrita e ids, e a versão
+  sobrescrita fica em `$D/canvas-trash/` (20 por canvas). O evento fica no `panel.log`, e não no diário por agente, porque não
+  tem agente.
+- **Um pane, um nó** (`paneKey`, `claimed`/`duplicates`): grafo lido no meio da criação do terminal, `agent adopt` de pane que já
+  é nó e `reassign` mantêm o mesmo nó.
+- **Armadilha medida**: `note` e `terminal` não são tipos vivos, então `mergeWithGraph` não explica a perda deles. Numa instalação
+  real, notas, terminais e arestas saíram num único `PUT` do cliente com a `rev` certa (30 → 22 nós, 10 → 0 arestas), sem 409. A
+  causa exata desse cliente segue sem prova, por falta de cópia do documento; o `canvas-trash/` e o `panel.log` fecham a causa se
+  acontecer de novo.
+- **Suíte**: `cerberus-vigilia-legado` falhou uma vez na regressão completa (`sem valor gravado para '27:auditoria ["capturas"]'`)
+  e passou sozinho 3 de 3 e na rodada seguinte: a chave do golden usa um contador sequencial, sensível à ordem.
+
 ## 6.7.0 — 2026-11-04
 
 Minos, o publicador do acompanhamento da orquestração (issue #15); fila de revisões com teto (issue #14); permissão do

@@ -150,9 +150,11 @@ async function getCanvas(url) {
 }
 
 // PUT do documento; devolve a resposta que o gravador entende (gravou, revisão velha, falhou)
-async function putCanvas(url, doc, { leaving }) {
+async function putCanvas(url, doc, { leaving }, meta = {}) {
   const body = JSON.stringify(doc);
-  const send = () => fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Panel-Token': window.__TOKEN }, body,
+  // causa, tamanho do grafo lido e confirmação de remoção em massa vão ao servidor, que os põe no diário (panel.log)
+  const extra = { ...(meta.cause ? { 'X-Canvas-Cause': meta.cause } : {}), ...(Number.isInteger(meta.graphSize) ? { 'X-Canvas-Graph-Size': String(meta.graphSize) } : {}), ...(meta.confirmRemoval ? { 'X-Canvas-Confirm-Removal': '1' } : {}) };
+  const send = () => fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Panel-Token': window.__TOKEN, ...extra }, body,
     keepalive: leaving && body.length < KEEPALIVE_MAX_BYTES, signal: AbortSignal.timeout(CANVAS_TIMEOUT_MS) });
   try {
     let r = await send();
@@ -247,7 +249,10 @@ const actionNode = (n) => ({ id: n.id, type: n.type, label: n.label, state: n.st
   lastEventTs: n.lastEventTs, pendingPermission: n.pendingPermission, gateFailed: n.gate === 'failed' });
 const NOTE_LEVEL_TOAST = { info: 'info', warn: 'warn', error: 'bad' };
 
-const graphSnapshot = (graph) => ({ nodes: L.validNodes(graph).map((n) => (n.orchestrator ? { id: n.id, type: n.type, orchestrator: n.orchestrator } : { id: n.id, type: n.type })), edges: graph.edges || [] });
+const graphSnapshot = (graph) => ({ nodes: L.validNodes(graph).map((n) => ({ id: n.id, type: n.type, ...(n.orchestrator ? { orchestrator: n.orchestrator } : {}), ...(n.herdr ? { herdr: n.herdr } : {}) })), edges: graph.edges || [] });
+
+// apagar de propósito: o gesto é um `delete` (ou um lote com `delete`); só ele confirma a remoção em massa no servidor
+const deletesNodes = (op) => op.kind === 'delete' || (op.kind === 'batch' && op.ops.some(deletesNodes));
 
 const NO_NODES = [];
 const NO_DRAFTS = {};
@@ -455,12 +460,16 @@ function Argos() {
   // quando a tela relê o documento que mudou por fora (aviso do servidor, conferência de POLL_MS, volta da aba, gravador ocioso)
   const [externalStale, setExternalStale] = useState(false);
   const reloadRef = useRef(async () => true);
+  // por que o documento vai ser gravado (user, undo, graph) e se o dono apagou de propósito; o gravador leva ao servidor e zera
+  const saveMetaRef = useRef({ cause: 'user', confirmRemoval: false });
+  const graphSizeRef = useRef(null);
+  const takeSaveMeta = () => { const m = saveMetaRef.current; saveMetaRef.current = { cause: 'user', confirmRemoval: false }; return { ...m, graphSize: graphSizeRef.current }; };
   const busyStateRef = useRef(() => null);
   const watch = useMemo(() => NT.createCanvasWatch({
     now: () => Date.now(), busy: () => busyStateRef.current(), reload: () => reloadRef.current(), onStale: setExternalStale,
     log: (reason) => console.debug('canvas: releitura pulada', reason),
   }), []);
-  const saver = useMemo(() => M.store.createDocSaver({ put: (doc, options) => putCanvas(canvasUrl(canvasIdRef.current), doc, options).then((reply) => {
+  const saver = useMemo(() => M.store.createDocSaver({ put: (doc, options) => putCanvas(canvasUrl(canvasIdRef.current), doc, options, takeSaveMeta()).then((reply) => {
     if (reply.kind === 'saved') watch.saved(reply.rev);
     return reply;
   }),
@@ -494,7 +503,15 @@ function Argos() {
   }), []);
 
   // grava e guarda o estado novo do canvas (a fonte única é cstateRef; o setState só redesenha)
-  const commit = useCallback((next) => { cstateRef.current = next; setCstate(next); scheduleSave(next.doc); }, [scheduleSave]);
+  const commit = useCallback((next, meta = {}) => {
+    cstateRef.current = next; setCstate(next);
+    // gesto do dono vence: grafo e gesto no mesmo envio contam como gesto; a confirmação só vale para apagar de propósito
+    const prev = saveMetaRef.current;
+    const pending = scheduledSeqRef.current !== sentSeqRef.current;
+    const cause = meta.cause === 'graph' && pending ? prev.cause : (meta.cause || 'user');
+    saveMetaRef.current = { cause, confirmRemoval: prev.confirmRemoval || meta.confirmRemoval === true };
+    scheduleSave(next.doc);
+  }, [scheduleSave]);
 
   // layout de forças: a simulação anda em fatias por quadro (reading-runner) e o resultado entra na pilha de desfazer como
   // um passo só. `reading` é o que as funções daqui leem do render atual (filtro, layout, pins)
@@ -554,7 +571,9 @@ function Argos() {
   // declarado antes do efeito do gravador: na saída, o parcial entra na fila antes do flush
   useEffect(() => () => stopRef.current(), []);
   // nó de agente novo nasce no tamanho que cabe o terminal (NT.AGENT_NODE_SIZE); os demais tipos, o padrão do registro
-  const syncOptions = useMemo(() => ({ layout: M.layout.FREE_LAYOUT, sizeOf: (type) => (type === 'agent' ? { ...NT.AGENT_NODE_SIZE } : types.sizeOf(type)) }), [types]);
+  // o rastreador conta leituras seguidas do grafo sem o nó (uma só leitura ruim não tira ninguém do canvas)
+  const absence = useMemo(() => M.sync.createAbsenceTracker(), []);
+  const syncOptions = useMemo(() => ({ layout: M.layout.FREE_LAYOUT, absence, trusted: !loadError, sizeOf: (type) => (type === 'agent' ? { ...NT.AGENT_NODE_SIZE } : types.sizeOf(type)) }), [types, absence, loadError]);
   const reconcile = useCallback((state) => {
     const g = graphRef.current;
     if (!g || g.v !== SUPPORTED_V) return state;
@@ -764,7 +783,8 @@ function Argos() {
     const r = cur === first ? r0 : M.store.reconcileGraph(cur, snapshot, syncOptions);
     if (!r.changed) return;
     const before = new Set(cur.doc.nodes.map((n) => n.id));
-    commit(r.state);
+    graphSizeRef.current = snapshot.nodes.length;
+    commit(r.state, { cause: 'graph' });
     if (reading.current.layout !== 'force') return;
     const fresh = r.state.doc.nodes.some((n) => !before.has(n.id));
     if (fresh) arrange(new Set([...before, ...reading.current.pins]));
@@ -1067,7 +1087,7 @@ function Argos() {
     stopRun();
     const cur = cstateRef.current;
     const next = cur && M.store.stepHistory(cur, direction);
-    if (next) commit(next);
+    if (next) commit(next, { cause: 'undo' });
   };
   // Gesto do dono vence: a rodada de forças para e grava o parcial antes. Com forças ligadas, o nó arrastado fica fixo onde
   // o dono o soltou e só a vizinhança dele volta a se mexer.
@@ -1086,7 +1106,7 @@ function Argos() {
     opHooks.current.stop();
     const cur = cstateRef.current;
     if (!cur) return;
-    try { commit(M.store.commitGesture(cur, op)); } catch (e) {
+    try { commit(M.store.commitGesture(cur, op), { confirmRemoval: deletesNodes(op) }); } catch (e) {
       console.error('canvas: gesto recusado', e && e.code);
       toast({ kind: 'bad', title: 'Não deu para aplicar a mudança', desc: L.errorText(e && e.code, 'O canvas recusou a mudança.') });
       return;
@@ -1099,7 +1119,7 @@ function Argos() {
     stopRun();
     const cur = cstateRef.current;
     if (!cur) throw Object.assign(new Error('canvas ainda não carregado'), { code: M.history.HISTORY_ERRORS.invalidOp });
-    commit(M.store.commitGesture(cur, op));
+    commit(M.store.commitGesture(cur, op), { confirmRemoval: deletesNodes(op) });
   };
   // ocultar e reexibir: um passo do desfazer cada; o nó fica no documento (posição guardada), só sai do desenho
   const hideNodes = (ids) => {

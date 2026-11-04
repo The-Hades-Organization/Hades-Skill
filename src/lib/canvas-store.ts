@@ -3,7 +3,7 @@
 // espera (debounce) e revisão. Tudo puro ou com o efeito injetado (`put`, temporizador), então roda sem a página nem rede.
 // Sem dependência de Node: roda no painel e no navegador.
 import { openingCamera, OPENING_MIN_SCALE, type Camera, type Rect, type Viewport } from "./canvas-camera.ts";
-import { type CanvasDoc, type CanvasEdge } from "./canvas-doc.ts";
+import { type CanvasDoc, type CanvasEdge, type HeldReason } from "./canvas-doc.ts";
 import { createHistory, HistoryError, perform, redo, undo, type CanvasOp, type History } from "./canvas-history.ts";
 import { syncWithGraph, type GraphSnapshot, type SyncOptions } from "./canvas-sync.ts";
 
@@ -46,15 +46,25 @@ export interface ReconcileResult {
   state: CanvasState;
   added: string[];
   removed: string[];
+  /** Subconjunto de `removed` que saiu por repetir o pane de um terminal do documento. */
+  duplicates: string[];
+  /** Agente do grafo → terminal do documento que já é o mesmo pane (o agente não ganha nó próprio). */
+  claimed: Record<string, string>;
+  /** Nós vivos ausentes do grafo que ficaram por falta de confiança na leitura. */
+  held: string[];
+  heldReason?: HeldReason;
   skipped: string[];
   changed: boolean;
 }
 
-/** Sincroniza o documento com o grafo (nó novo perto dos vizinhos, nó sumido sai, posição do dono vence). A pilha não muda. */
+/**
+ * Sincroniza o documento com o grafo (nó novo perto dos vizinhos, nó sumido sai só com leitura confiável, um pane um nó, posição
+ * do dono vence). A pilha não muda.
+ */
 export function reconcileGraph(state: CanvasState, graph: GraphSnapshot, options: SyncOptions): ReconcileResult {
-  const result = syncWithGraph(state.doc, graph, options);
-  if (!result.changed) return { state, added: [], removed: [], skipped: result.skipped, changed: false };
-  return { state: { doc: result.doc, history: state.history }, added: result.added, removed: result.removed, skipped: result.skipped, changed: true };
+  const { doc, changed, ...report } = syncWithGraph(state.doc, graph, options);
+  if (!changed) return { ...report, state, added: [], removed: [], duplicates: [], changed: false };
+  return { ...report, state: { doc, history: state.history }, changed: true };
 }
 
 export interface GraphEdgeRef {

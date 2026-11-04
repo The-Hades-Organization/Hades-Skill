@@ -4,6 +4,21 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.10.0 — 2026-11-04
+
+Aba Workspaces do Herdr com terminal de verdade, no desktop e em tela cheia no celular (issue #32).
+
+- **Terminal na aba Workspaces**: o pane escolhido aparece num xterm com cores, cursor e teclado direto, pelo mesmo caminho do
+  nó do Argos (`NodeTty` reaproveitado sem mudança, quadro por `/api/herdr/stream`, entrada por `/api/herdr/input` numa fila de
+  um envio por vez). Metadados e ações ficam ao redor. A saída de 200 linhas virou alternativa recolhida (copiar, leitor de
+  tela), que abre sozinha quando o fluxo cai e só faz polling de 3 s aberta. Fluxo caído ou pane encerrado: aviso e
+  **Reconectar**. O tamanho do pane não muda (só escala): no herdr o tamanho é da sessão inteira.
+- **Celular**: tela cheia com a barra de teclas, o teclado virtual e a acentuação do terminal; metadados, prompt e ações numa
+  gaveta. Defeitos registrados antes da correção: sem barra de teclas (a página não passava `apiRef`), digitação só pelo
+  campo de texto, rolagem aninhada. Armadilha: o `NodeTty` tirava o foco quando o toque caía na barra de teclas e só focava
+  fora do gesto (o iOS não abre o teclado assim); agora o toque foca dentro do gesto e a barra não rouba o foco. Toque e
+  teclado virtual foram verificados por código e teste, não num aparelho.
+
 ## 6.9.1 — 2026-11-04
 
 Tipos de notificação com nome claro e CI separado de review (issue #28); câmera do Argos só se move por gesto ou seleção do

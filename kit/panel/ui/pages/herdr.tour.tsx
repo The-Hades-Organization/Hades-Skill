@@ -89,9 +89,9 @@ HadesCore.registerTour('herdr', {
     {
       id: 'herdr-detalhe',
       title: 'O terminal escolhido',
-      body: 'Ao escolher um item, a coluna da direita mostra o terminal: nome, estado, pasta, o processo em primeiro plano e a saída das últimas 200 linhas.',
+      body: 'Ao escolher um item, a coluna da direita mostra o terminal ao vivo, com cores e cursor, e o teclado escreve direto nele. Acima dele ficam nome, estado, pasta e o processo em primeiro plano.',
       command: 'herdr pane read <pane>',
-      fallback: 'No celular o terminal abre numa gaveta ao tocar num item; na mesa ele fica à direita e abre sozinho o agente que espera por você ou, senão, o que trabalha.',
+      fallback: 'No celular o terminal abre em tela cheia, com a barra de teclas, ao tocar num item; na mesa ele fica à direita e abre sozinho o agente que espera por você ou, senão, o que trabalha.',
       side: 'left',
     },
     {
@@ -103,8 +103,8 @@ HadesCore.registerTour('herdr', {
     },
     {
       id: 'herdr-saida',
-      title: 'Saída ao vivo',
-      body: 'A saída se atualiza a cada 3 s enquanto "Automático" está ligado; desligue para ler com calma e use "Atualizar saída" para puxar uma vez.',
+      title: 'Saída em texto',
+      body: 'A alternativa de leitura do terminal (copiar, leitor de tela): as últimas 200 linhas. Aberta, atualiza a cada 3 s com "Automático" ligado; use "Atualizar saída" para puxar uma vez. Se o fluxo ao vivo cair, ela abre sozinha.',
       command: 'herdr pane read <pane>',
       fallback: 'Aparece depois de escolher um terminal na lista.',
       side: 'left',

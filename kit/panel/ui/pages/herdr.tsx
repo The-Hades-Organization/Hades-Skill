@@ -12,6 +12,8 @@ const HERDR_ST = { working: ['trabalhando', 'busy', 'fiando'], blocked: ['espera
 const FIRST = ['blocked', 'working'];
 const HERDR_KEYS = [['Enter', 'Enter', I.CornerDownLeft], ['Esc', 'Escape', I.CircleX, true], ['Ctrl+C', 'Ctrl+C', I.OctagonX, true], ['Tab', 'Tab', I.ArrowRightToLine],
   ['Seta para cima', 'Up', I.ArrowUp, false, true], ['Seta para baixo', 'Down', I.ArrowDown, false, true], ['Seta para a esquerda', 'Left', I.ArrowLeft, false, true], ['Seta para a direita', 'Right', I.ArrowRight, false, true], ['y', 'y'], ['n', 'n']];
+const HERDR_TEXT_POLL_MS = 3000;
+const HERDR_META_POLL_MS = 10_000;
 const herdrQ = (o) => '?' + Object.entries(o).filter(([, v]) => v != null && v !== '').map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
 const HerdrStatus = ({ st, since }) => {
   const [l, k] = HERDR_ST[st] || HERDR_ST.unknown;
@@ -23,8 +25,9 @@ const HerdrStatus = ({ st, since }) => {
   </Tip>;
 };
 
-// painel selecionado: saída do terminal (polling enquanto aberto), processo em primeiro plano e as ações
-function HerdrPane({ session, pane, w, t, onAdmin, onOpenTerm }) {
+// painel selecionado: o terminal ao vivo (herdr-term.tsx), a saída em texto como alternativa de leitura, o processo em primeiro plano e as ações.
+// `term` falso (celular: o terminal já ocupa a tela cheia por trás) deixa só o que fica ao redor dele.
+function HerdrPane({ session, pane, w, t, onAdmin, onOpenTerm, term = true }) {
   const { toast, confirm } = useApp();
   const [x, setX] = useState(null);
   const [auto, setAuto] = useState(true);
@@ -32,11 +35,16 @@ function HerdrPane({ session, pane, w, t, onAdmin, onOpenTerm }) {
   const [text, setText] = useState('');
   const PromptBar = window.HadesFx.use('PromptBar', !!pane.agent);
   const [name, setName] = useState('');
+  const [live, setLive] = useState('connecting'), [textOpen, setTextOpen] = useState(false);
   const box = useRef(null), stick = useRef(true);
+  const Term = window.HerdrTerm && window.HerdrTerm.HerdrTerminal;
+  // sem fluxo ao vivo a saída em texto vira a vista principal
+  const showText = textOpen || (term && live === 'down') || !Term;
   const load = useCallback(() => getJSON('/api/herdr/read' + herdrQ({ session, pane: pane.id, lines: 200 })).then(setX).catch(() => {}), [session, pane.id]);
   useEffect(() => { setX(null); setText(''); setName(pane.name || ''); stick.current = true; }, [session, pane.id]);
-  useEffect(() => { load(); if (!auto) return; const t = setInterval(load, 3000); return () => clearInterval(t); }, [load, auto]);
-  useEffect(() => { const b = box.current; if (b && stick.current) b.scrollTop = b.scrollHeight; }, [x?.text]);
+  // o texto só é lido a 3 s com a alternativa aberta; fechada, só o processo em primeiro plano (a vista é o terminal)
+  useEffect(() => { load(); if (!auto) return; const t = setInterval(load, showText ? HERDR_TEXT_POLL_MS : HERDR_META_POLL_MS); return () => clearInterval(t); }, [load, auto, showText]);
+  useEffect(() => { const b = box.current; if (b && stick.current) b.scrollTop = b.scrollHeight; }, [x?.text, showText]);
   const act = async (body, ok) => {
     setBusy(true);
     try { await post('/api/herdr/act', { session, pane: pane.id, ...body }); if (ok) toast({ kind: 'ok', title: ok }); setTimeout(load, 600); return true; }
@@ -54,7 +62,7 @@ function HerdrPane({ session, pane, w, t, onAdmin, onOpenTerm }) {
   };
   const fg = x?.procs?.[0];
   const folder = onOpenTerm ? onOpenTerm.folder(pane.fcwd || pane.cwd) : null;
-  return <div className="flex min-h-0 flex-1 flex-col gap-3">
+  return <div className="flex min-h-fit flex-1 flex-col gap-3">
     <div className="grid gap-1.5" data-tour-step-id="herdr-terminal">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="t-section">
@@ -92,17 +100,24 @@ function HerdrPane({ session, pane, w, t, onAdmin, onOpenTerm }) {
         </Tip> : null}
       </div>
     </div>
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 t-meta text-muted-foreground" data-tour-step-id="herdr-saida">
-      <span className="min-w-0 flex-1">Saída (200 linhas)</span>
-      <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
-        Automático
-        <Switch checked={auto} onChange={setAuto} label="Atualizar sozinho" />
-      </span>
-      <Button variant="outline" size="xs" icon={I.RefreshCw} onClick={load}>Atualizar saída</Button>
-    </div>
-    <pre ref={box} onScroll={(e) => { const b = e.currentTarget; stick.current = b.scrollHeight - b.scrollTop - b.clientHeight < 40; }} className="min-h-48 flex-1 overflow-auto border bg-term p-3 t-data leading-relaxed whitespace-pre text-term-foreground scrollbar-thin">
-      {x ? (x.text || '(sem saída)') : 'carregando…'}
-    </pre>
+    {term && Term ? <div className="flex min-h-72 flex-1 flex-col">
+      <Term key={`${session}/${pane.id}`} session={session} pane={pane.id} onState={setLive} />
+    </div> : null}
+    <details open={showText} onToggle={(e) => setTextOpen(e.currentTarget.open)} className={cn('group flex min-h-0 flex-col gap-2', showText && !term && 'flex-1')} data-tour-step-id="herdr-saida">
+      <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1.5 t-meta text-muted-foreground outline-none focus-visible:outline-2 focus-visible:outline-ring">
+        <span className="min-w-0 flex-1">{term ? 'Saída em texto (200 linhas): copiar e leitor de tela' : 'Saída (200 linhas)'}</span>
+      </summary>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 t-meta text-muted-foreground">
+        <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+          Automático
+          <Switch checked={auto} onChange={setAuto} label="Atualizar sozinho" />
+        </span>
+        <Button variant="outline" size="xs" icon={I.RefreshCw} onClick={load}>Atualizar saída</Button>
+      </div>
+      <pre ref={box} onScroll={(e) => { const b = e.currentTarget; stick.current = b.scrollHeight - b.scrollTop - b.clientHeight < 40; }} className="max-h-72 min-h-48 flex-1 overflow-auto border bg-term p-3 t-data leading-relaxed whitespace-pre text-term-foreground scrollbar-thin">
+        {x ? (x.text || '(sem saída)') : 'carregando…'}
+      </pre>
+    </details>
     {pane.status === 'blocked' ? <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Responder ao agente" data-herdr-quick="blocked">
       <span className="t-meta font-medium">Espera por você:</span>
       {['1', '2', '3'].map((n) => <Button key={n} size="sm" variant="outline" className="min-h-11 min-w-11 font-mono" disabled={busy} onClick={() => act({ action: 'text', text: n }, `${n} enviado`)}>{n}</Button>)}
@@ -271,6 +286,8 @@ function HerdrManage({ onOpenClient, onOpenTerm, mobile }) {
   const [sheet, setSheet] = useState(() => !!hq().get('pane'));
   const [sess, setSess] = useState(() => hq().get('sessions') === '1');
   const [admin, setAdmin] = useState(null);
+  const [info, setInfo] = useState(false);
+  const api = useRef({});
   const wide = useWide(1024);
   const load = useCallback(() => getJSON('/api/herdr' + herdrQ({ session })).then(setX).catch(() => {}), [session]);
   useEffect(() => { load(); const t = setInterval(load, 4000); return () => clearInterval(t); }, [load]);
@@ -402,15 +419,19 @@ function HerdrManage({ onOpenClient, onOpenTerm, mobile }) {
           {tree.length ? tree : <Empty icon={I.SearchX} title="Nada com esse filtro" />}
         </CardContent>
       </Card>
-      {wide ? <Card variant="object" data-tour-step-id="herdr-detalhe" className="sticky top-[4.5rem] h-[calc(100dvh-6rem)] min-h-[480px] overflow-y-auto scrollbar-thin">
+      {wide ? <Card variant="object" data-tour-step-id="herdr-detalhe" className="flex flex-col sticky top-[4.5rem] h-[calc(100dvh-6rem)] min-h-[480px] overflow-y-auto scrollbar-thin">
         {detail}
       </Card> : null}
     </div>
-    {mobile && nav.level === 'detail' && sel ? <HadesCore.Mobile.MobileTermScreen title={sel.name || sel.agent || 'terminal'} subtitle={sel.id} onBack={nav.leave}>
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background p-3 text-foreground scrollbar-thin" data-herdr-mobile="detail">
-        {detail}
+    {mobile && nav.level === 'detail' && sel ? <><HadesCore.Mobile.MobileTermScreen key={sel.id} title={sel.name || sel.agent || 'terminal'} subtitle={sel.id} onBack={nav.leave} apiRef={api} attention={sel.status === 'blocked'}
+      actions={<Button size="icon" variant="ghost" className="min-h-11 min-w-11" icon={I.SlidersHorizontal} aria-label="Detalhes e ações do painel" data-herdr-keep onClick={() => setInfo(true)} />}>
+      {window.HerdrTerm ? <window.HerdrTerm.HerdrTerminal key={`${x.session}/${sel.id}`} session={x.session} pane={sel.id} apiRef={api} /> : null}
+    </HadesCore.Mobile.MobileTermScreen>
+    <Sheet open={info} onClose={() => setInfo(false)} wide icon={I.SquareTerminal} title={sel.name || sel.agent || 'terminal'} description={sel.id}>
+      <div className="flex h-full min-h-0 flex-col p-4" data-herdr-mobile="detail">
+        <HerdrPane session={x.session} pane={sel} w={selEntry.w} t={selEntry.t} onAdmin={setAdmin} onOpenTerm={onOpenTerm} term={false} />
       </div>
-    </HadesCore.Mobile.MobileTermScreen> : null}
+    </Sheet></> : null}
     {wide || mobile ? null : <Sheet open={sheet && !!sel} onClose={() => setSheet(false)} wide icon={I.SquareTerminal} title={sel ? (sel.name || sel.agent || 'terminal') : ''} description={sel ? sel.id : ''}>
       <div className="flex h-full min-h-0 flex-col p-4">
         {detail}

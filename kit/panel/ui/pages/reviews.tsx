@@ -9,7 +9,6 @@ const REVIEW_CMD = { 'review-pr': ['/review-pr', 'Uma sessão revisa sozinha. R�
   'review-agents': ['/review-agents', 'Subagentes review-* em paralelo, depois a coerência. Mais profundo e bem mais caro.'] };
 const VERDICT = { red: ['Bloqueia', 'text-bad', I.OctagonX], yellow: ['Pede ajustes', 'text-warn', I.TriangleAlert], green: ['Aprova', 'text-ok', I.CircleCheck] };
 const EFFORT = { low: 'baixo', medium: 'médio', high: 'alto' };
-const MAX_PRS = 6;
 const FASE_ROTULO = { fila: 'na fila', fetch: 'buscando a PR', checkout: 'preparando o worktree', 'revisão': 'revisando', 'publicação': 'publicando' };
 const faseDe = (r) => r.fase ? FASE_ROTULO[r.fase] || r.fase : 'iniciando';
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -56,7 +55,18 @@ function Opcao({ label, children, hint }) {
   </div>;
 }
 
-function ComoRevisar({ cmd, setCmd, model, setModel, effort, setEffort, postGh, setPostGh, nums, busy, launch, example }) {
+// quantas das n entram já e quantas esperam vaga, dado o teto de paralelismo e o que já roda (sem teto conhecido: não divide)
+const dividirLote = (n, maxParallel, rodando) => {
+  if (!maxParallel) return null;
+  const entram = Math.min(n, Math.max(0, maxParallel - rodando));
+  return { entram, fila: n - entram };
+};
+const resumoLote = (n, maxParallel, rodando) => {
+  const d = dividirLote(n, maxParallel, rodando);
+  return d && d.fila ? `${d.entram} entram já, ${plural(d.fila, 'fica', 'ficam')} na fila` : null;
+};
+
+function ComoRevisar({ cmd, setCmd, model, setModel, effort, setEffort, postGh, setPostGh, nums, busy, launch, example, maxParallel, rodando }) {
   return <Card className="h-fit xl:sticky xl:top-20" data-tour-step-id="reviews-como">
     <CardHeader title="Como revisar" />
     <CardContent className="grid gap-4">
@@ -80,8 +90,9 @@ function ComoRevisar({ cmd, setCmd, model, setModel, effort, setEffort, postGh, 
       <p className="t-body" aria-live="polite">
         {nums.length ? <>
           <Mono className="t-label">{nums.map((n) => '#' + n).join(' ')}</Mono>
-          <span className="text-muted-foreground tnum">{` · ${nums.length} de ${MAX_PRS}`}</span>
-        </> : <span className="text-muted-foreground">{`Marque até ${MAX_PRS} PRs na lista.`}</span>}
+          <span className="text-muted-foreground tnum">{` · ${plural(nums.length, 'selecionada', 'selecionadas')}${maxParallel ? ` · até ${maxParallel} em paralelo` : ''}`}</span>
+          {resumoLote(nums.length, maxParallel, rodando) ? <span className="block t-meta text-muted-foreground">{resumoLote(nums.length, maxParallel, rodando)}</span> : null}
+        </> : <span className="text-muted-foreground">{`Marque as PRs na lista${maxParallel ? ` · até ${maxParallel} em paralelo` : ''}.`}</span>}
       </p>
       <Button icon={postGh ? I.Send : I.ScanSearch} loading={busy} disabled={!nums.length || example} onClick={launch}>
         {(nums.length ? `Revisar ${plural(nums.length, 'PR', 'PRs')}` : 'Revisar') + (postGh ? ' e publicar' : '')}
@@ -208,6 +219,7 @@ function Reviews() {
   const [postGh, setPostGh] = useState(false);
   const [busy, setBusy] = useState(false);
   const [rep, setRep] = useState(null);
+  const [visiveis, setVisiveis] = useState([]);
   const x = real && exemplo ? { ...real, items: exemplo.items } : real;
   const load = useCallback(() => getJSON('/api/reviews').then((r) => { setReal(r); setErr(null); }).catch((e) => setErr(e.message)), []);
   useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, [load]);
@@ -219,14 +231,15 @@ function Reviews() {
     </span>
   </Empty>;
   if (!x || model == null) return <Loading />;
-  const toggle = (n) => setSel((s) => { const t = new Set(s); t.has(n) ? t.delete(n) : t.size < MAX_PRS && t.add(n); return t; });
+  const toggle = (n) => setSel((s) => { const t = new Set(s); t.has(n) ? t.delete(n) : t.add(n); return t; });
   const nums = [...sel].sort((a, b) => a - b);
   const running = x.items.filter((r) => r.state === 'rodando');
+  const lote = resumoLote(nums.length, x.maxParallel, running.length);
   const past = x.items.filter((r) => r.state !== 'rodando');
   const launch = async () => {
     const list = nums.map((n) => '#' + n).join(' ');
     if (!(await confirm({ title: `Revisar ${list}?`, icon: postGh ? I.Send : I.ScanSearch, confirmLabel: postGh ? 'Revisar e publicar' : 'Revisar',
-      description: `${REVIEW_CMD[cmd][0]} · ${cap1(model)} · esforço ${EFFORT[effort] || effort}. Uma sessão claude -p por PR, num worktree descartável (sem build nem teste); acima do teto de revisões ao mesmo tempo, as demais esperam na fila.\n\n`
+      description: `${REVIEW_CMD[cmd][0]} · ${cap1(model)} · esforço ${EFFORT[effort] || effort}. Uma sessão claude -p por PR, num worktree descartável (sem build nem teste); acima do teto de revisões ao mesmo tempo, as demais esperam na fila e rodam quando abre vaga.${lote ? ` Agora: ${lote}.` : ''}\n\n`
         + (postGh ? 'Publica um review por PR, só comentário (nunca aprova nem pede mudanças), in-line e com resumo.' : 'Não publica: o relatório fica só aqui.') }))) return;
     setBusy(true);
     let ok = 0;
@@ -235,7 +248,7 @@ function Reviews() {
       catch (e) { toast({ kind: 'bad', title: `#${n}: não foi possível iniciar`, desc: e.message }); }
     }
     setBusy(false);
-    if (ok) { toast({ kind: 'busy', title: `${ok} revis${ok > 1 ? 'ões iniciadas' : 'ão iniciada'}`, desc: 'Acompanhe em Em curso.' }); setSel(new Set()); setTimeout(load, 800); }
+    if (ok) { toast({ kind: 'busy', title: `${ok} revis${ok > 1 ? 'ões iniciadas' : 'ão iniciada'}`, desc: `${lote ? lote + '. ' : ''}Acompanhe em Em curso.` }); setSel(new Set()); setTimeout(load, 800); }
   };
   const done = x.items.filter((r) => r.state === 'ok');
   const failed = x.items.filter((r) => r.state === 'falhou').length;
@@ -248,13 +261,17 @@ function Reviews() {
         plural(posted, 'comentada no GitHub', 'comentadas no GitHub'), done.length ? `${usd(cost)} · ${tok(tokAll)} tokens nas últimas 20 concluídas (equivalente em API)` : null]} />
     <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
       <Card data-tour-step-id="reviews-prs">
-        <CardHeader title="PRs" summary={`até ${MAX_PRS}`} />
+        <CardHeader title="PRs" summary={sel.size ? plural(sel.size, 'selecionada', 'selecionadas') : undefined}
+          action={<span className="inline-flex gap-3">
+            <Button variant="link" size="xs" className="h-auto px-0" disabled={!visiveis.length || exemplo} onClick={() => setSel((s) => new Set([...s, ...visiveis]))}>Marcar todas</Button>
+            <Button variant="link" size="xs" className="h-auto px-0" disabled={!sel.size} onClick={() => setSel(new Set())}>Limpar</Button>
+          </span>} />
         <CardContent>
-          <PrPicker sel={sel} toggle={toggle} applied={new Set()} inSet={new Set()} />
+          <PrPicker sel={sel} toggle={toggle} applied={new Set()} inSet={new Set()} onItems={(items) => setVisiveis(items.map((i) => i.number))} />
         </CardContent>
       </Card>
       <ComoRevisar cmd={cmd} setCmd={setCmd} model={model} setModel={setModel} effort={effort} setEffort={setEffort}
-        postGh={postGh} setPostGh={setPostGh} nums={nums} busy={busy} launch={launch} example={!!exemplo} />
+        postGh={postGh} setPostGh={setPostGh} nums={nums} busy={busy} launch={launch} example={!!exemplo} maxParallel={x.maxParallel} rodando={running.length} />
     </div>
     {running.length ? <EmCurso list={running} openJob={openJob} /> : null}
     <Card data-tour-step-id="reviews-historico">

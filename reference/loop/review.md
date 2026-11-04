@@ -40,7 +40,9 @@ gh pr list --repo <slug> --search "review-requested:@me" --state open --limit 10
 hades pr-loop-state --others --json
 ```
 
-`--max` default **3**, teto **6**. Acima disso o custo explode e a qualidade cai.
+`--max` default **3** (só na chamada sem escopo explícito), **sem máximo**: com `--max N`, `--pr` repetido ou `--author` o lote é o que foi pedido
+(ou todo o escopo). Lote grande custa proporcionalmente mais; quem limita a máquina é a fila (§6, `HADES_REVIEW_MAX_PARALLEL`), e as
+excedentes esperam vaga.
 
 Cheque `warnings[]` antes de fechar o lote: `search-truncated` significa que há candidata fora da
 coleta — suba `--limit` ou estreite o escopo, e diga no relatório quantas ficaram fora.

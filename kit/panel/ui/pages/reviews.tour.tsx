@@ -24,7 +24,7 @@ HadesCore.registerTour('reviews', {
     {
       id: 'tour-reviews',
       title: 'Revisão de PRs',
-      body: 'Revise PRs de terceiros daqui: marque até 6, escolha como revisar e acompanhe. Cada revisão roda numa sessão claude -p por PR, em paralelo, num worktree descartável (sem build nem teste). A frase do topo resume o que roda, o histórico e o custo.',
+      body: 'Revise PRs de terceiros daqui: marque quantas quiser, escolha como revisar e acompanhe. Cada revisão roda numa sessão claude -p por PR, em paralelo, num worktree descartável (sem build nem teste). A frase do topo resume o que roda, o histórico e o custo.',
       command: '/hades review --pr <N>',
       ref: 'panel.md › Revisões',
       side: 'bottom',
@@ -32,7 +32,7 @@ HadesCore.registerTour('reviews', {
     {
       id: 'reviews-prs',
       title: 'PRs',
-      body: 'A lista de PRs abertas do repositório, para marcar quais revisar (até 6 por vez). A mesma lista do seletor da página Branch e PRs.',
+      body: 'A lista de PRs abertas do repositório, para marcar quais revisar (quantas quiser; o teto de revisões ao mesmo tempo vem das Configurações e as demais esperam na fila). A mesma lista do seletor da página Branch e PRs.',
       ref: 'panel.md › Seletor de PRs',
       fallback: 'A lista vem do GitHub pelo gh. Sem o gh autenticado ou sem PR aberta ela fica vazia: confira com gh auth status.',
       side: 'right',

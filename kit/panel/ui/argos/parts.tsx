@@ -2,7 +2,7 @@
  * (window.ArgosLogic); aqui só se desenha e se coleta. Carregado antes de pages/argos.js. */
 (() => {
 const { useState, useEffect, useRef, useMemo, useCallback, I, cn, getJSON, Button, Dot, Mono, Empty, Dialog, DialogHeader, DialogFooter, Sheet, Input,
-  Skeleton, HoldConfirm, CardHeader, Fio, Tracos, Progress, Menu, Select } = HadesCore;
+  Skeleton, HoldConfirm, useConfirmPrefs, CardHeader, Fio, Tracos, Progress, Menu, Select } = HadesCore;
 const L = window.ArgosLogic;
 // cor, forma, ícone e indicadores dos nós: a regra e as tabelas moram em src/lib/canvas-argos.ts (pacote do modelo)
 const A = window.CanvasModel.argos;
@@ -515,6 +515,7 @@ function ActionDialog({ node, action, detail, onClose, onRun }) {
   const [typed, setTyped] = useState('');
   const [err, setErr] = useState(null);
   const first = useRef(null);
+  const prefs = useConfirmPrefs(true);
   const PromptBar = window.HadesFx.use('PromptBar', action?.id === 'prompt');
   const questions = useMemo(() => L.questionIds(detail), [detail]);
   useEffect(() => {
@@ -530,17 +531,18 @@ function ActionDialog({ node, action, detail, onClose, onRun }) {
     e?.preventDefault();
     const v = L.validateArgs(action, vals);
     if (!v.ok) { setErr(v.reason); return; }
-    if (L.needsConfirm(action.id) && !L.confirmMatches(typed, node)) { setErr('Digite o nome do agente para confirmar.'); return; }
+    if (L.needsConfirm(action.id) && !L.confirmMatches(typed, node, prefs.typed)) { setErr('Digite o nome do agente para confirmar.'); return; }
     onRun(action, v.args, typed);
     onClose();
   };
   const set = (name, value) => setVals((s) => ({ ...s, [name]: value }));
   const destructive = L.needsConfirm(action.id);
+  const askName = destructive && prefs.typed;
   const options = (f) => (f.name === 'question' ? questions : f.options);
   return <Dialog open onClose={onClose} label={action.label}>
     <form onSubmit={submit} className="grid gap-4">
       <DialogHeader icon={I[action.icon]} tone={destructive ? 'danger' : undefined} title={`${action.label} · ${node.label}`}
-        description={destructive ? `${action.hint}.\n\nDigite ${node.label} para confirmar.` : action.id === 'approve_permission' && node.pendingPermission?.tool
+        description={destructive ? `${action.hint}.${askName ? `\n\nDigite ${node.label} para confirmar.` : ''}` : action.id === 'approve_permission' && node.pendingPermission?.tool
           ? `Aprova só este pedido de ${node.pendingPermission.tool}, uma vez: Enter no terminal do agente. Para ver o comando antes, abra o terminal no Herdr.` : action.hint} />
       {action.fields.map((f, i) => f.kind === 'check' ? <label key={f.name} className="flex cursor-pointer items-center gap-2.5 t-body">
         <input ref={i === 0 ? first : undefined} type="checkbox" checked={!!vals[f.name]} onChange={(e) => set(f.name, e.target.checked)} className="size-4 accent-foreground" />
@@ -556,12 +558,12 @@ function ActionDialog({ node, action, detail, onClose, onRun }) {
             items={options(f).map((o) => ({ value: o, label: KEY_LABEL[o] || o }))} />
           : <Input autoFocus={i === 0} value={vals[f.name] || ''} maxLength={f.max} onInput={(e) => set(f.name, e.target.value)} />}
       </label>)}
-      {destructive ? <Input value={typed} onInput={(e) => setTyped(e.target.value)} placeholder={node.label} aria-label="Nome do agente" autoFocus /> : null}
+      {askName ? <Input value={typed} onInput={(e) => setTyped(e.target.value)} placeholder={node.label} aria-label="Nome do agente" autoFocus /> : null}
       {err ? <p className="t-body text-bad" role="alert">{err}</p> : null}
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onClose} className={TOUCH_MIN}>Cancelar</Button>
         {destructive
-          ? <HoldConfirm size="default" disabled={!L.confirmMatches(typed, node)} icon={I[action.icon]} className={TOUCH_MIN} onHold={submit}>{'Segure 1,2 s: ' + action.label}</HoldConfirm>
+          ? <HoldConfirm size="default" disabled={!L.confirmMatches(typed, node, prefs.typed)} icon={I[action.icon]} className={TOUCH_MIN} onHold={submit}>{'Segure 1,2 s: ' + action.label}</HoldConfirm>
           : <Button type="submit" variant="default" icon={I[action.icon]} className={TOUCH_MIN}>{action.label}</Button>}
       </DialogFooter>
     </form>

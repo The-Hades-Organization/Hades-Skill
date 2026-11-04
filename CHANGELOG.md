@@ -4,6 +4,21 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.9.0 — 2026-11-04
+
+Preferências para desligar as travas de confirmação (issue #22); Reviews sem teto de PRs selecionadas (issue #27).
+
+- **Travas de confirmação** (`HADES_CONFIRM_HOLD`, `HADES_CONFIRM_TYPED`, padrão ligadas, grupo Painel): desligam o "segurar
+  para confirmar" e o "digitar o nome para confirmar" das ações destrutivas, sem recarregar. A checagem do nome é do servidor,
+  lida do `config.env` a cada ação, e valor ausente ou inválido mantém a trava. Pelo acesso remoto as duas chaves não mudam
+  (`remoteConfigRefusal`): quem entra pelo túnel não desliga a trava que o protege. Armadilha: com digitar desligado o Argos
+  ainda envia `confirm` vazio, e o servidor só o ignora com a preferência desligada.
+- **Reviews sem teto**: o painel marca quantas PRs se quiser, com "marcar todas" (página visível do seletor) e "limpar", e
+  mostra "N selecionadas · até P em paralelo"; `--max` não tem máximo. O único limite é `HADES_REVIEW_MAX_PARALLEL`, e as
+  excedentes esperam na fila. `/api/reviews` ganha `maxParallel`.
+- **Armadilha de golden**: mudança em `kit/panel/ui` ou numa rota lida pelo legado exige regravar só o golden do painel
+  (`LEGADO_REGRAVA=1 bun test ./painel-legado.test.ts`). Sem o caminho, o filtro casa outros arquivos e regrava goldens alheios.
+
 ## 6.8.0 — 2026-11-04
 
 `hades canvas join` e `leave` (issue #25); cursor do terminal do Argos (issue #20); eco da digitação no Argos (issue #21).

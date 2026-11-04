@@ -148,6 +148,7 @@ interface HadesCoreApi extends HadesPanelApi {
   Skeleton: PanelComponent;
   StateBadge: PanelComponent;
   HoldConfirm: PanelComponent;
+  useConfirmPrefs(fresh?: boolean): { hold: boolean; typed: boolean };
   Dialog: PanelComponent;
   DialogHeader: PanelComponent;
   DialogFooter: PanelComponent;

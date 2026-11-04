@@ -55,9 +55,38 @@ async function post(path, body, retry = true) {
     if (t.token && t.token !== window.__TOKEN) { window.__TOKEN = t.token; return post(path, body, false); }
   }
   if (!r.ok) throw Object.assign(new Error(d.error || 'HTTP ' + r.status), { code: d.code });
+  if (path === '/api/config') loadConfirmPrefs();
   return d;
 }
 const getJSON = (url) => fetch(url, { cache: 'no-store' }).then((r) => r.json());
+
+// travas de confirmação (HADES_CONFIRM_HOLD segurar, HADES_CONFIRM_TYPED digitar o nome): lidas de /api/config, que vale no desktop
+// e no celular. Antes da primeira leitura, ou se ela falhar, ficam as duas ligadas; quem decide a de digitar é o servidor.
+const CONFIRM_SAFE = { hold: true, typed: true };
+let confirmPrefs = CONFIRM_SAFE;
+const confirmSubs = new Set();
+const confirmPrefsOf = (items) => {
+  const on = (key) => (Array.isArray(items) ? items.find((i) => i.key === key)?.value : undefined) !== '0';
+  return { hold: on('HADES_CONFIRM_HOLD'), typed: on('HADES_CONFIRM_TYPED') };
+};
+async function loadConfirmPrefs() {
+  try {
+    const next = confirmPrefsOf((await getJSON('/api/config')).items);
+    if (next.hold === confirmPrefs.hold && next.typed === confirmPrefs.typed) return;
+    confirmPrefs = next;
+    confirmSubs.forEach((set) => set(next));
+  } catch (e) { /* sem leitura nova, vale a última (ou as duas ligadas) */ }
+}
+// `fresh`: relê ao montar (diálogos); sem ele só acompanha as mudanças
+function useConfirmPrefs(fresh = false) {
+  const [p, set] = useState(confirmPrefs);
+  useEffect(() => { confirmSubs.add(set); set(confirmPrefs); if (fresh) loadConfirmPrefs(); return () => { confirmSubs.delete(set); }; }, [fresh]);
+  return p;
+}
+loadConfirmPrefs();
+window.addEventListener('focus', loadConfirmPrefs);
+// sem o "Segure 1,2 s: " do rótulo quando a trava de segurar está desligada
+const plainLabel = (c) => (typeof c === 'string' ? c.replace(/^Segure [\d,]+ s:\s*/, '') : Array.isArray(c) ? c.map(plainLabel) : c);
 
 // ================================================================== primitivas (shadcn)
 const BTN_V = {
@@ -82,11 +111,12 @@ function Button({ variant = 'default', size = 'default', icon: Icon, loading, cl
   </button>;
 }
 // confirmar segurando (fx/hold-button.tsx): a ação só dispara ao completar o tempo, com mouse, toque ou Espaço/Enter.
-// Sem o fx carregado (cache velho, plugin isolado), cai no botão comum: a confirmação nunca some.
+// Sem o fx carregado (cache velho, plugin isolado) ou com a preferência desligada, cai no botão comum de um clique.
 function HoldConfirm({ variant = 'destructive', size = 'sm', icon: Icon, holdTime = 1200, onHold, disabled, className, children, ...p }) {
-  const Hold = window.HadesFx?.HoldButton;
+  const { hold } = useConfirmPrefs();
+  const Hold = hold ? window.HadesFx?.HoldButton : null;
   const danger = variant === 'destructive';
-  if (!Hold) return <Button variant={variant} size={size} icon={Icon} disabled={disabled} className={className} onClick={onHold} {...p}>{children}</Button>;
+  if (!Hold) return <Button variant={variant} size={size} icon={Icon} disabled={disabled} className={className} onClick={onHold} {...p}>{hold ? children : plainLabel(children)}</Button>;
   return <Hold size={size === 'xs' || size === 'sm' ? 'sm' : 'md'} radius={0} holdTime={holdTime} disabled={disabled} className={className}
     backgroundColor={danger ? 'color-mix(in oklch, var(--destructive) 12%, var(--background))' : 'var(--secondary)'}
     textColor={danger ? 'var(--destructive)' : 'var(--secondary-foreground)'}
@@ -2000,7 +2030,7 @@ async function loadPlugin() {
 
 // o que as páginas do núcleo (ui/pages/*.js) usam da base; NAV é getter porque o loadPlugin a reatribui
 window.HadesCore = { useState, useEffect, useRef, useMemo, useCallback, useId, I, cn, PLUGIN, pluginList, GB, MB,
-  gb, mb, dur, dt, pct, post, getJSON, Button, HoldConfirm, Badge, Dot, CARD_SCROLL, Card, CardHeader, CardContent, Switch, Field,
+  gb, mb, dur, dt, pct, post, getJSON, Button, HoldConfirm, useConfirmPrefs, Badge, Dot, CARD_SCROLL, Card, CardHeader, CardContent, Switch, Field,
   Input, Progress, Skeleton, Kbd, Mono, Tip, CopyButton, Empty, Table, Th, Td, Tr, Menu, Dialog, DialogHeader, DialogFooter,
   Sheet, useWidth, AreaChart, niceTicks, niceTicksCovering, Legend, OVERALL, svcState, StateBadge, useApp, route, useActions, Kpi, QuickAction,
   JOB_ST, JobRow, jobFio, ago, Segmented, Choice, Select, useWide, Checkbox, PrPicker, Terminal, LogViewer, slugify, renderMd, CFG_ICON, CFG_APPLY,

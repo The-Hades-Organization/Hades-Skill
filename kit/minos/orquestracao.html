@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<meta name="description" content="{{DESCRIPTION}}">
+<style>
+  /* tokens do painel (kit/panel/ui/index.html): Marfim no claro, Érebo no escuro, raio 0 */
+  :root {
+    color-scheme: light dark;
+    --background: oklch(0.965 0.012 70); --foreground: oklch(0.24 0.05 350); --card: oklch(0.985 0.008 70);
+    --muted-foreground: oklch(0.48 0.04 345); --border: oklch(0.24 0.05 350 / 12%); --border-strong: oklch(0.24 0.05 350 / 22%);
+    --primary: #391a2c; --primary-foreground: #eddece; --vivo: oklch(0.514 0.222 16.935);
+    --ok: oklch(0.5 0.12 160); --warn: oklch(0.53 0.13 70); --bad: oklch(0.52 0.19 32); --info: oklch(0.5 0.1 225);
+    --font-sans: 'Figtree', ui-sans-serif, system-ui, sans-serif; --font-display: 'Marcellus', Georgia, serif;
+    --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --background: oklch(0.155 0.018 345); --foreground: oklch(0.93 0.022 70); --card: oklch(0.195 0.022 345);
+      --muted-foreground: oklch(0.72 0.03 340); --border: oklch(0.93 0.022 70 / 10%); --border-strong: oklch(0.93 0.022 70 / 18%);
+      --primary: #ffc6df; --primary-foreground: #391a2c; --vivo: oklch(0.586 0.253 17.585);
+      --ok: oklch(0.74 0.13 160); --warn: oklch(0.8 0.14 78); --bad: oklch(0.68 0.19 32); --info: oklch(0.72 0.1 215);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --background: oklch(0.155 0.018 345); --foreground: oklch(0.93 0.022 70); --card: oklch(0.195 0.022 345);
+    --muted-foreground: oklch(0.72 0.03 340); --border: oklch(0.93 0.022 70 / 10%); --border-strong: oklch(0.93 0.022 70 / 18%);
+    --primary: #ffc6df; --primary-foreground: #391a2c; --vivo: oklch(0.586 0.253 17.585);
+    --ok: oklch(0.74 0.13 160); --warn: oklch(0.8 0.14 78); --bad: oklch(0.68 0.19 32); --info: oklch(0.72 0.1 215);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font: 0.9375rem/1.55 var(--font-sans); -webkit-font-smoothing: antialiased; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; display: grid; gap: 24px; }
+  h1 { font: 400 2rem/1.15 var(--font-display); margin: 0 0 6px; overflow-wrap: anywhere; }
+  h2 { font-size: 1rem; font-weight: 600; margin: 0; }
+  .meta, .muted { color: var(--muted-foreground); font-size: 0.8125rem; }
+  .lead { font-size: 1.125rem; margin: 10px 0 0; }
+  section { background: var(--card); border: 1px solid var(--border); padding: 16px; display: grid; gap: 12px; }
+  section > header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+  p { margin: 0; overflow-wrap: anywhere; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { padding: 8px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+  li:last-child { border-bottom: 0; }
+  .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
+  .grow { flex: 1 1 14rem; min-width: 0; }
+  code, .mono { font: 0.8125rem/1.5 var(--font-mono); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--muted-foreground); }
+  .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); } .dot.busy { background: var(--vivo); }
+  .warn-text { color: var(--warn); font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  th { text-align: left; color: var(--muted-foreground); font-weight: 500; font-size: 0.75rem; }
+  th, td { padding: 6px 12px 6px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .meter { height: 8px; background: var(--border-strong); margin: 6px 0 2px; }
+  .meter > span { display: block; height: 100%; background: var(--vivo); }
+  .tablewrap { overflow-x: auto; }
+  footer { color: var(--muted-foreground); font-size: 0.75rem; }
+</style>
+</head>
+<body>
+<main>
+  {{BODY}}
+  <footer>Gerado por <code>hades minos</code>. Os dados passaram pelo Cerberus antes de sair.</footer>
+</main>
+<script type="application/json" id="minos-data">{{DATA}}</script>
+</body>
+</html>

@@ -9,7 +9,7 @@ import type { Socket } from "bun";
 import { createHerdrSocket, type Herdr } from "../../../src/panel/herdr";
 import { createHerdrPage, inputParams, KEYS, MAX_KEYS, MAX_TEXT } from "../../../src/panel/herdr-page";
 import {
-  createHerdrStream, FRAME_INTERVAL_MS, IDLE_POLL_MAX_MS, type HerdrStream, nextPollMs, parseStreamQuery, STREAM_ERRORS, STREAM_PANES_MAX,
+  createHerdrStream, ECHO_RETRY_MS, FRAME_INTERVAL_MS, IDLE_POLL_MAX_MS, type HerdrStream, nextPollMs, parseStreamQuery, STREAM_ERRORS, STREAM_PANES_MAX,
   subscriptionsFor, StreamRequestError,
 } from "../../../src/panel/herdr-stream";
 import type { PanelEnv } from "../../../src/panel/env";
@@ -348,6 +348,79 @@ describe("herdr-stream: SSE contra o herdr falso", () => {
     await until(() => c.ended());
     expect(c.events.find((e) => e.event === "error" && !e.data.pane)?.data).toMatchObject({ code: STREAM_ERRORS.subscriptionFailed });
     expect(stream?.stats()).toMatchObject({ streams: 0, hubs: 0 });
+  });
+});
+
+describe("herdr-stream: eco da entrada direta", () => {
+  const settle = async (stream: HerdrStream, events: Received[]): Promise<void> => {
+    await until(() => framesOf(events).length > 0);
+    // deixa o leitor recuar do ritmo de quadros (o caso real: o dono para e depois digita)
+    await Bun.sleep(FRAME_INTERVAL_MS * 3);
+    expect(stream.stats().reads).toBeGreaterThan(0);
+  };
+
+  test("dado eco que o herdr processa depois do nudge, então o quadro chega antes de o intervalo dobrado", async () => {
+    const stream = freshStream();
+    addPane("w1:p1", "$ ");
+    const a = await connect("session=default&panes=w1:p1");
+    await settle(stream, a.events);
+    const before = framesOf(a.events).length;
+    stream.nudge("default", "w1:p1");
+    const sent = Date.now();
+    // o herdr só mostra o eco 25 ms depois do pane.send_input: a leitura imediata vê o quadro velho
+    setTimeout(() => { const pane = fake.panes.get("w1:p1"); if (pane) pane.text = "$ a"; }, 25);
+    await until(() => framesOf(a.events).length > before);
+    expect(Date.now() - sent).toBeLessThan(FRAME_INTERVAL_MS);
+    await a.close();
+  });
+
+  test("dado nudge logo depois de uma leitura, então o teto de quadros cede e o eco não espera os 100 ms", async () => {
+    const stream = freshStream();
+    addPane("w1:p1", "$ ");
+    const a = await connect("session=default&panes=w1:p1");
+    await until(() => framesOf(a.events).length > 0);
+    const before = framesOf(a.events).length;
+    stream.nudge("default", "w1:p1");
+    const sent = Date.now();
+    setTimeout(() => { const pane = fake.panes.get("w1:p1"); if (pane) pane.text = "$ a"; }, 10);
+    await until(() => framesOf(a.events).length > before);
+    expect(Date.now() - sent).toBeLessThan(FRAME_INTERVAL_MS * 0.7);
+    await a.close();
+  });
+
+  test("dado nudge sem mudança, então só as releituras curtas da janela são acrescentadas e o ritmo ocioso volta", async () => {
+    const stream = freshStream();
+    addPane("w1:p1", "$ ");
+    addPane("w1:p2", "$ ");
+    const a = await connect("session=default&panes=w1:p1,w1:p2");
+    await until(() => framesOf(a.events).length >= 2);
+    await Bun.sleep(FRAME_INTERVAL_MS * 4);
+    const base = stream.stats().reads;
+    stream.nudge("default", "w1:p1");
+    await Bun.sleep(ECHO_RETRY_MS.reduce((x, y) => x + y, 0) + 40);
+    const burst = stream.stats().reads - base;
+    // 1 do nudge + as da janela; o pane sem entrada não ganha leitura extra além do ritmo ocioso dele
+    expect(burst).toBeGreaterThanOrEqual(1 + ECHO_RETRY_MS.length);
+    expect(burst).toBeLessThanOrEqual(2 + ECHO_RETRY_MS.length);
+    const settled = stream.stats().reads;
+    await Bun.sleep(IDLE_POLL_MAX_MS / 2);
+    expect(stream.stats().reads - settled).toBeLessThanOrEqual(2 * 3);
+    await a.close();
+  });
+
+  test("dado eco já visto na primeira leitura, então a janela fecha sem as releituras curtas", async () => {
+    const stream = freshStream();
+    addPane("w1:p1", "$ ");
+    const a = await connect("session=default&panes=w1:p1");
+    await settle(stream, a.events);
+    const base = stream.stats().reads;
+    const pane = fake.panes.get("w1:p1");
+    if (pane) pane.text = "$ a";
+    stream.nudge("default", "w1:p1");
+    await Bun.sleep(ECHO_RETRY_MS.reduce((x, y) => x + y, 0) + 20);
+    // 1 leitura do nudge; a próxima só no ritmo de quadros
+    expect(stream.stats().reads - base).toBeLessThanOrEqual(2);
+    await a.close();
   });
 });
 

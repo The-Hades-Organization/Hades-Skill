@@ -3,7 +3,7 @@
 // espera (debounce) e revisão. Tudo puro ou com o efeito injetado (`put`, temporizador), então roda sem a página nem rede.
 // Sem dependência de Node: roda no painel e no navegador.
 import { openingCamera, OPENING_MIN_SCALE, type Camera, type Rect, type Viewport } from "./canvas-camera.ts";
-import { type CanvasDoc, type CanvasEdge, type HeldReason } from "./canvas-doc.ts";
+import { CANVAS_ERRORS, type CanvasDoc, type CanvasEdge, type HeldReason } from "./canvas-doc.ts";
 import { createHistory, HistoryError, perform, redo, undo, type CanvasOp, type History } from "./canvas-history.ts";
 import { syncWithGraph, type GraphSnapshot, type SyncOptions } from "./canvas-sync.ts";
 
@@ -121,6 +121,44 @@ export type SaveReply =
   | { kind: "failed"; code: string };
 
 export type SaveStatus = { kind: "idle" } | { kind: "saving" } | { kind: "error"; code: string };
+
+/**
+ * Recusas que repetir o mesmo envio não resolve: o gravador mostra o erro e espera a próxima edição em vez de reenviar a cada
+ * `SAVE_RETRY_MS` (o servidor recusaria para sempre).
+ */
+export const PERMANENT_SAVE_ERRORS: ReadonlySet<string> = new Set([CANVAS_ERRORS.massRemoval]);
+
+/** Por que o documento vai ser gravado e se o dono confirmou apagar em massa (cabeçalhos do PUT). */
+export interface SaveMeta {
+  cause: string;
+  confirmRemoval: boolean;
+}
+
+const FRESH_SAVE_META: SaveMeta = Object.freeze({ cause: "user", confirmRemoval: false });
+
+/**
+ * A causa e a confirmação ficam valendo até o servidor aceitar a gravação: um reenvio (409 reconciliado, falha de rede) leva os
+ * mesmos cabeçalhos, senão o apagar em massa legítimo voltaria como 422. Só zera o que foi aceito: o que o dono acrescentou
+ * durante o envio continua para o próximo.
+ */
+export function createSaveMeta() {
+  let current: SaveMeta = FRESH_SAVE_META;
+  return {
+    /** Registra uma mudança; o gesto do dono vence o grafo quando há envio pendente, e a confirmação só se acumula. */
+    note(meta: { cause?: string; confirmRemoval?: boolean }, pending: boolean): void {
+      const cause = meta.cause === "graph" && pending ? current.cause : (meta.cause || "user");
+      current = { cause, confirmRemoval: current.confirmRemoval || meta.confirmRemoval === true };
+    },
+    /** O que o próximo envio leva; não zera. */
+    peek(): SaveMeta {
+      return current;
+    },
+    /** O servidor aceitou o envio com `sent`: zera se nada mudou desde então. */
+    saved(sent: SaveMeta): void {
+      if (current.cause === sent.cause && current.confirmRemoval === sent.confirmRemoval) current = FRESH_SAVE_META;
+    },
+  };
+}
 
 export const SAVE_DELAY_MS = 600;
 export const SAVE_RETRY_MS = 5000;
@@ -287,7 +325,7 @@ export function createDocSaver(deps: SaverDeps): DocSaver {
           } else {
             pending ??= doc;
             deps.onStatus({ kind: "error", code: reply.code });
-            if (!disposed) arm(retryMs);
+            if (!disposed && !PERMANENT_SAVE_ERRORS.has(reply.code)) arm(retryMs);
             return;
           }
         }

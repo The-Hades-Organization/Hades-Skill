@@ -78,6 +78,7 @@ Notas do `agent`:
 | `panel serve [--port <porta>]` | servidor do painel em TypeScript (`src/panel/`, `reference/panel.md`) | — |
 | `panel service start\|stop\|restart\|status\|url\|autostart` | o painel como serviço do usuário, pelo gerenciador da plataforma (systemd ou launchd; `HADES_SERVICE_MANAGER` força um) | `kit/panel.sh` |
 | `canvas note list\|read\|write`, `recruit\|connect\|reassign\|dismiss\|notify [--canvas <id>]` | o agente de um terminal do canvas lê e grava as notas ligadas ao nó dele (a cadeia só se lê) e, se o terminal tem a caixa Orquestrador, comanda os recrutas que criou; recusa sai 1, uso errado sai 2 (`reference/argos.md` §Orquestrador no canvas) | — |
+| `canvas join [--pane <id>] [--canvas <id>] [--name n] [--role r] [--to <orquestrador>] [--note <nota>]…` · `canvas leave [--pane <id>]` | `join` traz para o canvas, como nó `terminal`, um pane do herdr que não nasceu nele, sem tocar no processo (sem `--pane`, o próprio terminal; pane que já é nó não duplica; nó `agent` do mesmo pane é trocado pelo terminal; terminal do registro volta com nome, agente e orquestrador); `leave` tira o nó sem fechar o pane. Fora do herdr recusa `canvas_join_outside_herdr`; recusa sai 1 (`reference/argos.md` §Orquestrador no canvas) | — |
 
 ### Projeto e plugin
 

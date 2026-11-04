@@ -4,6 +4,23 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.8.0 — 2026-11-04
+
+`hades canvas join` e `leave` (issue #25); cursor do terminal do Argos (issue #20); eco da digitação no Argos (issue #21).
+
+- **`hades canvas join` e `leave`**: trazem para o Argos um pane do herdr criado fora dele, e tiram de volta, sem reiniciar o
+  processo. Identidade por `paneKey`: pane que já é nó não duplica, e nó `agent` do mesmo pane é fundido. Terminal do registro volta
+  com nome, agente, modelo, esforço, papel e orquestrador, e `recruit` funciona em seguida. Fora do herdr recusa com instrução
+  (`canvas_join_outside_herdr`). Armadilha: orquestrador órfão só volta como orquestrador se estiver em `terminals.json`.
+- **Remoção em massa**: a confirmação do gesto de apagar vale até o servidor aceitar (`createSaveMeta`), inclusive em retry depois de
+  409. O 422 `canvas_mass_removal` tem texto próprio na tela e não gera reenvio a cada `SAVE_RETRY_MS`.
+- **Cursor no nó do Argos**: com foco, bloco piscando; sem foco, contorno, como no `PtyTerminal`. O herdr 0.8.2 não entrega o cursor
+  no quadro e `screenOf` abre com `?25l`, então a posição é **estimada** pelo fim do texto (`guessCursor`).
+- **Eco da entrada**: `herdr-stream.ts` abre uma janela de releituras curtas (15 e 30 ms) depois do `nudge`, só no pane que recebeu
+  a tecla, e quadro igual não dobra o intervalo nessa janela. Medido do POST ao quadro no SSE: p90 de 96 para 10 ms com 1 pane e de
+  102 para 4 ms com 8 panes. O navegador não era o gargalo (tecla até o POST 0–1 ms, `term.write` 0–2 ms). A página Terminal segue
+  mais rápida (0,4 ms), por usar PTY por WebSocket: o herdr não dá fluxo de bytes.
+
 ## 6.7.1 — 2026-11-04
 
 Nós do canvas não somem mais sem ação do dono (issue #23) e um pane do herdr é um nó só (issue #24).

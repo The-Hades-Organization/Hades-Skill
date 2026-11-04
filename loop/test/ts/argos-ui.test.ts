@@ -121,6 +121,8 @@ describe("ações e confirmação", () => {
   test("erro: ramifica pelo código; código novo cai na mensagem do servidor", () => {
     expect(L.errorText("permission_not_pending", "x")).toContain("pendente");
     expect(L.errorText("codigo_do_futuro", "msg do servidor")).toBe("msg do servidor");
+    expect(L.errorText("canvas_mass_removal", "x")).toContain("nada foi gravado");
+    expect(L.errorText("canvas_mass_removal", "x")).toContain("apague de novo");
     expect(L.errorText(undefined, "rede caiu")).toBe("rede caiu");
     expect(L.errorText("constructor", "fallback")).toBe("fallback");
   });
@@ -1604,7 +1606,7 @@ describe("peças ligadas na página", () => {
 
   test("W2: canvas por escopo pela rota _scope, gravação no canvas aberto e seletor na barra do card", () => {
     expect(page).toContain("const SCOPE_URL = '/api/canvases/_scope';");
-    expect(page).toContain("put: (doc, options) => putCanvas(canvasUrl(canvasIdRef.current), doc, options, takeSaveMeta())");
+    expect(page).toContain("put: (doc, options) => { const sent = saveMeta.peek(); return putCanvas(canvasUrl(canvasIdRef.current), doc, options, { ...sent, graphSize: graphSizeRef.current })");
     expect(page).toContain("const SWITCH_UNSAVED = 'canvas_switch_unsaved';");
     expect(page).toContain('<Choice label="Canvas aberto"');
   });

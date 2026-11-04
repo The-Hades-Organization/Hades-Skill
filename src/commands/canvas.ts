@@ -9,8 +9,8 @@ import { applyOp, type CanvasOp } from "../lib/canvas-history.ts";
 import { LinkError } from "../lib/canvas-links.ts";
 import { directNotesOf, hasNoteAccess, noteChainFrom, readableNotesOf } from "../lib/canvas-note.ts";
 import {
-  findNote, type HerdrTarget, identityPrompt, isOrchestrator, nodeName, nodesAtTarget, planConnect, planDismiss, planReassign, planRecruit,
-  RECRUIT_ERRORS, RecruitError, recruitsOf, requireOrchestrator, requireRecruit, requireSharedNote, terminalTargetOf,
+  findNote, type HerdrTarget, identityPrompt, isOrchestrator, nodeName, nodesAtTarget, planConnect, planDismiss, planJoin, planLeave, planReassign,
+  planRecruit, RECRUIT_ERRORS, RecruitError, recruitsOf, requireOrchestrator, requireRecruit, requireSharedNote, terminalTargetOf,
 } from "../lib/canvas-recruit.ts";
 import { effectiveConfig } from "../lib/config.ts";
 import { findStateDir } from "../lib/kit.ts";
@@ -27,7 +27,10 @@ export const USAGE = `Uso: hades canvas <subcomando> [--canvas <id>]
   connect <recruta> <nota>                    (orquestrador) liga o recruta a uma nota já ligada a você
   reassign <recruta> [--role r|--no-role] [--instructions t|--no-instructions]   (orquestrador) troca papel/instruções
   dismiss <recruta>                           (orquestrador) fecha o terminal do recruta
-  notify <texto>                              notificação ao dono`;
+  notify <texto>                              notificação ao dono
+  join [--pane p] [--name n] [--role r] [--to <orquestrador>] [--note <nota>]…
+                                              traz para o canvas um terminal do herdr que não nasceu nele (sem --pane, o seu)
+  leave [--pane p]                            tira o terminal do canvas sem fechar o processo`;
 
 /** Códigos estáveis da CLI (só ganham valores); os de recrutamento vêm de `RECRUIT_ERRORS`. */
 export const CANVAS_CLI_ERRORS = {
@@ -41,6 +44,9 @@ export const CANVAS_CLI_ERRORS = {
   docConflict: "canvas_doc_conflict",
   herdrFailed: "canvas_herdr_failed",
   notifyFailed: "canvas_notify_failed",
+  joinOutsideHerdr: "canvas_join_outside_herdr",
+  joinPaneNotFound: "canvas_join_pane_not_found",
+  joinBadPane: "canvas_join_bad_pane",
 } as const;
 export type CanvasCliErrorCode = (typeof CANVAS_CLI_ERRORS)[keyof typeof CANVAS_CLI_ERRORS];
 
@@ -55,6 +61,9 @@ const ERROR_TEXT: Readonly<Record<CanvasCliErrorCode, string>> = {
   [CANVAS_CLI_ERRORS.docConflict]: "o canvas mudou durante a operação: tente de novo",
   [CANVAS_CLI_ERRORS.herdrFailed]: "o herdr recusou",
   [CANVAS_CLI_ERRORS.notifyFailed]: "a notificação não saiu",
+  [CANVAS_CLI_ERRORS.joinOutsideHerdr]: "este terminal não está dentro do herdr, e o canvas só mostra panes dele: abra o terminal (ou a sessão do Claude Code) num pane do herdr e rode de novo",
+  [CANVAS_CLI_ERRORS.joinPaneNotFound]: "o herdr não tem esse pane",
+  [CANVAS_CLI_ERRORS.joinBadPane]: "--pane inválido",
 };
 
 class CanvasCliError extends Error {
@@ -108,7 +117,7 @@ interface Parsed {
   flags: Map<string, string[]>;
 }
 
-const VALUE_FLAGS = new Set(["canvas", "name", "role", "preset", "agent", "model", "effort", "cwd", "instructions", "note", "prompt"]);
+const VALUE_FLAGS = new Set(["canvas", "name", "role", "preset", "agent", "model", "effort", "cwd", "instructions", "note", "prompt", "pane", "to"]);
 const BOOL_FLAGS = new Set(["only", "append", "no-role", "no-instructions"]);
 
 class UsageError extends Error {}
@@ -197,6 +206,12 @@ async function canvasIds(deps: CanvasCliDeps): Promise<string[]> {
  */
 async function locate(deps: CanvasCliDeps, only: string | undefined): Promise<Located> {
   const target = (await deps.caller()) ?? failWith(CANVAS_CLI_ERRORS.noCaller);
+  const found = await locateAll(deps, only, target);
+  return found[0] ?? fail(new RecruitError(RECRUIT_ERRORS.notInCanvas));
+}
+
+/** Os canvases onde o pane tem nó (mais de um é recusa: o chamador escolhe com `--canvas`). */
+async function locateAll(deps: CanvasCliDeps, only: string | undefined, target: HerdrTarget): Promise<Located[]> {
   const ids = only !== undefined ? [only] : await canvasIds(deps);
   const targets = await graphTargets(deps);
   const found: Located[] = [];
@@ -213,7 +228,7 @@ async function locate(deps: CanvasCliDeps, only: string | undefined): Promise<Lo
     if (me.length) found.push({ canvas, doc, me });
   }
   if (found.length > 1) return failWith(CANVAS_CLI_ERRORS.manyCanvases, found.map((f) => f.canvas).join(", "));
-  return found[0] ?? fail(new RecruitError(RECRUIT_ERRORS.notInCanvas));
+  return found;
 }
 
 const fail = (error: Error): never => {
@@ -473,11 +488,100 @@ async function notifyOwner(deps: CanvasCliDeps, at: Located, p: Parsed): Promise
   return EXIT.ok;
 }
 
+// ---- join e leave ----
+
+const DEFAULT_CANVAS = "default";
+const JOIN_NAME_MAX = TERMINAL_NAME_MAX;
+
+/** O pane pedido por `--pane` (sessão do chamador, ou `default`) ou o do próprio processo; fora do herdr é recusa. */
+async function paneToTarget(deps: CanvasCliDeps, p: Parsed): Promise<HerdrTarget> {
+  const caller = await deps.caller();
+  const pane = flag(p, "pane");
+  if (pane === undefined) return caller ?? failWith(CANVAS_CLI_ERRORS.joinOutsideHerdr);
+  if (!PANE_ID.test(pane)) return failWith(CANVAS_CLI_ERRORS.joinBadPane, pane);
+  return { session: caller?.session ?? "default", pane };
+}
+
+/** O que o registro de terminais ($D/argos/terminals.json) sabe do pane, se ele é um terminal criado pelo canvas e está sem nó. */
+async function registeredAt(deps: CanvasCliDeps, target: HerdrTarget): Promise<Dict | undefined> {
+  const reply = await panelJson(deps, "GET", "/api/argos/terminals/orphans");
+  if (reply.status !== STATUS.ok || !isDict(reply.body) || !Array.isArray(reply.body.orphans)) return undefined;
+  return reply.body.orphans.find((o): o is Dict => isDict(o) && o.session === target.session && o.pane === target.pane);
+}
+
+/** Campos do registro que o nó herda (o resto, como `createdAt`, não é do nó). */
+const REGISTERED_KEYS = ["name", "agent", "model", "effort", "role"] as const;
+
+/** O `data` do nó novo: o registro, depois o que foi pedido; sem nome, `Terminal <pane>`. */
+function joinData(registered: Dict | undefined, p: Parsed, target: HerdrTarget): Dict {
+  const data: Dict = {};
+  for (const key of REGISTERED_KEYS) if (registered && typeof registered[key] === "string") data[key] = registered[key];
+  if (registered?.orchestrator === true) data.orchestrator = true;
+  const name = flag(p, "name") ?? (typeof data.name === "string" ? data.name : `Terminal ${target.pane}`);
+  data.name = name.slice(0, JOIN_NAME_MAX);
+  const role = flag(p, "role");
+  if (role !== undefined) data.role = role;
+  return data;
+}
+
+/** O canvas do join: `--canvas`; senão onde o pane já é nó; senão onde o chamador está; senão o padrão. */
+async function joinCanvas(deps: CanvasCliDeps, p: Parsed, target: HerdrTarget): Promise<Located> {
+  const only = flag(p, "canvas");
+  const holding = await locateAll(deps, only, target);
+  if (holding[0]) return holding[0];
+  const caller = await deps.caller();
+  const near = caller === undefined ? [] : await locateAll(deps, only, caller);
+  const canvas = near[0]?.canvas ?? only ?? DEFAULT_CANVAS;
+  return { canvas, doc: near[0]?.doc ?? (await loadDoc(deps, canvas)), me: [] };
+}
+
+async function joinCommand(deps: CanvasCliDeps, p: Parsed): Promise<number> {
+  const target = await paneToTarget(deps, p);
+  const at = await joinCanvas(deps, p, target);
+  const alreadyNode = nodesAtTarget(at.doc, target).length > 0;
+  const registered = alreadyNode ? undefined : await registeredAt(deps, target);
+  if (!alreadyNode && registered === undefined && (await deps.herdr(target.session, ["pane", "get", target.pane])).rc !== 0) {
+    return failWith(CANVAS_CLI_ERRORS.joinPaneNotFound, target.pane);
+  }
+  const given: Dict = {};
+  if (alreadyNode) {
+    if (has(p, "name")) given.name = (flag(p, "name") as string).slice(0, JOIN_NAME_MAX);
+    if (has(p, "role")) given.role = flag(p, "role");
+  }
+  const data = alreadyNode ? given : joinData(registered, p, target);
+  const targets = await graphTargets(deps);
+  const placed = await commit(deps, at, (doc) => {
+    const agentIds = nodesAtTarget(doc, target, targets).filter((n) => n.type !== "terminal").map((n) => n.id);
+    const to = flag(p, "to");
+    const plan = planJoin(doc, { target, data, ...(to !== undefined && { to }), notes: p.flags.get("note") ?? [], agentIds });
+    return { op: plan.op, result: plan };
+  });
+  const node = placed.doc.nodes.find((n) => n.id === placed.result.nodeId) as CanvasNode;
+  deps.out(placed.result.op === undefined
+    ? `${nodeName(node)} já está no canvas ${at.canvas} (nó ${node.id}): nada a mudar`
+    : `${nodeName(node)} ${placed.result.created ? "entrou no" : "atualizado no"} canvas ${at.canvas}: nó ${node.id}, pane ${target.pane}`);
+  return EXIT.ok;
+}
+
+async function leave(deps: CanvasCliDeps, p: Parsed): Promise<number> {
+  const target = await paneToTarget(deps, p);
+  const at = (await locateAll(deps, flag(p, "canvas"), target))[0] ?? fail(new RecruitError(RECRUIT_ERRORS.notInCanvas));
+  const placed = await commit(deps, at, (doc) => {
+    const plan = planLeave(doc, target);
+    return { op: plan.op, result: plan.nodes };
+  });
+  deps.out(`${placed.result.map(nodeName).join(", ")} saiu do canvas ${at.canvas}; o processo segue no pane ${target.pane}`);
+  return EXIT.ok;
+}
+
 // ---- entrada ----
 
 type Handler = (deps: CanvasCliDeps, at: Located, p: Parsed) => Promise<number>;
 const NOTE_HANDLERS: Readonly<Record<string, Handler>> = { list: noteList, read: noteRead, write: noteWrite };
 const HANDLERS: Readonly<Record<string, Handler>> = { recruit, connect, reassign, dismiss, notify: notifyOwner };
+
+/** Comandos que valem para um pane que ainda não é nó: não procuram o chamador no canvas. */
+const STANDALONE: Readonly<Record<string, (deps: CanvasCliDeps, p: Parsed) => Promise<number>>> = { join: joinCommand, leave };
 
 export async function runCanvas(args: readonly string[], deps: CanvasCliDeps): Promise<number> {
   let parsed: Parsed;
@@ -489,14 +593,16 @@ export async function runCanvas(args: readonly string[], deps: CanvasCliDeps): P
     return EXIT.usage;
   }
   const [command, sub] = parsed.positional;
-  const handler = command === "note" ? (sub !== undefined && Object.hasOwn(NOTE_HANDLERS, sub) ? NOTE_HANDLERS[sub] : undefined)
+  const standalone = command !== undefined && Object.hasOwn(STANDALONE, command) ? STANDALONE[command] : undefined;
+  const handler = standalone ? undefined : command === "note" ? (sub !== undefined && Object.hasOwn(NOTE_HANDLERS, sub) ? NOTE_HANDLERS[sub] : undefined)
     : command !== undefined && Object.hasOwn(HANDLERS, command) ? HANDLERS[command] : undefined;
-  if (!handler) {
+  if (!handler && !standalone) {
     deps.err(USAGE);
     return command === undefined || command === "-h" || command === "--help" ? EXIT.ok : EXIT.usage;
   }
   try {
-    return await handler(deps, await locate(deps, flag(parsed, "canvas")), parsed);
+    if (standalone) return await standalone(deps, parsed);
+    return await (handler as Handler)(deps, await locate(deps, flag(parsed, "canvas")), parsed);
   } catch (error) {
     if (error instanceof UsageError) {
       deps.err(`hades canvas: uso: ${error.message}`);

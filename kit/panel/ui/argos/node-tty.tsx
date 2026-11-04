@@ -13,7 +13,7 @@
 const { useState, useEffect, useRef, cn } = HadesCore;
 const T = window.CanvasModel.termAnsi;
 // a regra de rolagem do histórico é a da página Terminal (term-logic.tsx, carregado antes): uma só
-const { HISTORY_LINES, HISTORY_URL, historyLinesOf, clampOffset, historyWindow, wheelStep, scrollLive, wheelScroll, historyLoaded, screenOf } = window.TermLogic;
+const { HISTORY_LINES, HISTORY_URL, historyLinesOf, clampOffset, historyWindow, wheelStep, scrollLive, wheelScroll, historyLoaded, screenOf, guessCursor } = window.TermLogic;
 
 // célula do terminal na escala 1: Geist Mono (e as fontes mono do fallback) avançam 0,6 em por caractere
 const FONT_PX = 13;
@@ -212,6 +212,25 @@ function cursorOf(frame) {
   return inside(c.row, frame.rows) && inside(c.col, frame.cols) ? { row: c.row, col: c.col } : null;
 }
 
+/** O cursor a desenhar: o que o produtor entrega, senão a estimativa pelo texto (o herdr 0.8.2 não o entrega; term-logic.tsx guessCursor). */
+function frameCursor(frame) {
+  if (!frame) return null;
+  // o produtor que entrega o campo decide (inclusive escondê-lo): a estimativa só cobre quem não o entrega
+  if (frame.cursor && typeof frame.cursor === 'object') return cursorOf(frame);
+  return guessCursor(frame.ansi, frame.cols, frame.rows);
+}
+
+/**
+ * O xterm só mostra o cursor «com foco» quando o textarea DELE tem o foco, mas o teclado do nó vive no textarea escondido do
+ * próprio nó (composição, colagem). Em vez de roubar o foco, o nó dá ao xterm os mesmos eventos de foco e desfoco que o
+ * navegador daria: ele pisca com o foco e vira contorno sem ele, como o PtyTerminal. Sem textarea (xterm ainda não aberto), nada.
+ */
+function setTermFocus(term, focused) {
+  const field = term && term.textarea;
+  if (!field) return;
+  field.dispatchEvent(new FocusEvent(focused ? 'focus' : 'blur'));
+}
+
 /** Linhas da grade: as do quadro, ou as do texto quando ele traz mais (sem contar as vazias do fim além do quadro). */
 function rowsToShow(rows, lines) {
   let n = lines.length;
@@ -314,7 +333,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   }
   const drawing = !problem && ttyDrawing(headerOnly) === 'xterm' && !drawError;
   const shownRows = problem ? 0 : screenRows(frame.rows, shownAnsi);
-  const cursor = history ? null : cursorOf(frame);
+  const cursor = history ? null : frameCursor(frame);
   const screen = drawing ? screenOf(shownAnsi, cursor) : null;
   const cols = problem ? 0 : frame.cols;
 
@@ -329,6 +348,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
       // o xterm só desenha: nenhuma tecla é dele, todas sobem ao nó (que as traduz) e ao canvas
       made.term.attachCustomKeyEventHandler(() => false);
       xt.current = made;
+      setTermFocus(made.term, live.current.focused);
       live.current.paint();
     };
     void make();
@@ -342,6 +362,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
     made.term.write(screen);
   };
   useEffect(() => { live.current.paint(); }, [screen, cols, shownRows]);
+  useEffect(() => { if (xt.current) setTermFocus(xt.current.term, focused); }, [focused]);
 
   const send = (e, input) => {
     e.preventDefault();
@@ -476,5 +497,5 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   </div>;
 }
 
-window.ArgosNodeTty = { NodeTty, TTY_GLOBAL_KEYS, TTY_CANVAS_KEYS, minSize, translateKey, clipboardIntent, clipboardAction, selectedText, wheelIntent, historyLinesOf, historyWindow, clampOffset, wheelStep, scrollLive, wheelScroll, historyLoaded, ownsWheel, screenLinePx, createTextInput, isCompositionKey, fitScale, areaBox, fitForNode, rowsToShow, cursorOf, screenOf, screenRows, ttyDrawing, oversize, selectionOf };
+window.ArgosNodeTty = { NodeTty, frameCursor, setTermFocus, TTY_GLOBAL_KEYS, TTY_CANVAS_KEYS, minSize, translateKey, clipboardIntent, clipboardAction, selectedText, wheelIntent, historyLinesOf, historyWindow, clampOffset, wheelStep, scrollLive, wheelScroll, historyLoaded, ownsWheel, screenLinePx, createTextInput, isCompositionKey, fitScale, areaBox, fitForNode, rowsToShow, cursorOf, screenOf, screenRows, ttyDrawing, oversize, selectionOf };
 })();

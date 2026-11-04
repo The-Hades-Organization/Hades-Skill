@@ -453,12 +453,18 @@ sem aviso): o terminal ficava vivo e invisível.
   documento do servidor e, se o nó não está lá, relê e reaplica, até 3 tentativas como a CLI `hades canvas`. A inclusão é
   idempotente por par `session`/`pane` (tentativa que já gravou não cria outro nó). Esgotadas, o toast diz "Terminal criado, mas o
   nó não foi gravado" (código `terminal_node_unsaved` no console) e o terminal aparece como órfão.
+- **Confirmação até gravar.** A causa e a confirmação de apagar em massa (`X-Canvas-Confirm-Removal`) ficam na página até o servidor
+  aceitar a gravação (`createSaveMeta`, `canvas-store.ts`): o reenvio depois de um 409 ou de falha de rede leva os mesmos
+  cabeçalhos. O 422 `canvas_mass_removal` (sem confirmação) não é reenviado a cada `SAVE_RETRY_MS` (`PERMANENT_SAVE_ERRORS`): o
+  selo mostra o texto "recusou apagar tantos nós… e nada foi gravado" e a próxima edição do dono grava de novo.
 - **Recusa no log.** O `PUT /api/canvas` recusado (409) grava `canvas recusado` em `$D/logs/panel.log` com a `rev` do corpo, a `rev`
   atual e `remote`.
 - **Órfãos.** `GET /api/argos/terminals/orphans` devolve `{ orphans, checked }`: terminal registrado, com pane vivo no herdr e sem
   nó em canvas nenhum (cada `canvases/*.json` conta; documento ilegível não conta). `checked: false` quando o herdr não respondeu
   ou o painel não tem a lista de panes: nunca se chama de órfão o que não foi conferido, e a tela não mostra nada. O servidor
   registra `terminal fora do canvas` (warn).
+- **Pela CLI.** `hades canvas join` (§Orquestrador no canvas) traz o terminal órfão do pane em que roda, ou de `--pane`, com os mesmos
+  dados do registro; é o caminho sem a tela.
 - **Tela.** Banner "N terminal(is) vivo(s) fora do canvas: <nomes>" com a ação "Trazer para o canvas" (cria os nós no centro da
   vista, com nome, agente, modelo, esforço, papel e orquestrador do registro, e grava). A lista é lida na montagem, no evento
   `registry` do stream e depois de cada releitura do documento; um toast avisa uma vez por órfão novo.
@@ -3134,6 +3140,25 @@ e refaz o plano até 3 vezes (`canvas_doc_conflict`).
 | `reassign <recruta> [--role r\|--no-role] [--instructions t\|--no-instructions]` | orquestrador, sobre recruta seu | grava o papel no nó e depois troca papel ou instruções pela rota de papel, que reinicia só o processo (reinício recusado devolve o papel de antes ao nó); posição, nome e conexões ficam; a identidade sai de novo | `recruit_not_yours` |
 | `dismiss <recruta>` | orquestrador, sobre recruta seu | fecha o pane pela rota de fechar e tira o nó com as arestas dele | `recruit_not_yours` |
 | `notify <texto>` | qualquer terminal | `notify.sh send agent info <texto> --obj <nome do terminal>` da instalação | `canvas_notify_failed` |
+| `join [--pane] [--canvas] [--name] [--role] [--to] [--note]…` | qualquer processo num pane do herdr (o próprio ou `--pane`) | traz o pane para o canvas como nó `terminal`, sem tocar no processo; ver abaixo | `canvas_join_outside_herdr`, `canvas_join_pane_not_found`, `canvas_join_bad_pane`, `recruit_join_target_not_orchestrator`, `recruit_missing_note` |
+| `leave [--pane] [--canvas]` | qualquer processo num pane do herdr | tira o nó `terminal` do pane e as arestas dele; o pane e o processo seguem | `recruit_not_in_canvas` |
+
+**`join` e `leave`.** Não procuram o chamador no canvas (o pane ainda não é nó). O pane é o do próprio processo
+(`HERDR_PANE_ID`) ou `--pane`, na sessão do chamador (`default` sem herdr); fora do herdr e sem `--pane` recusa com a
+instrução de abrir o terminal num pane do herdr (`canvas_join_outside_herdr`; nó só de status e `claude --resume` ficam
+fora). O canvas é `--canvas`, senão onde o pane já é nó, senão onde o chamador está, senão o `default`. Pane que o herdr
+não conhece é `canvas_join_pane_not_found`. A chave de identidade é `paneKey` (`canvas-doc.ts`): um pane, um nó.
+
+- **Já é nó:** não duplica. Sem opções diz "nada a mudar" e não grava; `--name`, `--role`, `--to` e `--note` atualizam o nó.
+- **Registrado como agente (`agent adopt`):** o nó `agent` do mesmo pane sai no mesmo lote e fica o terminal (a sincronia
+  faria o mesmo, mas só depois).
+- **Terminal do registro** (`$D/argos/terminals.json`, §Órfãos): o nó herda nome, agente, modelo, esforço, papel e a caixa
+  Orquestrador. Por isso o orquestrador que ficou órfão volta como orquestrador e `recruit` funciona logo depois do `join`
+  (o processo já nasceu com as instruções de gerente). Pane que ninguém registrou entra como `Terminal <pane>` (ou `--name`).
+- **`--to`:** o terminal fica recruta do orquestrador (id ou nome, só entre orquestradores), na próxima vaga abaixo dele, com
+  aresta `recruit`. **`--note`:** liga o terminal à nota (id ou nome do arquivo). Sem `--to`, o nó novo entra à direita de tudo.
+- **`leave`** tira só o nó (desfazer o devolve). Terminal do registro volta a aparecer como órfão no banner "Trazer para o
+  canvas"; recrutas de um orquestrador que saiu seguem nós, sem a aresta.
 
 Recruta é o nó `terminal` com `data.recruiter` = id do orquestrador que o criou; só esse orquestrador o comanda.
 Terminal sem a caixa (recruta incluído) que chama `recruit|connect|reassign|dismiss` é recusado

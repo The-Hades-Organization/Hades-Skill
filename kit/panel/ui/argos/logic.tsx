@@ -168,6 +168,7 @@ function makeArgosLogic() {
     canvas_unreadable: "O arquivo do canvas no painel está ilegível.",
     canvas_save_unreachable: "Sem resposta do painel ao gravar.",
     canvas_save_conflict: "Outra aba gravou o canvas e a junção não coube.",
+    canvas_mass_removal: "O canvas recusou apagar tantos nós de uma vez sem confirmação, e nada foi gravado. Desfaça (Ctrl+Z) ou recarregue a página; se a remoção é de propósito, apague de novo.",
     graph_failed: "O painel não conseguiu montar o grafo dos agentes.",
     graph_unreachable: "Sem resposta do painel.",
     http_403: "O painel recusou o pedido; recarregue a página.",

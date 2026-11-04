@@ -45,11 +45,12 @@ function termTheme(el) {
 }
 
 /** Cria um xterm no elemento, com o tema do painel (que acompanha claro/escuro), o fit e os links; é o que o PtyTerminal e o nó
- *  do Argos têm em comum. `readOnly`: só desenha (sem entrada, cursor sem piscar, visível mesmo sem foco). Devolve { term, fit, dispose }. */
+ *  do Argos têm em comum. `readOnly`: o xterm não gera entrada (quem digita é o dono, como no nó do Argos). O cursor é o mesmo nos dois:
+ *  pisca com o foco e vira contorno sem ele. Devolve { term, fit, dispose }. */
 function createXterm(el, { fontSize, scrollback = SCROLLBACK_LINES, readOnly = false, lineHeight = 1 } = {}) {
   const term = new window.Terminal({
-    fontFamily: FONT, fontSize: fontSize || FONT_SIZE, cursorBlink: !readOnly, scrollback, minimumContrastRatio: MIN_CONTRAST, lineHeight,
-    disableStdin: readOnly, cursorInactiveStyle: readOnly ? 'block' : 'outline',
+    fontFamily: FONT, fontSize: fontSize || FONT_SIZE, cursorBlink: true, scrollback, minimumContrastRatio: MIN_CONTRAST, lineHeight,
+    disableStdin: readOnly, cursorInactiveStyle: 'outline',
     theme: termTheme(el), linkHandler: { activate: (_e, uri) => openLink(uri), allowNonHttpProtocols: false },
   });
   const fit = new window.FitAddon.FitAddon();

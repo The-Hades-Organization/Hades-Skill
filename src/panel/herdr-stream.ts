@@ -16,6 +16,13 @@ export const STREAMS_MAX = 20;
 /** ~10 quadros/s por pane, no máximo. */
 export const FRAME_INTERVAL_MS = 100;
 export const IDLE_POLL_MAX_MS = 1000;
+/**
+ * Janela do eco: o `pane.send_input` volta antes de o herdr processar o que digitou, então a leitura imediata do `nudge` vê o
+ * quadro velho (medido: p90 ≈ 110 ms; o quadro igual dobrava o intervalo e o eco chegava 100–200 ms depois). Depois do
+ * `nudge`, até duas releituras curtas (esperas em ms, a partir do fim da leitura anterior), só no pane que recebeu a entrada
+ * e só até o quadro mudar; nessa janela o intervalo não dobra e o teto de FRAME_INTERVAL_MS cede ao primeiro passo.
+ */
+export const ECHO_RETRY_MS = [15, 30] as const;
 const KEEP_ALIVE_MS = 15_000;
 const RECONNECT_MS = 3000;
 const RETRY_AFTER_S = 5;
@@ -144,6 +151,8 @@ interface PaneWatch {
   cols?: number;
   rows?: number;
   pollMs: number;
+  /** Próxima espera curta de ECHO_RETRY_MS; `ECHO_RETRY_MS.length` = janela fechada. */
+  echoStep: number;
   lastReadAt: number;
   cancelTimer?: () => void;
   reading: boolean;
@@ -176,7 +185,9 @@ function createSessionHub(ctx: HubContext, session: string, socketPath: string, 
   const broadcast = (w: PaneWatch, event: StreamEvent): void => {
     for (const watcher of w.watchers) watcher.deliver(event);
   };
-  const earliestRead = (w: PaneWatch): number => Math.max(0, w.lastReadAt + FRAME_INTERVAL_MS - clock.now());
+  // na janela do eco o teto de quadros cede: a tecla acabou de sair e o dono espera ver o caractere
+  const readGapMs = (w: PaneWatch): number => (w.echoStep < ECHO_RETRY_MS.length ? ECHO_RETRY_MS[0] : FRAME_INTERVAL_MS);
+  const earliestRead = (w: PaneWatch): number => Math.max(0, w.lastReadAt + readGapMs(w) - clock.now());
   const alive = (w: PaneWatch): boolean => !closed && !w.gone && panes.get(w.id) === w;
 
   function schedule(w: PaneWatch, delayMs: number): void {
@@ -226,8 +237,10 @@ function createSessionHub(ctx: HubContext, session: string, socketPath: string, 
 
   function publish(w: PaneWatch, ansi: string, cols: number, rows: number): void {
     const same = w.frame !== undefined && w.frame.ansi === ansi && w.frame.cols === cols && w.frame.rows === rows;
-    w.pollMs = nextPollMs(w.pollMs, !same);
+    const echoing = same && w.echoStep < ECHO_RETRY_MS.length;
+    w.pollMs = echoing ? FRAME_INTERVAL_MS : nextPollMs(w.pollMs, !same);
     if (same) return;
+    w.echoStep = ECHO_RETRY_MS.length;
     w.frame = { pane: w.id, revision: ctx.nextRevision(), cols, rows, ansi };
     stats.frames += 1;
     broadcast(w, { event: "frame", data: w.frame });
@@ -259,10 +272,11 @@ function createSessionHub(ctx: HubContext, session: string, socketPath: string, 
         }
         w.failing = true;
         w.pollMs = IDLE_POLL_MAX_MS;
+        w.echoStep = ECHO_RETRY_MS.length;
       }
     } finally {
       w.reading = false;
-      if (alive(w)) schedule(w, w.again ? earliestRead(w) : w.pollMs);
+      if (alive(w)) schedule(w, w.again ? earliestRead(w) : w.echoStep < ECHO_RETRY_MS.length ? (ECHO_RETRY_MS[w.echoStep++] ?? w.pollMs) : w.pollMs);
     }
   }
 
@@ -374,7 +388,7 @@ function createSessionHub(ctx: HubContext, session: string, socketPath: string, 
     for (const seed of seeds) {
       let w = panes.get(seed.id);
       if (!w) {
-        w = { id: seed.id, watchers: new Set(), status: seed.status, rows: seed.rows, pollMs: FRAME_INTERVAL_MS, lastReadAt: 0, reading: false, again: false, failing: false, gone: false };
+        w = { id: seed.id, watchers: new Set(), status: seed.status, rows: seed.rows, pollMs: FRAME_INTERVAL_MS, echoStep: ECHO_RETRY_MS.length, lastReadAt: 0, reading: false, again: false, failing: false, gone: false };
         panes.set(seed.id, w);
         schedule(w, 0);
       }
@@ -401,7 +415,9 @@ function createSessionHub(ctx: HubContext, session: string, socketPath: string, 
 
   function nudge(pane: string): void {
     const w = panes.get(pane);
-    if (w) wake(w);
+    if (!w) return;
+    w.echoStep = 0;
+    wake(w);
   }
 
   return { attach, detach, nudge, close };

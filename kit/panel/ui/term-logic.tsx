@@ -415,6 +415,41 @@ function makeTermLogic() {
     return `\x1b[?25l\x1b[0m\x1b[H\x1b[2J${body.join("\r\n")}\x1b[0m${place}`;
   }
 
+  /** Último caractere de um prompt de shell: o cursor fica um espaço depois dele, e o herdr apara o espaço do fim da linha. */
+  const PROMPT_END = /[$#%>❯›»:]$/;
+  const ANSI_SEQ = /\x1b\[[0-9;:?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]/g;
+  const SGR_SEQ = /\x1b\[([0-9;:]*)m/g;
+  /** Há SGR 7 (vídeo inverso) no texto. Cor estendida (`38;5;n`, `38;2;r;g;b`) tem o 7 como valor, não como atributo: salta. */
+  function hasInverse(ansi: string): boolean {
+    for (const m of ansi.matchAll(SGR_SEQ)) {
+      const params = (m[1] ?? "").split(";");
+      for (let i = 0; i < params.length; i++) {
+        const p = params[i];
+        if (p === "7") return true;
+        if (p === "38" || p === "48" || p === "58") i += params[i + 1] === "2" ? 4 : 2;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Onde está o cursor de um quadro do herdr, que não o entrega (0.8.2: `pane.read` traz só texto e revisão). Estimativa pelo
+   * texto: a última linha com conteúdo, logo depois do último caractere (um espaço além, se a linha termina em prompt).
+   * Quadro com vídeo inverso é de um programa que desenha o próprio cursor (Claude Code, editores): nada é inferido, o
+   * cursor dele já está no quadro. Tela vazia: canto superior esquerdo. Sempre dentro da grade.
+   */
+  function guessCursor(ansi: unknown, cols: number, rows: number): { row: number; col: number } | null {
+    if (typeof ansi !== "string" || !Number.isInteger(cols) || !Number.isInteger(rows) || cols < 1 || rows < 1) return null;
+    if (hasInverse(ansi)) return null;
+    const lines = ansi.split(/\r?\n/);
+    let row = Math.min(lines.length, rows) - 1;
+    while (row >= 0 && (lines[row] ?? "").replace(ANSI_SEQ, "").trim() === "") row -= 1;
+    if (row < 0) return { row: 0, col: 0 };
+    const text = (lines[row] ?? "").replace(ANSI_SEQ, "").replace(/\s+$/, "");
+    const width = [...text].length + (PROMPT_END.test(text) ? 1 : 0);
+    return { row, col: Math.min(width, cols - 1) };
+  }
+
   /** Quem recebe a roda: o xterm (buffer normal, comportamento de sempre), o histórico do herdr (tela alternativa com pane) ou o programa (tela alternativa sem pane). */
   type WheelRoute = "xterm" | "history" | "program";
   function wheelRoute(alternate: boolean, hasPane: boolean): WheelRoute {
@@ -449,7 +484,7 @@ function makeTermLogic() {
     offsetInitial, onHello, onBytes, onWarn, resumeOffset, warnNotice, socketUrl, chunkInput, clampSize, sameSize,
     safeUrl, findLinks, refusal,
     MOBILE_MAX_PX, isMobileWidth, KEY_DEFS, DEFAULT_KEYS, parseKeys, keyBytes, applyCtrl, isFollowing, KEYBOARD_MIN_PX, viewBox, navStep,
-    HISTORY_LINES, HISTORY_URL, historyLinesOf, clampOffset, historyWindow, wheelStep, scrollLive, wheelScroll, historyLoaded, screenOf,
+    HISTORY_LINES, HISTORY_URL, historyLinesOf, clampOffset, historyWindow, wheelStep, scrollLive, wheelScroll, historyLoaded, screenOf, guessCursor,
     wheelRoute, focusedPaneOf, WHEEL_HINT_TEXT, createWheelHint,
   };
 }

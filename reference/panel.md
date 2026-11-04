@@ -554,7 +554,25 @@ um shell em `cwd` (`POST /api/term/open`), acrescenta a sessão à mesa que a p�
 aparece com a pasta dentro das `roots` de `GET /api/term`; nas outras a recusa `term_forbidden_cwd` vira aviso. Com a chave
 desligada o botão não some: o clique mostra o aviso de `term_disabled` (como ligar).
 `HadesCore.createXterm(el, {fontSize, scrollback, readOnly, lineHeight})` é o mínimo comum (tema do painel, fit, links) que o
-`PtyTerminal` e o nó do Argos usam.
+`PtyTerminal` e o nó do Argos usam. `readOnly` só desliga a entrada do xterm; o cursor é o mesmo nos dois: pisca com o foco e vira
+contorno sem ele (`cursorBlink`, `cursorInactiveStyle: 'outline'`; cor do texto sobre o fundo do tema, nos dois temas).
+
+**Cursor e eco no nó do Argos** (o nó desenha quadros do herdr, não bytes de PTY).
+- *Cursor.* O herdr 0.8.2 não entrega o cursor (`pane.read` traz só texto e revisão) e o `screenOf` abre com `?25l`: sem o campo,
+  o cursor nunca aparecia. `TermLogic.guessCursor` o estima pelo texto (última linha com conteúdo, logo depois do último
+  caractere; um espaço além se a linha termina em prompt, porque o herdr apara o espaço do fim). Quadro com vídeo inverso
+  (SGR 7) é de um programa que desenha o próprio cursor (Claude Code, editores): nada é estimado. `frame.cursor`, se o produtor
+  um dia o entregar, vence a estimativa (`frameCursor`). É estimativa: um programa que move o cursor sem texto novo não é seguido.
+- *Foco.* O xterm só mostra o cursor «com foco» quando o textarea dele recebe o evento de foco, mas o teclado do nó fica no
+  textarea escondido do próprio nó (composição e colagem). O nó dispara `focus`/`blur` no textarea do xterm conforme `focused`
+  (`setTermFocus`), sem roubar o foco do teclado.
+- *Eco.* `POST /api/herdr/input` volta antes de o herdr processar a tecla; a leitura imediata do `nudge` via o quadro velho, o
+  intervalo dobrava e o caractere chegava 100–200 ms depois. Agora, depois do `nudge`, o leitor do pane faz até duas releituras
+  curtas (`ECHO_RETRY_MS` = 15 e 30 ms), o teto de 100 ms cede ao primeiro passo e o intervalo não dobra, só no pane que recebeu
+  entrada e só até o quadro mudar. Medido (herdr 0.8.2, bash): eco no SSE p50 5 → 3 ms, p90 96 → 10 ms com 1 pane, p90 102 → 4 ms
+  com 8; página Terminal (PTY por WebSocket) p50 0,4 ms. O que sobra é o intervalo de leitura do herdr, que não dá fluxo de bytes.
+- *Armadilha.* O painel serve o kit **instalado**, não a worktree: depois de mexer em `kit/panel/ui/`, reinstale (`kit/install.sh`)
+  antes de conferir a tela; `src/panel/` só vale depois de reiniciar o painel.
 
 **Componente `PtyTerminal`**, em `HadesCore` e `HadesPanel` (o nome `Terminal` já é o visualizador de log das Execuções;
 o do terminal de verdade é `PtyTerminal`).

@@ -302,4 +302,11 @@ describe("canvas-nos: a página liga as defesas", () => {
     expect(page).toContain("confirmRemoval: deletesNodes(op)");
     expect(page).toContain("commit(next, { cause: 'undo' })");
   });
+
+  test("a causa e a confirmação só zeram quando o servidor aceita a gravação", () => {
+    expect(page).toContain("M.store.createSaveMeta()");
+    expect(page).toContain("const sent = saveMeta.peek();");
+    expect(page).toContain("if (reply.kind === 'saved') { saveMeta.saved(sent);");
+    expect(page).not.toContain("takeSaveMeta");
+  });
 });

@@ -27,7 +27,7 @@ function Selected({ j, d }) {
     <div data-tour-step-id="jobs-fio">
       <Fio s={fio.s} nos={fio.nos} corte={fio.corte} label={`${j.title}: ${FIO_ESTADO[fio.s]}`} />
     </div>
-    <LinhaDeEstado className="t-label" main={j.state === 'rodando' ? `rodando há ${took}` : st.label.toLowerCase() + (j.state === 'falhou' ? ` · saída ${j.rc}` : '')}
+    <LinhaDeEstado className="t-label" main={j.state === 'rodando' ? `${j.fase ? `fase ${j.fase} · ` : ''}rodando há ${took}` : st.label.toLowerCase() + (j.state === 'falhou' ? ` · saída ${j.rc}` : '')}
       rest={[`início ${dt(j.started)}`, j.state === 'rodando' ? null : `levou ${took}`, j.exclusive ? 'exclusiva (bloqueia outras ações do ciclo)' : null]} />
   </div>;
 }

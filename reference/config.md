@@ -108,6 +108,7 @@ Os padrões são o comportamento de antes: 8 GB, um pesado por vez, FIFO.
 | Chaves | Aplicar |
 |---|---|
 | `HADES_MODEL_<PAPEL>`, `HADES_EFFORT_<PAPEL>` (`ORCHESTRATOR`, `SPEC`, `IMPL`, `CONSOLIDATE`, `REVIEW`, `ESCALATE`), `HADES_ESCALATE_GATE_WAVES` | próxima vez que o agente subir |
+| `HADES_REVIEW_MAX_PARALLEL` | próxima revisão que entrar na fila |
 | `HADES_REVIEW_SUBAGENT_MODELS` (mapa por subagente) | aplicar nos subagentes (`hades models` grava o `model:` em `~/.claude/agents/review-*.md`) |
 
 ### Contexto e espera

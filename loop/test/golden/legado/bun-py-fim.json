@@ -17,7 +17,7 @@
  "leitura grande: cat <big> | wc -l": [
   2,
   "",
-  "hades-guard: a mesma checagem (log:<T>/grande.txt) já rodou há 0 min — isso é polling. Esperar por evento, sem gastar turno: rode em segundo plano (run_in_background) e seja notificado ao terminar — hades wait ci <PR> | gate <pid|arquivo-de-sumario> | merged <PR> | answer <worktree> <Qn> | review <PR> | agent <nome>; o orquestrador usa hades watch --next. Leia o log só quando a espera terminar, e só o trecho que importa.\n"
+  "hades-guard: a mesma checagem (log:<T>/grande.txt) já rodou há 0 min — isso é polling. Esperar por evento, sem gastar turno: rode em segundo plano (run_in_background) e seja notificado ao terminar — hades wait ci <PR> | gate <pid|arquivo-de-sumario> | merged <PR> | answer <worktree> <Qn> | review <PR> | agent <nome> | proc <padrão-do-pgrep -f>; o orquestrador usa hades watch --next. Leia o log só quando a espera terminar, e só o trecho que importa.\n"
  ],
  "leitura grande: head -5 <big>": [
   0,
@@ -37,6 +37,6 @@
  "leitura grande: tail -500 <big> && echo ok": [
   2,
   "",
-  "hades-guard: a mesma checagem (log:<T>/grande.txt) já rodou há 0 min — isso é polling. Esperar por evento, sem gastar turno: rode em segundo plano (run_in_background) e seja notificado ao terminar — hades wait ci <PR> | gate <pid|arquivo-de-sumario> | merged <PR> | answer <worktree> <Qn> | review <PR> | agent <nome>; o orquestrador usa hades watch --next. Leia o log só quando a espera terminar, e só o trecho que importa.\n"
+  "hades-guard: a mesma checagem (log:<T>/grande.txt) já rodou há 0 min — isso é polling. Esperar por evento, sem gastar turno: rode em segundo plano (run_in_background) e seja notificado ao terminar — hades wait ci <PR> | gate <pid|arquivo-de-sumario> | merged <PR> | answer <worktree> <Qn> | review <PR> | agent <nome> | proc <padrão-do-pgrep -f>; o orquestrador usa hades watch --next. Leia o log só quando a espera terminar, e só o trecho que importa.\n"
  ]
 }

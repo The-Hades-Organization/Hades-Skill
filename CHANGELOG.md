@@ -4,6 +4,29 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.5.0 — 2026-11-04
+
+Espera por processo no `hades wait` (issue #11), `agent resume` sem rótulo de papel (issue #9), Argos sem permissão
+pendente de agente encerrado (issue #7) e a suíte estável na CI pública.
+
+- **`hades wait proc <padrão>`**: espera até nenhum processo casar com o padrão (`pgrep -f`) e notifica `PROC <padrão>
+  terminou`; o próprio wait e os seus ancestrais não contam; padrão vazio ou que casa com o próprio wait é recusado.
+  Intervalo e prazo pelos `HADES_WAIT_EVERY`/`HADES_WAIT_MAX` de sempre.
+- **Guard:** laço com `sleep` num comando em segundo plano passa a receber aviso (sem barrar) com o `hades wait`
+  equivalente (`proc` para `pgrep`, `queue`, `ci`, `agent`); `HADES_POLL_GUARD=0` desliga também o aviso. A linha HOW cita
+  o alvo novo.
+- **`agent resume`** usa a fase do registro ou do cabeçalho `# Handoff — <u>, fase \`<f>\`` do `handoff.md`; sem ela, o
+  prompt não cita fase e o registro não ganha `phase` (antes rotulava pelo papel, "fase impl"). `agent prompt --phase <f>`
+  registra a fase desde o primeiro prompt.
+- **Argos:** `agent done`, `park` e `skill-clean` gravam `orch agent.end` no diário, que encerra a pendência; registro
+  `done`/`archived` ou pane fora do `herdr agent list` não mostra `pendingPermission`; aprovar ou negar sem pane responde
+  409 `pane_gone`.
+- **CI pública:** o teste do rig "morre com os netos" falhava no runner porque, em contêiner sem init que colha órfãos, o
+  neto morto fica zumbi e `kill(pid, 0)` ainda responde; a checagem ignora o estado `Z` de `/proc/<pid>/stat`
+  (reproduzido com `unshare -rpf --mount-proc`).
+- Armadilhas: o golden `bun-loop2.json` guarda o texto do `resume`; mensagem de commit ou de merge com "hades wait …" é
+  barrada pelo guard como espera em primeiro plano.
+
 ## 6.4.0 — 2026-11-04
 
 Documentação revista com o Impeccable (critique, clarify, distill, typeset, quieter, polish, optimize, delight, document).

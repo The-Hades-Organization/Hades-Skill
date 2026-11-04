@@ -8,6 +8,7 @@ const r = new Rig().setup();
 afterAll(() => r.cleanup());
 const orch = join(r.T, "work/example__monorepo/orchestration");
 const bin = join(r.T, "herdr-stale");
+const PROMPTS = join(r.T, "prompts.log");
 const REPORTS = ".design-sync-reports";
 mkdirSync(join(orch, "agents"), { recursive: true });
 mkdirSync(bin, { recursive: true });
@@ -15,6 +16,7 @@ mkdirSync(bin, { recursive: true });
 const worktree = (name: string): string => join(r.T, `wt-${name}`);
 // o agente existe no herdr com o cwd na worktree; o resto responde vazio
 writeFileSync(join(bin, "herdr"), `#!/usr/bin/env bash
+[ "\${1:-} \${2:-}" = 'agent prompt' ] && printf '%s\\n' "\${4:-}" >> "${PROMPTS}"
 case "\${1:-} \${2:-}" in
   'agent list') echo '{"result":{"agents":[{"name":"stale","pane_id":"w1:p1","agent_status":"idle","foreground_cwd":"${worktree("stale")}"}]}}' ;;
   *) echo '{}' ;;
@@ -64,4 +66,82 @@ describe("agent: phase --no-commit", () => {
     register("stale");
     expect(run(["resume", "stale", "--no-commit"])).toContain("--no-commit é da fase");
   });
+});
+
+describe("agent: resume sem fase no registro não rotula pelo papel", () => {
+  const sentPrompt = (): string => (readFileSync(PROMPTS, "utf8").trim().split("\n").filter((l) => l.startsWith("Sessão nova")).at(-1) ?? "");
+  const handoff = (name: string, head: string): void => writeFileSync(join(worktree(name), REPORTS, "handoff.md"), `${head}\nresto\n`);
+
+  test("dado registro sem phase e role impl, então o resume não cita fase e o registro segue sem phase", () => {
+    register("stale");
+    run(["resume", "stale"]);
+    expect(sentPrompt()).toStartWith("Sessão nova, retomando do handoff.");
+    expect(sentPrompt()).not.toContain('fase "impl"');
+    expect("phase" in record("stale")).toBe(false);
+    expect(record("stale")).toMatchObject({ resumes: 1, state: "working" });
+  }, 30_000);
+
+  test("dado handoff com fase `spec` no cabeçalho, então o prompt cita spec e o registro grava spec", () => {
+    register("stale");
+    handoff("stale", "# Handoff — stale, fase `spec`");
+    run(["resume", "stale"]);
+    expect(sentPrompt()).toContain('Sessão nova, fase "spec".');
+    expect(record("stale").phase).toBe("spec");
+  }, 30_000);
+
+  test("dado handoff sem o cabeçalho de fase, então vale o mesmo que sem handoff", () => {
+    register("stale");
+    handoff("stale", "STATUS: PARKED — pausa");
+    run(["resume", "stale"]);
+    expect(sentPrompt()).not.toContain("fase \"");
+    expect("phase" in record("stale")).toBe(false);
+  }, 30_000);
+
+  test("dado phase no registro, então ela vence o cabeçalho do handoff", () => {
+    register("stale", { phase: "review" });
+    handoff("stale", "# Handoff — stale, fase `spec`");
+    run(["resume", "stale"]);
+    expect(sentPrompt()).toContain('fase "review"');
+  }, 30_000);
+});
+
+describe("agent: prompt --phase", () => {
+  test("dado --phase no primeiro prompt, então o registro grava a fase e o texto segue sendo o do dono", () => {
+    register("stale");
+    expect(run(["prompt", "stale", "--phase", "spec", "faça só a spec"])).toContain("tarefa enviada a stale");
+    expect(record("stale").phase).toBe("spec");
+    expect(readFileSync(PROMPTS, "utf8")).toContain("faça só a spec");
+  });
+
+  test("dado prompt sem --phase, então o registro não ganha phase", () => {
+    register("stale");
+    run(["prompt", "stale", "oi"]);
+    expect("phase" in record("stale")).toBe(false);
+  });
+
+  test("dado --phase sem valor, então recusa", () => {
+    register("stale");
+    expect(run(["prompt", "stale", "--phase"])).toContain("faltou a fase");
+  });
+});
+
+describe("agent: done grava o encerramento no diário (some a permissão pendente do Argos)", () => {
+  // unidade da skill: o registro e o diário ficam em _skill, e o done não exige push nem PR
+  const skillAgents = join(r.T, "work/_skill/orchestration/agents");
+  const events = (name: string): { source: string; kind: string }[] => {
+    try { return readFileSync(join(r.T, "work/_skill/journal", `${name}.jsonl`), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)); } catch { return []; }
+  };
+  const ended = (name: string): boolean => events(name).some((e) => e.source === "orch" && e.kind === "agent.end");
+
+  test("dado unidade da skill com report DONE, então o done grava orch agent.end depois de marcar o registro done", () => {
+    mkdirSync(skillAgents, { recursive: true });
+    mkdirSync(join(worktree("stale"), REPORTS), { recursive: true });
+    writeFileSync(join(skillAgents, "stale.json"), JSON.stringify({ name: "stale", mode: "skill", role: "impl", worktree: worktree("stale"), state: "working" }));
+    setReport("stale", "STATUS: DONE");
+    expect(ended("stale")).toBe(false);
+    const o = run(["done", "stale", "--keep-pane"]);
+    expect(o).toContain("encerrado");
+    expect(JSON.parse(readFileSync(join(skillAgents, "stale.json"), "utf8")).state).toBe("done");
+    expect(ended("stale")).toBe(true);
+  }, 30_000);
 });

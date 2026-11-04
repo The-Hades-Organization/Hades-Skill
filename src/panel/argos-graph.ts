@@ -262,11 +262,17 @@ export function createGraph(deps: GraphDeps): Graph {
     return hit && hit.value.ci !== null && typeof hit.value.ci === "object" ? asDict(hit.value.ci) : undefined;
   }
 
+  /** Pendência só vale para sessão viva: registro encerrado/arquivado ou pane fora do `herdr agent list` não pede nada. */
+  function livePending(a: AgentRecord, host: Dict | undefined, tail: JournalEvent[]): PendingPermission | null {
+    if (REGISTRY_DONE.has(text(a.data.state)) || !host) return null;
+    return pendingPermission(tail);
+  }
+
   function agentNode(a: AgentRecord, rows: Dict[], tail: JournalEvent[], ctx: NodeContext): Dict {
     const host = hostOf(rows, a);
     const registryState = text(a.data.state) || "unknown";
     const herdrState = host ? text(host.agent_status) || "unknown" : "fora";
-    const pending: PendingPermission | null = pendingPermission(tail);
+    const pending = livePending(a, host, tail);
     const pr = prNumberOf(a);
     const { paths, openQuestions } = reportInfo(a);
     const extra = definedOnly({
@@ -520,7 +526,7 @@ export function createGraph(deps: GraphDeps): Graph {
   async function live(id: string): Promise<{ herdrState: string; pending: PendingPermission | null }> {
     const a = agentOf(id);
     const host = hostOf((await herdrAgents()).rows, a);
-    return { herdrState: host ? text(host.agent_status) || "unknown" : "fora", pending: pendingPermission(journalTail(a)) };
+    return { herdrState: host ? text(host.agent_status) || "unknown" : "fora", pending: livePending(a, host, journalTail(a)) };
   }
 
   return { graph, node, agentOf, live };

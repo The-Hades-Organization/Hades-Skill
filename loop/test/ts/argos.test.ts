@@ -6,7 +6,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ARGOS_ERRORS, ArgosError, parseNodeId, parsePlanUnits, pendingPermission, planHash } from "../../../src/lib/argos";
-import { eventOfHook, eventOfSource, type JournalEvent } from "../../../src/lib/journal";
+import { AGENT_END_KIND, eventOfHook, eventOfSource, type JournalEvent } from "../../../src/lib/journal";
 import { createArgos, type Argos } from "../../../src/panel/argos";
 import { createGraph, registriesOf } from "../../../src/panel/argos-graph";
 import type { Caller } from "../../../src/panel/argos-actions";
@@ -176,6 +176,46 @@ describe("argos: regras puras", () => {
     expect(pendingPermission([p("permission"), p("gate.done", "gate"), p("watch.question", "watch"), p("notification")])).not.toBeNull();
     for (const resolved of ["tool_pre", "tool_post", "stop", "prompt", "tool_blocked"]) expect(pendingPermission([p("permission"), p(resolved)])).toBeNull();
     expect(pendingPermission([])).toBeNull();
+  });
+
+  test("permissão pendente: o encerramento do agente (orch agent.end) a fecha, e um pedido novo depois dele vale", () => {
+    const e = (kind: string, source: JournalEvent["source"], ts: string): JournalEvent => ({ v: 1, ts, agent: "a", session: "s", source, kind, summary: "", cwd: "" });
+    const asked = e("permission", "guard", "2026-03-10T10:00:00Z");
+    const ended = e(AGENT_END_KIND, "orch", "2026-03-10T10:01:00Z");
+    expect(pendingPermission([asked, ended])).toBeNull();
+    expect(pendingPermission([asked, ended, e("permission", "guard", "2026-03-10T10:02:00Z")])).toEqual({ ts: "2026-03-10T10:02:00Z", tool: null });
+    expect(pendingPermission([asked, e("decision", "orch", "2026-03-10T10:01:00Z")])).not.toBeNull();
+  });
+});
+
+describe("argos: pendência de agente que já não existe", () => {
+  const ask = (name: string) => hook(name, "2026-03-10T10:00:05Z", { hook_event_name: "Notification", notification_type: "permission_prompt", message: "Claude needs your permission to use Bash" });
+  const nodeOf = async (name: string) => (await node(`agent:${PROJECT}:${name}`)).body.node as Record<string, any>;
+  // o pane w2:p1 existe no herdr falso (casa pelo pane, não pelo nome)
+  const seed = (name: string, extra: Record<string, unknown>, events: JournalEvent[]) => { agentJson(PROJECT, name, { pane: "w2:p1", ...extra }); journalOf(PROJECT, name, events); };
+
+  test("dado permission seguido do encerramento gravado pelo done, então o nó sai sem pendingPermission", async () => {
+    seed("fim-viva", {}, [ask("fim-viva")]);
+    expect((await nodeOf("fim-viva")).pendingPermission).not.toBeNull();
+    seed("fim-end", {}, [ask("fim-end"), eventOfSource("orch", AGENT_END_KIND, "agente encerrado: done", { agent: "fim-end", now: at("2026-03-10T10:01:00Z") })]);
+    expect((await nodeOf("fim-end")).pendingPermission).toBeNull();
+  });
+
+  test("dado registro done ou archived, mesmo com o pane ainda no herdr, então o nó sai sem pendingPermission", async () => {
+    for (const state of ["done", "archived"]) {
+      seed(`fim-${state}`, { state }, [ask(`fim-${state}`)]);
+      expect((await nodeOf(`fim-${state}`)).pendingPermission).toBeNull();
+    }
+  });
+
+  test("dado pane fora do herdr agent list, então o nó sai sem pendingPermission e aprovar ou negar é recusado com pane_gone", async () => {
+    seed("fim-fora", { pane: "w9:p9" }, [ask("fim-fora")]);
+    expect((await nodeOf("fim-fora")).pendingPermission).toBeNull();
+    const before = lines(HERDR_LOG).length;
+    for (const action of ["approve_permission", "deny_permission"]) {
+      expect(await act({ node: `agent:${PROJECT}:fim-fora`, action })).toMatchObject({ status: 409, body: { code: ARGOS_ERRORS.paneGone } });
+    }
+    expect(lines(HERDR_LOG).slice(before).some((l) => l.includes("send-keys"))).toBe(false);
   });
 });
 

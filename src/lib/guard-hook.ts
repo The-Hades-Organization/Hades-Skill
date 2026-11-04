@@ -42,8 +42,15 @@ const READ_HINT =
 const HOW =
   "Esperar por evento, sem gastar turno: rode em segundo plano (run_in_background) e seja notificado ao terminar — " +
   "hades wait ci <PR> | gate <pid|arquivo-de-sumario> | merged <PR> | " +
-  "answer <worktree> <Qn> | review <PR> | agent <nome>; o orquestrador usa hades watch --next. " +
+  "answer <worktree> <Qn> | review <PR> | agent <nome> | proc <padrão-do-pgrep -f>; o orquestrador usa hades watch --next. " +
   "Leia o log só quando a espera terminar, e só o trecho que importa.";
+const SLEEP_LOOP = "laço com sleep";
+const PGREP_LOOP = /\bpgrep\s+(?:-\w+\s+)*(?:"([^"]+)"|'([^']+)'|([^\s;|&)]+))/;
+const WAIT_BY_COMMAND: { rx: RegExp; wait: string }[] = [
+  { rx: /\bgate-lock\.sh\s+status\b/, wait: "hades wait queue <label> (ou gate <pid>)" },
+  { rx: /\bgh\s+(?:pr\s+(?:checks|view)|run\s+(?:view|watch))\b/, wait: "hades wait ci <PR> (ou merged <PR>, review <PR>)" },
+  { rx: /\bherdr\b/, wait: "hades wait agent <nome> [estado]" },
+];
 const CERBERUS_HOW =
   "Só o dono faz isso: no painel local (página Cerberus, Configurações) ou no terminal com `!`. Para ler, " +
   "use hades cerberus historico | excecao listar | modos.";
@@ -361,10 +368,26 @@ function logSettledSince(path: string, cwd: string, lastReadS: number, nowS: num
   }
 }
 
-function bashChecks(d: HookInput, cfg: Cfg, rules: GuardRules, env: HookEnv): void {
+const shellQuote = (value: string): string => `'${value.replace(/'/g, `'\\''`)}'`;
+
+/** O hades wait que troca o laço com sleep: `proc <padrão>` quando o laço é um pgrep, senão o alvo do que ele consulta. */
+function equivalentWait(cmd: string): string {
+  const pgrep = PGREP_LOOP.exec(cmd);
+  const pattern = pgrep?.[1] ?? pgrep?.[2] ?? pgrep?.[3];
+  if (pattern) return `hades wait proc ${shellQuote(pattern)}`;
+  return WAIT_BY_COMMAND.find(({ rx }) => rx.test(cmd))?.wait ?? "o hades wait do evento (proc <padrão> | gate <pid> | queue <label> | ci <PR> | agent <nome>)";
+}
+
+/** Laço com sleep em segundo plano não gasta turno, mas já tem alvo no hades wait: avisa sem barrar. */
+function backgroundPollWarning(rules: GuardRules, cmd: string): string | undefined {
+  if (!rules.fgPoll.some(({ rx, what }) => what === SLEEP_LOOP && rx.test(cmd))) return undefined;
+  return `HADES: laço com sleep em segundo plano. Troque por \`${equivalentWait(cmd)}\`: ele espera e notifica sem o laço.`;
+}
+
+function bashChecks(d: HookInput, cfg: Cfg, rules: GuardRules, env: HookEnv): string | undefined {
   const input = (d.tool_input as Dict | undefined) ?? {};
   const original = typeof input.command === "string" ? input.command : "";
-  if (!original) return;
+  if (!original) return undefined;
   const stripped = stripAgentText(rules, original);
   ownerOnly(stripHeredocBodies(rules, stripped), d, env);
   autonomyOwnerOnly(stripHeredocBodies(rules, stripped), d, env);
@@ -382,9 +405,10 @@ function bashChecks(d: HookInput, cfg: Cfg, rules: GuardRules, env: HookEnv): vo
     // um gate rodou: o que ele escreveu (sumário, log) mudou, então reler depois dele não é polling
     saveState(file, { ...loadState(file), gateAt: env.now() });
   }
-  if ((cfg.HADES_POLL_GUARD ?? "1") !== "1" || input.run_in_background) return;
+  if ((cfg.HADES_POLL_GUARD ?? "1") !== "1") return undefined;
   // corpo de heredoc é dado (documento, script gravado em arquivo), não o que roda agora: fora da detecção de polling
   const cmd = maskDataStatements(stripHeredocBodies(rules, stripped));
+  if (input.run_in_background) return backgroundPollWarning(rules, cmd);
   for (const { rx, what } of rules.fgPoll) {
     if (rx.test(cmd)) {
       env.cerberusEmit("hook-fila-e-polling", `barrado: polling (${what})`, d);
@@ -392,7 +416,7 @@ function bashChecks(d: HookInput, cfg: Cfg, rules: GuardRules, env: HookEnv): vo
     }
   }
   const keys = repeatKeys(rules, cmd);
-  if (keys.length === 0) return;
+  if (keys.length === 0) return undefined;
   const state = loadState(file);
   const windowS = intOf(cfg, "HADES_POLL_REPEAT_MIN", "10") * 60;
   const settleS = intOf(cfg, "HADES_POLL_LOG_SETTLE_S", "15");
@@ -412,6 +436,7 @@ function bashChecks(d: HookInput, cfg: Cfg, rules: GuardRules, env: HookEnv): vo
   for (const key of keys) seen[key] = now;
   state.checks = Object.fromEntries(Object.entries(seen).filter(([, at]) => now - at < SIX_HOURS_S));
   saveState(file, state);
+  return undefined;
 }
 
 const additionalContext = (event: string, message: string): string =>
@@ -424,8 +449,8 @@ function preTool(d: HookInput, cfg: Cfg, rules: GuardRules, env: HookEnv): strin
     ownerOnly(path, d, env);
   }
   if (d.tool_name !== "Bash" && d.tool_name !== "Read") return "";
-  if (d.tool_name === "Bash") bashChecks(d, cfg, rules, env);
-  const message = readWarning(d, cfg, rules, env);
+  const pollWarning = d.tool_name === "Bash" ? bashChecks(d, cfg, rules, env) : undefined;
+  const message = [pollWarning, readWarning(d, cfg, rules, env)].filter(Boolean).join("\n");
   return message ? additionalContext("PreToolUse", message) : "";
 }
 

@@ -71,6 +71,9 @@ export type ActionName = keyof typeof SPECS;
 export const ACTION_NAMES = Object.keys(SPECS) as ActionName[];
 const isAction = (name: unknown): name is ActionName => typeof name === "string" && Object.hasOwn(SPECS, name);
 
+/** O `herdrState` que o grafo dá a quem não está no `herdr agent list`. */
+const PANE_GONE_STATE = "fora";
+
 export interface AgentTarget {
   id: string;
   name: string;
@@ -153,9 +156,10 @@ export function createActions(deps: ActionDeps): Actions {
     return "";
   }
 
-  /** As três travas do dono: permissão pendente de ferramenta com diálogo "Yes" simples e herdr do agente `blocked`. */
+  /** As travas do dono: pane vivo, permissão pendente de ferramenta com diálogo "Yes" simples e herdr do agente `blocked`. */
   async function guardPermission(target: AgentTarget): Promise<void> {
     const { herdrState, pending } = await deps.live(target.id);
+    if (herdrState === PANE_GONE_STATE) throw new ArgosError(409, ARGOS_ERRORS.paneGone, "o pane deste agente não existe mais no herdr: nada a aprovar nem negar");
     if (!pending || herdrState !== "blocked") throw new ArgosError(409, ARGOS_ERRORS.permissionNotPending, "não há permissão pendente neste agente");
     if (!isSimplePermissionTool(pending.tool)) throw new ArgosError(422, ARGOS_ERRORS.permissionNotSupported, "este diálogo (plano, pergunta ou ferramenta desconhecida) se responde no terminal");
   }

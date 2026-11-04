@@ -31,6 +31,8 @@ describe("defeitos-skill", () => {
     expect(!existsSync(`${sd}/df3`), "clean --merged: unidade com commit já na main é arquivada").toBe(true);
     agent(["skill-clean", "df1"]);
     expect(!existsSync(`${sd}/df1`), "clean <nome>: pedido explícito arquiva a unidade sem commit").toBe(true);
+    const fim = (n: string) => existsSync(`${r.T}/work/_skill/journal/${n}.jsonl`) && readFileSync(`${r.T}/work/_skill/journal/${n}.jsonl`, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)).some((e) => e.source === "orch" && e.kind === "agent.end");
+    expect([fim("df1"), fim("df2"), fim("df3")], "clean: cada unidade arquivada grava o encerramento no diário").toEqual([true, true, true]);
   });
 
   test("adopt --for não regrava o modo de uma unidade da skill", () => {

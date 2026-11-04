@@ -11,6 +11,8 @@ import { firstLine, readText } from "./fs.ts";
 import { hadesHome } from "./paths.ts";
 
 export const JOURNAL_VERSION = 1;
+/** `orch` / `agent.end`: o `agent done|park|skill-clean` encerrou a atividade do agente (o Argos some com a permissão pendente). */
+export const AGENT_END_KIND = "agent.end";
 export const JOURNAL_SOURCES = ["guard", "watch", "gate", "cerberus", "orch"] as const;
 export type JournalSource = (typeof JOURNAL_SOURCES)[number];
 

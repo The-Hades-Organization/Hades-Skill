@@ -2,6 +2,7 @@
 // que mais de um subcomando usa.
 import { join } from "node:path";
 import { herdrRefOf, type HerdrRef } from "./argos-graph-ui.ts";
+import { AGENT_END_KIND, emitJournal } from "./journal.ts";
 import { run, which } from "./proc.ts";
 import { readJson, writeJsonAtomic, agentFile, configValue, type Json, type WorkEnv } from "./work.ts";
 
@@ -26,7 +27,7 @@ const counter = (value: unknown): number => (typeof value === "number" && Number
  */
 export function afterFreshSession(record: Json, sub: "phase" | "resume", label: string, promptedAt: string): Json {
   return {
-    ...record, phase: label, state: "working", promptedAt, clears: counter(record.clears) + 1,
+    ...record, ...(label ? { phase: label } : {}), state: "working", promptedAt, clears: counter(record.clears) + 1,
     ...(sub === "resume" ? { resumes: counter(record.resumes) + 1 } : {}),
   };
 }
@@ -98,4 +99,9 @@ export function callerPane(env: NodeJS.ProcessEnv = process.env): HerdrRef | und
 export function orchestratorField(agentPane: string, env: NodeJS.ProcessEnv = process.env): { orchestrator?: HerdrRef } {
   const caller = callerPane(env);
   return caller && caller.pane !== agentPane ? { orchestrator: caller } : {};
+}
+
+/** Grava no diário o fim da atividade do agente (`done`, `park`, `skill-clean`): é o que apaga a permissão pendente do Argos. */
+export function journalAgentEnd(name: string, how: "done" | "park" | "skill-clean", cwd: string): void {
+  emitJournal("orch", AGENT_END_KIND, `agente encerrado: ${how}`, { agent: name, cwd, get: (key) => configValue(key, "") });
 }

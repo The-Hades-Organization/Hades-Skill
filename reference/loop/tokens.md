@@ -18,7 +18,9 @@ output, não o componente dominante. O que corta é **contexto curto** e **menos
    interativa: só o aviso para atualizar o estado e pedir `/clear` ao dono — nunca param sozinhos.
 4. **Zero polling.** O `hades guard` (PreToolUse) barra `sleep` de espera, laço com `sleep`, `tail -f`, `--watch` e
    `herdr wait` em primeiro plano e a mesma checagem repetida dentro da janela. Toda espera é um comando em segundo
-   plano que acorda a sessão: `hades wait` (agentes) e `hades watch --next` (orquestrador).
+   plano que acorda a sessão: `hades wait` (agentes) e `hades watch --next` (orquestrador). Para esperar um processo
+   pelo nome, `hades wait proc <padrão>` (padrão do `pgrep -f`). Laço com `sleep` em segundo plano não é barrado, mas
+   o guard avisa com o `hades wait` equivalente (`HADES_POLL_GUARD=0` desliga o aviso também).
 5. **Leitura sob medida.** O `hades guard` avisa (sem barrar) quando uma sessão lê inteiro um arquivo acima de
    `HADES_READ_WARN_KB` (padrão 20; 0 desliga): `Read` sem `limit`/`offset`, `cat <arquivo>`, `sed -n` com faixa de mais
    de 400 linhas, `head`/`tail -n` grande sobre arquivo (não sobre pipe), inclusive saída persistida em `tool-results/`.

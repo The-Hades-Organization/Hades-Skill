@@ -12,6 +12,7 @@ import { DEFAULT_REPORTS } from "../lib/work.ts";
 const DEFAULT_EVERY_SECONDS = 60;
 const DEFAULT_MAX_SECONDS = 21_600;
 const TIMEOUT_EXIT = 3;
+const MAX_ANCESTORS = 16;
 const GATE_POLL_MS = 1000;
 const GATE_SUMMARY_LINES = 15;
 const GH_TIMEOUT_MS = 60_000;
@@ -28,6 +29,7 @@ const USAGE = `# Esperas que notificam: cada subcomando bloqueia até o evento e
 #   hades wait review <PR>                review/comentário novo  → "REVIEW #N <k> novos"
 #   hades wait answer <worktree> <Qn>     dono respondeu          → "ANSWER Qn"
 #   hades wait agent <nome> [estado]      agente chegou ao estado → "AGENT <nome> <estado>" (padrão idle)
+#   hades wait proc <padrão>              nenhum processo casa    → "PROC <padrão> terminou" (padrão do pgrep -f)
 # Intervalos: HADES_WAIT_EVERY (padrão 60 s). Tempo máximo: HADES_WAIT_MAX (padrão 6 h) → sai com "TIMEOUT ...".`.replace(/^# ?/gm, "");
 
 class Clock {
@@ -190,6 +192,45 @@ async function waitAnswer(worktree: string, question: string, clock: Clock): Pro
   return EXIT.ok;
 }
 
+/** Pids que casam com o padrão (pgrep -f), sem o próprio wait nem os processos que o executam (wrapper, shell). */
+function matchingPids(pattern: string): number[] {
+  const r = run("pgrep", ["-f", "--", pattern]);
+  if (r.status > 1) die(`pgrep -f falhou (rc=${r.status}) para o padrão ${pattern}: ${r.stderr.trim() || "padrão inválido ou pgrep ausente"}`, EXIT.usage);
+  const mine = new Set([process.pid, ...ancestors(process.pid)]);
+  return r.stdout.split("\n").map(Number).filter((pid) => Number.isInteger(pid) && pid > 0 && !mine.has(pid));
+}
+
+function ancestors(pid: number): number[] {
+  const chain: number[] = [];
+  for (let at = pid; chain.length < MAX_ANCESTORS; ) {
+    const parent = Number(run("ps", ["-o", "ppid=", "-p", String(at)]).stdout.trim());
+    if (!Number.isInteger(parent) || parent <= 1) break;
+    chain.push(parent);
+    at = parent;
+  }
+  return chain;
+}
+
+/** O padrão casaria com o próprio wait (sem o argumento do padrão)? Então ele esperaria por si mesmo. */
+function matchesSelf(pattern: string): boolean {
+  const own = process.argv.filter((arg) => arg !== pattern).join(" ");
+  try {
+    return new RegExp(pattern).test(own);
+  } catch {
+    return false;
+  }
+}
+
+async function waitProc(pattern: string, clock: Clock): Promise<number> {
+  if (pattern.trim() === "") die("padrão vazio: casaria com todo processo", EXIT.usage);
+  if (matchesSelf(pattern)) die(`o padrão casa com o próprio hades wait (${pattern}): escolha um trecho do processo esperado`, EXIT.usage);
+  while (matchingPids(pattern).length > 0) {
+    if (!(await clock.tick())) return TIMEOUT_EXIT;
+  }
+  out(`PROC ${pattern} terminou`);
+  return EXIT.ok;
+}
+
 function waitAgent(name: string, state: string, clock: Clock): number {
   need("herdr");
   const r = run("herdr", ["agent", "wait", name, "--until", state, "--timeout", String(clock.maxMs)]);
@@ -211,6 +252,7 @@ export async function waitCommand(args: string[]): Promise<number> {
     case "merged": return waitMerged(requireArg(first, "PR"), clock);
     case "review": return waitReview(requireArg(first, "PR"), clock);
     case "answer": return waitAnswer(requireArg(first, "worktree"), requireArg(second, "Qn"), clock);
+    case "proc": return waitProc(requireArg(first, "padrão"), clock);
     case "agent": return waitAgent(requireArg(first, "nome"), second ?? "idle", clock);
     default:
       out(USAGE);

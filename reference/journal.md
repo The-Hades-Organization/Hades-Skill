@@ -13,6 +13,7 @@ Um JSONL por agente com o que ele fez e esperou: ferramentas, pedidos de permiss
 | `gate` | gate-lock | `gate.enqueue`, `gate.admit`, `gate.timeout`, `gate.done` (`rc=` e duração) |
 | `cerberus` | Cerberus | `cerberus.barra`, `cerberus.aviso` (o ok não grava) |
 | `orch` | `hades agent decide` | `decision` (o orquestrador decidiu sozinho; sem agente, em `_sessions/_orch`; `reference/autonomia.md`) |
+| `orch` | `hades agent done`, `park`, `skill-clean` | `agent.end` (encerrou a atividade do agente; o Argos apaga a permissão pendente que veio antes dele; um `permission` depois dele vale de novo) |
 
 O hook registra os cinco eventos do Claude Code (`PreToolUse` e `PostToolUse` com matcher `*`, `Notification`, `Stop`,
 `UserPromptSubmit`); o `guard register` troca no lugar, sem duplicar. As **decisões** do guard seguem só para o Bash,

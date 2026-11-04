@@ -38,6 +38,8 @@ pelo Origin. Tudo que sobe do herdr, do `gh` ou do disco chega por leitura; nada
 - `pendingPermission`: `{ts, tool}` quando o último evento de **atividade** (fonte `guard`, fora `notification`) é o
   `permission` do `Notification`; some no próximo `tool_pre`/`tool_post`/`tool_blocked`/`stop`/`prompt`. `watch`, `gate` e
   `cerberus` chegando depois não o resolvem. `tool` pode ser `null` (o texto do aviso não trouxe a ferramenta).
+  Também some quando o `hades agent done|park|skill-clean` grava `orch` `agent.end` depois do pedido (`reference/journal.md`),
+  e o nó vem sempre `null` se o registro está `done`/`archived` ou o pane não está no `herdr agent list` (`herdrState: "fora"`).
 - **Campos opcionais do nó `agent`** (só aparecem quando há dado; ausente nunca vira zero nem texto vazio):
   - `costUsd`: custo corrente em US$, somado dos transcripts da worktree do agente (cache incremental por arquivo; no
     máximo 16 MB de transcript novo lidos por chamada, o resto na seguinte). Sem transcript, sem campo.
@@ -116,7 +118,8 @@ Corpo: `{ "node": "<id de agente>", "action": "<nome>", "args": { … }, "confir
   novo") ou `Escape` ao pane do agente, pela página Herdr. Três travas, conferidas no servidor antes de qualquer tecla:
   há `pendingPermission` no diário; o herdr do agente está `blocked`; e a ferramenta pedida é `Bash`, `Edit`, `Write`,
   `NotebookEdit` ou MCP (`mcp__…`). Sem pedido pendente ou com o herdr não `blocked`: 409 `permission_not_pending`. Plano,
-  pergunta e pedido sem ferramenta identificada: 422 `permission_not_supported` (responde-se no terminal).
+  pergunta e pedido sem ferramenta identificada: 422 `permission_not_supported` (responde-se no terminal). Pane que não está
+  mais no `herdr agent list` (sessão encerrada): 409 `pane_gone`, antes de qualquer outra trava e sem enviar tecla.
   Evolução futura, sem mexer no diário por ora: campo aditivo `dialog` no evento `permission` (esquema v1 do diário) e
   tabela fechada diálogo → teclas.
 
@@ -135,6 +138,7 @@ Corpo: `{ "node": "<id de agente>", "action": "<nome>", "args": { … }, "confir
 | `action_failed` | 422 | o comando do agente ou o herdr recusou (a mensagem é a última linha do erro) |
 | `action_timeout` | 504 | passou de `HADES_ARGOS_ACTION_TIMEOUT_S` |
 | `permission_not_pending` | 409 | approve/deny sem pedido pendente, ou com o herdr do agente fora de `blocked` |
+| `pane_gone` | 409 | approve/deny de agente cujo pane não existe mais no herdr |
 | `permission_not_supported` | 422 | approve/deny de diálogo que não é Bash/Edit/Write/NotebookEdit/MCP |
 
 Falha interna segue o padrão do painel: 500 `internal_error`, detalhe só no log.

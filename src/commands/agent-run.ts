@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { settled } from "../lib/caronte.ts";
-import { afterFreshSession, deliverySet, isoNow, jqText, regUpdate, roleCard } from "../lib/agent-registry.ts";
+import { afterFreshSession, deliverySet, isoNow, jqText, journalAgentEnd, regUpdate, roleCard } from "../lib/agent-registry.ts";
 import { phaseQuality } from "../lib/agent-project.ts";
 import { need } from "../lib/deps.ts";
 import { firstLine, isDir, isFile, readText } from "../lib/fs.ts";
@@ -67,7 +67,16 @@ export const RESUME_QUEUE_NOTE = "Antes de enfileirar qualquer gate, rode `hades
 export function sessionPrompt(input: { sub: "phase" | "resume"; label: string; card: string; worktree: string; reports: string; extra: string }): string {
   const { sub, label, card, worktree, reports, extra } = input;
   const queue = sub === "resume" ? ` ${RESUME_QUEUE_NOTE}` : "";
-  return `Sessão nova, fase "${label}". Leia ${card}, ${worktree}/${reports}/brief.md e, se existir, ${worktree}/${reports}/handoff.md (continue de onde ele parou; troque a primeira linha para STATUS: ACTIVE). Trabalhe só em ${worktree}.${queue} ${extra}`;
+  const opening = label ? `Sessão nova, fase "${label}".` : "Sessão nova, retomando do handoff.";
+  return `${opening} Leia ${card}, ${worktree}/${reports}/brief.md e, se existir, ${worktree}/${reports}/handoff.md (continue de onde ele parou; troque a primeira linha para STATUS: ACTIVE). Trabalhe só em ${worktree}.${queue} ${extra}`;
+}
+
+const HANDOFF_PHASE = /^# Handoff — .+?, fase `([^`]+)`/;
+
+/** A fase do cabeçalho do handoff.md (`# Handoff — <u>, fase \`<f>\``); "" sem handoff ou sem o cabeçalho. */
+export function handoffPhase(worktree: string, reports: string): string {
+  const head = (readText(join(worktree, reports, "handoff.md")) ?? "").split("\n").find((l) => l.startsWith("# ")) ?? "";
+  return HANDOFF_PHASE.exec(head)?.[1] ?? "";
 }
 
 /** Report de rodada anterior ainda no lugar: o watch só confia em report escrito depois do prompt, mas o agente pode tomá-lo por feito. */
@@ -83,20 +92,20 @@ export function phaseOrResume(sub: "phase" | "resume", argv: string[], work: Wor
   const name = needArg(args[0], "nome");
   const worktree = registered(work, name);
   const role = regGet(work, name, "role");
-  const phase = sub === "phase" ? needArg(args[1], "fase") : regGet(work, name, "phase");
+  // o papel não é fase: sem fase no registro nem no handoff, a sessão nova não cita nenhuma e o registro não ganha `phase`
+  const phase = sub === "phase" ? needArg(args[1], "fase") : regGet(work, name, "phase") || handoffPhase(worktree, work.reports);
   const extra = (sub === "phase" ? args[2] : args[1]) ?? "";
-  const label = phase || role;
-  let text = sessionPrompt({ sub, label, card: roleCard(skillRoot, role || "impl"), worktree, reports: work.reports, extra });
-  const quality = phaseQuality(work, worktree, label);
+  let text = sessionPrompt({ sub, label: phase, card: roleCard(skillRoot, role || "impl"), worktree, reports: work.reports, extra });
+  const quality = phaseQuality(work, worktree, phase || role);
   if (quality) text += ` Regras de qualidade ligadas desta fase: ${quality}.`;
   warnStaleReport(work, name, worktree);
   freshPrompt(name, text);
   // a dispensa de commit vale pela fase: phase nova a reseta, resume a mantém
   regUpdate(work, name, (r) => {
-    const next = afterFreshSession(r, sub, label, isoNow());
+    const next = afterFreshSession(r, sub, phase, isoNow());
     return sub === "phase" ? { ...next, noCommit } : next;
   });
-  out(`${name}: sessão limpa, fase ${label}`);
+  out(phase ? `${name}: sessão limpa, fase ${phase}` : `${name}: sessão limpa, sem fase (retomando do handoff)`);
   return 0;
 }
 
@@ -149,11 +158,17 @@ export function park(args: string[], work: WorkEnv): number {
     return 1;
   }
   regUpdate(work, name, (r) => ({ ...r, state: "parked", parkedAt: isoNow() }));
+  journalAgentEnd(name, "park", regGet(work, name, "worktree"));
   out(`${name} estacionado (handoff.md em dia); sessão e painel ficam abertos`);
   return 0;
 }
 
-export function prompt(args: string[], work: WorkEnv): number {
+const PHASE_FLAG = "--phase";
+
+export function prompt(rawArgs: string[], work: WorkEnv): number {
+  const flag = rawArgs.indexOf(PHASE_FLAG);
+  const phase = flag < 0 ? "" : rawArgs[flag + 1] ?? die(`faltou a fase depois de ${PHASE_FLAG}`);
+  const args = flag < 0 ? rawArgs : rawArgs.filter((_, i) => i !== flag && i !== flag + 1);
   const name = needArg(args[0], "nome");
   const worktree = registered(work, name);
   const text = args[1] ?? `Leia ${roleCard(skillRoot, regGet(work, name, "role"))} e ${worktree}/${work.reports}/brief.md e execute. Trabalhe só em ${worktree} (nunca no clone principal ${work.mainClone}). Dúvida do dono vai em ${work.reports}/questions.md e você segue com o resto; ao terminar, ${work.reports}/report.md começando com STATUS: DONE.`;
@@ -165,7 +180,7 @@ export function prompt(args: string[], work: WorkEnv): number {
   warnStaleReport(work, name, worktree);
   const sent = herdr(["agent", "prompt", name, text], { showStderr: true });
   if (sent.status !== 0) return sent.status;
-  regUpdate(work, name, (r) => ({ ...r, state: "working", promptedAt: isoNow() }));
+  regUpdate(work, name, (r) => ({ ...r, ...(phase ? { phase } : {}), state: "working", promptedAt: isoNow() }));
   out(`tarefa enviada a ${name}`);
   return 0;
 }
@@ -380,6 +395,7 @@ export function done(args: string[], work: WorkEnv): number {
     deliverySet(work, key, (d) => ({ ...d, pr: Number(pr), status: state === "MERGED" ? "merged" : "open", head }));
   }
   regUpdate(work, name, (r) => ({ ...r, state: "done", doneAt: isoNow() }));
+  journalAgentEnd(name, "done", worktree);
   const pane = typeof record.pane === "string" ? record.pane : "";
   if (!keepPane && pane && herdr(["pane", "close", pane]).status === 0) out(`  painel ${pane} fechado`);
   out(`agente ${name} encerrado; a worktree ${worktree} fica ${mode === "skill" ? "até o skill-clean" : "enquanto a PR estiver aberta"}`);

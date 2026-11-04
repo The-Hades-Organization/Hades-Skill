@@ -10,7 +10,9 @@ const SK = `${r.T}/skill-5`;
 r.skillCopy(SK); writeFileSync(`${SK}/VERSION`, "5.0.0\n");
 
 describe("rig: prazo de cada processo (um travamento vira falha rápida, nunca um worker preso)", () => {
-  const vivo = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  // morto e não colhido (estado Z) é morto: onde o pid 1 não colhe órfãos (contêiner de CI sem init) o neto morto fica zumbi e kill(pid, 0) segue respondendo
+  const zumbi = (pid: number) => { try { return /^\d+ \(.*\) Z/.test(readFileSync(`/proc/${pid}/stat`, "utf8")); } catch { return false; } };
+  const vivo = (pid: number) => { try { process.kill(pid, 0); return !zumbi(pid); } catch { return false; } };
   // o neto vive muito mais que qualquer folga razoável: esperar por ele seria o defeito, e a asserção de tempo é relativa a ele, não à carga da máquina
   const VIDA_DO_NETO_S = 60;
   test("processo que não termina lança erro legível dentro do prazo e morre com os netos", () => {

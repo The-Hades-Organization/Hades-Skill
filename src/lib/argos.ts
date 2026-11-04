@@ -1,7 +1,7 @@
 // Argos (reference/argos.md): tipos, códigos de erro e as regras puras do grafo dos agentes: id dos nós, permissão
 // pendente a partir do diário, unidades e dependências do plan.md aprovado. Sem I/O fora de ler arquivo pequeno.
 import { createHash } from "node:crypto";
-import { type JournalEvent, parseEvent, readTailText } from "./journal.ts";
+import { AGENT_END_KIND, type JournalEvent, parseEvent, readTailText } from "./journal.ts";
 
 export const ARGOS_SCHEMA_VERSION = 1;
 export const TAIL_BYTES = 64 * 1024;
@@ -21,6 +21,7 @@ export const ARGOS_ERRORS = {
   actionTimeout: "action_timeout",
   permissionNotPending: "permission_not_pending",
   permissionNotSupported: "permission_not_supported",
+  paneGone: "pane_gone",
 } as const;
 export type ArgosErrorCode = (typeof ARGOS_ERRORS)[keyof typeof ARGOS_ERRORS];
 
@@ -71,10 +72,12 @@ export function parseNodeId(raw: string): ParsedNodeId {
 const ACTIVITY_SOURCE = "guard";
 const PASSIVE_KINDS = new Set(["notification"]);
 
-/** Permissão pendente: o último evento de atividade do agente é o pedido, sem ferramenta, parada ou prompt depois dele. */
+/** Permissão pendente: o último evento de atividade do agente é o pedido, sem ferramenta, parada, prompt ou encerramento do agente depois dele. */
 export function pendingPermission(events: readonly JournalEvent[]): PendingPermission | null {
   for (let i = events.length - 1; i >= 0; i--) {
     const event = events[i] as JournalEvent;
+    // o encerramento do agente (done, park, skill-clean) fecha a pendência: a sessão que pediu já não existe
+    if (event.source === "orch" && event.kind === AGENT_END_KIND) return null;
     if (event.source !== ACTIVITY_SOURCE || PASSIVE_KINDS.has(event.kind)) continue;
     return event.kind === "permission" ? { ts: event.ts, tool: event.tool ?? null } : null;
   }

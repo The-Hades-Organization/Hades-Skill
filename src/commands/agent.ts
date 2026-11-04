@@ -153,13 +153,15 @@ const USAGE = `Agentes alocados pelo orquestrador (reference/loop/orchestrate.md
   hades agent reassign-orchestrator <nome>…|--all   aponta o orquestrador dos agentes para o pane atual (o herdr reiniciou e
                                                        os panes mudaram); o watch passa a acompanhá-los daqui
   hades agent review <nome> --pr N [--dry-run]      worktree só de leitura (HEAD destacado) para revisar PR alheia
-  hades agent prompt <nome> ["<texto>"]             manda a tarefa (padrão: ler o brief e executar) e confere o cwd
+  hades agent prompt <nome> ["<texto>"] [--phase <fase>]   manda a tarefa (padrão: ler o brief e executar) e confere o cwd;
+                                                       --phase grava a fase no registro desde o primeiro prompt
   hades agent answer <nome> <Qn> "<resposta>"       grava a resposta do dono em questions.md e avisa o agente
   hades agent start-cmd <nome>                     o comando de start do dono, com modelo e esforço do papel (Configurações)
   hades agent phase <nome> <fase> ["<texto>"] [--no-commit]
                                                        /clear + prompt da fase (sessão nova por fase; continuidade = handoff.md);
                                                        --no-commit: a fase não faz commit, o DONE do watch exige só a prova
-  hades agent resume <nome>                         /clear + retomar do handoff (depois de PARKED ou do teto de contexto)
+  hades agent resume <nome>                         /clear + retomar do handoff (depois de PARKED ou do teto de contexto);
+                                                       a fase vem do registro ou do cabeçalho do handoff; sem ela, o prompt não cita fase
   hades agent park <nome> ["<motivo>"]              pede o handoff.md (STATUS: PARKED) e que o agente pare; a sessão e o painel ficam
                                                        (já estacionado ou encerrado: avisa e sai 0; é o que o caronte pack exige)
   hades agent escalate <nome> "<motivo>"            agente estaciona; painel novo no mesmo worktree para o dono iniciar

@@ -3,7 +3,7 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, uti
 import { basename, join } from "node:path";
 import { startOrOwnerCommand } from "./agent-autonomy.ts";
 import { appendQuality, excludeReports, step } from "../lib/agent-project.ts";
-import { isoNow, orchestratorField, regReplace, regUpdate, roleCard, startCommand } from "../lib/agent-registry.ts";
+import { isoNow, journalAgentEnd, orchestratorField, regReplace, regUpdate, roleCard, startCommand } from "../lib/agent-registry.ts";
 import { need } from "../lib/deps.ts";
 import { isDir, isFile, readText } from "../lib/fs.ts";
 import { agentActiveIn, herdr, listPanes, paneFrom, paneInCwd } from "../lib/herdr.ts";
@@ -317,7 +317,10 @@ function cleanUnit(arg: string, ctx: CleanContext): void {
     if (String(record.branch ?? "null") === (branch || "%") || String(record.worktree ?? "null") === (worktree || "%")) {
       const name = String(record.name ?? "null");
       out(`  registro ${name} → archived`);
-      if (!dry) regUpdate(work, name, (r) => ({ ...r, state: "archived", archivedAt: isoNow() }));
+      if (!dry) {
+        regUpdate(work, name, (r) => ({ ...r, state: "archived", archivedAt: isoNow() }));
+        journalAgentEnd(name, "skill-clean", worktree || String(record.worktree ?? ""));
+      }
     }
   }
 }

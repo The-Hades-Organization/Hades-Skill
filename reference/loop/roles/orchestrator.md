@@ -8,16 +8,21 @@ Você planeja a entrega, aloca e acompanha os agentes e leva as decisões ao don
    dependências e stack, specs novas (cada uma com agente de spec antes do de implementação), dono de cada arquivo
    compartilhado, consolidação, papel e modelo de cada agente. Aprove com o dono por `AskUserQuestion` e registre:
    `hades agent plan-approve <plan.md>` (o `new` recusa sem plano aprovado, se configurado).
-2. **Alocar por papel:** `hades agent new <nome> --role spec|impl|consolidate ...` e entregue ao dono o comando de
+2. **Janela antes do paralelo.** Antes de alocar unidades em paralelo, rode `hades moirai estimate <plan.md>` e leia "cabe na
+   janela atual?": o p75 do plano contra o que resta da janela de 5 h (`reference/limites.md`). `NÃO cabe` (ou piso que já
+   estoura): leve ao dono a opção de escalonar (rodar em ondas, esperar a renovação ou reduzir o escopo) em vez de alocar
+   tudo. `não dá para dizer` (sem coleta ou sem calibração): diga isso, sem inventar número.
+3. **Alocar por papel:** `hades agent new <nome> --role spec|impl|consolidate ...` e entregue ao dono o comando de
    start (já com modelo e esforço do papel).
-3. **Fases:** ao terminar uma fase (spec → implementação → cada rodada de review), `hades agent phase <nome>
+4. **Fases:** ao terminar uma fase (spec → implementação → cada rodada de review), `hades agent phase <nome>
    <fase>`: a sessão do agente é limpa e recomeça do brief e do handoff. Nunca deixe uma sessão atravessar fases.
-4. **Acompanhar sem polling:** `hades watch --next` em segundo plano; ao ser notificado, trate o evento e relance. Eventos
+5. **Acompanhar sem polling:** `hades watch --next` em segundo plano (já filtra pelos agentes que o seu pane alocou; pane novo
+   depois de reiniciar o herdr: `hades agent reassign-orchestrator --all`); ao ser notificado, trate o evento e relance. Eventos
    e o que fazer com cada um: `orchestrate.md` §4. Levar a orquestração a outra sessão ou máquina: `hades agent park
    <nome>` em cada agente, espere os `PARKED`, depois `hades caronte pack <plano>` ou `hades caronte brief <plano>`;
    receber: `hades caronte unpack <arq> --dry-run` (`reference/caronte.md`). Encerrar um agente: audite e `hades agent
    done <nome>`.
-5. **Seu próprio contexto:** o plano e o registro são o seu estado. A cada evento, reescreva a seção "Estado atual" do
+6. **Seu próprio contexto:** o plano e o registro são o seu estado. A cada evento, reescreva a seção "Estado atual" do
    `plan.md` (até ~3 KB) e acrescente o histórico ao `<plano>.log.md`. No aviso do teto, deixe o "Estado atual" em dia e
    peça ao dono `/clear`; retome lendo só o "Estado atual" (nunca o `.log.md` inteiro nem o plano todo sem precisar).
 

@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { join, resolve } from "node:path";
 import { startOrOwnerCommand } from "./agent-autonomy.ts";
-import { deliverySet, expandHome, isoNow, orchestratorField, regReplace, roleCard, startCommand } from "../lib/agent-registry.ts";
+import { callerPane, deliverySet, expandHome, isoNow, orchestratorField, regReplace, roleCard, startCommand } from "../lib/agent-registry.ts";
 import { appendQuality, phaseQuality, prepWorktree, projectEnv, projectNeed, step, type ProjectEnv } from "../lib/agent-project.ts";
 import { need } from "../lib/deps.ts";
 import { isDir, isFile, readText } from "../lib/fs.ts";
@@ -12,7 +12,7 @@ import { findAgent, herdr, paneFrom, paneInCwd } from "../lib/herdr.ts";
 import { die, out } from "../lib/output.ts";
 import { run } from "../lib/proc.ts";
 import { home, skillRoot } from "../lib/paths.ts";
-import { configValue, readJson, regGet, type WorkEnv } from "../lib/work.ts";
+import { agentFiles, configValue, readJson, regGet, writeJsonAtomic, type WorkEnv } from "../lib/work.ts";
 
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,30}$/;
 const MODES = ["deliver", "inbox", "consolidate"];
@@ -278,6 +278,29 @@ export function adopt(args: string[], work: WorkEnv): number {
     ...keptOrchestrator(readJson(join(work.orch, "agents", `${name}.json`)) ?? {}), ...orchestratorField(pane),
   });
   out(`agente ${name} registrado: ${worktree} · ${branch || "HEAD destacado"} · card ${card || "—"} · lock ${lock || "—"} · painel ${pane}`);
+  return 0;
+}
+
+const FINAL_STATES = ["done", "archived"];
+
+/**
+ * `hades agent reassign-orchestrator <nome>… | --all`: aponta o `orchestrator` dos registros para o pane de quem chama
+ * (o herdr reiniciou, os panes mudaram). `--all` pega os agentes ainda não encerrados; nome desconhecido não grava nada.
+ */
+export function reassignOrchestrator(args: string[], work: WorkEnv, env: NodeJS.ProcessEnv = process.env): number {
+  const caller = callerPane(env) ?? die("reassign-orchestrator roda de um pane do herdr (HERDR_PANE_ID ausente)");
+  const all = args.includes("--all");
+  const names = args.filter((a) => a !== "--all");
+  if (!all && names.length === 0) die("faltou nome (ou --all)");
+  if (all && names.length > 0) die("--all não combina com nomes");
+  const records = agentFiles(work).map((file) => ({ file, reg: readJson(file) })).filter((r): r is { file: string; reg: Record<string, unknown> } => r.reg !== undefined);
+  const targets = all
+    ? records.filter(({ reg }) => !FINAL_STATES.includes(String(reg.state ?? "")))
+    : names.map((name) => records.find(({ reg }) => reg.name === name) ?? die(`agente ${name} não está nos registros`));
+  for (const { file, reg } of targets) {
+    writeJsonAtomic(file, { ...reg, orchestrator: caller });
+    out(`${String(reg.name)}: orquestrador ${caller.session}:${caller.pane}`);
+  }
   return 0;
 }
 

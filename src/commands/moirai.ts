@@ -18,6 +18,9 @@ import { die, EXIT, out, warn } from "../lib/output.ts";
 import { hadesHome, home, skillRoot } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { parseFile, transcriptsIn } from "../lib/usage.ts";
+import { JANELAS, limitesDoPlano, ROTULO, type LimiteDoPlano, type Janela } from "../lib/limites.ts";
+import { renova } from "../lib/limites-io.ts";
+import { limitsNow } from "./usage.ts";
 import { configValue } from "../lib/work.ts";
 
 const USAGE = `uso: hades moirai history [--json]
@@ -255,12 +258,32 @@ function history(args: string[]): number {
   return EXIT.ok;
 }
 
-function textOf(plan: string, estimates: readonly UnitEstimate[]): string[] {
+const faixaText = (f: { p25: number; p75: number } | null | undefined): string => (f ? `${f.p25.toFixed(1)}–${f.p75.toFixed(1)}%` : "sem calib.");
+
+function cabeText(l: LimiteDoPlano): string {
+  if (l.cabe === null) return l.atual ? "não dá para dizer" : "sem medida atual";
+  return l.cabe ? "cabe" : "NÃO cabe";
+}
+
+/** Faixa em % de cada janela por unidade, e o plano contra o que resta da janela atual (estimativa pela calibração, não medida). */
+function limitsLines(estimates: readonly UnitEstimate[], limits: Record<Janela, LimiteDoPlano>): string[] {
+  const lines = ["", "% das janelas (p25–p75, estimado pela calibração de tokens × % medido; reference/limites.md)"];
+  lines.push(`| unidade | ${ROTULO.five} | ${ROTULO.seven} |`);
+  for (const e of estimates) lines.push(`| ${e.unit} | ${faixaText(limits.five.porUnidade[e.unit])} | ${faixaText(limits.seven.porUnidade[e.unit])} |`);
+  for (const janela of JANELAS) {
+    const l = limits[janela];
+    const resta = l.atual && l.resta !== null ? `restam ${l.resta.toFixed(1)}% (renova ${renova(janela, l.atual.resetsAt)})` : "sem medida atual";
+    lines.push(`janela de ${ROTULO[janela]}: plano ${faixaText(l.plano)}${l.completo || !l.plano ? "" : " (só as unidades com custo estimado)"} · ${resta} · cabe na janela atual? ${cabeText(l)}`);
+  }
+  return lines;
+}
+
+function textOf(plan: string, estimates: readonly UnitEstimate[], limits: Record<Janela, LimiteDoPlano>): string[] {
   const lines = [`estimativa de ${plan}`, `| ${TABLE_HEADER.join(" | ")} |`, ...estimates.map((e) => `| ${estimateRow(e).join(" | ")} |`)];
   for (const e of estimates) {
     if (e.confidence === "baixa" || e.confidence === "nenhuma") lines.push(`CONFIANÇA ${e.confidence.toUpperCase()} em ${e.unit}: ${e.note}`);
   }
-  return lines;
+  return [...lines, ...limitsLines(estimates, limits)];
 }
 
 function estimate(args: string[]): number {
@@ -294,8 +317,10 @@ function estimate(args: string[]): number {
     writeFileSync(path, writeSection(text, section));
     warn(`moirai: seção "## Estimativa" gravada em ${path}${hasSection(text) ? " (substituiu a anterior)" : ""}; está dentro do hash da aprovação: aprove de novo (hades agent plan-approve)`);
   }
-  if (flags.has("--json")) out(JSON.stringify(estimateJson(path, now.toISOString(), estimates, params, hist.length), null, 1));
-  else out(textOf(path, estimates).join("\n"));
+  const measured = limitsNow(now);
+  const limits = limitesDoPlano(estimates, measured.calibracao, measured.atual);
+  if (flags.has("--json")) out(JSON.stringify({ ...estimateJson(path, now.toISOString(), estimates, params, hist.length), limits }, null, 1));
+  else out(textOf(path, estimates, limits).join("\n"));
   return EXIT.ok;
 }
 

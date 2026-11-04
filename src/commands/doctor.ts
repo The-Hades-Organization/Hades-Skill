@@ -6,8 +6,11 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { devtunnelLoggedIn, ghToken, lingering, unitIs } from "../lib/checks.ts";
+import { claudeSettingsPath } from "../lib/autonomy.ts";
 import { loadRegistry } from "../lib/deps.ts";
 import { firstLine, isDir, isFile, listDir, readText, realpathMissingOk } from "../lib/fs.ts";
+import { coletaLigada } from "../lib/limites-aviso.ts";
+import { chaves, medidas } from "../lib/limites-io.ts";
 import { stateDir } from "../lib/kit.ts";
 import { EXIT, out, warn as warnErr } from "../lib/output.ts";
 import { home, selfCli } from "../lib/paths.ts";
@@ -509,6 +512,21 @@ function checkProject(r: Report, ctx: Ctx): void {
   }
 }
 
+/** Coleta do % das janelas (reference/limites.md): só avisa; ligar o statusLine é passo do dono, o settings.json não é alterado. */
+export function limitesItem(settingsText: string | undefined, janelasMedidas: number): { level: Level; msg: string; fix: string } {
+  if (coletaLigada(settingsText, janelasMedidas)) return { level: "ok", msg: "limites: coleta do % das janelas ligada", fix: "" };
+  return {
+    level: "warn",
+    msg: "limites: coleta do % das janelas de 5 h e semanal desligada (o painel e o aviso do watch ficam sem medida)",
+    fix: 'no statusLine do ~/.claude/settings.json ponha {"type":"command","command":"hades usage sample"} (reference/limites.md)',
+  };
+}
+
+function checkLimites(r: Report): void {
+  const item = limitesItem(readText(claudeSettingsPath()), Object.keys(medidas(new Date(), chaves()).atual).length);
+  r.add(item.level, "Limites", "limites", item.msg, item.fix);
+}
+
 /** Passos pendentes das features escolhidas e onboarding incompleto (definição única do onboard.ts): só aviso, nunca erro. */
 function checkOnboarding(r: Report, ctx: Ctx): void {
   const g = "Onboarding";
@@ -593,6 +611,7 @@ export function doctorCommand(args: string[]): number {
   checkBoot(report, ctx);
   checkCleaning(report, ctx);
   checkNotifications(report, ctx);
+  checkLimites(report);
   checkPlugin(report, ctx);
   checkProject(report, ctx);
   checkOnboarding(report, ctx);

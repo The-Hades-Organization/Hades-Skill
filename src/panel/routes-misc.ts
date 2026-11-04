@@ -1,5 +1,7 @@
 // Rotas de leitura e ação que só dependem de $D e de scripts do kit: logs sob demanda, disco (clean.sh), onboarding,
 // notificações, consumo e revisões. Erros 400 levam a mensagem.
+import { painelDeLimites } from "../lib/limites-aviso.ts";
+import { chaves, medidas } from "../lib/limites-io.ts";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { readText } from "../lib/fs.ts";
@@ -65,6 +67,7 @@ export interface Misc {
   notifyStatus(remote: boolean): Promise<unknown>;
   notifyQr(remote: boolean): Promise<{ status: number; body: Dict | Uint8Array }>;
   usage(): Dict;
+  limits(): Dict;
   journal: JournalRoutes;
   reviews(): Promise<Dict>;
   reviewReport(id: string): Dict;
@@ -212,6 +215,12 @@ export function createMisc(deps: MiscDeps): Misc {
     return { data, age, refreshing: busy };
   }
 
+  /** % medido das janelas do plano (reference/limites.md): lê as amostras locais, sem rede e sem recalcular o consumo. */
+  function limits(): Dict {
+    const { atual } = medidas(new Date(), chaves());
+    return { ...painelDeLimites(atual, new Date()) };
+  }
+
   async function reviews(): Promise<Dict> {
     const byId = new Map<string, Job>((await jobs.list(REVIEW_JOBS_MAX)).map((j) => [j.id, j]));
     const items: Dict[] = [];
@@ -297,7 +306,7 @@ export function createMisc(deps: MiscDeps): Misc {
   return {
     logSources, readLog, diskStatus, diskPreview,
     notifyStatus: async (remote) => parseOrEmpty((await notifyRun(!remote)).stdout),
-    notifyQr, usage, reviews, reviewReport, onboardStatus, onboardApply,
+    notifyQr, usage, limits, reviews, reviewReport, onboardStatus, onboardApply,
     journal: createJournalRoutes(),
   };
 }

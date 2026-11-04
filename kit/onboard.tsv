@@ -29,3 +29,4 @@ automatico	firewall	Firewall docker → host	dono	firewall	1	{FW}	reference/run-
 contas	gh-account	Conta do GitHub de trabalho	dono	gh	1	gh auth login	reference/config.md	config	Login do gh; com mais de uma conta, defina HADES_GH_USER em Configurações (Subida).
 contas	clickup	ClickUp	dono	clickup	0	/clickup-setup			Rode /clickup-setup no Claude Code: grava token e contexto em ~/.claude/clickup.
 contas	herdr	herdr para orquestração	dono	herdr	0	herdr --version	reference/loop/orchestrate.md		Só para /hades orchestrate; instale o herdr e confira o PATH.
+contas	limites	Coleta do % das janelas (statusLine)	dono	limites	0		reference/limites.md	usage	Põe `hades usage sample` no statusLine do ~/.claude/settings.json (a Hades não altera o arquivo). Habilita o % das janelas de 5 h e semanal no painel, no Argos e no aviso do watch.

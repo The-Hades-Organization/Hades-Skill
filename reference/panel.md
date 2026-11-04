@@ -216,7 +216,13 @@ indisponível); sem prévia, porque a página sempre tem conteúdo vivo; os card
 
 Página **Consumo**: tokens por papel, agente e dia, e a linha de base; custo é equivalente em API (`reference/loop/tokens.md`).
 
-Tour da página (§Tour por página): oito passos (resumo, ações, as quatro leituras, papel, dia, estimado × real e agentes); sem
+Cartão **Janelas do plano** (sobre `GET /api/limits`, atualiza a cada 15 s): o % usado medido das janelas de 5 h e semanal, a
+hora de renovação (UTC) e há quanto tempo foi medido, âmbar a partir de 80%. Sem amostras mostra só o aviso de como ligar a
+coleta (`hades usage sample` no `statusLine`), nunca um número. As tabelas Por papel e Agentes ganham as colunas `~% 5 h` e
+`~% semana` (estimadas, `~`; `+` = só os modelos calibrados) quando há calibração. No Argos, o painel lateral de um agente
+leva a mesma medida em uma linha discreta. Fonte e regra: `reference/limites.md`.
+
+Tour da página (§Tour por página): nove passos (resumo, ações, janelas do plano, as quatro leituras, papel, dia, estimado × real e agentes); sem
 prévia, porque a leitura depende do cálculo real dos transcripts; passos de card condicional levam `fallback`. Código:
 `ui/pages/usage.tour.tsx`.
 

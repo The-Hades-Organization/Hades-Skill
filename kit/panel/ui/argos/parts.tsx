@@ -390,6 +390,21 @@ const PR_STATE = { OPEN: 'aberta', MERGED: 'mergeada', CLOSED: 'fechada' };
 const PR_MERGE = { MERGEABLE: 'sem conflito', CONFLICTING: 'com conflito', UNKNOWN: 'conflito ainda não calculado' };
 const FILES = [['brief', 'brief.md'], ['report', 'report.md'], ['questions', 'questions.md'], ['handoff', 'handoff.md']];
 
+// % das janelas do plano (hades usage sample), discreto: some sem amostra; falha de leitura também
+function JanelasLinha() {
+  const [x, setX] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const f = () => getJSON('/api/limits').then((r) => alive && setX(r)).catch(() => {});
+    f(); const t = setInterval(f, 30000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  if (!x?.janelas?.length) return null;
+  return <p className="t-meta text-muted-foreground tnum" aria-label="Uso das janelas do plano">
+    {x.janelas.map((j) => `${j.rotulo} ${Math.round(j.pct)}% (renova ${j.renova})`).join(' · ')}
+  </p>;
+}
+
 function SidePanel({ node, detail, moirai, detailError, events, live, now, onFile, runs, actions }) {
   if (!node) return <Empty icon={I.MousePointerClick} title="Escolha um nó.">Faixa do tempo, PR e ações aparecem aqui.</Empty>;
   const pr = detail?.pr, ci = pr?.ci, h = detail?.herdr, files = detail?.files || {};
@@ -406,6 +421,7 @@ function SidePanel({ node, detail, moirai, detailError, events, live, now, onFil
         <Estado node={node} now={now} eye />
         {budget ? <span className={cn('inline-flex items-center gap-1 t-meta-em', budget[0])}><I.CircleAlert className="size-3" aria-hidden="true" />{budget[2]} · {Math.floor(moirai.pct)}% da estimativa alta (p75)</span> : null}
       </div>
+      {agent ? <JanelasLinha /> : null}
       {actions}
     </header>
     {!agent ? <Facts rows={[['Registro', node.registry], ['Número', node.number], ['Estado', stateUi(node.state)], ['Fila', node.label]]} /> : <>

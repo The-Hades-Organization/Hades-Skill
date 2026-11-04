@@ -86,6 +86,7 @@ function same(label: string, args: string[]) {
   test(`${label}: CLI igual ao gravado (saída, código e arquivos)`, () => {
     const ref = g.get<{ out: string; err: string; rc: number; state: string }>(label);
     const b = run(args);
+    g.fix(label, { out: b.out, err: b.err, rc: b.rc, state: state() });
     expect(b.rc).toBe(ref.rc);
     expect(b.err).toBe(ref.err.replaceAll("hades-usage.py", "hades usage")); // só o nome do programa no texto do argparse
     expect(b.out).toBe(ref.out);
@@ -111,6 +112,7 @@ describe("usage (CLI)", () => {
     rmSync(`${home}/.claude/projects`, { recursive: true, force: true });
     const a = g.get<{ out: string; rc: number }>("sem transcripts");
     const b = run(["--json"]);
+    g.fix("sem transcripts", { out: b.out, rc: b.rc });
     expect(b.out).toBe(a.out);
     expect(b.rc).toBe(a.rc);
   });

@@ -452,6 +452,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
       case "/api/disk": return send(200, await misc.diskStatus(query.refresh === "1"));
       case "/api/disk/preview": return send(200, await misc.diskPreview(query.op ?? "", query.cat ?? ""));
       case "/api/usage": return send(200, misc.usage());
+      case "/api/limits": return send(200, misc.limits());
       case "/api/journal": return send(200, misc.journal.list(query));
       case "/api/orchestration": return send(200, await orchestration.snapshot());
       case "/api/orchestration/file": return send(200, orchestration.file(query.name ?? "", query.file ?? ""));

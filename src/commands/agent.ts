@@ -150,6 +150,8 @@ const USAGE = `Agentes alocados pelo orquestrador (reference/loop/orchestrate.md
       relatórios → lock → entrega no estado → brief.md a partir do modelo → registro. Imprime o comando de start.
   hades agent adopt <nome> [--for deliver|inbox|consolidate|review]   registra um agente já rodando no herdr
                                                        (worktree, branch, card, painel e lock vêm do que existe)
+  hades agent reassign-orchestrator <nome>…|--all   aponta o orquestrador dos agentes para o pane atual (o herdr reiniciou e
+                                                       os panes mudaram); o watch passa a acompanhá-los daqui
   hades agent review <nome> --pr N [--dry-run]      worktree só de leitura (HEAD destacado) para revisar PR alheia
   hades agent prompt <nome> ["<texto>"]             manda a tarefa (padrão: ler o brief e executar) e confere o cwd
   hades agent answer <nome> <Qn> "<resposta>"       grava a resposta do dono em questions.md e avisa o agente
@@ -194,6 +196,7 @@ export async function agentCommand(args: string[]): Promise<number> {
       case "new": return await (await import("./agent-new.ts")).newAgent(rest, work);
       case "adopt": return (await import("./agent-new.ts")).adopt(rest, work);
       case "review": return (await import("./agent-new.ts")).reviewAgent(rest, work);
+      case "reassign-orchestrator": return (await import("./agent-new.ts")).reassignOrchestrator(rest, work);
       case "prompt": return (await import("./agent-run.ts")).prompt(rest, work);
       case "answer": return (await import("./agent-run.ts")).answer(rest, work);
       case "phase": case "resume": return (await import("./agent-run.ts")).phaseOrResume(sub, rest, work);

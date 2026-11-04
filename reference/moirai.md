@@ -101,6 +101,13 @@ a seção, sem a linha da unidade ou sem p75, nada é emitido nem gravado. Nunca
   completa; arquivo que encolheu recomeça do zero; entrada corrompida é descartada e relida.
 - Valor inválido nas chaves de limite avisa no stderr e usa o padrão.
 
+## Janelas (% dos limites de uso)
+
+`hades moirai estimate` mostra a faixa p25–p75 do plano também em % das janelas de 5 h e semanal e se ela cabe no que
+resta da janela atual (p75 contra o restante). O % vem do US$ estimado × a taxa de US$ por % calibrada com o uso real; a
+fonte do % medido (JSON do status line, Claude Code 2.1.317), o formato, a calibração e o "sem calibração" estão em
+`reference/limites.md`. A seção `## Estimativa` do plano não leva essas colunas (ela está no hash da aprovação).
+
 ## Estimado × real no painel
 
 `GET /api/moirai/plan` (por raiz com plano aprovado: `path`, `approved`, e por unidade da seção `## Estimativa` a linha

@@ -4,6 +4,31 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.3.0 — 2026-11-04
+
+Consumo em % das janelas de 5 h e semanal (issue #4) e `hades watch` por orquestrador (issue #5).
+
+- **Limites de uso: medir.** A fonte é o `rate_limits` do JSON que o Claude Code entrega ao `statusLine`
+  (`five_hour`/`seven_day`, `used_percentage` e `resets_at`; só assinantes Pro/Max, depois da primeira resposta da sessão;
+  documentação oficial lida com o Claude Code 2.1.317). `hades usage sample` é o comando do statusLine: grava a amostra em
+  `~/.claude/hades/limits/samples.jsonl`, sem rede, e nunca quebra o status line. Ligar é passo do dono
+  (`reference/limites.md`, inclusive encadeado com um statusLine existente); o doctor e o onboarding só apontam o passo.
+- **Limites de uso: converter.** Calibração tokens → % por modelo e por janela, recalculada com o uso (nada fixo no código);
+  abaixo de `HADES_LIMITS_MIN_INTERVALS` diz "sem calibração". `hades usage` ganha `% 5h` e `% semana` (estimadas, `~`) por
+  papel, agente e dia e o % medido com a renovação; `hades moirai estimate` mostra a faixa p25–p75 em % de cada janela e
+  "cabe na janela atual?".
+- **Limites de uso: mostrar e avisar.** Painel → Consumo com o cartão "Janelas do plano" (% medido, renovação, idade da
+  amostra; sem amostra, só como ligar a coleta), colunas estimadas por papel e agente, rota `GET /api/limits`; linha no painel
+  lateral do agente no Argos. `hades watch` emite `LIMITE <5h|semana> <pct> renova <hora>` ao passar de
+  `HADES_LIMITS_WARN_FIVE_PCT` (80) / `HADES_LIMITS_WARN_SEVEN_PCT` (90), uma vez por janela e renovação, para todo
+  observador. O orquestrador compara o p75 do plano com o que resta da janela de 5 h antes de alocar em paralelo.
+- **`hades watch` por orquestrador** (#5). Chamado de um pane do herdr, acompanha só os agentes cujo `orchestrator` é esse
+  pane (sem `orchestrator`: todos); `--agent`/`--agents`, `--orchestrator <sessão:pane>` e `--all`. O "já visto" é por
+  observador (`watch/by/<observador>/`), herdando o compartilhado na primeira passada: um watch não consome mais o evento
+  do outro. `hades agent reassign-orchestrator <nome>…|--all` aponta os agentes para o pane atual quando o herdr reinicia.
+- Armadilhas: a renovação oscila segundos entre leituras (≤2 min é a mesma janela); `claude -p` não aciona o statusLine;
+  o id de pane tem `:` (`--orchestrator default:w1:p1` divide no primeiro). Pendente: o `notify` ainda não conhece `LIMITE`.
+
 ## 6.2.1 — 2026-11-04
 
 Correções do `hades watch` (issues #6 e #8).

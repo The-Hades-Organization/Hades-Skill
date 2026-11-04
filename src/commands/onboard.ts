@@ -4,6 +4,10 @@
 import { spawnSync } from "node:child_process";
 import { accessSync, constants, statSync } from "node:fs";
 import { join } from "node:path";
+import { claudeSettingsPath } from "../lib/autonomy.ts";
+import { readText } from "../lib/fs.ts";
+import { coletaLigada } from "../lib/limites-aviso.ts";
+import { lerAmostras } from "../lib/limites-io.ts";
 import { devtunnelLoggedIn, ghToken, lingering, unitIs } from "../lib/checks.ts";
 import { readCatalog, unitPrefix } from "../lib/config.ts";
 import { type BuiltFeature, NOT_VERIFIED, Onboard, type StepResult, onboardLine, onboardProgress, renderText } from "../lib/onboard.ts";
@@ -96,6 +100,10 @@ const CHECKS: Record<string, Check> = {
   },
   clickup: () => (fileHasContent(join(home(), ".claude", "clickup", "config.json")) ? done : pending),
   herdr: () => (which("herdr") ? done : pending),
+  limites: () => {
+    const medidas = lerAmostras().length;
+    return coletaLigada(readText(claudeSettingsPath()), medidas) ? done : pending;
+  },
 };
 
 function fileHasContent(path: string): boolean {

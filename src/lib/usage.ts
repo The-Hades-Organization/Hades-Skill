@@ -8,7 +8,7 @@ import { PyFloat, pyRound } from "./pyjson.ts";
 
 export type Dict = Record<string, unknown>;
 
-export const CACHE_VERSION = 3;
+export const CACHE_VERSION = 4;
 const REWRITE_GAP_SECONDS = 3600;
 const REWRITE_MIN_TOKENS = 100_000;
 const CACHE_READ_PRICE_SHARE = 0.2e-6;
@@ -58,7 +58,14 @@ export interface Row {
   output: number;
   first: string;
   last: string;
+  /** Tokens por modelo: [entrada, saída, escrita de cache, leitura de cache]. */
+  tok: Record<string, Tok>;
 }
+
+export type Tok = readonly [number, number, number, number];
+
+/** Uma requisição: [epoch s, modelo, entrada, saída, escrita de cache, leitura de cache, US$]. Base da calibração dos limites. */
+export type Req = readonly [number, string, number, number, number, number, number];
 
 interface Request {
   usage: Dict | undefined;
@@ -135,7 +142,7 @@ function requestsOf(path: string, rules: GuardRules): Request[] {
 function newRow(request: Request, day: string): Row {
   return {
     session: request.sid, sidechain: request.side, day, cwd: request.cwd, cost: 0, turns: 0, poll_turns: 0, poll_cost: 0,
-    rewrite_cost: 0, ctx_sum: 0, ctx_max: 0, models: {}, efforts: {}, read: 0, write: 0, output: 0, first: request.ts, last: request.ts,
+    rewrite_cost: 0, ctx_sum: 0, ctx_max: 0, models: {}, efforts: {}, read: 0, write: 0, output: 0, first: request.ts, last: request.ts, tok: {},
   };
 }
 
@@ -143,8 +150,16 @@ const bump = (counter: Record<string, number>, key: string): void => {
   counter[key] = (counter[key] ?? 0) + 1;
 };
 
+export const addTok = (a: Tok | undefined, b: Tok): Tok => (a ? [a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3]] : b);
+
 /** Agrega um transcript por (sessão, subagente?, dia), na ordem do horário das requisições. */
 export function parseFile(path: string, rules: GuardRules): Row[] {
+  return parseFileFull(path, rules).rows;
+}
+
+/** As linhas de `parseFile` e as requisições com horário (só as de `sinceMs` em diante). */
+export function parseFileFull(path: string, rules: GuardRules, sinceMs = 0): { rows: Row[]; reqs: Req[] } {
+  const reqs: Req[] = [];
   const rows = new Map<string, Row>();
   const previous = new Map<string, number>();
   const ordered = requestsOf(path, rules).sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
@@ -165,6 +180,10 @@ export function parseFile(path: string, rules: GuardRules): Row[] {
     row.read += num(usage.cache_read_input_tokens);
     row.write += num(usage.cache_creation_input_tokens);
     row.output += num(usage.output_tokens);
+    const tok: Tok = [num(usage.input_tokens), num(usage.output_tokens), num(usage.cache_creation_input_tokens), num(usage.cache_read_input_tokens)];
+    row.tok[request.model] = addTok(row.tok[request.model], tok);
+    const when = Date.parse(request.ts);
+    if (when >= sinceMs) reqs.push([Math.floor(when / 1000), request.model, ...tok, price]);
     bump(row.models, request.model);
     bump(row.efforts, request.effort);
     if (request.poll) {
@@ -178,7 +197,7 @@ export function parseFile(path: string, rules: GuardRules): Row[] {
     }
     previous.set(request.sid, at);
   }
-  return [...rows.values()];
+  return { rows: [...rows.values()], reqs };
 }
 
 // ---------------------------------------------------------------- papel da sessão
@@ -327,6 +346,8 @@ export interface Totals {
   read: number;
   write: number;
   output: number;
+  /** Tokens por modelo (criado na primeira soma). */
+  tok?: Record<string, Tok>;
 }
 const ZERO: Totals = { cost: 0, turns: 0, poll_turns: 0, poll_cost: 0, rewrite_cost: 0, ctx_sum: 0, ctx_max: 0, read: 0, write: 0, output: 0 };
 const SUMMED = ["cost", "turns", "poll_turns", "poll_cost", "rewrite_cost", "ctx_sum", "read", "write", "output"] as const;
@@ -334,6 +355,8 @@ const SUMMED = ["cost", "turns", "poll_turns", "poll_cost", "rewrite_cost", "ctx
 function add(into: Totals, row: Row): void {
   for (const key of SUMMED) into[key] += row[key];
   into.ctx_max = Math.max(into.ctx_max, row.ctx_max);
+  const tok = (into.tok ??= {});
+  for (const [model, value] of Object.entries(row.tok ?? {})) tok[model] = addTok(tok[model], value);
 }
 
 /** Valor da chave; criado (e guardado) na primeira vez. */
@@ -409,6 +432,9 @@ interface RoleRow extends Dict {
   cost: PyFloat;
 }
 
+/** Campos de % de 5 h e semanal de um conjunto de tokens por modelo (a conta é da calibração, em limites.ts). */
+export type PctOf = (tok: Record<string, Tok> | undefined) => Dict;
+
 export function roleRow(role: string, totals: Totals, sessions: number, grand: number): RoleRow {
   return {
     role, sessions, cost: rf(totals.cost, 2), share: rf((100 * totals.cost) / grand, 1), turns: totals.turns,
@@ -426,14 +452,15 @@ export interface Report extends Dict {
   since: string;
 }
 
-export function buildReport(rows: Row[], roles: Roles, days: number, since: string, generatedAt: string): Report {
+export function buildReport(rows: Row[], roles: Roles, days: number, since: string, generatedAt: string, pctOf?: PctOf): Report {
+  const pcts: PctOf = pctOf ?? (() => ({}));
   const sum = (key: "cost" | "turns" | "poll_cost" | "rewrite_cost" | "read" | "write" | "output"): number => rows.reduce((acc, row) => acc + row[key], 0);
   const grand = sum("cost") || 1;
   const byDay = [...grouped(rows, (row) => row.day)].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  const byRole = [...roles.byRole].map(([role, totals]) => roleRow(role, totals, roles.sessionsByRole.get(role) ?? 0, grand));
+  const byRole = [...roles.byRole].map(([role, totals]) => ({ ...roleRow(role, totals, roles.sessionsByRole.get(role) ?? 0, grand), ...pcts(totals.tok) }));
   const byAgent = [...roles.agents.values()].map((agent) => ({
     name: agent.name, role: agent.role, pr: agent.pr, cost: rf(agent.cost, 2), turns: agent.turns, poll_cost: rf(agent.poll_cost, 2),
-    rewrite_cost: rf(agent.rewrite_cost, 2), ctx_max: agent.ctx_max, models: agent.models, cwd: agent.cwd, ctxAvg: avg(agent.ctx_sum, agent.turns),
+    rewrite_cost: rf(agent.rewrite_cost, 2), ctx_max: agent.ctx_max, models: agent.models, cwd: agent.cwd, ctxAvg: avg(agent.ctx_sum, agent.turns), ...pcts(agent.tok),
   }));
   const topSessions = [...roles.sessions.values()].map((s) => ({
     cwd: s.cwd, role: s.role, subagent: s.side, cost: rf(s.cost, 2), turns: s.turns, ctxAvg: avg(s.ctx_sum, s.turns), ctxMax: s.ctx_max,
@@ -447,7 +474,7 @@ export function buildReport(rows: Row[], roles: Roles, days: number, since: stri
       read: sum("read"), write: sum("write"), output: sum("output"),
     },
     byRole: byRole.sort(byCostDesc),
-    byDay: byDay.map(([day, t]) => ({ day, cost: rf(t.cost, 2), pollCost: rf(t.poll_cost, 2), turns: t.turns })),
+    byDay: byDay.map(([day, t]) => ({ day, cost: rf(t.cost, 2), pollCost: rf(t.poll_cost, 2), turns: t.turns, ...pcts(t.tok) })),
     byAgent: byAgent.sort(byCostDesc),
     topSessions: topSessions.sort(byCostDesc).slice(0, 15),
   };

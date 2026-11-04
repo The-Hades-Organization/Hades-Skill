@@ -37,6 +37,11 @@ encerradas (`reference/moirai.md`). Mostre ao dono junto com o plano; confiança
 no hash: reestimar depois pede nova aprovação. O `plan-approve` avisa (sem barrar) quando ela falta. Declare o tamanho no
 escopo da unidade ("~300 linhas" ou "5 arquivos"): sem isso a estimativa compara só papel e modo.
 
+**Cabe na janela?** Antes de alocar unidades em paralelo, compare o p75 do plano com o que resta da janela de 5 h: a linha
+"cabe na janela atual?" do `hades moirai estimate <plan.md>` (soma das unidades em paralelo contra 100 − % usado,
+`reference/limites.md`). `NÃO cabe`: leve ao dono, por `AskUserQuestion`, a opção de escalonar (ondas, esperar a renovação
+ou reduzir o escopo); `não dá para dizer` (sem coleta ou calibração) é dito como está, nunca vira número.
+
 **Estado e histórico.** O plano guarda o estado em uma seção só, **"Estado atual"** (até ~3 KB, reescrita a cada
 evento, nunca acrescentada). O histórico (eventos tratados, decisões, rodadas) vai em `<plano>.log.md`, só com append.
 **Retomada** (depois de `/clear`, teto de contexto ou outra sessão): leia apenas "Estado atual" (`sed -n` da seção) e o
@@ -131,7 +136,20 @@ da fila barra o texto do comando.
 
 `hades watch --next` em segundo plano (run_in_background), de dentro de um clone:
 sai no primeiro evento novo e acorda o orquestrador, que trata e relança. Sem `Monitor`, sem religar a cada 30 min.
-Eventos: `QUESTION`, `PR-OPEN`, `DONE`, `DONE-HELD`, `REVIEW`, `MERGED`/`CLOSED`, `PARKED`, `CONTEXT`, `STALLED`, `BUDGET`.
+**Escopo:** chamado de um pane do herdr (`HERDR_PANE_ID`), o watch acompanha só os agentes cujo `orchestrator` do registro
+é esse pane (gravado por `agent new|skill-new|review|adopt`); agente sem `orchestrator` segue visto por todos. Cada
+observador (pane ou filtro) tem o seu "já visto" em `watch/by/<observador>/`, então um watch nunca consome o evento do
+outro; o observador novo herda o "já visto" compartilhado na primeira passada (sem reemitir o que já saiu). Flags:
+`--agent <nome>` (repetível) e `--agents a,b,c` (só esses), `--orchestrator <sessão:pane>` (os agentes daquele pane, útil
+depois do `caronte unpack`), `--all` (todos, no "já visto" compartilhado: o painel e quem quer tudo). Fora de pane e sem
+flag, o comportamento é o de sempre (todos). Herdr reiniciou e os panes mudaram: `hades agent adopt <nome>` (agente
+vivo) ou `hades agent reassign-orchestrator <nome>…|--all` apontam o registro para o pane de quem chama.
+
+Eventos: `QUESTION`, `PR-OPEN`, `DONE`, `DONE-HELD`, `REVIEW`, `MERGED`/`CLOSED`, `PARKED`, `CONTEXT`, `STALLED`, `BUDGET`, `LIMITE`.
+- **`LIMITE <5h|semana> <pct> renova <hora>`**: a janela do plano passou de `HADES_LIMITS_WARN_FIVE_PCT` (80) ou
+  `HADES_LIMITS_WARN_SEVEN_PCT` (90). É da máquina, não de um agente: sai para todo observador (o filtro de dono não vale),
+  uma vez por janela e por renovação, e de novo só depois que ela renova. Só aviso: diga ao dono e pese antes de alocar
+  mais em paralelo (`reference/limites.md`). Sem coleta ligada, nada sai.
 - **`BUDGET <agente> <pct>`** (Moirai): o custo corrente passou de `HADES_MOIRAI_WARN_PCT` (100) do p75 da estimativa do
   plano. É só aviso: o agente segue. Diga ao dono, sem agir; ao passar de `HADES_MOIRAI_ASK_PCT` (150) o watch grava a
   pergunta no `questions.md` do agente (seguir, reestimar ou estacionar) e emite a `QUESTION` de sempre: leve ao dono e

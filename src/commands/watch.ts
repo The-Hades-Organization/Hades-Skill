@@ -1,6 +1,7 @@
 // `hades watch`: monitor do orquestrador, uma linha por evento novo dos agentes registrados (hades watch).
-// O que já foi visto fica em <orch>/watch (ou HADES_WATCH_STATE); sobrevive a relançar.
-import { appendFileSync, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+// O que já foi visto fica em <orch>/watch (ou HADES_WATCH_STATE); sobrevive a relançar. Cada observador (pane do herdr ou
+// filtro de --agent) tem a sua subpasta, e o escopo padrão é o dos agentes que o pane atual alocou (src/lib/watch-scope.ts).
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parsePullRequest, text } from "../lib/activity.ts";
 import { need } from "../lib/deps.ts";
@@ -8,9 +9,13 @@ import { contextOfDir } from "../lib/guard-hook.ts";
 import { emitJournal } from "../lib/journal.ts";
 import { commitsCitados, reportTemProva } from "../lib/cerberus-vigilia.ts";
 import { budgetOf, budgetQuestion, DEFAULT_ASK_PCT, DEFAULT_WARN_PCT, estimateOfUnit, hasBudgetQuestion, nextQuestionNumber } from "../lib/moirai.ts";
+import { JANELAS, type Janela } from "../lib/limites.ts";
+import { janelasParaAvisar, linhaDeLimite } from "../lib/limites-aviso.ts";
+import { chaves, limiaresDeAviso, medidas } from "../lib/limites-io.ts";
 import { firstLine, readText } from "../lib/fs.ts";
 import { out, warn } from "../lib/output.ts";
 import { run } from "../lib/proc.ts";
+import { inScope, observerKey, parseWatchArgs, WatchUsageError, type WatchScope } from "../lib/watch-scope.ts";
 import { loadProfile } from "../lib/profile.ts";
 import { resolveProject } from "../lib/project.ts";
 import { currentCost, type CostCache } from "./moirai.ts";
@@ -41,6 +46,19 @@ type DoneHeld = "sem-prova" | "sem-commit" | "commit-fora-da-branch";
 
 const isoNow = (): string => `${new Date().toISOString().slice(0, 19)}Z`;
 
+/**
+ * Pasta do "já visto" do observador. A primeira passada de um observador novo herda os arquivos da pasta compartilhada
+ * (o upgrade não reemite o que já foi visto); dali em diante o estado dele é só dele.
+ */
+function observerDir(shared: string, key: string | undefined): string {
+  if (key === undefined) return shared;
+  const dir = join(shared, "by", key);
+  if (existsSync(dir)) return dir;
+  mkdirSync(dir, { recursive: true });
+  for (const entry of readdirSync(shared, { withFileTypes: true })) if (entry.isFile()) copyFileSync(join(shared, entry.name), join(dir, entry.name));
+  return dir;
+}
+
 class Watcher {
   private emitted = false;
   private readonly seenDir: string;
@@ -52,11 +70,17 @@ class Watcher {
   private readonly warnPct = pctKey("HADES_MOIRAI_WARN_PCT", DEFAULT_WARN_PCT);
   private readonly askPct = pctKey("HADES_MOIRAI_ASK_PCT", DEFAULT_ASK_PCT);
 
-  constructor(work: WorkEnv, stallMinutes: number, env: NodeJS.ProcessEnv) {
+  private readonly scope: WatchScope;
+  private readonly limiares = limiaresDeAviso();
+  private readonly limitesK = chaves();
+
+  constructor(work: WorkEnv, stallMinutes: number, env: NodeJS.ProcessEnv, scope: WatchScope) {
     this.work = work;
     this.stallMinutes = stallMinutes;
-    this.seenDir = env.HADES_WATCH_STATE || join(work.orch, "watch");
-    mkdirSync(this.seenDir, { recursive: true });
+    this.scope = scope;
+    const shared = env.HADES_WATCH_STATE || join(work.orch, "watch");
+    mkdirSync(shared, { recursive: true });
+    this.seenDir = observerDir(shared, observerKey(scope));
     this.owner = work.slug.split("__")[0] ?? "";
     this.repo = work.slug.slice(work.slug.indexOf("__") + 2);
   }
@@ -101,7 +125,26 @@ class Watcher {
       const name = text(reg.name);
       if (finished.has(name) || scanned.has(name)) continue;
       scanned.add(name);
+      if (!inScope(this.scope, reg)) continue;
       this.scanAgent(file, reg, hostStatus);
+    }
+    this.scanLimites();
+  }
+
+  /**
+   * Janela do plano (5 h, semana) acima do limiar: LIMITE uma vez por janela e por renovação. O aviso é da máquina, não de
+   * um agente, então não passa pelo filtro de dono: cada observador o recebe uma vez (o visto é dele). Sem amostra, nada.
+   */
+  private scanLimites(): void {
+    const { atual } = medidas(new Date(), this.limitesK);
+    const visto: Partial<Record<Janela, number>> = {};
+    for (const janela of JANELAS) {
+      const n = Number((readText(join(this.seenDir, `limite.${janela}`)) ?? "").trim());
+      if (Number.isFinite(n) && n > 0) visto[janela] = n;
+    }
+    for (const aviso of janelasParaAvisar(atual, this.limiares, visto)) {
+      writeFileSync(join(this.seenDir, `limite.${aviso.janela}`), `${aviso.resetsAt}\n`);
+      this.emit(linhaDeLimite(aviso));
     }
   }
 
@@ -277,18 +320,23 @@ class Watcher {
 }
 
 export async function watchCommand(args: string[]): Promise<number> {
-  const rest = [...args];
-  const next = rest[0] === "--next";
-  if (next) rest.shift();
-  const everySeconds = Number(rest[0] ?? DEFAULT_EVERY_SECONDS);
+  let parsed;
+  try {
+    parsed = parseWatchArgs(args);
+  } catch (error) {
+    if (!(error instanceof WatchUsageError)) throw error;
+    warn(`watch: ${error.message}`);
+    return 2;
+  }
+  const everySeconds = parsed.everySeconds ?? DEFAULT_EVERY_SECONDS;
   need("herdr");
   need("gh");
   const work = loadWorkEnv({ skillOk: true });
   const stall = Number(configValue("HADES_ORCH_STALL_MIN", String(DEFAULT_STALL_MINUTES))) || DEFAULT_STALL_MINUTES;
-  const watcher = new Watcher(work, stall, process.env);
+  const watcher = new Watcher(work, stall, process.env, parsed.scope);
   for (;;) {
     watcher.scan();
-    if (next && watcher.emittedAny) return 0;
+    if (parsed.next && watcher.emittedAny) return 0;
     await new Promise((resolve) => setTimeout(resolve, everySeconds * 1000));
   }
 }

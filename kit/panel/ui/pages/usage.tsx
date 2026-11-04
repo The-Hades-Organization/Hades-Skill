@@ -66,6 +66,46 @@ function PorDia({ days }) {
   </div>;
 }
 
+// ================================================================== janelas do plano (% medido, hades usage sample)
+const pct1 = (v) => v == null ? '—' : String(Math.round(v * 10) / 10).replace('.', ',') + '%';
+// estimado (calibrado por tokens): `~`, e `+` quando a calibração cobre só parte dos modelos; sem calibração, traço
+const pctEst = (v, parcial) => v == null ? '—' : '~' + pct1(v) + (parcial ? '+' : '');
+const AVISO_PCT = 80;
+function JanelasDoPlano() {
+  const [x, setX] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    // falha de leitura não é estado para mostrar: a seção só some, o resto da página segue
+    const f = () => getJSON('/api/limits').then((r) => alive && setX(r)).catch(() => {});
+    f(); const t = setInterval(f, 15000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  if (!x) return null;
+  if (!x.coleta) return <Card data-tour-step-id="usage-janelas">
+    <CardHeader title="Janelas do plano" summary="sem amostras" />
+    <CardContent>
+      <p className="t-body text-muted-foreground">
+        Sem medida do % das janelas de 5 h e semanal. Para medir, ponha <Mono>hades usage sample</Mono> no <Mono>statusLine</Mono> do Claude Code (passo seu; a Hades não altera o settings.json). Passo a passo em <a className="underline underline-offset-3 hover:no-underline" href="#/docs">reference/limites.md</a>.
+      </p>
+    </CardContent>
+  </Card>;
+  return <Card data-tour-step-id="usage-janelas">
+    <CardHeader title="Janelas do plano" summary="% usado, medido pelo Claude Code" />
+    <CardContent className="grid gap-5 sm:grid-cols-2">
+      {x.janelas.map((j) => <div key={j.janela} className="grid gap-1.5">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="t-label">{j.rotulo}</span>
+          <span className={cn('t-section tnum', j.pct >= AVISO_PCT && 'text-warn')}>{pct1(j.pct)}</span>
+        </div>
+        <div className="h-1.5 bg-border" role="img" aria-label={`${j.rotulo}: ${pct1(j.pct)} usado`}>
+          <div className={cn('h-full', j.pct >= AVISO_PCT ? 'bg-warn' : 'bg-foreground/70')} style={{ width: `${Math.min(100, j.pct)}%` }} />
+        </div>
+        <span className="t-meta text-muted-foreground tnum">renova {j.renova} · medido há {dur(j.idadeS)}</span>
+      </div>)}
+    </CardContent>
+  </Card>;
+}
+
 // ================================================================== Moirai: estimado × real
 const usd2 = (v) => v == null ? '—' : 'US$ ' + v.toFixed(2).replace('.', ',');
 const LEVEL_UI = { ok: ['dentro do estimado', 'text-muted-foreground', 'bg-ok'], warn: ['passou do p75', 'text-warn', 'bg-warn'], ask: ['passou muito do p75', 'text-bad', 'bg-bad'] };
@@ -186,6 +226,7 @@ function Usage() {
   const agCost = agentsRole.reduce((a, r) => a + r.cost, 0), agTurns = agentsRole.reduce((a, r) => a + r.turns, 0);
   const agCtx = agTurns ? agentsRole.reduce((a, r) => a + r.ctxAvg * r.turns, 0) / agTurns : 0;
   const pollPct = 100 * d.total.pollCost / d.total.cost;
+  const comPct = d.byRole.some((r) => r.pct5h != null || r.pctWeek != null);
   const maxShare = Math.max(1, ...d.byRole.map((r) => r.share));
   return <div className="grid gap-8">
     <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
@@ -204,6 +245,7 @@ function Usage() {
         <Button size="sm" variant="ghost" icon={I.Flag} onClick={() => run({ action: 'usage', op: 'baseline' }, { title: 'Gravar a janela atual como linha de base?', description: 'As próximas comparações usam estes números.', icon: I.Flag })}>Gravar linha de base</Button>
       </div>
     </div>
+    <JanelasDoPlano />
     <div data-tour-step-id="usage-leituras">
     <Regua label="Leituras do consumo">
       <Leitura label="Custo por dia" value={perDay} format={usd} unit="por dia (equivalente em API)"
@@ -224,7 +266,7 @@ function Usage() {
     <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
       <Card data-tour-step-id="usage-papel">
         <CardHeader title="Por papel" summary={`${usd(d.total.cost)} em ${d.days} dias`}
-          description={`${tok(d.total.read)} tokens lidos do cache, mais ${tok(d.total.write)} gravados no cache e ${tok(d.total.output)} de saída.`} />
+          description={`${tok(d.total.read)} tokens lidos do cache, mais ${tok(d.total.write)} gravados no cache e ${tok(d.total.output)} de saída.${comPct ? ' ~% = parte estimada da janela, pela calibração tokens → %; + = só os modelos calibrados.' : ''}`} />
         <CardContent>
           <Table>
             <thead>
@@ -233,6 +275,8 @@ function Usage() {
                 <Th className="text-right">Sessões</Th>
                 <Th className="text-right">Custo (US$)</Th>
                 <Th>Parte do custo</Th>
+                {comPct ? <Th className="text-right">~5 h</Th> : null}
+                {comPct ? <Th className="text-right">~semana</Th> : null}
                 <Th className="text-right">Polling (% do custo)</Th>
                 <Th className="text-right">Contexto médio (tokens)</Th>
                 <Th className="pr-0 text-right">Máximo (tokens)</Th>
@@ -259,6 +303,8 @@ function Usage() {
                     </span>
                   </span>
                 </Td>
+                {comPct ? <Td className="text-right text-muted-foreground">{pctEst(r.pct5h, r.pct5hPartial)}</Td> : null}
+                {comPct ? <Td className="text-right text-muted-foreground">{pctEst(r.pctWeek, r.pctWeekPartial)}</Td> : null}
                 <Td className={cn('text-right', r.pollShare > POLL_LIMIT && 'font-medium text-warn')}>
                   {String(r.pollShare).replace('.', ',') + '%'}
                 </Td>
@@ -294,6 +340,8 @@ function Usage() {
               <Th>Papel</Th>
               <Th>Modelos</Th>
               <Th className="text-right">Custo (US$)</Th>
+              {comPct ? <Th className="text-right">~5 h</Th> : null}
+              {comPct ? <Th className="text-right">~semana</Th> : null}
               <Th className="text-right">Turnos</Th>
               <Th className="text-right">Contexto médio (tokens)</Th>
               <Th className="text-right">Máximo (tokens)</Th>
@@ -319,6 +367,8 @@ function Usage() {
               <Td className="text-right">
                 {usd(a.cost)}
               </Td>
+              {comPct ? <Td className="text-right text-muted-foreground">{pctEst(a.pct5h, a.pct5hPartial)}</Td> : null}
+              {comPct ? <Td className="text-right text-muted-foreground">{pctEst(a.pctWeek, a.pctWeekPartial)}</Td> : null}
               <Td className="text-right">
                 {a.turns.toLocaleString('pt-BR')}
               </Td>

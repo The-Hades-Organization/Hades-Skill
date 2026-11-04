@@ -29,6 +29,15 @@ HadesCore.registerTour('usage', {
       side: 'bottom',
     },
     {
+      id: 'usage-janelas',
+      title: 'Janelas do plano',
+      body: 'O % já usado das janelas de 5 h e semanal, lido do statusLine do Claude Code, com a hora em que cada uma renova e há quanto tempo foi medido. As colunas ~% das tabelas abaixo são estimadas por calibração, nunca medidas.',
+      command: 'hades usage sample',
+      ref: 'limites.md',
+      fallback: 'Sem amostras o card explica como ligar a coleta (colocar hades usage sample no statusLine); a Hades não mostra número sem medida.',
+      side: 'bottom',
+    },
+    {
       id: 'usage-leituras',
       title: 'As quatro leituras',
       body: 'Custo por dia contra a linha de base; polling (turnos que só esperavam) contra o limite de 5%; contexto médio dos agentes contra 200k tokens por turno; e reescrita de cache depois de pausa. A barra é o valor, o traço é a referência, e passar dela troca o tom.',

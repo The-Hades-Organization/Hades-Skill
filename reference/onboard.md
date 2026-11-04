@@ -76,7 +76,7 @@ Passos de hoje:
 | Acesso remoto | login do devtunnel (dono) · túnel do painel (dono) · chave de acesso (dono) · PWA no celular (dono, manual) · túnel do front (dono) |
 | Notificações | desktop (Hades) · ntfy ligado (Hades) · assinar o tópico no celular (dono, manual) · teste de envio (Hades, manual: feito quando o `run` sai com 0) |
 | Início automático | painel no login/boot (Hades) · linger (Hades, só no modo boot) · firewall docker → host (dono, sudo). No macOS (launchd) o linger é `na` (o painel sobe no login) e o firewall não sugere ufw nem firewalld |
-| Contas e loop | conta gh / `HADES_GH_USER` (dono) · ClickUp (dono) · herdr (dono) · serviços, dados e processos de apoio do ambiente do projeto (Hades) |
+| Contas e loop | conta gh / `HADES_GH_USER` (dono) · ClickUp (dono) · herdr (dono) · coleta do % das janelas, `hades usage sample` no `statusLine` (dono; medido pelo `settings.json`, que a Hades não altera) · serviços, dados e processos de apoio do ambiente do projeto (Hades) |
 
 ### Checagens, sem duplicar o doctor
 

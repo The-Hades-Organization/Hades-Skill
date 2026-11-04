@@ -5,8 +5,8 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { constants as osConstants } from "node:os";
-import { chmodSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join } from "node:path";
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import { withFlock } from "../lib/flock.ts";
 import { stateDirFor } from "./review-record.ts";
 import { EXIT, HadesError, out, warn } from "../lib/output.ts";
@@ -14,6 +14,7 @@ import { hadesHome, skillRoot } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { need } from "../lib/deps.ts";
 import { acquireSlot, maxParallel, phaseFile, writePhase, type ReviewPhase, type Slot } from "../lib/review-queue.ts";
+import { LOOP_FINDINGS_RULE, parseFindings } from "../lib/review-loop.ts";
 
 const MODELS = { opus: "claude-opus-5-5", sonnet: "claude-sonnet-5-5" } as const;
 const COMMANDS = ["review-pr", "review-agents"] as const;
@@ -49,6 +50,10 @@ interface Options {
   post: boolean;
   id: string | undefined;
   dryRun: boolean;
+  /** Rodada do loop de revisão que disparou esta revisão (vai para o registro; o painel agrupa o consumo por ela). */
+  loopRound: string | undefined;
+  /** Arquivo com os achados já reportados e ainda abertos (só o loop passa). */
+  loopContext: string | undefined;
 }
 
 interface PrInfo {
@@ -65,7 +70,7 @@ type Record_ = Record<string, Json | undefined>;
 
 /** Mensagem no formato do argparse que o original usava; o uso completo vai junto, como no original. */
 const USAGE = `usage: ${PROG} [-h] --wt WT --pr PR --cmd {review-pr,review-agents} --model {opus,sonnet}
-                        --effort {low,medium,high} [--post] [--id ID] [--dry-run]`;
+                        --effort {low,medium,high} [--post] [--id ID] [--dry-run] [--loop-round ID] [--loop-context FILE]`;
 
 class ArgError extends Error {}
 
@@ -79,7 +84,7 @@ function pick<T extends string>(flag: string, value: string, choices: readonly T
 
 function parseArgs(args: string[]): Options {
   const values = new Map<string, string>();
-  const valued = ["--wt", "--pr", "--cmd", "--model", "--effort", "--id"];
+  const valued = ["--wt", "--pr", "--cmd", "--model", "--effort", "--id", "--loop-round", "--loop-context"];
   let post = false;
   let dryRun = false;
   for (let i = 0; i < args.length; i++) {
@@ -107,7 +112,19 @@ function parseArgs(args: string[]): Options {
     post,
     id: values.get("--id"),
     dryRun,
+    loopRound: values.get("--loop-round"),
+    loopContext: values.get("--loop-context"),
   };
+}
+
+const LOOP_CONTEXT_MAX_BYTES = 20_000;
+
+/** O contexto do loop é um arquivo que o próprio loop grava (`<work>/review-loop/context-pr-<n>.md`): qualquer outro caminho é recusado. */
+function readLoopContext(file: string | undefined): string {
+  if (file === undefined) return "";
+  if (!/^context-pr-\d+\.md$/.test(basename(file)) || basename(dirname(file)) !== "review-loop") throw new ArgError(`argument --loop-context: '${file}' não é um arquivo do loop de revisão`);
+  if (statSync(file).size > LOOP_CONTEXT_MAX_BYTES) throw new ArgError(`argument --loop-context: ${file} passa de ${LOOP_CONTEXT_MAX_BYTES} bytes`);
+  return readFileSync(file, "utf8").trim();
 }
 
 function utcNow(): string {
@@ -119,7 +136,7 @@ function two(n: number): string {
 }
 
 /** Identificador do disparo: a hora local (como o strftime do original) e 4 hex. */
-function newId(): string {
+export function newId(): string {
   const d = new Date();
   const stamp = `${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}`;
   return `${stamp}-${randomBytes(2).toString("hex")}`;
@@ -217,7 +234,7 @@ function postInstructions(o: Options, pr: PrInfo, slug: string, texto: string): 
   \`hades review-record ${o.pr} <headOid> <reviewId> <veredito> <🔴> <🟡> <inline> <foraDeHunk>\`.`;
 }
 
-function buildPrompt(o: Options, pr: PrInfo, slug: string, texto: string): string {
+function buildPrompt(o: Options, pr: PrInfo, slug: string, texto: string, loopContext: string): string {
   const cmd = o.cmd === "review-pr" ? `/${o.cmd} ${o.pr}` : `/review-agents ${pr.baseRefName}`;
   return `${cmd}
 
@@ -227,7 +244,7 @@ Contexto do disparo (painel da Hades → Revisões; sessão não interativa, nin
 - Review de leitura: não rode build, lint nem teste (a fila de builds da máquina não é para isto). Os critérios de aceite
   ficam como "não executados neste disparo".
 - Target branch (se o comando pedir): \`${pr.baseRefName}\`. Não pergunte nada: decida pelo padrão do comando.
-${postInstructions(o, pr, slug, texto)}
+${postInstructions(o, pr, slug, texto)}${o.loopRound === undefined ? "" : `\n- Loop de revisão (rodada ${o.loopRound}).\n${[loopContext, LOOP_FINDINGS_RULE].filter((t) => t !== "").map((t) => t.replace(/^/gm, "  ")).join("\n")}`}
 - Termine com o relatório completo em pt-BR e, como ÚLTIMA linha, exatamente:
   \`HADES-REVIEW: verdict=<red|yellow|green> blocking=<n> important=<n> inline=<n> posted=<yes|no> reviewId=<id ou ->\`
 `;
@@ -419,6 +436,7 @@ async function review(o: Options): Promise<number> {
   const rid = o.id ?? newId();
   const journal = new Journal(o.dryRun, {
     id: rid, pr: o.pr, cmd: o.cmd, model: o.model, effort: o.effort, post: o.post, state: "rodando", started: utcNow(),
+    ...(o.loopRound === undefined ? {} : { loopRound: o.loopRound }),
     job: process.env.HADES_PANEL_JOB ?? null,
   });
   journal.save();
@@ -462,7 +480,7 @@ async function review(o: Options): Promise<number> {
     setPhase("checkout");
     sh(["git", "-C", o.wt, "worktree", "add", "--quiet", "--detach", tmp, ref], GIT_TIMEOUT_MS);
     out(`worktree descartável: ${tmp}`);
-    const prompt = buildPrompt(o, pr, slug, texto);
+    const prompt = buildPrompt(o, pr, slug, texto, readLoopContext(o.loopContext));
     if (o.dryRun) {
       out(`--- prompt ---\n${prompt}`);
       out(`worktree HEAD: ${sh(["git", "-C", tmp, "log", "-1", "--format=%h %s"]).trim()}`);
@@ -487,6 +505,7 @@ async function review(o: Options): Promise<number> {
     const tail = TAIL_LINE.exec(text);
     if (tail) journal.update(parseTail(tail[1] ?? ""));
     else journal.update({ posted: null }); // a sessão não fechou com a linha do histórico: o painel mostra "?"
+    if (o.loopRound !== undefined) journal.update({ achados: parseFindings(text).map((f) => ({ sev: f.sev, code: f.code, file: f.file, line: f.line })) });
     const ok = code === 0 && result !== undefined && !result.is_error;
     journal.update({ state: ok ? "ok" : "falhou", ended: utcNow(), rc: code });
     if (!ok) journal.update({ error: (typeof result?.subtype === "string" && result.subtype) || `claude saiu com ${code}` });
@@ -507,6 +526,8 @@ async function review(o: Options): Promise<number> {
 }
 
 export async function reviewCommand(args: string[]): Promise<number> {
+  // o loop de revisão é outro processo (reference/loop/review.md §7): `--loop` e `loop stop|status` seguem para ele
+  if (args.includes("--loop") || args[0] === "loop") return (await import("./review-loop.ts")).reviewLoopCommand(args, newId);
   if (args.includes("-h") || args.includes("--help")) {
     out(`${USAGE}\n\nRevisão de uma PR pelo painel (página Revisões).`);
     return EXIT.ok;

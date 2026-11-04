@@ -1,6 +1,6 @@
 ---
 description: Hades — loop de engenharia por projeto (entrega de PRs, reconciliacao de reviews, review de terceiros, cascata, orquestracao, consolidacao) e ambiente local (/hades env)
-argument-hint: '[deliver|inbox|review|cascade|sweep|status|locks|answer|ready|watch|resume|orchestrate|consolidate|usage|env <acao|onboard>|project init] [--orchestrated] [--max N] [--author L] [--pr N] [--deep] [--dry-run] [--allow-in-review] [--no-integration] [--max-iters N]'
+argument-hint: '[deliver|inbox|review|cascade|sweep|status|locks|answer|ready|watch|resume|orchestrate|consolidate|usage|env <acao|onboard>|project init] [--orchestrated] [--max N] [--author L] [--pr N] [--deep] [--loop [--every 30m] [--until H] [--rounds N] [--no-post] [--note N]] [--dry-run] [--allow-in-review] [--no-integration] [--max-iters N]'
 ---
 
 Invoque a skill `hades` e execute o modo pedido em `$ARGUMENTS`.
@@ -28,6 +28,7 @@ local-only: skill, comando, coletor e `hades gate-lock` vivem em `~/.claude`, e 
 - **`--author <login>`** (review) — restringe ao autor. Ausente → `review-requested:@me`, com fallback
   para PRs abertas de outros autores.
 - **`--pr N`** (inbox, review, cascade, watch, locks) — restringe a essa PR; repetivel.
+- **`--loop`** (review) — modo de loop de revisão (`reference/loop/review.md` §7): `hades review --loop [--every 30m] [--author L | --pr N…] [--max N] [--deep] [--until HH:MM|ISO] [--rounds N] [--no-post] [--note <nota>]` roda como processo longo (inicie com `run_in_background`) e, a cada `--every`, revisa só as PRs de head novo. Parar: `hades review loop stop`; estado: `hades review loop status`. Sempre `event: COMMENT`.
 - **`--deep`** (review) — matriz PR × escopos roteados em vez de um agente por PR. Caro: anuncie a
   contagem de agentes antes de disparar.
 - **`--dry-run`** (todos os modos que escrevem) — produz o plano, o checklist e o relatorio locais e

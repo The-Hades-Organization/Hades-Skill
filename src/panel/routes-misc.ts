@@ -16,6 +16,7 @@ import type { Job, Jobs } from "./jobs.ts";
 import { pyStr } from "./actions.ts";
 import { serviceCatalog } from "./system.ts";
 import { createJournalRoutes, type JournalRoutes } from "./journal.ts";
+import { createReviewsLoop } from "./reviews-loop.ts";
 
 type Dict = Record<string, unknown>;
 
@@ -71,6 +72,7 @@ export interface Misc {
   limits(): Dict;
   journal: JournalRoutes;
   reviews(): Promise<Dict>;
+  reviewsLoop(): Dict;
   reviewReport(id: string): Dict;
   onboardStatus(quick: boolean): Promise<unknown>;
   onboardApply(body: Dict, remote: boolean): Promise<Dict>;
@@ -309,6 +311,7 @@ export function createMisc(deps: MiscDeps): Misc {
     logSources, readLog, diskStatus, diskPreview,
     notifyStatus: async (remote) => parseOrEmpty((await notifyRun(!remote)).stdout),
     notifyQr, usage, limits, reviews, reviewReport, onboardStatus, onboardApply,
+    reviewsLoop: () => createReviewsLoop(env).overview(),
     journal: createJournalRoutes(),
   };
 }

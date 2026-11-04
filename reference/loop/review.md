@@ -171,3 +171,43 @@ para o lote deste modo.
 - **Checkout leve (medido, não adotado).** `--no-checkout` ou sparse com os caminhos do diff tiram do worktree o código
   vizinho que o `/review-pr` e os subagentes leem (chamadores, testes, contratos); o prazo deixa de estourar, mas o
   review perde contexto. Com a fila, o checkout completo de ~4 por vez cabe no prazo. Medição no relatório da unidade.
+
+## 7. Loop de revisão — `hades review --loop`
+
+`/hades review --loop [--every 30m] [--author <login> | --pr N…] [--max N] [--deep] [--until <HH:MM|ISO>] [--rounds N] [--no-post] [--note <nota>]`
+
+Mantém as PRs revisadas ao longo do dia: de `--every` em `--every` (padrão `HADES_REVIEW_LOOP_EVERY_MIN`, 30 min; piso 1 min) uma
+**rodada** busca as PRs do escopo e revisa só as de **head novo** ou **nunca revisadas**. É um processo próprio, longo: o
+`/hades review --loop` o inicia em segundo plano (`run_in_background`) e o relato de cada rodada sai no log dele. Cada
+revisão é um `hades review --post` filho (§6): a fila de vagas (`HADES_REVIEW_MAX_PARALLEL`) e as fases são as de sempre, sem
+segundo caminho. O modo não roda gate, então não há vaga de gate a esperar. Publicação sempre `event: COMMENT`; nunca
+aprova nem pede mudanças. `--no-post` só guarda os relatórios locais.
+
+- **Escopo** (mesmo filtro da §1, sem o dedup por card): `--pr N` (repetível, rascunho entra), `--author` ou
+  `review-requested:@me`. Sem o fallback "qualquer autor", senão o escopo nunca esvaziaria. PR minha é pulada. `--max N` limita as
+  revisões por rodada; o excedente fica para a seguinte (motivo `adiada`).
+- **Estado** em `~/.claude/hades/work/<owner>__<repo>/review-loop/`, nunca no repo: `pr-<n>.json` (último head revisado, data,
+  link do review, achados abertos), `rounds.jsonl` (uma linha por rodada, com custo, tokens e o % de cada janela de uso antes e
+  depois), `status.json`, `loop.flock` e `stop`. Só uma revisão **concluída** avança o estado; a que falha é refeita na rodada
+  seguinte. Head igual ao último revisado não gera revisão.
+- **Achado repetido.** O prompt da revisão leva os achados que o review anterior deixou abertos (`código|arquivo` é a
+  identidade; a linha anda entre heads) e manda não os publicar de novo: sem achado novo e com abertos, nada é publicado
+  (`posted=no`). A sessão fecha o relatório com uma linha `HADES-ACHADO: <red|yellow>|<aberto|novo>|<codigo>|<arquivo>|<linha>` por
+  achado em pé; elas viram o estado da PR (`achados` no registro da revisão). O loop não consegue retirar o que a sessão já
+  postou: o que garante é o contexto, e o aviso só sai para bloqueante cujo `código|arquivo` não estava aberto.
+- **Concorrência.** Duas rodadas nunca se sobrepõem: o loop segura um `flock` por repositório e o segundo `--loop` recusa. Cada PR
+  revisada leva o lock de PR (`gates.md` §3.1, `mode=review-loop`); PR com lock de outra sessão é pulada, com o dono do lock no
+  motivo.
+- **Canvas.** Cada revisor da rodada é registrado como agente (`mode: review-loop`, `orchestrator` = o pane de quem roda o loop,
+  como em `hades agent new`) e fecha como `done` no fim da rodada. Com `--note <nota>` o resumo da rodada é anexado à nota
+  (`hades canvas note write --append`; o terminal do loop precisa estar ligado a ela). Fora de pane do herdr, nada disso é
+  feito. `notify` (evento `pr`) só com achado bloqueante novo.
+- **Parada.** `--rounds N`, `--until` (`HH:MM` no fuso do dono, já passada vale amanhã; ou instante ISO com fuso), `hades review
+  loop stop` (o loop acorda em até ~2 s, e a revisão em curso termina antes) e sozinho com escopo vazio (nenhuma PR aberta).
+  `hades review loop status` mostra o estado. Rodada pausada ou com falha na busca não conta em `--rounds`.
+- **Custo.** Antes de cada rodada mede as janelas (`reference/limites.md`): passou de `HADES_REVIEW_LOOP_PAUSE_FIVE_PCT` (85) ou
+  `HADES_REVIEW_LOOP_PAUSE_SEVEN_PCT` (90), o loop pausa, avisa uma vez por janela e renovação (`notify` evento `agent`) e confere
+  de novo a cada `--every`, retomando sozinho. Sem coleta ligada, não pausa. O painel (Revisões → Loop de revisão) mostra o
+  estado e, por rodada, o custo, os tokens e o % das janelas.
+- **`--dry-run`** imprime o plano da rodada (`#7 revisar (head novo …) · #8 pular: head igual …`) e sai: sem lock, estado, canvas
+  nem revisão.

@@ -53,6 +53,15 @@ HadesCore.registerTour('reviews', {
       side: 'top',
     },
     {
+      id: 'reviews-loop',
+      title: 'Loop de revisão',
+      body: 'O estado do loop (rodando, pausado pelo limite de uso ou parado) e as últimas rodadas: quantas PRs revisou e pulou, o custo e os tokens, e o % das janelas de 5 h e semanal antes e depois de cada uma. O loop revisa só as PRs de head novo, de tempos em tempos.',
+      command: '/hades review --loop --every 30m',
+      ref: 'review.md › Loop de revisão',
+      fallback: 'O card só aparece com um loop rodando ou com rodadas gravadas. Inicie um com hades review --loop; para parar, hades review loop stop.',
+      side: 'top',
+    },
+    {
       id: 'reviews-fase',
       title: 'Fase da revisão',
       body: 'Onde a revisão está agora: na fila (esperando vaga, acima do teto de revisões ao mesmo tempo), buscando a PR, preparando o worktree, revisando ou publicando. O prazo do preparo só começa a contar quando ela sai da fila.',

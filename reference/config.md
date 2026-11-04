@@ -110,6 +110,7 @@ Os padrões são o comportamento de antes: 8 GB, um pesado por vez, FIFO.
 |---|---|
 | `HADES_MODEL_<PAPEL>`, `HADES_EFFORT_<PAPEL>` (`ORCHESTRATOR`, `SPEC`, `IMPL`, `CONSOLIDATE`, `REVIEW`, `ESCALATE`), `HADES_ESCALATE_GATE_WAVES` | próxima vez que o agente subir |
 | `HADES_REVIEW_MAX_PARALLEL` | próxima revisão que entrar na fila |
+| `HADES_REVIEW_LOOP_EVERY_MIN` (30, 1–1440), `HADES_REVIEW_LOOP_PAUSE_FIVE_PCT` (85) e `HADES_REVIEW_LOOP_PAUSE_SEVEN_PCT` (90): intervalo padrão do loop de revisão e % usado de cada janela em que ele pausa e avisa (`reference/loop/review.md` §7) | próxima rodada do loop |
 | `HADES_REVIEW_SUBAGENT_MODELS` (mapa por subagente) | aplicar nos subagentes (`hades models` grava o `model:` em `~/.claude/agents/review-*.md`) |
 
 ### Contexto e espera

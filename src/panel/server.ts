@@ -461,6 +461,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
       case "/api/herdr/read": return send(200, await herdrPage.read(query.session, query.pane, query.lines));
       case "/api/herdr/scrollback": return send(200, await herdrPage.scrollback(query.session, query.pane, query.lines));
       case "/api/reviews": return send(200, await misc.reviews());
+      case "/api/reviews/loop": return send(200, misc.reviewsLoop());
       case "/api/review/report": return send(200, misc.reviewReport(query.id ?? ""));
       case "/api/onboard": return send(200, (await misc.onboardStatus(query.quick === "1")) as Record<string, unknown>);
       case "/api/github/authors": return send(200, { me: await github.me(), recent: github.authors() });

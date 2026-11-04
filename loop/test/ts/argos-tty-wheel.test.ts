@@ -117,3 +117,50 @@ describe("a quem pertence a roda", () => {
     expect(/\sdata-tty-wheel(\s|>)/.test(src)).toBe(false);
   });
 });
+
+// o xterm do nó não tem scrollback: nesse caso ele mesmo trata a roda (converte em setas) e a cancela com stopPropagation,
+// e o nó e o canvas nunca a recebiam. Este dublê repete a regra do xterm vendorizado (vendor/xterm.js, ouvinte de "wheel").
+function fakeXterm() {
+  let hook: ((e: { deltaY: number }) => boolean) | null = null;
+  return {
+    attachCustomWheelEventHandler: (fn: (e: { deltaY: number }) => boolean) => { hook = fn; },
+    /** `true` quando o xterm consumiu o evento (cancelou e parou a propagação). */
+    wheel(e: { deltaY: number }): boolean {
+      if (hook && hook(e) === false) return false;
+      return true;
+    },
+  };
+}
+
+describe("a roda sobre o xterm do nó sobe ao nó e ao canvas", () => {
+  test("dado um xterm sem gancho de roda, então ele consome o evento (o defeito)", () => {
+    expect(fakeXterm().wheel({ deltaY: -100 })).toBe(true);
+  });
+  test("dado muteXtermWheel, então o xterm não consome a roda e o evento segue subindo", async () => {
+    const Tty = await loadNodeTty();
+    const term = fakeXterm();
+    Tty.muteXtermWheel(term);
+    expect(term.wheel({ deltaY: -100 })).toBe(false);
+  });
+  test("dado o nó, então o xterm que ele cria passa por muteXtermWheel", () => {
+    const src = readFileSync(join(import.meta.dir, "../../../kit/panel/ui/argos/node-tty.tsx"), "utf8");
+    expect(src).toContain("muteXtermWheel(made.term)");
+  });
+});
+
+describe("arrasto de um dedo sobre o nó", () => {
+  test("dado o dedo que desce, então vale como roda para cima: o histórico mais antigo, em linhas positivas", async () => {
+    const Tty = await loadNodeTty();
+    const e = Tty.touchWheel(100, 134);
+    expect(e).toEqual({ deltaY: -34, deltaMode: 0 });
+    expect(Tty.wheelStep(0, e, ROWS, LINE_PX).lines).toBe(2);
+  });
+  test("dado o dedo que sobe, então vale como roda para baixo: volta para o ao vivo", async () => {
+    const Tty = await loadNodeTty();
+    expect(Tty.wheelStep(0, Tty.touchWheel(134, 100), ROWS, LINE_PX).lines).toBe(-2);
+  });
+  test("dado o dedo parado, então não rola", async () => {
+    const Tty = await loadNodeTty();
+    expect(Tty.wheelStep(0, Tty.touchWheel(80, 80), ROWS, LINE_PX).lines).toBe(0);
+  });
+});

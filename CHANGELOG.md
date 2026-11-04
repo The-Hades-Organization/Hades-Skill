@@ -4,6 +4,33 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.11.0 — 2026-11-04
+
+Modo de loop de revisão (issue #26); rolagem do terminal do nó do Argos e limite medido do resize (issue #33).
+
+- **`hades review --loop`** (`[--every 30m] [--author <login> | --pr N…] [--max N] [--deep] [--until <hora>|--rounds N]
+  [--note <nota>]`): processo próprio que, a cada rodada, revisa só as PRs do escopo de head novo ou nunca revisadas. O estado
+  por PR (último head, data, link, achados abertos) fica na raiz de trabalho da Hades, e achado já reportado e ainda aberto
+  não é postado de novo (identidade = código|arquivo). Duas rodadas nunca se sobrepõem (`flock` do processo), a PR com lock
+  de outra sessão é pulada com motivo e as revisões passam pela fila de reviews (`HADES_REVIEW_MAX_PARALLEL`). Pausa e avisa
+  uma vez quando a janela de 5 h ou a semanal passa do limiar (`HADES_REVIEW_LOOP_*`). Para por `--until`/`--rounds`, por
+  `hades review loop stop` e sozinho com escopo vazio. Revisores entram no canvas ligados ao orquestrador do loop, e o
+  resumo da rodada vai a uma nota; `notify` só com bloqueante novo. Painel: `GET /api/reviews/loop` e card "Loop de
+  revisão" com status e % das janelas por rodada. Armadilhas: o serializador do painel imprime `undefined` literal (o
+  status passa por normalização); o loop não retira do GitHub achado já postado; o revisor é um `claude -p` filho, então
+  o nó dele aparece "fora do herdr".
+- **Rolagem do nó do Argos**: o xterm do nó (sem scrollback) convertia a roda em setas e cancelava o evento, e nem o nó nem
+  o canvas a recebiam. Agora a roda e o arrasto de um dedo rolam o histórico por `/api/herdr/scrollback`, Ctrl/Alt+roda
+  volta ao canvas e, em tela alternativa, o nó avisa que não há histórico em vez de mandar setas ao agente.
+- **Resize do nó, fechado como limite medido**: um cliente herdr anexado muda cols×rows de todos os panes da sessão (não
+  há tamanho por pane), vence o último que anexou ou redimensionou, e o terminal criado no canvas também é pane do herdr.
+  Os nós seguem só com escala. O cursor do nó segue estimado: o herdr 0.8.2 não entrega a posição, e o Claude Code usa
+  o cursor real do terminal, sem vídeo reverso.
+- **Teste instável do rig** (`plugin.test.ts`, prazo de cada processo): falhou na CI da 6.9.0 e da 6.11.0 com "o neto não
+  ficou vivo". O SIGTERM do `timeout` chega ao grupo junto com a morte do sh, mas o neto só morre quando é escalonado, e em
+  CI carregada isso passava do instante em que o rc era gravado. O teste agora espera a morte do neto por até 2 s (ele viveria
+  60 s), e a asserção segue exigindo que ele morra.
+
 ## 6.10.0 — 2026-11-04
 
 Aba Workspaces do Herdr com terminal de verdade, no desktop e em tela cheia no celular (issue #32).

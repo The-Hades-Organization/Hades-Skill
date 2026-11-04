@@ -101,6 +101,36 @@ function ComoRevisar({ cmd, setCmd, model, setModel, effort, setEffort, postGh, 
   </Card>;
 }
 
+// Loop de revisão (`hades review --loop`): o status e as últimas rodadas vêm de /api/reviews/loop. O consumo é o equivalente em
+// API que cada revisão gravou, e o % das janelas de 5 h e semanal é o medido antes e depois da rodada (sem coleta, não aparece).
+const rodadaDe = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)} ${iso.slice(11, 16)}Z`;
+const JANELA = { five: '5 h', seven: 'semana' };
+const LOOP_OUTCOME = { revisada: 'revisou', 'sem-mudanca': 'sem mudança', pausada: 'pausada pelo limite de uso', 'escopo-vazio': 'escopo vazio', erro: 'falha na busca' };
+function estadoDoLoop(loop) {
+  const st = loop.status;
+  if (!loop.active) return st && st.reason ? `parado (${st.reason})` : 'parado';
+  if (st && st.state === 'pausada') return 'pausado pelo limite de uso' + (st.nextAt ? `, confere de novo às ${st.nextAt.slice(11, 16)}Z` : '');
+  return st && st.nextAt ? `rodando, próxima rodada às ${st.nextAt.slice(11, 16)}Z` : 'rodando';
+}
+const usoDaRodada = (u) => Object.entries(u || {}).filter(([, v]) => v && v.before != null).map(([j, v]) => `${JANELA[j] || j} ${v.before}%→${v.after == null ? '?' : v.after + '%'}`).join(' · ');
+
+function LoopDeRevisao({ loop }) {
+  return <Card data-tour-step-id="reviews-loop">
+    <CardHeader title="Loop de revisão" summary={estadoDoLoop(loop)} />
+    <CardContent>
+      {loop.rounds.length ? <ul className="-mt-2">
+        {loop.rounds.map((g) => <li key={g.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b py-3 last:border-b-0">
+          <Mono className="shrink-0 t-label">{'#' + g.round + ' · ' + rodadaDe(g.startedAt)}</Mono>
+          <span className="min-w-0 flex-1 truncate t-body">{(LOOP_OUTCOME[g.outcome] || g.outcome) + (g.reviewed ? ` · ${plural(g.reviewed, 'PR revisada', 'PRs revisadas')}` : '') + (g.skipped ? ` · ${g.skipped} pulada${g.skipped > 1 ? 's' : ''}` : '')}</span>
+          <span className="shrink-0 t-meta text-muted-foreground tnum">
+            {[g.reviewed ? usd(g.costUsd) + ' · ' + tok(g.tokens) + ' tokens' : null, usoDaRodada(g.usage)].filter(Boolean).join(' · ')}
+          </span>
+        </li>)}
+      </ul> : <Empty icon={I.ScanSearch} title="Nenhuma rodada ainda">O loop grava uma linha por rodada assim que a primeira termina.</Empty>}
+    </CardContent>
+  </Card>;
+}
+
 function EmCurso({ list, openJob }) {
   return <Card data-tour-step-id="reviews-curso">
     <CardHeader title="Em curso" summary={plural(list.length, 'sessão', 'sessões')} />
@@ -220,8 +250,12 @@ function Reviews() {
   const [busy, setBusy] = useState(false);
   const [rep, setRep] = useState(null);
   const [visiveis, setVisiveis] = useState([]);
+  const [loop, setLoop] = useState(null);
   const x = real && exemplo ? { ...real, items: exemplo.items } : real;
-  const load = useCallback(() => getJSON('/api/reviews').then((r) => { setReal(r); setErr(null); }).catch((e) => setErr(e.message)), []);
+  const load = useCallback(() => {
+    getJSON('/api/reviews/loop').then(setLoop).catch(() => setLoop(null));
+    return getJSON('/api/reviews').then((r) => { setReal(r); setErr(null); }).catch((e) => setErr(e.message));
+  }, []);
   useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, [load]);
   useEffect(() => { if (x && model == null) { setModel(x.defaults.model); setEffort(x.defaults.effort); } }, [x, model]);
   if (!x && err) return <Empty icon={I.CircleX} title="Não foi possível ler as revisões">
@@ -274,6 +308,7 @@ function Reviews() {
         postGh={postGh} setPostGh={setPostGh} nums={nums} busy={busy} launch={launch} example={!!exemplo} maxParallel={x.maxParallel} rodando={running.length} />
     </div>
     {running.length ? <EmCurso list={running} openJob={openJob} /> : null}
+    {loop && (loop.active || loop.rounds.length) ? <LoopDeRevisao loop={loop} /> : null}
     <Card data-tour-step-id="reviews-historico">
       <CardHeader title="Histórico" summary={past.length ? '20 mais recentes' : undefined} />
       <CardContent>

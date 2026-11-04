@@ -409,6 +409,9 @@ o painel cria, renomeia e fecha a estrutura do herdr, não só observa), não s�
   `exited`, `error`; uma assinatura do herdr por sessão, ~10 quadros/s por pane no máximo) e `POST /api/herdr/input`
   `{ session, pane, text?, keys? }` (`pane.send_input`; teclas de hoje mais Backspace, Shift+Tab e Ctrl+A..Ctrl+Z).
   Detalhe e armadilhas em `reference/argos.md` §Fluxo do terminal (servidor).
+  **Tamanho e rolagem do nó:** o nó só escala o quadro (o tamanho do herdr é da sessão inteira e vence o último a mexer, então o
+  painel não dita cols×rows); a roda e o arrasto de dedo rolam o histórico, Ctrl/Alt+roda é do canvas (`reference/argos.md` §Tamanho
+  do terminal do nó e §Rolagem do terminal do nó).
 - **Gerenciar** (`POST /api/herdr/admin`, corpo `{ session?, action, ...alvo }`; a tela usa um `Dialog` por ação e o `Select`
   para direção e tipo de agente). O alvo (`workspace`, `tab`, `pane`) só vale se existir no retrato atual da sessão; o ID
   que a tela mandou nunca é confiado. Cada ação roda o `herdr` com argv em lista (sem `--focus`: nada rouba o foco do dono):

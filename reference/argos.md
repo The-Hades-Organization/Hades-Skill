@@ -2419,6 +2419,42 @@ sobem ao canvas). **Só o nó legível tem xterm**: com o zoom baixo ou o nó pe
 deixou de ser usado pelo nó (só os limites de tamanho do quadro); o conversor segue testado em `term-ansi.test.ts`. Esta
 unidade não pede resize: a grade do xterm é a do quadro (`term.resize(cols, linhas)`), escalada por transform.
 
+### Tamanho do terminal do nó: por que o nó não pede resize
+
+O nó só escala o quadro (`fitScale`); o agente nunca vê o tamanho do nó. Medido no herdr 0.8.2 (sessão de teste, o que o processo
+dentro do pane lê em `stty size` a cada SIGWINCH, com um cliente `herdr session attach` num PTY de tamanho escolhido):
+
+- **O tamanho é da sessão inteira.** O PTY do cliente vira a área da sessão, e todo pane de todo workspace e aba (também os
+  não focados) é refeito a partir dela; não há tamanho por pane, aba ou workspace. Pane sozinho na aba recebe cliente −27
+  colunas (barra lateral) e −1 linha (em ≤60 colunas o herdr usa o layout móvel: −1 coluna, −2 linhas); pane numa divisão
+  recebe uma fração da área mais as bordas, então o desenho de divisões do dono decide a largura. A barra lateral é
+  configuração do dono, o desconto não é constante.
+- **Vence o último que anexou ou redimensionou** (não o menor, nem o maior, nem o cliente focado). O terminal do dono é um
+  cliente como outro: dois nós de tamanhos diferentes, ou o nó e o terminal do dono, disputariam a mesma área, e os demais
+  agentes seriam redimensionados (SIGWINCH) sem o dono ter mexido neles.
+- O tamanho **fica** quando o cliente morre (reiniciar o painel não reverte nada) e é reaplicado ao reanexar.
+- `pane zoom` é a única forma de um pane ocupar a área inteira, mas é estado visível ao dono e os outros panes da aba ficam
+  presos no tamanho antigo.
+- Custo de um cliente: ~15–18 MB de RSS, CPU ~0 (o herdr coalesce os desenhos); exige PTY próprio e ambiente sem `HERDR_*`
+  (senão "nested herdr is disabled").
+
+Por isso o painel não anexa cliente herdr para ditar tamanho. **Terminal criado no canvas também é pane do herdr** (sessão
+`default`, `POST /api/argos/terminals`), não PTY próprio: nenhum nó do canvas tem resize exato. Só o `/api/term` (página
+Terminal, `PtyTerminal`) tem PTY próprio e refaz `cols`/`rows` pelo tamanho da tela.
+
+### Rolagem do terminal do nó
+
+- **Roda.** O ouvinte de `wheel` do nó rola o histórico (`/api/herdr/scrollback`, `source: "recent"`); Ctrl ou Alt + roda sobe ao
+  canvas (zoom e pan). O xterm do nó não tem scrollback e, nesse caso, o próprio xterm trata a roda (a converte em setas) e a
+  cancela com `stopPropagation`, de modo que nem o nó nem o canvas a recebiam: o nó chama
+  `attachCustomWheelEventHandler(() => false)` (`muteXtermWheel`) e o evento sobe.
+- **Toque.** O arrasto vertical de um dedo sobre o nó legível vale como roda (`touchWheel`: dedo para baixo = histórico mais
+  antigo); o canvas não toma o gesto sobre um nó (`touch-action: none` no host), então o nó o trata.
+- **Tela alternativa** (less, vim): o herdr só guarda a tela visível (`pane read --source recent` devolve a própria tela, medido
+  com `less`), então não há histórico; o nó avisa "Sem histórico para rolar" e não manda setas ao pane (num shell elas
+  recuperariam comandos do histórico, e a API não diz se o pane está na tela alternativa).
+- Prova: `loop/test/ts/argos-tty-wheel.test.ts` (dublê do xterm, toque) e roda real (Marionette) num painel de teste.
+
 **O que o conversor suporta** (`parseAnsi(ansi)` → `TermLine[]`, cada linha uma lista de `{ text, style }`)
 
 | Entrada | Resultado |
@@ -2665,7 +2701,10 @@ só o cabeçalho, sem converter o quadro.
 
 - O herdr 0.8.2 recusa (`invalid_key`, 400) Home, End, PageUp, PageDown e Delete: o nó as filtra antes do envio
   (`filterTtyInput`), e elas ficam desligadas até o herdr aceitar.
-- Sem cursor no quadro: o herdr não o entrega na leitura usada.
+- Sem cursor no quadro: o herdr 0.8.2 não entrega a posição do cursor em nenhuma leitura (`pane read` em text, ansi e
+  `--raw`, `pane get`, `pane layout`, `api snapshot`). O cursor do nó é estimado pelo fim do texto (`guessCursor`) e erra
+  com o cursor no meio do input do Claude Code, que usa o cursor real do terminal (`?25l`, campo, `CUP` + `?25h`, sem vídeo
+  reverso): não há atributo no quadro de onde ler a posição.
 - O ouvinte de teclado da página é de captura: ele roda antes do terminal, por isso confere se o alvo está dentro de
   `[data-tty-focused="true"]` antes de resolver o atalho.
 

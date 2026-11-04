@@ -954,9 +954,9 @@ function Argos() {
     // Voltar e Avançar restauram o foco de cada entrada; a preferência lembrada só muda pelo botão, comando ou tecla
     setFocusState(st.focus === true);
     // sem animação: a câmera já está no destino quando o efeito de escrita compara o endereço
-    if (st.camera) applyCamera(st.camera, false);
+    if (st.camera) movedBy('url', () => applyCamera(st.camera, false));
     // link com nó e sem câmera: leva até o nó, como na abertura
-    else if (st.node) apiRef.current?.revealNode(st.node, false);
+    else if (st.node) movedBy('url', () => apiRef.current?.revealNode(st.node, false));
   };
   const applyUrlRef = useRef(applyUrl);
   applyUrlRef.current = applyUrl;
@@ -1039,6 +1039,17 @@ function Argos() {
   const events = useMemo(() => L.mergeEvents(history, liveEvents), [history, liveEvents]);
 
   // a câmera leva o nó para a área livre ao lado da gaveta (mesa) ou acima da folha (celular), em vez de deixá-lo debaixo dela
+  // todo movimento de câmera que não é pan/zoom do dono passa por aqui: com `argos.cameraDebug` ligado no localStorage, o console
+  // mostra a origem, a câmera de partida e a seleção antes e depois (a prova de qual caminho moveu a câmera)
+  const cameraTrace = useRef(M.camera.createCameraTrace());
+  const movedBy = useCallback((origin, move) => {
+    const api = apiRef.current;
+    const entry = { origin, from: api?.getCamera(), selectionBefore: selectionRef.current };
+    move();
+    if (!api) return;
+    cameraTrace.current.push({ ...entry, selectionAfter: selectionRef.current });
+    try { if (localStorage.getItem('argos.cameraDebug')) console.debug('argos: câmera', cameraTrace.current.entries.at(-1)); } catch (e) { /* sem armazenamento, sem depuração */ }
+  }, []);
   const revealFree = useCallback((id) => {
     const api = apiRef.current;
     const node = cstateRef.current?.doc.nodes.find((n) => n.id === id);
@@ -1050,14 +1061,16 @@ function Argos() {
   }, []);
   const select = useCallback((id) => {
     setSelection(id ? [id] : NO_NODES); setPanelOpen(!!id);
-    if (id) { apiRef.current?.revealNode(id, true); revealFree(id); }
-  }, [revealFree]);
+    if (id) movedBy('select', () => { apiRef.current?.revealNode(id, true); revealFree(id); });
+  }, [revealFree, movedBy]);
   // a gaveta abre com a seleção (um ou vários: a faixa dela escolhe o primário); sem seleção ela não existe. Abre sem nó escolhido
-  const onSelectionChange = useCallback((ids) => {
+  const onSelectionChange = useCallback((ids, origin = 'command') => {
+    // a seleção que a sincronia com o grafo poda ou refaz não leva a câmera ao nó que sobrou
+    const reveals = M.camera.selectionRevealsCamera(origin) && ids.length === 1;
     setSelection(ids.length ? ids : NO_NODES);
     setPanelOpen(ids.length >= 1);
-    if (ids.length === 1) revealFree(ids[0]);
-  }, [revealFree]);
+    if (reveals) movedBy(`selection:${origin}`, () => revealFree(ids[0]));
+  }, [revealFree, movedBy]);
   const step = (dir) => select(L.neighbor(order, sel, dir));
 
   const run = useCallback(async (act, args, typed) => {
@@ -1175,7 +1188,7 @@ function Argos() {
   const focusTty = (id) => {
     if (!id) return false;
     ttyHost.focus(id);
-    apiRef.current?.centerNode(id);
+    movedBy('tty-jump', () => apiRef.current?.centerNode(id));
     return true;
   };
   // "Ampliar para o terminal": o nó pequeno cresce até o mínimo, um passo do desfazer

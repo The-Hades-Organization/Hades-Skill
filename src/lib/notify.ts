@@ -33,6 +33,7 @@ export const EVENTS: Record<string, string> = {
   restart: "Serviço reiniciando",
   health: "Serviço fora do ar",
   pr: "PR",
+  ci: "CI",
   agent: "Agente",
   snapshot: "Snapshot falhou",
   doctor: "Diagnóstico",
@@ -40,6 +41,19 @@ export const EVENTS: Record<string, string> = {
   herdr: "Herdr remoto",
   test: "Teste",
 };
+/** Nome que a tela mostra para cada tipo (o título da notificação é o curto, de EVENTS). */
+export const EVENT_LABELS: Record<string, string> = {
+  gate: "Gate, build ou teste falhou",
+  pr: "Review novo nas PRs",
+  ci: "CI vermelho nas PRs",
+  test: "Notificação de teste (botão de testar o envio)",
+};
+/** Eventos com interruptor HADES_NOTIFY_EV_*: o de teste ignora os switches de propósito (botão de testar o envio). */
+export const SWITCHABLE_EVENTS = Object.keys(EVENTS).filter((event) => event !== "test");
+// O CI nasceu dentro do `pr`: o padrão `pr` do tipo dele segue o canal do review, então quem já desligou
+// HADES_NOTIFY_EV_PR continua sem aviso de CI (o config.env nunca guarda valor igual ao padrão).
+const FOLLOWS_PR = "pr";
+const evKey = (event: string): string => `HADES_NOTIFY_EV_${event.toUpperCase()}`;
 
 export interface DedupeEntry {
   ts: number;
@@ -99,7 +113,16 @@ export class NotifyContext {
 
   /** Canais do evento: off | desktop | phone | both (eventos fora do catálogo valem 'both'). */
   eventChannels(event: string): string {
-    return event in EVENTS ? this.cfg(`HADES_NOTIFY_EV_${event.toUpperCase()}`) || "both" : "both";
+    if (!(event in EVENTS)) return "both";
+    const channels = this.cfg(evKey(event)) || "both";
+    return channels === FOLLOWS_PR ? this.eventChannels("pr") : channels;
+  }
+
+  /** Exportada no ambiente com valor diferente do config.env: o export vence e mudar na tela não tem efeito.
+   * O env.sh exporta o próprio config.env em todo processo, então valor igual ao da tela não conta como fixo. */
+  isPinnedByEnv(key: string): boolean {
+    const exported = process.env[key];
+    return exported !== undefined && exported !== (effectiveConfig(this.dir, {}).get(key) ?? "");
   }
 
   quietNow(now: Date = new Date()): boolean {
@@ -354,6 +377,12 @@ export function status(ctx: NotifyContext, reveal = false): Record<string, unkno
     quiet: ctx.cfg("HADES_NOTIFY_QUIET"),
     quietNow: ctx.quietNow(),
     qr: which("qrencode") !== undefined,
+    events: SWITCHABLE_EVENTS.map((event) => ({
+      event,
+      label: EVENT_LABELS[event] ?? EVENTS[event],
+      channels: ctx.eventChannels(event),
+      pinnedByEnv: ctx.isPinnedByEnv(evKey(event)),
+    })),
     history: history(ctx),
   };
 }

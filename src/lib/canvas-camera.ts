@@ -421,3 +421,31 @@ export function shortLabel(label: string, px: number, fontPx: number): string {
   if (chars.length <= max) return label;
   return max === 1 ? "…" : `${chars.slice(0, max - 1).join("")}…`;
 }
+
+// ---- quem pode mover a câmera ----
+
+/** Quem mudou a seleção: o ponteiro e o teclado do dono, um comando dele, ou a sincronia com o grafo (nunca move a câmera). */
+export type SelectionOrigin = "pointer" | "key" | "command" | "sync";
+
+/** Seleção podada ou refeita pela sincronia não leva a câmera ao nó que sobrou; só a do dono leva. */
+export const selectionRevealsCamera = (origin: SelectionOrigin): boolean => origin !== "sync";
+
+/** Registro de um movimento de câmera que não veio de gesto de pan/zoom: a origem, a câmera de partida e a seleção antes e depois. */
+export interface CameraTraceEntry {
+  origin: string;
+  from: Camera;
+  selectionBefore: readonly string[];
+  selectionAfter: readonly string[];
+}
+
+/** Anel dos últimos movimentos; a página o liga com `localStorage["argos.cameraDebug"]` e o escreve no console. */
+export function createCameraTrace(limit = 50): { entries: CameraTraceEntry[]; push(entry: CameraTraceEntry): void } {
+  const entries: CameraTraceEntry[] = [];
+  return {
+    entries,
+    push(entry) {
+      entries.push(entry);
+      if (entries.length > limit) entries.shift();
+    },
+  };
+}

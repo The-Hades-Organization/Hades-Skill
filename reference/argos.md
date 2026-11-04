@@ -3316,3 +3316,19 @@ O canvas tira da vista o que o dono não usa sem apagar nada: registro, worktree
 
 Prova: `loop/test/ts/canvas-doc.test.ts`, `canvas-history.test.ts`, `canvas-filters.test.ts`, `canvas-hidden.test.ts` e o
 bloco "filtros: ocultos e dimensões do agente no preset" de `argos-ui.test.ts`.
+
+## Quando a câmera se move
+
+A câmera só se move por gesto do dono (pan, zoom, minimapa), seleção feita por ele, busca, Ctrl+K, link ou Voltar/Avançar.
+Seleção podada ou refeita pela sincronia com o grafo (nó que sai, volta recriado, seleção múltipla que encolhe) e foco de
+teclado vindo de evento (saída nova num terminal, foco devolvido ao fechar um diálogo) nunca a movem.
+
+- O motor emite `onSelectionChange(ids, origin)` com `origin` `pointer` ou `key` (o dono) e a página decide por
+  `selectionRevealsCamera` (`canvas-camera.ts`); comandos entram como `command`, e `sync` nunca revela. O motor não emite
+  seleção quando a página lhe passa um grafo ou uma seleção nova (`update`), e `focusNode` só move o foco.
+- Armadilha medida: Espaço segurado arma o pan, e soltá-lo sem arrastar seleciona o nó focado (e a página leva a câmera a
+  ele). Zoom pela roda ou tecla de câmera com o Espaço segurado não contava como uso do Espaço, então navegar com o Espaço
+  e soltá-lo selecionava um nó que o dono nem mirou e a câmera saltava para ele. Agora roda e teclas de câmera marcam o
+  Espaço como usado.
+- Depuração: `localStorage["argos.cameraDebug"] = "1"` imprime no console cada movimento que não é pan/zoom, com a origem
+  (`selection:*`, `select`, `url`, `tty-jump`), a câmera de partida e a seleção antes e depois.

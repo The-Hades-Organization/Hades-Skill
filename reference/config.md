@@ -142,7 +142,7 @@ Os padrões são o comportamento de antes: 8 GB, um pesado por vez, FIFO.
 ### Notificações
 | Chaves | Aplicar |
 |---|---|
-| `HADES_NOTIFY` (0), `HADES_NOTIFY_DESKTOP` (1), `HADES_NOTIFY_NTFY` (0), `HADES_NOTIFY_NTFY_URL`, `HADES_NOTIFY_EV_<GATE\|RESTART\|HEALTH\|PR\|AGENT\|SNAPSHOT\|DOCTOR\|CHAT\|HERDR>` (both), `HADES_NOTIFY_EVERY` (30), `HADES_NOTIFY_PRS_EVERY` (300), `HADES_NOTIFY_AGENTS_EVERY` (120), `HADES_NOTIFY_DOCTOR_EVERY` (1800), `HADES_NOTIFY_GATE_WAIT_MIN` (20), `HADES_NOTIFY_RESTARTS` (3), `HADES_NOTIFY_DEDUPE_MIN` (60), `HADES_NOTIFY_QUIET` | na hora: o vigia relê a cada ciclo; `HADES_NOTIFY` liga/desliga a unit (o painel aplica ao salvar; senão `notify.sh apply`). Tipos novos: `url`, `hours` (HH:MM-HH:MM). O tópico do ntfy não é chave: fica em `$D/ntfy.topic` (`reference/notify.md`) |
+| `HADES_NOTIFY` (0), `HADES_NOTIFY_DESKTOP` (1), `HADES_NOTIFY_NTFY` (0), `HADES_NOTIFY_NTFY_URL`, `HADES_NOTIFY_EV_<GATE\|RESTART\|HEALTH\|PR\|AGENT\|SNAPSHOT\|DOCTOR\|CHAT\|HERDR>` (both), `HADES_NOTIFY_EV_CI` (pr: segue o do review; aceita também off\|desktop\|phone\|both), `HADES_NOTIFY_EVERY` (30), `HADES_NOTIFY_PRS_EVERY` (300), `HADES_NOTIFY_AGENTS_EVERY` (120), `HADES_NOTIFY_DOCTOR_EVERY` (1800), `HADES_NOTIFY_GATE_WAIT_MIN` (20), `HADES_NOTIFY_RESTARTS` (3), `HADES_NOTIFY_DEDUPE_MIN` (60), `HADES_NOTIFY_QUIET` | na hora: o vigia relê a cada ciclo; `HADES_NOTIFY` liga/desliga a unit (o painel aplica ao salvar; senão `notify.sh apply`). Tipos novos: `url`, `hours` (HH:MM-HH:MM). O tópico do ntfy não é chave: fica em `$D/ntfy.topic` (`reference/notify.md`) |
 
 ### Sessão Claude
 | Chaves | Aplicar |

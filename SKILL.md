@@ -1,7 +1,7 @@
 ---
 name: hades
 description: Hades: o conjunto de trabalho do dev, por projeto, global (~/.claude) e acionado por /hades. (1) Loop de engenharia: leva spec até a PR, reconcilia os reviews recebidos nas minhas PRs, revisa PRs de terceiros em paralelo, cascateia stacks, orquestra agentes pelo herdr com PR de consolidação e gate único, e cuida de locks e da fila de gates. (2) Ambiente local: branch hades/local (base do projeto + PRs), infra docker própria, serviços sob teto de memória, dados e processos de apoio do projeto, painel web (com chat com o Claude, também pelo celular) e túnel (/hades env up|update|pause|resume|status|panel|config|doctor|onboard). Use para "leva a spec X até a PR", "aplica os reviews das minhas PRs", "continua as PRs em voo", "revisa N PRs do autor Y", "cascateia a stack", "orquestra agentes", "consolida as PRs", "libera os locks presos", "sobe o Hades", "atualiza o Hades", "abre o painel", "prepara as features", "o que falta configurar", e quando o dev pedir algo que a Hades ainda não cobre (ela se estende). Não é review pontual de branch (/review-agents).
-argument-hint: '[deliver|inbox|review|cascade|sweep|status|locks|answer|ready|watch|resume|orchestrate|consolidate|usage|env <acao|onboard>|project init] [--orchestrated] [--max N] [--author L] [--pr N] [--deep] [--dry-run] [--allow-in-review] [--no-integration] [--max-iters N] [--pattern P]'
+argument-hint: '[deliver|inbox|review|cascade|sweep|status|locks|answer|ready|watch|resume|orchestrate|consolidate|usage|env <acao|onboard>|project init] [--orchestrated] [--max N] [--author L] [--pr N] [--deep] [--loop [--every 30m] [--until H] [--rounds N] [--no-post] [--note N]] [--dry-run] [--allow-in-review] [--no-integration] [--max-iters N] [--pattern P]'
 ---
 
 # Hades
@@ -37,6 +37,7 @@ das flags.
 | `/hades deliver [<spec-id\|caminho>] [--allow-in-review] [--no-integration] [--max-iters N]` | spec → código → gates → `/review-agents` → PR (`reference/loop/deliver.md`) |
 | `/hades inbox [--pr N] [--no-integration] [--max-iters N]` | triagem e achados vivos das minhas PRs (`reference/loop/inbox.md`) |
 | `/hades review [--max N] [--author L] [--pr N] [--deep]` | revisa PRs de terceiros em paralelo e publica como comentário (`reference/loop/review.md`) |
+| `/hades review --loop [--every 30m] [--author L \| --pr N…] [--until H] [--rounds N]` | loop: de tempos em tempos revisa só as PRs de head novo, sem repetir achado (`reference/loop/review.md` §7) |
 | `/hades cascade [--pr N]` · `/hades sweep [--pattern P]` | cascata da stack nos quatro sentidos (`reference/loop/cascade.md`) |
 | `/hades orchestrate [<objetivo>]` | papel de orquestrador: aloca agentes pelo herdr, escreve briefs, acompanha, audita e leva decisões ao dono (`reference/loop/orchestrate.md`) |
 | `/hades consolidate <PR>...` | PR de consolidação: originais entram por merge, gate uma vez, merge único na base (`reference/loop/consolidate.md`) |
@@ -229,6 +230,7 @@ Pedido do dono → comando e referência, por tema. Na dúvida entre duas linhas
 
 | Pedido | Como |
 |---|---|
+| "mantém as PRs revisadas" · "revisa de 30 em 30 min" · "loop de revisão" · "para o loop de revisão" | `/hades review --loop --every 30m` (processo em segundo plano, estado em `<work>/review-loop/`); `hades review loop stop\|status`; painel → Revisões → Loop de revisão; limite de uso em `HADES_REVIEW_LOOP_PAUSE_*` (`reference/loop/review.md` §7) |
 | "liga/desliga regra de qualidade" · "quais regras a Hades aplica" · "sem any" · "boas práticas nos briefs" | painel → Qualidade, ou `hades quality list\|on\|off\|reset`; as ligadas entram nos briefs e nas fases deliver, inbox e review (`reference/quality.md`) |
 | "liga/desliga pacote de regras" · "liga as regras de frontend" · "quais pacotes estão ligados" | painel → Qualidade → Pacotes, ou `hades quality packs` e `on\|off --pack <id>`; estado ligado, desligado ou parcial (`reference/quality.md` §Pacotes) |
 | "o que o Cerberus barrou" · "libera essa exceção" · "muda o modo da Vigília" | painel → Cerberus (histórico, o que cada guarda barrou, **Abrir exceção**) e Configurações → Cerberus; no terminal, `hades cerberus historico\|excecao listar\|modos`. Exceção e modo só o dono abre e muda, pelo painel local ou com `!` (`reference/cerberus.md`) |

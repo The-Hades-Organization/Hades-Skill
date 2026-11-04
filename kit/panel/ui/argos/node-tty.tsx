@@ -3,7 +3,8 @@
  * term.tsx: só leitura, sem scrollback, o histórico é a janela do /api/herdr/scrollback), escalado para caber no nó; com o foco, as teclas e a colagem viram `{ text?, keys? }` para `onInput`. Não abre conexão nem monta no
  * nó: quem o usa entrega o quadro e leva a entrada ao herdr. A grade é a do quadro: o componente nunca pede resize.
  * Limite do herdr 0.8.2: não há API que fixe cols×rows de um pane (`pane.resize` só move a divisória entre panes), então o
- * tamanho do nó só muda a escala do quadro (`fitScale`); sobra ou corte vêm da proporção do nó, não de uma medida errada.
+ * tamanho do nó só muda a escala do quadro (`fitScale`); sobra ou corte vêm da proporção do nó, não de uma medida errada. Um cliente
+ * anexado ditaria o tamanho da sessão inteira (vence o último a mexer): reference/argos.md §Tamanho do terminal do nó.
  * A área é medida por `clientWidth/clientHeight` (tamanho de layout, em unidades do mundo): `getBoundingClientRect` inclui o
  * zoom do canvas, que a camada HTML já aplica, e a escala saía multiplicada por ele.
  * Teclas de TTY_GLOBAL_KEYS não são consumidas (sobem ao canvas). Ouvinte de documento só existe enquanto `focused`.
@@ -135,6 +136,12 @@ const wheelIntent = (e) => (e.ctrlKey || e.altKey ? 'canvas' : 'own');
 /** Altura de uma linha NA TELA: a medida inclui a escala do quadro e o zoom do canvas, que é o que a roda precisa (a escala de encaixe usa o tamanho de layout). */
 const screenLinePx = (grid, rows) => (grid && rows > 0 ? grid.getBoundingClientRect().height / rows : CELL_H);
 
+/**
+ * Arrasto de um dedo como roda: o dedo que desce mostra o histórico mais antigo, como a roda para cima (deltaY negativo).
+ * `fromY`/`toY` são clientY de dois movimentos seguidos; devolve o evento em pixels que `wheelStep` já entende.
+ */
+const touchWheel = (fromY, toY) => ({ deltaY: fromY - toY, deltaMode: 0 });
+
 /** O terminal só é dono da roda quando é legível: distante (cabeçalho) ou com problema no quadro, a roda é do canvas (zoom). */
 const ownsWheel = ({ headerOnly, problem }) => !headerOnly && !problem;
 
@@ -199,6 +206,8 @@ const NOTICE = {
   [T.TERM_ERRORS.tooManyLines]: 'Quadro com linhas demais para desenhar',
 };
 
+const NO_HISTORY = 'Sem histórico para rolar';
+
 const FOCUS_RING = 'outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
 
 /**
@@ -241,6 +250,14 @@ function rowsToShow(rows, lines) {
 /** O que o nó desenha para o nível de detalhe: o xterm (texto legível) ou o resumo leve (só o cabeçalho). */
 const ttyDrawing = (headerOnly) => (headerOnly ? 'summary' : 'xterm');
 
+/**
+ * A roda não é do xterm: sem scrollback (o nó o desliga), ele a converte em setas e a cancela com `stopPropagation`, então nem o
+ * ouvinte do nó nem o canvas (zoom com Ctrl/Alt) a recebiam. Com o gancho devolvendo `false` ele a ignora e o evento sobe.
+ */
+function muteXtermWheel(term) {
+  term.attachCustomWheelEventHandler(() => false);
+}
+
 /** Quadro grande demais para escrever no xterm: o aviso, ou `null`. */
 function oversize(ansi) {
   if (ansi.length > T.TERM_LIMITS.bytes) return NOTICE[T.TERM_ERRORS.tooManyBytes];
@@ -270,6 +287,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   const [scrolling, setScrolling] = useState(scrollLive());
   const scroll = useRef(scrollLive());
   const wheelRest = useRef(0);
+  const touchY = useRef(null);
   const loadingHistory = useRef(false);
   const fixed = validScale(scale);
   const problem = frameProblem(frame);
@@ -347,6 +365,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
       const made = HadesCore.createXterm(host.current, { fontSize: FONT_PX, scrollback: 0, readOnly: true, lineHeight: CELL_H / (FONT_PX * LINE_RATIO) });
       // o xterm só desenha: nenhuma tecla é dele, todas sobem ao nó (que as traduz) e ao canvas
       made.term.attachCustomKeyEventHandler(() => false);
+      muteXtermWheel(made.term);
       xt.current = made;
       setTermFocus(made.term, live.current.focused);
       live.current.paint();
@@ -390,7 +409,12 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
     const url = `${HISTORY_URL}?pane=${encodeURIComponent(frame.pane)}&lines=${HISTORY_LINES}${session}`;
     return fetch(url, { cache: 'no-store' })
       .then((r) => r.json().then((body) => { if (!r.ok) throw new Error(body && body.error ? String(body.error) : `http_${r.status}`); return body; }))
-      .then((body) => { setNotice(''); setScroll(historyLoaded(scroll.current, historyLinesOf(body.ansi), frame.rows)); })
+      .then((body) => {
+        const next = historyLoaded(scroll.current, historyLinesOf(body.ansi), frame.rows);
+        // tela alternativa (less, vim): o herdr só guarda a tela visível, não há o que rolar
+        setNotice(next.lines === null ? NO_HISTORY : '');
+        setScroll(next);
+      })
       .catch((err) => { setNotice(`Histórico indisponível: ${err instanceof Error ? err.message : 'erro'}`); backToLive(); })
       .finally(() => { loadingHistory.current = false; });
   };
@@ -456,8 +480,16 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
     e.stopPropagation();
     setNotice(`Colagem grande demais (limite de ${PASTE_MAX_CHARS} caracteres)`);
   };
+  // dedo sobre o nó legível: o arrasto vertical rola o histórico (o canvas não toma o gesto sobre o nó e o host tem touch-action: none)
+  const onTouchMove = (e) => {
+    if (e.pointerType !== 'touch' || touchY.current === null || !live.current.ownsWheel || !live.current.onWheel) return;
+    live.current.onWheel(touchWheel(touchY.current, e.clientY));
+    touchY.current = e.clientY;
+  };
+  const endTouch = (e) => { if (e.pointerType === 'touch') touchY.current = null; };
   // o arrasto dentro do nó é do navegador (seleção de texto): o canvas não o toma (canvas-engine.tsx, onPointerDown)
-  const onPointerDown = () => {
+  const onPointerDown = (e) => {
+    if (e && e.pointerType === 'touch') touchY.current = e.clientY;
     if (!focused && onFocus) onFocus();
     if (pressing.current) return;
     const release = () => {
@@ -475,7 +507,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   const factor = fixed !== null ? fixed : fit && !problem ? fitScale(fit, { cols: frame.cols, rows: shownRows }) : 1;
   const message = notice || drawError;
   return <div ref={root} role="region" aria-label={label} tabIndex={0} data-tty-wheel={ownsWheel({ headerOnly, problem }) ? '' : undefined} data-tty-focused={focused ? 'true' : 'false'}
-    onKeyDown={onKeyDown} onPaste={onPaste} onCopy={onCopy} onPointerDown={onPointerDown}
+    onKeyDown={onKeyDown} onPaste={onPaste} onCopy={onCopy} onPointerDown={onPointerDown} onPointerMove={onTouchMove} onPointerUp={endTouch} onPointerCancel={endTouch}
     className={cn('relative flex h-full min-h-0 flex-col border bg-term text-term-foreground', FOCUS_RING, focused ? 'border-foreground' : 'border-border')}>
     <div className="flex shrink-0 items-center gap-2 border-b border-border px-2 t-meta text-term-muted" style={{ height: HEADER_H }}>
       <span className="min-w-0 flex-1 truncate t-data">{problem ? 'terminal' : frame.pane}</span>
@@ -497,5 +529,5 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   </div>;
 }
 
-window.ArgosNodeTty = { NodeTty, frameCursor, setTermFocus, TTY_GLOBAL_KEYS, TTY_CANVAS_KEYS, minSize, translateKey, clipboardIntent, clipboardAction, selectedText, wheelIntent, historyLinesOf, historyWindow, clampOffset, wheelStep, scrollLive, wheelScroll, historyLoaded, ownsWheel, screenLinePx, createTextInput, isCompositionKey, fitScale, areaBox, fitForNode, rowsToShow, cursorOf, screenOf, screenRows, ttyDrawing, oversize, selectionOf };
+window.ArgosNodeTty = { NodeTty, muteXtermWheel, frameCursor, setTermFocus, TTY_GLOBAL_KEYS, TTY_CANVAS_KEYS, minSize, translateKey, clipboardIntent, clipboardAction, selectedText, wheelIntent, touchWheel, historyLinesOf, historyWindow, clampOffset, wheelStep, scrollLive, wheelScroll, historyLoaded, ownsWheel, screenLinePx, createTextInput, isCompositionKey, fitScale, areaBox, fitForNode, rowsToShow, cursorOf, screenOf, screenRows, ttyDrawing, oversize, selectionOf };
 })();

@@ -108,6 +108,7 @@ const WORDS = {
   approved: "Aprovada: o agente deve seguir em instantes.",
   denied: "Negada: o agente recebeu o Escape.",
   unknownTool: "uma ferramenta",
+  answerInTerminal: "Para responder, vá ao terminal deste agente.",
 } as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -257,6 +258,7 @@ function makeArgosNodePermission() {
     return h("div", { className: ui.className ?? BOX, role: "group", "aria-label": `Permissão pendente: ${tool}` },
       h("span", { className: "t-meta-em" }, `Pede permissão: ${tool}`),
       view.blockedReason ? h("span", { className: "t-meta text-muted-foreground" }, view.blockedReason) : null,
+      view.blockedReason ? h("span", { className: "t-meta text-muted-foreground" }, WORDS.answerInTerminal) : null,
       h("div", { className: "flex gap-2" },
         h("button", { type: "button", className: BTN, disabled: !clickable(view.approve), "aria-busy": sending && state.action === APPROVE ? true : undefined, onClick: ui.onApprove }, view.approve.label),
         h("button", { type: "button", className: BTN, disabled: !clickable(view.deny), "aria-busy": sending && state.action === DENY ? true : undefined, onClick: ui.onDeny }, view.deny.label)),

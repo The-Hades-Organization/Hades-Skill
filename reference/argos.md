@@ -118,7 +118,12 @@ Corpo: `{ "node": "<id de agente>", "action": "<nome>", "args": { … }, "confir
   novo") ou `Escape` ao pane do agente, pela página Herdr. Três travas, conferidas no servidor antes de qualquer tecla:
   há `pendingPermission` no diário; o herdr do agente está `blocked`; e a ferramenta pedida é `Bash`, `Edit`, `Write`,
   `NotebookEdit` ou MCP (`mcp__…`). Sem pedido pendente ou com o herdr não `blocked`: 409 `permission_not_pending`. Plano,
-  pergunta e pedido sem ferramenta identificada: 422 `permission_not_supported` (responde-se no terminal). Pane que não está
+  pergunta e pedido sem ferramenta identificada: 422 `permission_not_supported` (responde-se no terminal).
+  A ferramenta do pedido é a do texto do aviso ("use <Ferramenta>"); sem ela, é a do último `tool_pre` ainda sem `tool_post`
+  antes do `permission` no diário do mesmo agente (`reference/journal.md`), então `Bash` sem o texto também vale. Sem `tool_pre`
+  aberto, segue `null` e recusa. O diálogo do nó (`node-permission.tsx`) com os botões desabilitados mostra sempre o motivo
+  (`blockedReason`) e "Para responder, vá ao terminal deste agente."; com o herdr fora de `blocked` o motivo cita o estado
+  que o herdr marca. Pane que não está
   mais no `herdr agent list` (sessão encerrada): 409 `pane_gone`, antes de qualquer outra trava e sem enviar tecla.
   Evolução futura, sem mexer no diário por ora: campo aditivo `dialog` no evento `permission` (esquema v1 do diário) e
   tabela fechada diálogo → teclas.

@@ -72,6 +72,23 @@ export function parseNodeId(raw: string): ParsedNodeId {
 const ACTIVITY_SOURCE = "guard";
 const PASSIVE_KINDS = new Set(["notification"]);
 
+/** Ferramenta do pedido quando o aviso não a nomeia: o `tool_pre` mais recente ainda sem `tool_post`, desde a última parada, prompt ou encerramento. */
+function openToolBefore(events: readonly JournalEvent[], end: number): string | null {
+  const open: string[] = [];
+  for (let i = 0; i < end; i++) {
+    const event = events[i] as JournalEvent;
+    if (event.source === "orch" && event.kind === AGENT_END_KIND) open.length = 0;
+    if (event.source !== ACTIVITY_SOURCE) continue;
+    if (event.kind === "stop" || event.kind === "prompt") open.length = 0;
+    else if (event.kind === "tool_pre" && event.tool) open.push(event.tool);
+    else if (event.kind === "tool_post") {
+      const at = event.tool ? open.lastIndexOf(event.tool) : -1;
+      if (at >= 0) open.splice(at, 1);
+    }
+  }
+  return open.at(-1) ?? null;
+}
+
 /** Permissão pendente: o último evento de atividade do agente é o pedido, sem ferramenta, parada, prompt ou encerramento do agente depois dele. */
 export function pendingPermission(events: readonly JournalEvent[]): PendingPermission | null {
   for (let i = events.length - 1; i >= 0; i--) {
@@ -79,7 +96,8 @@ export function pendingPermission(events: readonly JournalEvent[]): PendingPermi
     // o encerramento do agente (done, park, skill-clean) fecha a pendência: a sessão que pediu já não existe
     if (event.source === "orch" && event.kind === AGENT_END_KIND) return null;
     if (event.source !== ACTIVITY_SOURCE || PASSIVE_KINDS.has(event.kind)) continue;
-    return event.kind === "permission" ? { ts: event.ts, tool: event.tool ?? null } : null;
+    if (event.kind !== "permission") return null;
+    return { ts: event.ts, tool: event.tool ?? openToolBefore(events, i) };
   }
   return null;
 }

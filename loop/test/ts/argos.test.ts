@@ -485,15 +485,20 @@ describe("argos: POST /api/argos/action", () => {
     const plan = hook("unit-a", "2026-03-10T10:02:00Z", { hook_event_name: "Notification", notification_type: "permission_prompt", message: "Claude needs your permission to use ExitPlanMode" });
     write(join(WORK, "_skill/journal/unit-a.jsonl"), `${saved}${JSON.stringify(plan)}\n`);
     expect(await act({ node: UNIT_A, action: "deny_permission" })).toMatchObject({ status: 422, body: { code: "permission_not_supported" } });
-    // pedido sem a ferramenta (tool null) também fica fora; MCP passa
+    // pedido sem a ferramenta (tool null, sem tool_pre aberto) também fica fora; MCP passa
     const mcp = hook("unit-a", "2026-03-10T10:03:00Z", { hook_event_name: "Notification", notification_type: "permission_prompt", message: "Claude needs your permission to use mcp__x__y" });
     write(join(WORK, "_skill/journal/unit-a.jsonl"), `${saved}${JSON.stringify(mcp)}\n`);
     expect((await act({ node: UNIT_A, action: "approve_permission" })).status).toBe(200);
     const bare = hook("unit-a", "2026-03-10T10:04:00Z", { hook_event_name: "Notification", notification_type: "permission_prompt", message: "permission needed" });
-    write(join(WORK, "_skill/journal/unit-a.jsonl"), `${saved}${JSON.stringify(bare)}\n`);
+    const stop = hook("unit-a", "2026-03-10T10:03:30Z", { hook_event_name: "Stop" });
+    write(join(WORK, "_skill/journal/unit-a.jsonl"), `${saved}${JSON.stringify(stop)}\n${JSON.stringify(bare)}\n`);
     expect((await act({ node: UNIT_A, action: "approve_permission" })).status).toBe(422);
+    // sem a ferramenta no texto, mas com o tool_pre Bash aberto antes do pedido: a ferramenta vem do diário
+    const open = hook("unit-a", "2026-03-10T10:03:40Z", { hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: {} });
+    write(join(WORK, "_skill/journal/unit-a.jsonl"), `${saved}${JSON.stringify(stop)}\n${JSON.stringify(open)}\n${JSON.stringify(bare)}\n`);
+    expect((await act({ node: UNIT_A, action: "approve_permission" })).status).toBe(200);
     write(join(WORK, "_skill/journal/unit-a.jsonl"), saved);
-    expect(lines(HERDR_LOG).slice(before).filter((l) => l.includes("send-keys")).length).toBe(1);
+    expect(lines(HERDR_LOG).slice(before).filter((l) => l.includes("send-keys")).length).toBe(2);
   });
 
   test("argumentos inválidos e nó errado: invalid_args, invalid_node, unknown_node", async () => {

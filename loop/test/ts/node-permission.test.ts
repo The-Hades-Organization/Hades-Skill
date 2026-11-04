@@ -179,6 +179,33 @@ describe("node-permission: o que a tela mostra", () => {
   });
 });
 
+describe("node-permission: o motivo do bloqueio fica na tela", () => {
+  const texts = (tree: unknown): string[] => {
+    const out: string[] = [];
+    const walk = (n: unknown): void => {
+      if (typeof n === "string") out.push(n);
+      else if (Array.isArray(n)) n.forEach(walk);
+      else if (n && typeof n === "object") walk((n as { props?: { children?: unknown } }).props?.children);
+    };
+    walk(tree);
+    return out;
+  };
+  const h = (type: string, props: Record<string, unknown> | null, ...children: unknown[]) => ({ type, props: { ...(props ?? {}), children } });
+
+  test("dado ferramenta desconhecida, então o diálogo mostra o motivo e manda ao terminal do agente", () => {
+    const view = Perm.permissionView(agent({ pendingPermission: { ts: TS, tool: "ExitPlanMode" } })) as View;
+    const shown = texts(Perm.renderPermission({ h: h as never, onApprove() {}, onDeny() {} }, view as never, { phase: "idle" } as never, ""));
+    expect(shown.some((t) => t.includes("terminal"))).toBe(true);
+    expect(shown).toContain(view.blockedReason as string);
+  });
+
+  test("dado herdr fora de blocked, então o motivo cita o estado do herdr e o terminal", () => {
+    const view = Perm.permissionView(agent({ herdrState: "working" })) as View;
+    expect([view.approve.available, view.blockedReason]).toEqual([false, expect.stringContaining("working")]);
+    expect(view.blockedReason).toContain("terminal");
+  });
+});
+
 describe("node-permission: o envio ao servidor", () => {
   const request = actions.actionRequest({ id: "agent:p:a1" }, "approve_permission");
 

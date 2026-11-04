@@ -90,7 +90,8 @@ const needsHerdr = (node: ActionNode, ctx: ActionContext): ActionReason | undefi
 /** As três travas do servidor: pedido pendente, herdr `blocked` e ferramenta de diálogo "Yes" simples. */
 const needsAnswerablePermission = (node: ActionNode, ctx: ActionContext): ActionReason | undefined => {
   const pending = node.pendingPermission;
-  if (!pending || node.herdrState !== "blocked") return why(ACTION_REASONS.noPendingPermission, "não há permissão pendente neste agente");
+  if (!pending) return why(ACTION_REASONS.noPendingPermission, "não há permissão pendente neste agente");
+  if (node.herdrState !== "blocked") return why(ACTION_REASONS.noPendingPermission, `o herdr marca este agente como "${node.herdrState ?? "desconhecido"}", não como bloqueado: responda no terminal do agente`);
   if (!isSimpleTool(pending.tool)) return why(ACTION_REASONS.permissionNotSupported, "este diálogo (plano, pergunta ou ferramenta desconhecida) se responde no terminal");
   return needsHerdr(node, ctx);
 };

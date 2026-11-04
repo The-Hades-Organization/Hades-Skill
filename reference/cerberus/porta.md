@@ -42,8 +42,8 @@ e acesso autenticado; lista vazia barra). Quem chama: `hades review`, `hades con
 (`avaliar comentario --ctx pr=<n> --ctx texto=<arquivo>`), e `kit/tunnel.sh` (`avaliar tunel --ctx tunel=front|painel
 --ctx porta=<p> --ctx host=<host> --ctx acesso=<autenticado|anonimo>`: o painel é só do dono; o front, que o
 `publish-cmds` abre com regra anônima, declara `anonimo` e a guarda barra). `artefato` (`avaliar artefato --ctx
-arquivo=<caminho>`) ainda não tem ponto de chamada: a publicação de artefato é uma ferramenta do Claude, sem script do
-núcleo no caminho.
+arquivo=<caminho>`) é chamado pelo `hades minos publish` sobre a página montada, numa pasta de preparo, antes de qualquer
+arquivo ficar no lugar (`reference/minos.md`); a publicação em si segue sendo da ferramenta Artifact do Claude.
 
 `nome-dominio` fora do repositório da skill passa com a evidência de que a regra não se aplica. A regra em si mora no
 `skill-release.sh`; a guarda só a chama.

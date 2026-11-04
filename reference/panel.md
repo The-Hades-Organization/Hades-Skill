@@ -163,7 +163,9 @@ Tour da página (§Tour por página): escalações, PRs com atividade, ações e
 
 Página **Orquestração** (grupo Loop): agentes do orquestrador, perguntas ao dono, relatórios e PRs de consolidação (`reference/loop/orchestrate.md`).
 
-Tour da página (§Tour por página): perguntas, agentes e o cartão deles, consolidações, decisões autônomas e encerrados, com prévia de quatro agentes de exemplo (nenhum com pane, e abrir arquivo ou terminal fica desligado). Código: `ui/pages/orchestration.tour.tsx`.
+**Publicar (Minos):** o card "Acompanhamento publicável" tem o botão *Publicar*, que chama `POST /api/orchestration/publish`: o servidor lê o plano aprovado (`plan.json`), gera a página offline em `$D/minos/offline/orquestracao.html` (a mesma do `hades minos publish --html`, pelo Cerberus antes de gravar) e a resposta traz o arquivo e o comando `hades minos publish orquestracao <plano>` para a sessão do Claude publicar no Artifact. Sem plano aprovado responde `ok: false` com a mensagem, sem erro; o Cerberus barrando devolve os motivos (sem o trecho achado). O painel não publica e não grava link. `reference/minos.md`.
+
+Tour da página (§Tour por página): publicar, perguntas, agentes e o cartão deles, consolidações, decisões autônomas e encerrados, com prévia de quatro agentes de exemplo (nenhum com pane, e abrir arquivo ou terminal fica desligado). Código: `ui/pages/orchestration.tour.tsx`.
 
 ### Autonomia do orquestrador (Configurações e Orquestração)
 

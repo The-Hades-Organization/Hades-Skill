@@ -160,7 +160,7 @@ export function configValue(key: string, fallback: string, env: NodeJS.ProcessEn
 }
 
 /** Registros dos agentes: os do ambiente e, fora da skill, também as unidades do registro único _skill. */
-export function agentFiles(work: WorkEnv): string[] {
+export function agentFiles(work: Pick<WorkEnv, "orch" | "skillOrch" | "skillScope">): string[] {
   const dirs = [join(work.orch, "agents"), ...(work.skillScope ? [] : [join(work.skillOrch, "agents")])];
   return dirs.flatMap((dir) => listDir(dir).filter((n) => n.endsWith(".json")).map((n) => join(dir, n)));
 }

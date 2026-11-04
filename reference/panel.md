@@ -205,6 +205,13 @@ Cada PR escolhida vira um job `hds-pjob-*` que roda `hades review`:
    `claude -p` (tokens pelo `modelUsage`, que inclui os subagentes, com o detalhe em `tokensByModel`), e `<id>.md` com o
    relatório.
 
+**Fila e fases.** O `hades review` entra num semáforo por arquivo de lock (`~/.claude/hades/reviews/slots/slot-<i>.lock`,
+`flock` não bloqueante, solto pelo kernel se o processo morrer) com teto em `HADES_REVIEW_MAX_PARALLEL` (padrão 4), valendo
+para o painel e para o terminal. Quem passa do teto espera em `fila`, sem prazo e sem falhar; os prazos do git (`GIT_TIMEOUT_MS`)
+só correm depois da admissão. Cada job expõe a fase (`fila`, `fetch`, `checkout`, `revisão`, `publicação`): a linha
+`[fase] <nome>` no log, o campo `fase`/`faseDesde` do registro em `reviews/<id>.json` (card **Em curso** de Revisões) e o
+arquivo `logs/panel-jobs/<job>.phase` que a página **Execuções** lê enquanto o job roda.
+
 Para testar o preparo sem gastar tokens nem publicar: `hades review … --dry-run` faz o fetch, cria e remove o
 worktree e mostra o prompt.
 

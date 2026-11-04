@@ -48,7 +48,7 @@ HadesCore.registerTour('reviews', {
     {
       id: 'reviews-curso',
       title: 'Em curso',
-      body: 'As revisões rodando agora, cada uma com o fio do andamento e a execução para ver o log.',
+      body: 'As revisões rodando agora, cada uma com a fase (na fila, buscando a PR, preparando o worktree, revisando, publicando), o fio do andamento e a execução para ver o log. Acima do teto de revisões ao mesmo tempo, as demais esperam na fila.',
       fallback: 'O card só aparece com revisão rodando. Marque PRs e clique em Revisar para ver uma.',
       side: 'top',
     },

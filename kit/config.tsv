@@ -69,6 +69,7 @@ HADES_EFFORT_ESCALATE	high	enum:low,medium,high,xhigh,max	Modelos por papel	Esfo
 HADES_ESCALATE_GATE_WAVES	2	int:1:6	Modelos por papel	Escalar depois de quantas ondas de gate	next	Ondas de correção com o gate ainda falhando antes de o agente parar e pedir escalada.
 HADES_REVIEW_SUBAGENT_MODELS	default=sonnet,review-impact-judge=opus,review-database=opus,review-security=opus	modelmap	Modelos por papel	Modelo dos subagentes de review	agents	Por subagente em ~/.claude/agents (padrão = os demais). Valores: inherit, haiku, sonnet, opus. Aplicar grava o model: de cada um.
 HADES_CTX_GUARD	1	bool	Contexto e espera	Teto de contexto ligado	hooks	Hook em toda sessão: acima do teto, a sessão orquestrada grava o handoff e para; a interativa avisa para /clear.
+HADES_REVIEW_MAX_PARALLEL	4	int:1:32	Modelos por papel	Revisão de PR alheia: revisões ao mesmo tempo	next	Teto de revisões de PR rodando juntas (painel e `hades review`); as que passam do teto esperam na fila, sem falhar.
 HADES_CTX_CAP_ORCHESTRATOR	250000	int:50000:1000000	Contexto e espera	Teto: orquestrador (tokens)	hooks	
 HADES_CTX_CAP_SPEC	200000	int:50000:1000000	Contexto e espera	Teto: spec (tokens)	hooks	
 HADES_CTX_CAP_IMPL	200000	int:50000:1000000	Contexto e espera	Teto: implementação (tokens)	hooks	

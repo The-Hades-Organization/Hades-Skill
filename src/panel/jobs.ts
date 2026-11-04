@@ -26,6 +26,8 @@ export interface Job {
   state?: JobState;
   rc?: number | string;
   ended?: number;
+  /** Fase da execução que a declara (`hades review`: fila, fetch, checkout, revisão, publicação); só enquanto roda. */
+  fase?: string;
 }
 
 export interface Jobs {
@@ -101,7 +103,11 @@ export function createJobs(env: PanelEnv): Jobs {
         meta.state = rc === "0" ? "ok" : "falhou";
         meta.rc = /^-?\d+$/.test(rc) ? Number.parseInt(rc, 10) : rc;
         meta.ended = statSync(rcFile).mtimeMs / 1000;
-      } else meta.state = active.has(`${unit}-${meta.id}`) ? "rodando" : "interrompido";
+      } else {
+        meta.state = active.has(`${unit}-${meta.id}`) ? "rodando" : "interrompido";
+        const fase = (readText(join(dir, `${meta.id}.phase`)) ?? "").trim();
+        if (meta.state === "rodando" && fase) meta.fase = fase;
+      }
       jobs.push(meta);
     }
     return jobs;

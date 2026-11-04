@@ -13,6 +13,7 @@ import { EXIT, HadesError, out, warn } from "../lib/output.ts";
 import { hadesHome, skillRoot } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { need } from "../lib/deps.ts";
+import { acquireSlot, maxParallel, phaseFile, writePhase, type ReviewPhase, type Slot } from "../lib/review-queue.ts";
 
 const MODELS = { opus: "claude-opus-5-5", sonnet: "claude-sonnet-5-5" } as const;
 const COMMANDS = ["review-pr", "review-agents"] as const;
@@ -31,6 +32,8 @@ const FETCH_RETRY_MS = 1500;
 const REF_LOCK_RACE = /cannot lock ref|unable to update local ref|\.lock': File exists/;
 // linha final que a sessão escreve para o histórico (o relatório humano vem antes dela)
 const TAIL_LINE = /^HADES-REVIEW:\s*(.*)$/m;
+// a sessão começou a publicar: o review sai por `gh api` e o shard por `hades review-record`
+const PUBLISH_TOOL = /^→ Bash: .*(gh api\b|hades review-record\b)/;
 const TAIL_ALL = /^HADES-REVIEW:\s*(.*)$/gm;
 
 type ModelName = keyof typeof MODELS;
@@ -338,7 +341,7 @@ interface StreamOutcome {
 }
 
 /** Roda o claude e lê o stream-json (stdout e stderr juntos, linha a linha) enquanto ele escreve. */
-function streamClaude(argv: string[], cwd: string, journal: Journal, env: NodeJS.ProcessEnv): Promise<StreamOutcome> {
+function streamClaude(argv: string[], cwd: string, journal: Journal, env: NodeJS.ProcessEnv, onPublish: () => void): Promise<StreamOutcome> {
   return new Promise((resolve, reject) => {
     const [command = "", ...rest] = argv;
     const child = spawn(command, rest, { cwd, env, stdio: ["inherit", "pipe", "pipe"] });
@@ -365,7 +368,10 @@ function streamClaude(argv: string[], cwd: string, journal: Journal, env: NodeJS
         const content = isRecord(event.message) && Array.isArray(event.message.content) ? event.message.content : [];
         for (const block of content) {
           if (!isRecord(block)) continue;
-          if (block.type === "tool_use") out((subChild ? "  " : "") + formatTool(block));
+          if (block.type === "tool_use") {
+            out((subChild ? "  " : "") + formatTool(block));
+            if (!subChild && PUBLISH_TOOL.test(formatTool(block))) onPublish();
+          }
           else if (block.type === "text" && !subChild && typeof block.text === "string" && block.text.trim()) {
             out(clip(block.text.trim(), TEXT_MAX));
           }
@@ -419,6 +425,18 @@ async function review(o: Options): Promise<number> {
   const tmp = join(dirname(o.wt), `wt-review-${o.pr}-${rid.slice(-4)}`);
   const ref = `refs/hades-review/${rid}`;
   const texto = join(journal.directory, `${rid}.corpo.md`); // o corpo que o Cerberus avalia antes do POST
+  const phaseOut = phaseFile(process.env.HADES_PANEL_JOB, process.env.HADES_DATA);
+  const setPhase = (phase: ReviewPhase): void => {
+    journal.update({ fase: phase, faseDesde: utcNow() });
+    journal.save();
+    out(`[fase] ${phase}`);
+    try {
+      writePhase(phaseOut, phase);
+    } catch (error) {
+      warn(`fase ${phase} não gravada para o painel: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+  let slot: Slot | undefined;
   const git = ["git", "-C", o.wt, "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential"];
   // Parar pelo painel (parada do serviço: systemctl stop ou launchctl bootout) manda SIGTERM: o worktree sai e o registro fecha como interrompido
   process.once("SIGTERM", () => {
@@ -435,7 +453,13 @@ async function review(o: Options): Promise<number> {
     journal.update({ title: pr.title, author: pr.author, base: pr.baseRefName, head: pr.headRefName, headOid: pr.headRefOid, url: pr.url, slug });
     journal.save();
     out(`PR #${o.pr} ${pr.title} · ${pr.author} · ${pr.baseRefName} ← ${pr.headRefName} @ ${pr.headRefOid.slice(0, 10)}`);
+    // admissão: o teto de revisões ao mesmo tempo vale daqui para a frente; os prazos de git só contam depois dela
+    setPhase("fila");
+    slot = await acquireSlot({ dir: join(journal.directory, "slots"), max: maxParallel(warn), onWait: () => out("na fila: revisões no teto, esperando vaga") });
+    out(`admitida (vaga ${slot.index})`);
+    setPhase("fetch");
     fetchSerialized(o.wt, [...git, "fetch", "--quiet", "origin", `+pull/${o.pr}/head:${ref}`, `+${pr.baseRefName}:refs/remotes/origin/${pr.baseRefName}`]);
+    setPhase("checkout");
     sh(["git", "-C", o.wt, "worktree", "add", "--quiet", "--detach", tmp, ref], GIT_TIMEOUT_MS);
     out(`worktree descartável: ${tmp}`);
     const prompt = buildPrompt(o, pr, slug, texto);
@@ -449,7 +473,10 @@ async function review(o: Options): Promise<number> {
     // a sessão às vezes chama `hades review-record` de fora do worktree (da pasta da skill, sem origin): o estado já vai resolvido
     const [owner = "", repo = ""] = slug.split("/");
     const env = { ...process.env, PATH: `${hadesShimDir()}:${process.env.PATH ?? ""}`, HADES_STATE: process.env.HADES_STATE ?? stateDirFor(owner, repo) };
-    const { result, code } = await streamClaude(claudeArgv(o, prompt), tmp, journal, env);
+    setPhase("revisão");
+    const { result, code } = await streamClaude(claudeArgv(o, prompt), tmp, journal, env, () => {
+      if (o.post && journal.rec.fase === "revisão") setPhase("publicação");
+    });
     const text = typeof result?.result === "string" ? result.result : "";
     mkdirSync(journal.directory, { recursive: true });
     writeFileSync(join(journal.directory, `${rid}.md`), `${text.replace(TAIL_ALL, "").trimEnd()}\n`);
@@ -475,6 +502,7 @@ async function review(o: Options): Promise<number> {
     return EXIT.fail;
   } finally {
     cleanup(o.wt, tmp, ref);
+    slot?.release();
   }
 }
 

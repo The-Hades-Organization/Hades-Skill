@@ -372,9 +372,16 @@ o painel cria, renomeia e fecha a estrutura do herdr, não só observa), não s�
   estado" é contado **desde que o painel viu o estado** (o herdr não guarda a hora), então some a cada restart do painel.
   Filtro por texto (nome, caminho, branch, ID) e por estado. Com mais de uma sessão aparece o seletor de sessão; a
   gaveta **Sessões** lista todas.
-- **Painel escolhido:** saída recente (`pane read --source recent-unwrapped`, 200 linhas, ANSI removido; painel recém-aberto
-  cai para `visible`), atualização manual e automática a cada 3 s enquanto aberto, e o processo em primeiro plano
-  (`pane process-info`). A 390 px a lista ocupa a tela e o painel escolhido abre numa gaveta; o terminal rola na horizontal.
+- **Painel escolhido:** o **terminal ao vivo** do painel (`ui/herdr-term.tsx`): o quadro que o herdr entrega por
+  `GET /api/herdr/stream` (SSE, um pane) é desenhado pelo `NodeTty` do Argos (`argos/node-tty.tsx`, importado como está,
+  cores e cursor estimado) e o teclado escreve direto nele, por `POST /api/herdr/input` (fila de um envio por vez; as
+  teclas que o herdr 0.8.2 recusa saem antes). **Tamanho:** o quadro só ganha escala (`fitScale`); a página não anexa
+  cliente herdr nem manda resize, porque o tamanho de um pane é da sessão inteira e vence quem mexeu por último. Ao
+  redor do terminal ficam os metadados (nome, estado, `cwd`, branch, processo em primeiro plano por `pane process-info`)
+  e as ações (prompt, teclas, dividir, renomear, fechar). A **saída em texto** (`pane read --source recent-unwrapped`,
+  200 linhas, ANSI removido) virou uma alternativa recolhida (copiar, leitor de tela), com atualização manual e
+  automática (3 s aberta, 10 s fechada, só para o processo); com o fluxo caído (3 erros seguidos, ou a rota recusada) ela
+  abre sozinha e o terminal oferece **Reconectar**. Pane que saiu mostra o aviso no lugar do quadro.
 - **Hades:** agente registrado em `$ORCH/agents/*.json` ganha o selo "Hades" (link para a Orquestração); na Orquestração,
   cada agente tem o atalho "Abrir no Herdr" (`#/herdr?pane=<id>`). `#/herdr?session=<s>&pane=<id>&sessions=1` abre direto
   numa sessão, num painel ou na gaveta de sessões.
@@ -451,10 +458,16 @@ levam `fallback`. Código: `ui/pages/herdr.tour.tsx`.
 
 ### Herdr no celular
 - **Aba Terminais:** lista das sessões abertas; tocar em uma abre o terminal em tela cheia com a barra de teclas.
-- **Aba Workspaces:** lista de painéis; tocar abre o painel do agente em tela cheia (saída, teclas, prompt).
+- **Aba Workspaces:** lista de painéis; tocar abre o **mesmo terminal** em tela cheia (`MobileTermScreen`), com a barra
+  de teclas de `mobile-term.tsx` colada ao teclado virtual (Esc, Tab, Ctrl fixo, setas, 1/2/3, y/n, Ctrl+C…; a barra
+  fala por `apiRef` em bytes e `bytesToInput` os traduz para o contrato do `/api/herdr/input`). Tocar no terminal
+  abre o teclado (o foco do campo escondido acontece dentro do clique, o gesto que o iOS exige) e tocar na barra ou no
+  cabeçalho não o tira dele. O botão de ajustes do cabeçalho abre a gaveta com metadados, saída em texto, prompt e ações.
+  Limite: com a largura do celular, um pane de ~94 colunas fica a ~0,5× (sem resize, por decisão); o texto se lê melhor
+  na saída em texto.
 - **Agente pedindo você** (selo "espera por você" do herdr, Orquestração, Argos): o toque leva a `#/herdr?pane=<id>`, que
-  no celular abre direto o painel dele. Com o agente em `blocked`, a primeira linha são as respostas **1 / 2 / 3 / y /
-  n** (texto sem Enter pelo `herdr pane send-text`, sem servidor novo).
+  no celular abre direto o painel dele. Com o agente em `blocked`, a barra de teclas do terminal põe as respostas **1 / 2 / 3 / y /
+  n** primeiro e em destaque (`attention`); na gaveta de detalhes, a primeira linha são as mesmas respostas (texto sem Enter pelo `herdr pane send-text`).
 - **"Abrir o cliente do herdr" e "Abrir terminal na pasta"** (só dentro das raízes permitidas): abrem a sessão PTY na hora
   e levam ao terminal em tela cheia. Com `HADES_TERMINAL` desligado, o aviso diz como ligar.
 

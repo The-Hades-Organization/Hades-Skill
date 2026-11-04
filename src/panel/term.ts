@@ -84,6 +84,8 @@ export interface TermInfo {
   cols: number;
   rows: number;
   attached: boolean;
+  /** Só no `herdr-client`: a sessão do herdr que o cliente mostra (a página acha o pane em foco nela). */
+  herdrSession?: string;
 }
 
 export interface OpenRequest { kind: TermKind; cwd?: string; cols?: number; rows?: number; resume?: string; session?: string }
@@ -110,6 +112,7 @@ interface Attach { attachment: TermAttachment; link: TermLink; sent: number; fin
 interface Session {
   id: string;
   kind: TermKind;
+  herdrSession?: string;
   cwd: string;
   startedAt: number;
   lastUsedAt: number;
@@ -357,7 +360,7 @@ export function createTerm(deps: TermDeps) {
       return refuse(new TermError(TERM_CODES.spawnFailed, "o processo do terminal não subiu (detalhe no log do painel)"), origin, req);
     }
     const t = now();
-    const s: Session = { id, kind: req.kind, cwd, startedAt: t, lastUsedAt: t, origin, proc, ring, cols, rows, state: "running", closing: false };
+    const s: Session = { id, kind: req.kind, herdrSession: req.kind === "herdr-client" ? req.session ?? DEFAULT_HERDR_SESSION : undefined, cwd, startedAt: t, lastUsedAt: t, origin, proc, ring, cols, rows, state: "running", closing: false };
     sessions.set(id, s);
     void proc.exited.then((exit) => markExited(s, exit));
     record("abrir", { kind: s.kind, cwd, origin, id });
@@ -372,6 +375,7 @@ export function createTerm(deps: TermDeps) {
   const info = (s: Session): TermInfo => ({
     id: s.id, kind: s.kind, cwd: s.cwd, startedAt: new Date(s.startedAt).toISOString(), lastUsedAt: new Date(s.lastUsedAt).toISOString(),
     origin: s.origin, state: s.state, cols: s.cols, rows: s.rows, attached: s.attach !== undefined,
+    ...(s.herdrSession !== undefined ? { herdrSession: s.herdrSession } : {}),
   });
 
   function get(id: unknown): Session {

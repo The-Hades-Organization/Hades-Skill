@@ -347,6 +347,101 @@ function makeTermLogic() {
     };
   }
 
+
+  // ------------------------------------------------------------------ roda em tela alternativa (#18; a regra do histórico é a do nó do Argos, #12)
+  /** Linhas pedidas ao `/api/herdr/scrollback` (teto do servidor: SCROLLBACK_LINES_MAX em herdr-page.ts). */
+  const HISTORY_LINES = 1000;
+  const HISTORY_URL = "/api/herdr/scrollback";
+  /** Altura de uma linha na tela quando a medida não vale (a célula do nó na escala 1). */
+  const LINE_PX_DEFAULT = 17;
+
+  /** Linhas de ANSI do histórico (a saída de `pane read --source recent`): sem o fim de linha e sem as linhas vazias do rodapé. */
+  function historyLinesOf(ansi: unknown): string[] {
+    const lines = String(ansi).split(/\r?\n/);
+    while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+    return lines;
+  }
+
+  /** Deslocamento (linhas a partir do fim) preso entre 0 e o que o histórico tem acima de uma tela de `rows` linhas. */
+  const clampOffset = (offset: number, total: number, rows: number): number => Math.min(Math.max(0, offset), Math.max(0, total - rows));
+
+  /** As `rows` linhas do histórico que terminam `offset` linhas antes do fim. */
+  function historyWindow(lines: string[], rows: number, offset: number): string[] {
+    const end = lines.length - clampOffset(offset, lines.length, rows);
+    return lines.slice(Math.max(0, end - rows), end);
+  }
+
+  interface WheelLike { deltaY: number; deltaMode: number }
+  /**
+   * Linhas inteiras de um giro da roda (positivo = rola para trás no histórico) e o resto em pixels que fica para o próximo giro.
+   * `linePx` é a altura de uma linha NA TELA. O trackpad manda dezenas de eventos de poucos pixels: cada um somado ao resto,
+   * nunca arredondado para uma linha. Linhas e páginas viram pixels.
+   */
+  function wheelStep(rest: number, e: WheelLike, rows: number, linePx: number): { lines: number; rest: number } {
+    const px = Number.isFinite(linePx) && linePx > 0 ? linePx : LINE_PX_DEFAULT;
+    const dy = Number.isFinite(e.deltaY) ? e.deltaY : 0;
+    const deltaPx = e.deltaMode === 1 ? dy * px : e.deltaMode === 2 ? dy * rows * px : dy;
+    const acc = (Number.isFinite(rest) ? rest : 0) - deltaPx;
+    const lines = Math.trunc(acc / px) || 0;
+    return { lines, rest: acc - lines * px };
+  }
+
+  /**
+   * Estado da rolagem: `lines` é o histórico (null = ao vivo), `offset` as linhas a partir do fim e `pending` os passos que
+   * chegaram antes de o histórico carregar. Funções puras: a roda dispara em rajada e o estado do render fica velho entre eventos.
+   */
+  interface ScrollState { lines: string[] | null; offset: number; pending: number }
+  const scrollLive = (): ScrollState => ({ lines: null, offset: 0, pending: 0 });
+
+  function wheelScroll(state: ScrollState, step: number, rows: number): ScrollState {
+    if (state.lines === null) return { ...state, pending: Math.max(0, state.pending + step) };
+    const offset = clampOffset(state.offset + step, state.lines.length, rows);
+    return offset === 0 ? scrollLive() : { ...state, offset };
+  }
+
+  function historyLoaded(state: ScrollState, lines: string[], rows: number): ScrollState {
+    const offset = clampOffset(state.pending, lines.length, rows);
+    return offset === 0 ? scrollLive() : { lines, offset, pending: 0 };
+  }
+
+  /**
+   * Texto que desenha uma tela inteira: atributos zerados, cursor ao canto e tela limpa, as linhas separadas por CRLF, e o cursor
+   * (se vier) posicionado e visível. Nunca termina em quebra de linha: a última linha da grade não rola a tela.
+   */
+  function screenOf(ansi: unknown, cursor: { row: number; col: number } | null = null): string {
+    const body = String(ansi).split(/\r?\n/);
+    while (body.length > 1 && body[body.length - 1] === "") body.pop();
+    const place = cursor ? `\x1b[${cursor.row + 1};${cursor.col + 1}H\x1b[?25h` : "";
+    return `\x1b[?25l\x1b[0m\x1b[H\x1b[2J${body.join("\r\n")}\x1b[0m${place}`;
+  }
+
+  /** Quem recebe a roda: o xterm (buffer normal, comportamento de sempre), o histórico do herdr (tela alternativa com pane) ou o programa (tela alternativa sem pane). */
+  type WheelRoute = "xterm" | "history" | "program";
+  function wheelRoute(alternate: boolean, hasPane: boolean): WheelRoute {
+    if (!alternate) return "xterm";
+    return hasPane ? "history" : "program";
+  }
+
+  /**
+   * O pane do herdr que a sessão PTY mostra. O PTY herda o ambiente do painel (o HERDR_PANE_ID dele seria o do próprio painel,
+   * não o da sessão), então só o `herdr-client` tem pane: o que está em foco na sessão do herdr (workspace, aba e pane focados).
+   * Sem sessão do herdr ou sem pane focado, `null`.
+   */
+  interface HerdrTreeLike { tree?: Array<{ focused?: boolean; tabs?: Array<{ focused?: boolean; panes?: Array<{ id?: unknown; focused?: boolean }> }> }> }
+  function focusedPaneOf(overview: HerdrTreeLike | null | undefined): string | null {
+    const workspace = overview?.tree?.find((w) => w.focused);
+    const tab = workspace?.tabs?.find((t) => t.focused);
+    const pane = tab?.panes?.find((p) => p.focused);
+    return pane && typeof pane.id === "string" && pane.id !== "" ? pane.id : null;
+  }
+
+  /** Dica da roda sem pane: aparece na primeira vez que a roda é usada em tela alternativa e não volta. */
+  const WHEEL_HINT_TEXT = "A roda vai ao programa. Para ver o histórico, use PageUp/PageDown ou o atalho de rolagem dele.";
+  function createWheelHint(): { take(): boolean } {
+    let shown = false;
+    return { take() { if (shown) return false; shown = true; return true; } };
+  }
+
   return {
     composeGate, COMPOSE_SETTLE_MS,
     RESUME_RE, layoutEmpty, layoutNorm, layoutAdd, layoutSelect, layoutSplit, layoutRemove, layoutReplace, layoutPrune, layoutParse,
@@ -354,6 +449,8 @@ function makeTermLogic() {
     offsetInitial, onHello, onBytes, onWarn, resumeOffset, warnNotice, socketUrl, chunkInput, clampSize, sameSize,
     safeUrl, findLinks, refusal,
     MOBILE_MAX_PX, isMobileWidth, KEY_DEFS, DEFAULT_KEYS, parseKeys, keyBytes, applyCtrl, isFollowing, KEYBOARD_MIN_PX, viewBox, navStep,
+    HISTORY_LINES, HISTORY_URL, historyLinesOf, clampOffset, historyWindow, wheelStep, scrollLive, wheelScroll, historyLoaded, screenOf,
+    wheelRoute, focusedPaneOf, WHEEL_HINT_TEXT, createWheelHint,
   };
 }
 

@@ -1130,6 +1130,7 @@ describe("terminal do nó (ArgosNodeTty)", () => {
       }
     }
     const win: Record<string, any> = { CanvasModel: scope.CanvasModel };
+    new Function("globalThis", "window", createUiTranspiler().transpile(join(uiDir, "term-logic.tsx")))(win, win);
     new Function("window", "HadesCore", "React", "document", "ResizeObserver", transpiled)(win, HadesCore, React, doc, FakeObserver);
     const api = win.ArgosNodeTty as Record<string, any>;
     const render = (p: Record<string, unknown>) => {
@@ -1684,7 +1685,7 @@ describe("nó de agente como terminal", () => {
     };
     const scope: Record<string, any> = { CanvasModel: holder.CanvasModel };
     const transpiler = createUiTranspiler();
-    for (const rel of ["argos/node-terminal.tsx", "argos/node-tty.tsx", "argos/commands-canvas.tsx", "argos/types-user.tsx", "argos/types-live.tsx"]) {
+    for (const rel of ["term-logic.tsx", "argos/node-terminal.tsx", "argos/node-tty.tsx", "argos/commands-canvas.tsx", "argos/types-user.tsx", "argos/types-live.tsx"]) {
       new Function("globalThis", "window", "React", "HadesCore", transpiler.transpile(join(uiDir, rel)))(scope, scope, React, HadesCore);
     }
     const NT = scope.ArgosNodeTerminal as Record<string, any>;
@@ -2790,7 +2791,7 @@ describe("supervisor montado na página (tty:supervisor, mod+shift+o)", () => {
     // o terminal (node-terminal, node-tty) entra para conferir o filtro de teclas com o foco nele; sem rede nem DOM
     const unused = () => { throw new Error("não usado no teste"); };
     const HadesCore = new Proxy({ cn: (...a: unknown[]) => a.filter(Boolean).join(" ") }, { get: (t, k) => (k in t ? t[k as "cn"] : unused) });
-    for (const rel of ["argos/commands-canvas.tsx", "argos/types-user.tsx", "argos/types-live.tsx", "argos/node-terminal.tsx", "argos/node-tty.tsx"]) {
+    for (const rel of ["term-logic.tsx", "argos/commands-canvas.tsx", "argos/types-user.tsx", "argos/types-live.tsx", "argos/node-terminal.tsx", "argos/node-tty.tsx"]) {
       new Function("globalThis", "window", "React", "HadesCore", transpiler.transpile(join(uiDir, rel)))(scope, scope, scope.React, HadesCore);
     }
     const argos = model.argos as unknown as { createArgosRegistries(deps: object): { commands: MountedRegistry; types: object } };

@@ -53,6 +53,13 @@ HadesCore.registerTour('reviews', {
       side: 'top',
     },
     {
+      id: 'reviews-fase',
+      title: 'Fase da revisão',
+      body: 'Onde a revisão está agora: na fila (esperando vaga, acima do teto de revisões ao mesmo tempo), buscando a PR, preparando o worktree, revisando ou publicando. O prazo do preparo só começa a contar quando ela sai da fila.',
+      fallback: 'A fase aparece em cada revisão rodando. Marque PRs e clique em Revisar para ver uma.',
+      side: 'top',
+    },
+    {
       id: 'reviews-historico',
       title: 'Histórico',
       body: 'As 20 últimas revisões terminadas, da mais recente para a mais antiga. É daqui que saem a frase de estado e o custo do topo.',

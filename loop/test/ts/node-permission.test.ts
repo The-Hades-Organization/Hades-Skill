@@ -20,6 +20,7 @@ interface PermissionApi {
   permissionView(node: ActionNode, ctx?: object): View | null;
   permissionReducer(state: State, event: unknown): State;
   answerPermission(node: ActionNode, action: string, deps: { send: Sender; ctx?: object; signal?: AbortSignal }): Promise<Outcome>;
+  renderPermission(ui: { h: unknown; onApprove: () => void; onDeny: () => void }, view: View, state: State, message: string): unknown;
   stateMessage(state: State, errorText: (code: string | undefined, fallback: string) => string): string;
   createActionSender(options: { fetch: Fetch; timeoutMs?: number; timers?: Timers; getToken?: () => string | undefined; onToken?: (t: string) => void }): Sender;
   SEND_ERRORS: Record<string, string>;

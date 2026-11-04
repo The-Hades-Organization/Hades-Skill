@@ -36,8 +36,11 @@ export interface OrchestrationData {
 
 /** Recusa do contrato: o caminho do campo e o motivo, nunca o valor (ele pode ser segredo). */
 export class ContractError extends Error {
-  constructor(readonly path: string, reason: string) {
+  readonly path: string;
+
+  constructor(path: string, reason: string) {
     super(`${path}: ${reason}`);
+    this.path = path;
     this.name = "ContractError";
   }
 }

@@ -107,10 +107,11 @@ HADES_NOTIFY	0	bool	Notificações	Ligar as notificações	hooks	Liga o vigia de
 HADES_NOTIFY_DESKTOP	1	bool	Notificações	Canal: desktop (notify-send)	hooks	Notificação do ambiente gráfico, com ícone do Hades e urgência pela severidade. Sem sessão gráfica (boot sem login) falha calada. Vale na hora.
 HADES_NOTIFY_NTFY	0	bool	Notificações	Canal: celular (ntfy)	hooks	Manda para o tópico secreto do ntfy. O tópico nasce na primeira ativação e fica em ntfy.topic, nunca aqui. Vale na hora.
 HADES_NOTIFY_NTFY_URL	https://ntfy.sh	url	Notificações	Servidor ntfy	hooks	Servidor das mensagens (ntfy.sh ou o seu). Só evento, nome e hora saem da máquina. Vale na hora.
-HADES_NOTIFY_EV_GATE	both	enum:off,desktop,phone,both	Notificações	Gate falhou ou parado na fila	hooks	Falha de gate/build no gate-lock, ou espera na fila além do limite abaixo.
+HADES_NOTIFY_EV_GATE	both	enum:off,desktop,phone,both	Notificações	Gate, build ou teste falhou, ou parado na fila	hooks	Falha de gate, build ou teste no gate-lock, ou espera na fila além do limite abaixo.
 HADES_NOTIFY_EV_RESTART	both	enum:off,desktop,phone,both	Notificações	Serviço em loop de restart	hooks	Unit hds-* em failed ou com NRestarts subindo (limite abaixo, janela de 10 min).
 HADES_NOTIFY_EV_HEALTH	both	enum:off,desktop,phone,both	Notificações	/health/ready caiu	hooks	Serviço habilitado e ativo que deixou de responder 200 em /health/ready (2 checagens seguidas). Hades pausado não avisa.
-HADES_NOTIFY_EV_PR	both	enum:off,desktop,phone,both	Notificações	Review novo ou CI vermelho nas minhas PRs	hooks	Do coletor do loop (hades pr-loop-state). Cada checagem é uma consulta ao GitHub: veja o intervalo abaixo.
+HADES_NOTIFY_EV_PR	both	enum:off,desktop,phone,both	Notificações	Review novo nas minhas PRs	hooks	Review novo ou comentário a tratar, do coletor do loop (hades pr-loop-state). Cada checagem é uma consulta ao GitHub: veja o intervalo abaixo.
+HADES_NOTIFY_EV_CI	pr	enum:pr,off,desktop,phone,both	Notificações	CI vermelho nas minhas PRs	hooks	Check de CI falhando numa PR minha (hades pr-loop-state). `pr` (padrão) segue o canal do review novo, então quem já desligou o tipo das PRs continua sem aviso de CI. Mesma consulta ao GitHub do review: veja o intervalo abaixo.
 HADES_NOTIFY_EV_AGENT	both	enum:off,desktop,phone,both	Notificações	Agente parado, com pergunta ou concluído	hooks	STALLED, QUESTION e DONE dos agentes orquestrados (hades watch).
 HADES_NOTIFY_EV_SNAPSHOT	both	enum:off,desktop,phone,both	Notificações	Snapshot falhou	hooks	O update.sh avisa quando o snapshot pre-update falha e a atualização para.
 HADES_NOTIFY_EV_DOCTOR	both	enum:off,desktop,phone,both	Notificações	Diagnóstico com erro	hooks	Itens em erro do doctor.sh --quick --json.

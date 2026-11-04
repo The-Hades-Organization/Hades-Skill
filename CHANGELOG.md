@@ -4,6 +4,24 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.9.1 — 2026-11-04
+
+Tipos de notificação com nome claro e CI separado de review (issue #28); câmera do Argos só se move por gesto ou seleção do
+dono (issue #31).
+
+- **Tipos de notificação**: `gate` passa a se chamar "Gate, build ou teste falhou" e cobre os três; `test` (o botão de envio)
+  sai da lista desligável. CI vermelho ganha o tipo `ci` (`HADES_NOTIFY_EV_CI`), cujo padrão segue o canal de `pr`, então um
+  `HADES_NOTIFY_EV_PR=off` existente continua silenciando o CI sem migração. `prProblems()` vira função pura e a fonte `prs`
+  só roda com `pr` ou `ci` ligado. `status --json` ganha `events[{event,label,channels,pinnedByEnv}]` e a tela de
+  Configurações mostra como fixo o tipo exportado no ambiente. Um teste varre `src/` e exige que todo emissor use evento do
+  catálogo. Armadilha: o `env.sh` exporta o `config.env` em todo processo, então só conta como fixo o export com valor
+  diferente do `config.env`.
+- **Câmera do Argos**: segurar o Espaço arma o pan, e soltá-lo sem arrastar selecionava o nó focado, levando a câmera até
+  ele. Só o arrasto com ponteiro marcava o Espaço como usado; zoom por roda e teclas de câmera, não. Agora esses gestos
+  também consomem o Espaço. A seleção ganha origem (`pointer`/`key`/`command`/`sync`, e `sync` nunca move a câmera), e
+  `localStorage["argos.cameraDebug"]` registra a origem de cada movimento. A causa foi medida no motor com DOM falso, sem
+  reprodução em navegador: se a câmera ainda saltar sem o Espaço, ligar `argos.cameraDebug` e ler o console.
+
 ## 6.9.0 — 2026-11-04
 
 Preferências para desligar as travas de confirmação (issue #22); Reviews sem teto de PRs selecionadas (issue #27).

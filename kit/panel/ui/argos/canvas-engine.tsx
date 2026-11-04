@@ -4,7 +4,7 @@
  * operações) mora nos módulos do modelo; aqui ficam os eventos, o desenho e o foco. Os `import type` somem na transpilação. */
 import type { CanvasDoc, CanvasEdge, CanvasNode } from "../../../../src/lib/canvas-doc.ts";
 import type { CanvasOp } from "../../../../src/lib/canvas-history.ts";
-import type { Camera, Detail, Rect, Vec, Viewport } from "../../../../src/lib/canvas-camera.ts";
+import type { Camera, Detail, Rect, SelectionOrigin, Vec, Viewport } from "../../../../src/lib/canvas-camera.ts";
 import type * as DocModule from "../../../../src/lib/canvas-doc.ts";
 import type * as HistoryModule from "../../../../src/lib/canvas-history.ts";
 import type * as CameraModule from "../../../../src/lib/canvas-camera.ts";
@@ -46,7 +46,8 @@ interface FrameInfo {
 interface CanvasEngineOptions {
   doc: CanvasDoc;
   selection: readonly string[];
-  onSelectionChange(ids: readonly string[]): void;
+  /** `origin` diz quem selecionou: a página só leva a câmera ao nó quando foi o dono (`selectionRevealsCamera`). */
+  onSelectionChange(ids: readonly string[], origin?: SelectionOrigin): void;
   /** Gesto terminado: uma operação do canvas-history e o documento já com ela. O motor não grava nada sozinho. */
   onOp(op: CanvasOp, next: CanvasDoc): void;
   onNodeMenu?(req: NodeMenuRequest): void;
@@ -1123,13 +1124,13 @@ function makeArgosCanvas() {
     };
 
     // ---- saída: seleção e operação ----
-    function emitSelection(next: readonly string[]): void {
+    function emitSelection(next: readonly string[], origin: SelectionOrigin = "pointer"): void {
       const current = [...selected];
       if (S.sameSelection(current, next)) return;
       selected = new Set(next);
       markContent();
       refreshProxyLabel();
-      opts.onSelectionChange(next);
+      opts.onSelectionChange(next, origin);
     }
     function emitOp(op: CanvasOp | undefined): void {
       if (!op) return;
@@ -1543,6 +1544,8 @@ function makeArgosCanvas() {
       if (!e.ctrlKey && !e.altKey && e.target instanceof Element && e.target.closest("[data-tty-wheel]")) return;
       e.preventDefault();
       animation = undefined;
+      // zoom com Espaço segurado é navegação: soltar o Espaço depois não seleciona o nó focado
+      if (spaceHeld) spaceUsed = true;
       setCam(C.wheelCamera(cam, e, screenPoint(e)));
     }
 
@@ -1623,6 +1626,7 @@ function makeArgosCanvas() {
       const action = C.cameraKey(key);
       if (!action) return;
       e.preventDefault();
+      if (spaceHeld) spaceUsed = true;
       if (action.kind === "zoom") moveCamera(C.zoomAt(cam, { x: view.w / 2, y: view.h / 2 }, action.factor), true);
       else if (action.kind === "fit") moveCamera(C.fitAll(doc.nodes, view), true);
       else setCam(C.panBy(cam, action.dx, action.dy));
@@ -1636,7 +1640,7 @@ function makeArgosCanvas() {
       if (used || !node) return;
       e.preventDefault();
       const next = S.keySelect([...selected], node.id, spaceShift);
-      emitSelection(next);
+      emitSelection(next, "key");
       announce(next.includes(node.id) ? `${next.length} selecionado(s).` : "Fora da seleção.");
     }
     function releaseSpace(): void {

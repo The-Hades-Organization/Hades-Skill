@@ -58,6 +58,28 @@ interface Source {
   fn: () => Promise<void>;
 }
 
+interface PrState {
+  number?: number;
+  checks?: { failing?: boolean };
+  headRefOid?: string;
+  live?: unknown[];
+  topLevelLive?: unknown[];
+  unseenReviewSincePush?: boolean;
+  lastReviewAt?: string;
+}
+
+/** CI vermelho sai no tipo `ci` e review novo no `pr`: cada um tem o interruptor dele. */
+export function prProblems(prs: PrState[]): Problems {
+  const probs: Problems = new Map();
+  for (const pr of prs) {
+    if (pr.checks?.failing) Watcher.add(probs, "ci", `PR #${pr.number} CI`, ["error", "CI vermelho", String(pr.headRefOid ?? "").slice(0, 10)]);
+    if ((pr.live?.length ?? 0) > 0 || (pr.topLevelLive?.length ?? 0) > 0 || pr.unseenReviewSincePush) {
+      Watcher.add(probs, "pr", `PR #${pr.number} review`, ["warn", "review novo para tratar", `${pr.lastReviewAt}|${pr.live?.length ?? 0}|${pr.topLevelLive?.length ?? 0}`]);
+    }
+  }
+  return probs;
+}
+
 export class Watcher {
   private readonly ctx: NotifyContext;
   private readonly restarts = new Map<string, Array<[number, number]>>();
@@ -86,7 +108,7 @@ export class Watcher {
     await forget(this.ctx, src, keep);
   }
 
-  private static add(probs: Problems, event: string, obj: string, problem: Problem): void {
+  static add(probs: Problems, event: string, obj: string, problem: Problem): void {
     probs.set(`${event}\u0000${obj}`, { event, obj, problem });
   }
 
@@ -180,23 +202,7 @@ export class Watcher {
     const cli = selfCli("pr-loop-state", "--json");
     const r = run(cli.command, cli.args, { cwd: process.env.HADES_WT || undefined, timeoutMs: 150000 });
     if (r.status !== 0) throw new Error("coletor de PRs falhou");
-    interface Pr {
-      number?: number;
-      checks?: { failing?: boolean };
-      headRefOid?: string;
-      live?: unknown[];
-      topLevelLive?: unknown[];
-      unseenReviewSincePush?: boolean;
-      lastReviewAt?: string;
-    }
-    const probs: Problems = new Map();
-    for (const pr of (JSON.parse(r.stdout) as { prs?: Pr[] }).prs ?? []) {
-      if (pr.checks?.failing) Watcher.add(probs, "pr", `PR #${pr.number} CI`, ["error", "CI vermelho", String(pr.headRefOid ?? "").slice(0, 10)]);
-      if ((pr.live?.length ?? 0) > 0 || (pr.topLevelLive?.length ?? 0) > 0 || pr.unseenReviewSincePush) {
-        Watcher.add(probs, "pr", `PR #${pr.number} review`, ["warn", "review novo para tratar", `${pr.lastReviewAt}|${pr.live?.length ?? 0}|${pr.topLevelLive?.length ?? 0}`]);
-      }
-    }
-    await this.problems("prs", probs);
+    await this.problems("prs", prProblems((JSON.parse(r.stdout) as { prs?: PrState[] }).prs ?? []));
   }
 
   /** `doctor --json`: um aviso por item com erro. */
@@ -267,7 +273,7 @@ export class Watcher {
     const sched: Source[] = [
       { name: "gates", events: ["gate"], key: "HADES_NOTIFY_EVERY", every: 30, fn: () => this.gates() },
       { name: "services", events: ["restart", "health"], key: "HADES_NOTIFY_EVERY", every: 30, fn: () => this.services() },
-      { name: "prs", events: ["pr"], key: "HADES_NOTIFY_PRS_EVERY", every: 300, fn: () => this.prs() },
+      { name: "prs", events: ["pr", "ci"], key: "HADES_NOTIFY_PRS_EVERY", every: 300, fn: () => this.prs() },
       { name: "doctor", events: ["doctor"], key: "HADES_NOTIFY_DOCTOR_EVERY", every: 1800, fn: () => this.doctor() },
     ];
     const last = new Map<string, number>();

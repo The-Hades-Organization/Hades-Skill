@@ -35,14 +35,22 @@ ciclo.
 
 ## Eventos
 
-Cada um tem `HADES_NOTIFY_EV_<X>` = `off | desktop | phone | both`.
+Cada um tem `HADES_NOTIFY_EV_<X>` = `off | desktop | phone | both` (o `CI` aceita também `pr`, o padrão: segue o canal do review).
+O que a tela desliga é exatamente o evento da tabela: falha de teste, build e gate saem todas como `gate`; CI vermelho sai
+como `ci` e review novo como `pr`. Quem já tinha `HADES_NOTIFY_EV_PR=off` continua sem aviso de CI (o `ci` padrão segue o `pr`).
+`test` é só a notificação do botão de testar o envio: ignora os interruptores e não aparece entre os tipos desligáveis.
+Todo emissor usa um evento desta tabela (um teste confere o código); evento fora dela valeria sempre `both`.
+Variável `HADES_NOTIFY_EV_*` exportada no ambiente do painel com valor diferente do `config.env` vence a configuração: a tela
+marca o tipo como fixo (`pinnedByEnv` no `notify status --json`). A unit do vigia não herda variáveis (lista fixa de ambiente)
+e o `watch` relê o `config.env` a cada ciclo.
 
 | Evento | Quando | Fonte |
 |---|---|---|
-| `gate` | `done` com `rc≠0` (gate, build, test) no `gate-journal.tsv`, ou espera na fila ≥ `HADES_NOTIFY_GATE_WAIT_MIN`, ou gate rodando além do estouro (`HADES_GATE_OVERRUN_MIN`, `HADES_GATE_OVERRUN_FACTOR`) | `hades gate-lock` |
+| `gate` ("Gate, build ou teste falhou") | `done` com `rc≠0` (gate, build, test) no `gate-journal.tsv`, ou espera na fila ≥ `HADES_NOTIFY_GATE_WAIT_MIN`, ou gate rodando além do estouro (`HADES_GATE_OVERRUN_MIN`, `HADES_GATE_OVERRUN_FACTOR`) | `hades gate-lock` |
 | `restart` | unit `failed`, ou NRestarts subiu ≥ `HADES_NOTIFY_RESTARTS` em 10 min | `systemctl --user show` |
 | `health` | `/health/ready` ≠ 200 em 2 checagens, serviço habilitado e ativo (Hades pausado não avisa) | HTTP local |
-| `pr` | CI vermelho ou review novo nas minhas PRs | `hades pr-loop-state --json` |
+| `pr` | review novo (ou comentário a tratar) nas minhas PRs | `hades pr-loop-state --json` |
+| `ci` | CI vermelho nas minhas PRs | `hades pr-loop-state --json` |
 | `agent` | `STALLED`, `QUESTION`, `DONE`, `BUDGET` | `hades watch` com `HADES_WATCH_STATE` próprio |
 | `snapshot` | snapshot pre-update falhou | `update.sh` chama `notify.sh send` |
 | `doctor` | item em erro do `doctor.sh --quick --json` | doctor |

@@ -42,6 +42,7 @@ function NotifyTools() {
 // texto livre longo (caminho, repo, lista) ganha campo largo; número e tamanho cabem no estreito
 const CFG_WIDE = new Set(['path', 'relpath', 'repo', 'url', 'emails', 'globs', 'logins', 'login', 'tags', 'modelmap', 'cidr', 'id']);
 const ENUM_NOTIFY_EV = { off: 'Desligado', desktop: 'Só desktop', phone: 'Só celular', both: 'Desktop e celular' };
+const ENUM_NOTIFY_CI = { pr: 'Igual ao review', ...ENUM_NOTIFY_EV };
 const ENUM_CERBERUS = { off: 'Desligado', avisa: 'Avisa', barra: 'Barra' };
 const ENUM_EFFORT = { low: 'Baixo', medium: 'Médio', high: 'Alto', xhigh: 'Muito alto', max: 'Máximo' };
 const CFG_ENUM_LABEL = { HADES_PANEL_AUTOSTART: { off: 'Desligado', login: 'No login', boot: 'Com a máquina' },
@@ -49,6 +50,7 @@ const CFG_ENUM_LABEL = { HADES_PANEL_AUTOSTART: { off: 'Desligado', login: 'No l
   HADES_GATE_SCOPE: { projeto: 'Uma fila por projeto', maquina: 'Uma fila na máquina' },
   HADES_SNAPSHOT_MODE: { migration: 'Só com migration nova', always: 'Antes de todo migrate', never: 'Nunca' },
   ...Object.fromEntries(['GATE', 'RESTART', 'HEALTH', 'PR', 'AGENT', 'SNAPSHOT', 'DOCTOR', 'CHAT', 'HERDR'].map((e) => ['HADES_NOTIFY_EV_' + e, ENUM_NOTIFY_EV])),
+  HADES_NOTIFY_EV_CI: ENUM_NOTIFY_CI,
   ...Object.fromEntries(['PORTA', 'LIMIAR', 'VIGILIA'].map((c) => ['HADES_CERBERUS_' + c, ENUM_CERBERUS])),
   ...Object.fromEntries(['ORCHESTRATOR', 'SPEC', 'IMPL', 'CONSOLIDATE', 'REVIEW', 'ESCALATE', 'CHAT'].map((r) => ['HADES_EFFORT_' + r, ENUM_EFFORT])) };
 // o que o dono faz depois de salvar: só o que não é 'next' nem 'hooks' aparece no cartão "Falta aplicar"
@@ -207,7 +209,7 @@ function CfgIndex({ groups }) {
   </>;
 }
 
-function CfgRow({ it, value, saved, onChange, first }) {
+function CfgRow({ it, value, saved, onChange, first, pinned }) {
   const unsaved = value !== saved;
   const altered = value !== it.default;
   return <li data-tour-step-id={first ? 'config-linha' : undefined} className={cn('grid gap-x-8 gap-y-3 border-b py-4 transition-colors last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto]', unsaved && 'bg-accent/40 -mx-3 px-3')}>
@@ -225,8 +227,9 @@ function CfgRow({ it, value, saved, onChange, first }) {
       </div>
     </div>
     <div className="flex min-w-0 items-start gap-1 md:justify-end">
-      <CfgControl it={it} value={value} onChange={onChange} />
-      {altered ? <Tip text={`Voltar ao padrão (${it.default || 'vazio'}). Só vale depois de salvar.`}>
+      {pinned ? <span className="t-meta text-muted-foreground max-w-64">{'Fixo por variável exportada no ambiente do painel: mudar aqui não tem efeito. Tire '}<Mono>{it.key}</Mono>{' do ambiente.'}</span>
+        : <CfgControl it={it} value={value} onChange={onChange} />}
+      {altered && !pinned ? <Tip text={`Voltar ao padrão (${it.default || 'vazio'}). Só vale depois de salvar.`}>
         <Button variant="ghost" size="icon-sm" aria-label={`Voltar ${it.label} ao padrão`} icon={I.RotateCcw} onClick={() => onChange(it.default)} />
       </Tip> : <span className="size-8 shrink-0 max-md:hidden" aria-hidden="true" />}
     </div>
@@ -255,6 +258,8 @@ function Config({ d }) {
   const [plan, setPlan] = useState(null);
   const [importing, setImporting] = useState(false);
   const fileIn = useRef(null);
+  const [pinned, setPinned] = useState([]);
+  useEffect(() => { getJSON('/api/notify').then((r) => setPinned((r.events || []).filter((e) => e.pinnedByEnv).map((e) => 'HADES_NOTIFY_EV_' + e.event.toUpperCase()))).catch(() => setPinned([])); }, []);
   const load = useCallback(() => getJSON('/api/config').then((r) => { setItems(r.items); setPath(r.path); setLoadErr(''); })
     .catch((e) => setLoadErr(e.message || 'o painel não respondeu')), []);
   useEffect(() => { load(); }, [load]);
@@ -385,7 +390,7 @@ function Config({ d }) {
             <CardContent className="-mt-4">
               {x.g === 'Notificações' ? <NotifyTools /> : null}
               <ul>
-                {x.list.map((it, ri) => <CfgRow key={it.key} first={gi === 0 && ri === 0} it={it} value={val(it)} saved={it.value} onChange={setOne(it.key)} />)}
+                {x.list.map((it, ri) => <CfgRow key={it.key} first={gi === 0 && ri === 0} it={it} value={val(it)} saved={it.value} onChange={setOne(it.key)} pinned={pinned.includes(it.key)} />)}
               </ul>
             </CardContent>
           </Card>

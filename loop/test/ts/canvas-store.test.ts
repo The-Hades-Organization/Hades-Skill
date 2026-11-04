@@ -7,7 +7,7 @@ import { FREE_LAYOUT } from "../../../src/lib/canvas-layout.ts";
 import {
   CANVAS_STORE_ERRORS, CANVAS_STORE_LIMITS, freshCanvasId, isValidCanvasId, requireCanvasId, requireCanvasName,
   requireCanvasScope, sameScope, scopedCanvasId, scopedCanvasName, slugify,
-  commitGesture, createDocSaver, firstCamera, GRAPH_EDGE_PREFIX, initialCanvasState, primarySelection, projectView, READABLE_ZOOM, reconcileGraph,
+  commitGesture, createDocSaver, createSaveMeta, firstCamera, GRAPH_EDGE_PREFIX, initialCanvasState, primarySelection, projectView, READABLE_ZOOM, reconcileGraph,
   stepHistory, visibleSelection, type SaveReply, type SaveStatus,
 } from "../../../src/lib/canvas-store.ts";
 
@@ -300,5 +300,87 @@ describe("canvas por escopo: chave, id e nome", () => {
     expect(slugify("Açaí & Cia!", 40)).toBe("acai-cia");
     expect(slugify("aaa-bbb", 4)).toBe("aaa");
     expect(slugify("!!!", 10)).toBe("");
+  });
+});
+
+describe("gravador com a confirmação de remoção (a ligação da página)", () => {
+  const doc = (n: number): CanvasDoc => docOf([node("agent:a", n, 0)]);
+  const MASS = "canvas_mass_removal";
+
+  /** O que a página faz: cada envio lê `peek`, e só o aceito zera. `replies` são as respostas do servidor, em ordem. */
+  function page(replies: SaveReply[]) {
+    const meta = createSaveMeta();
+    const headers: { cause: string; confirmRemoval: boolean }[] = [];
+    const timers = new Map<number, () => void>();
+    let next = 0;
+    const saver = createDocSaver({
+      put: async () => {
+        const sent = meta.peek();
+        headers.push({ ...sent });
+        const reply = replies.shift() as SaveReply;
+        if (reply.kind === "saved") meta.saved(sent);
+        return reply;
+      },
+      setTimer: (run) => { timers.set(++next, run); return next; },
+      clearTimer: (h) => { timers.delete(h as number); },
+      onStatus: () => undefined,
+      onStale: () => undefined,
+      fetchServer: async () => ({ ...doc(0), rev: 9 }),
+    });
+    return { meta, saver, headers, timers };
+  }
+
+  test("dado 409 depois de apagar em massa, então o reenvio leva a mesma confirmação", async () => {
+    const p = page([{ kind: "stale", rev: 9 }, { kind: "saved", rev: 10 }]);
+    p.saver.setRev(3, doc(0));
+    p.meta.note({ cause: "user", confirmRemoval: true }, false);
+    p.saver.schedule(doc(1));
+    await p.saver.flush();
+    expect(p.headers).toEqual([{ cause: "user", confirmRemoval: true }, { cause: "user", confirmRemoval: true }]);
+    expect(p.meta.peek()).toEqual({ cause: "user", confirmRemoval: false });
+  });
+
+  test("dado falha de rede, então o reenvio também leva a confirmação até o servidor aceitar", async () => {
+    const p = page([{ kind: "failed", code: "canvas_save_unreachable" }, { kind: "saved", rev: 4 }]);
+    p.meta.note({ confirmRemoval: true }, false);
+    p.saver.schedule(doc(1));
+    await p.saver.flush();
+    expect(p.timers.size).toBe(1);
+    [...p.timers.values()][0]?.();
+    await p.saver.flush();
+    expect(p.headers.map((h) => h.confirmRemoval)).toEqual([true, true]);
+  });
+
+  test("dado edição nova durante o envio aceito, então a confirmação dela não se perde", () => {
+    const meta = createSaveMeta();
+    const sent = meta.peek();
+    meta.note({ cause: "user", confirmRemoval: true }, true);
+    meta.saved(sent);
+    expect(meta.peek()).toEqual({ cause: "user", confirmRemoval: true });
+  });
+
+  test("dado grafo e gesto no mesmo envio, então a causa é a do gesto", () => {
+    const meta = createSaveMeta();
+    meta.note({ cause: "user" }, false);
+    meta.note({ cause: "graph" }, true);
+    expect(meta.peek().cause).toBe("user");
+  });
+
+  test("dado 422 de remoção em massa, então o erro aparece e nada é reenviado sozinho", async () => {
+    const p = page([{ kind: "failed", code: MASS }, { kind: "saved", rev: 4 }]);
+    p.saver.schedule(doc(1));
+    await p.saver.flush();
+    expect(p.timers.size).toBe(0);
+    expect(p.headers).toHaveLength(1);
+  });
+
+  test("dado 422 e depois uma edição do dono, então o envio novo sai", async () => {
+    const p = page([{ kind: "failed", code: MASS }, { kind: "saved", rev: 4 }]);
+    p.saver.schedule(doc(1));
+    await p.saver.flush();
+    p.saver.schedule(doc(2));
+    [...p.timers.values()][0]?.();
+    await p.saver.flush();
+    expect(p.headers).toHaveLength(2);
   });
 });

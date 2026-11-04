@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { CANVAS_CLI_ERRORS, type CanvasCliDeps, recruitBody, runCanvas, USAGE } from "../../../src/commands/canvas";
 import { type CanvasDoc, type CanvasEdge, type CanvasNode, emptyCanvasDoc } from "../../../src/lib/canvas-doc";
 import { LINK_EDGE_KIND } from "../../../src/lib/canvas-links";
-import { RECRUIT_EDGE_KIND, RECRUIT_ERRORS, recruitSlots } from "../../../src/lib/canvas-recruit";
+import { RECRUIT_EDGE_KIND, RECRUIT_ERRORS, recruitSlots, terminalTargetOf } from "../../../src/lib/canvas-recruit";
 import { EXIT } from "../../../src/lib/output";
 import { createCanvasRoutes } from "../../../src/panel/canvas";
 import { createCanvasNotesRoutes } from "../../../src/panel/canvas-notes";
@@ -55,6 +55,7 @@ function fakeHerdr() {
           return ok();
         }
         if (a === "agent" && b === "prompt") return panes.has(args[2] as string) ? ok() : { rc: 1, out: "", err: "pane não existe" };
+        if (a === "pane" && b === "get") return panes.has(args[2] as string) ? ok() : { rc: 1, out: "", err: "pane não existe" };
         if (a === "pane" && b === "close") {
           panes.delete(args[2] as string);
           return ok();
@@ -90,12 +91,14 @@ async function rig(doc: CanvasDoc, managerText: () => string = () => MANAGER) {
     const res = canvas.getMany(`/api/canvases/${id}`);
     return res?.status === 200 ? ((await res.json()) as CanvasDoc) : undefined;
   };
+  let docNow: CanvasDoc | undefined = doc;
   const notes = createCanvasNotesRoutes(D, { loadDoc });
   const fake = fakeHerdr();
   const terminals = createArgosTerminalsRoutes({
     dir: D, herdr: fake.herdr, roots: () => [clone], managerText,
     notify: async () => undefined, signal: (pid) => fake.kill(pid), sleep: async () => undefined,
     now: () => 1_800_000_000_000, log: () => undefined,
+    canvasPanes: () => (docNow ? docNow.nodes.flatMap((node) => { const at = terminalTargetOf(node); return at ? [at] : []; }) : []),
   });
   const panelCalls: string[] = [];
   const reply = async (res: Response | undefined) => {
@@ -118,6 +121,10 @@ async function rig(doc: CanvasDoc, managerText: () => string = () => MANAGER) {
       }
       if (path.startsWith("/api/canvases")) {
         return reply(method === "GET" ? canvas.getMany(path) : await canvas.writeMany(method as "POST" | "PUT", path, {}, req(method, path, body), { remote: false }));
+      }
+      if (method === "GET" && path === "/api/argos/terminals/orphans") {
+        docNow = await loadDoc("default");
+        return reply(await terminals.orphans(path));
       }
       if (method === "POST" && path.startsWith("/api/argos/terminals")) return reply(await terminals.post(path, body as Dict, { remote: false }));
       return { status: 404, body: { error: "not found" } };
@@ -487,5 +494,157 @@ describe("canvas-cli: caixa Orquestrador na rota de terminais", () => {
     const off = await r.terminal("/api/argos/terminals/role", { ...herdr, name: "chefe", role: null, orchestrator: false });
     expect([off.status, (off.body as Dict).orchestrator, systemPrompt(r)]).toEqual([200, undefined, undefined]);
     expect(existsSync(join(r.D, "argos/terminal-prompts", `default-${herdr.pane as string}`.replace(":", "-") + ".md"))).toBe(false);
+  });
+});
+
+describe("canvas-cli: join e leave", () => {
+  const FOREIGN = "w40:p1";
+  /** Um pane do herdr que ninguém registrou: criado à mão, fora do canvas. */
+  const handmade = (r: Awaited<ReturnType<typeof rig>>, pane = FOREIGN) => void r.fake.panes.add(pane);
+  const terminalsAt = (doc: CanvasDoc, pane: string) => doc.nodes.filter((n) => terminalTargetOf(n)?.pane === pane);
+
+  test("join do próprio pane cria um nó terminal vinculado ao pane, sem tocar no processo", async () => {
+    const r = await rig(baseDoc());
+    handmade(r);
+    r.io.caller = { session: "default", pane: FOREIGN };
+    expect(await r.run("join", "--name", "Solto", "--role", "revisor")).toBe(EXIT.ok);
+    const [node] = terminalsAt(await r.current(), FOREIGN);
+    expect(node?.data).toMatchObject({ name: "Solto", role: "revisor", herdr: { session: "default", pane: FOREIGN } });
+    expect(r.fake.calls.filter((c) => c.args[0] === "pane" && c.args[1] !== "get")).toEqual([]);
+  });
+
+  test("join por --pane traz o pane de outro terminal", async () => {
+    const r = await rig(baseDoc());
+    handmade(r);
+    expect(await r.run("join", "--pane", FOREIGN)).toBe(EXIT.ok);
+    expect(terminalsAt(await r.current(), FOREIGN)).toHaveLength(1);
+    expect(r.out.at(-1)).toContain(FOREIGN);
+  });
+
+  test("join repetido não duplica o nó nem mexe no documento", async () => {
+    const r = await rig(baseDoc());
+    handmade(r);
+    await r.run("join", "--pane", FOREIGN);
+    const first = await r.current();
+    expect(await r.run("join", "--pane", FOREIGN)).toBe(EXIT.ok);
+    const again = await r.current();
+    expect([terminalsAt(again, FOREIGN).length, again.rev]).toEqual([1, first.rev]);
+    expect(r.out.at(-1)).toContain("nada a mudar");
+  });
+
+  test("join repetido com --name e --to atualiza o nó que já existe", async () => {
+    const r = await rig(baseDoc());
+    handmade(r);
+    await r.run("join", "--pane", FOREIGN);
+    expect(await r.run("join", "--pane", FOREIGN, "--name", "Outro", "--to", "Chefe", "--note", "briefing")).toBe(EXIT.ok);
+    const doc = await r.current();
+    const [node] = terminalsAt(doc, FOREIGN);
+    expect(terminalsAt(doc, FOREIGN)).toHaveLength(1);
+    expect(node?.data).toMatchObject({ name: "Outro", recruiter: "term-orq" });
+    expect(doc.edges.filter((e) => e.to === node?.id && e.kind === RECRUIT_EDGE_KIND)).toHaveLength(1);
+    expect(doc.edges.some((e) => e.from === node?.id && e.to === "n-brief" && e.kind === LINK_EDGE_KIND)).toBe(true);
+  });
+
+  test("join de pane que o agent adopt já pôs no canvas funde num nó só", async () => {
+    const doc = baseDoc();
+    doc.nodes.push({ id: "agent:x", type: "agent", x: 0, y: 0, w: 100, h: 100, z: 1, data: {}, locked: false, blurred: false });
+    doc.edges.push({ id: "e-agent", from: "term-orq", to: "agent:x", kind: "orchestrates" });
+    const r = await rig(doc);
+    handmade(r);
+    const graph = r.deps.panel;
+    r.deps.panel = async (method, path, body) =>
+      method === "GET" && path === "/api/argos/graph" ? { status: 200, body: { nodes: [{ id: "agent:x", herdr: { session: "default", pane: FOREIGN } }] } } : graph(method, path, body);
+    expect(await r.run("join", "--pane", FOREIGN)).toBe(EXIT.ok);
+    const after = await r.current();
+    expect(after.nodes.some((n) => n.id === "agent:x")).toBe(false);
+    expect(after.edges.some((e) => e.id === "e-agent")).toBe(false);
+    expect(terminalsAt(after, FOREIGN)).toHaveLength(1);
+  });
+
+  test("join fora do herdr é recusado com a instrução de abrir dentro dele, sem tocar no painel", async () => {
+    const r = await rig(baseDoc());
+    r.io.caller = undefined as unknown as typeof r.io.caller;
+    expect(await r.run("join")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(CANVAS_CLI_ERRORS.joinOutsideHerdr);
+    expect(r.err.at(-1)).toContain("dentro do herdr");
+    expect(r.panelCalls).toEqual([]);
+  });
+
+  test("join de pane que o herdr não conhece é recusado", async () => {
+    const r = await rig(baseDoc());
+    expect(await r.run("join", "--pane", "w77:p9")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(CANVAS_CLI_ERRORS.joinPaneNotFound);
+    expect((await r.current()).nodes).toHaveLength(baseDoc().nodes.length);
+  });
+
+  test("--pane com formato inválido e --to que não é orquestrador são recusados", async () => {
+    const r = await rig(baseDoc());
+    handmade(r);
+    expect(await r.run("join", "--pane", "a b")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(CANVAS_CLI_ERRORS.joinBadPane);
+    expect(await r.run("join", "--pane", FOREIGN, "--to", "Comum")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(RECRUIT_ERRORS.notOrchestratorTarget);
+    expect(terminalsAt(await r.current(), FOREIGN)).toEqual([]);
+  });
+
+  test("com --to o terminal entra como recruta abaixo do orquestrador, e --note liga a nota", async () => {
+    const r = await rig(baseDoc());
+    handmade(r);
+    expect(await r.run("join", "--pane", FOREIGN, "--to", "term-orq", "--note", "briefing")).toBe(EXIT.ok);
+    const doc = await r.current();
+    const orq = doc.nodes.find((n) => n.id === "term-orq") as CanvasNode;
+    const [node] = terminalsAt(doc, FOREIGN) as [CanvasNode];
+    expect(node.data).toMatchObject({ recruiter: "term-orq" });
+    expect(node.y).toBeGreaterThan(orq.y + orq.h);
+    expect(doc.edges.some((e) => e.from === "term-orq" && e.to === node.id && e.kind === RECRUIT_EDGE_KIND)).toBe(true);
+    expect(doc.edges.some((e) => e.from === node.id && e.to === "n-brief")).toBe(true);
+  });
+
+  test("leave tira o nó e as arestas, o processo segue, e join volta a trazê-lo", async () => {
+    const r = await rig(baseDoc());
+    handmade(r);
+    await r.run("join", "--pane", FOREIGN, "--to", "term-orq");
+    const before = await r.current();
+    expect(await r.run("leave", "--pane", FOREIGN)).toBe(EXIT.ok);
+    const left = await r.current();
+    expect(terminalsAt(left, FOREIGN)).toEqual([]);
+    expect(left.edges.filter((e) => e.kind === RECRUIT_EDGE_KIND)).toEqual([]);
+    expect(r.fake.panes.has(FOREIGN)).toBe(true);
+    expect(r.fake.calls.some((c) => c.args[0] === "pane" && c.args[1] === "close")).toBe(false);
+    expect(await r.run("join", "--pane", FOREIGN)).toBe(EXIT.ok);
+    expect(terminalsAt(await r.current(), FOREIGN)).toHaveLength(1);
+    expect(before.nodes.length).toBe((await r.current()).nodes.length);
+  });
+
+  test("leave de pane que não é nó de canvas nenhum é recusado", async () => {
+    const r = await rig(baseDoc());
+    handmade(r);
+    expect(await r.run("leave", "--pane", FOREIGN)).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(RECRUIT_ERRORS.notInCanvas);
+  });
+
+  test("join de orquestrador do registro volta como orquestrador e o recruit funciona depois", async () => {
+    const r = await rig(baseDoc());
+    const created = await r.terminal("/api/argos/terminals", { name: "Gerente", orchestrator: true });
+    const herdr = (created.body as Dict).herdr as { session: string; pane: string };
+    r.io.caller = herdr;
+    expect(await r.run("recruit")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(RECRUIT_ERRORS.notInCanvas);
+    expect(await r.run("join")).toBe(EXIT.ok);
+    const [node] = terminalsAt(await r.current(), herdr.pane) as [CanvasNode];
+    expect(node.data).toMatchObject({ name: "Gerente", orchestrator: true, agent: "claude" });
+    expect(await r.run("recruit", "--name", "Ajudante")).toBe(EXIT.ok);
+    const doc = await r.current();
+    expect(doc.nodes.find((n) => (n.data as Dict).name === "Ajudante")?.data).toMatchObject({ recruiter: node.id });
+  });
+
+  test("join de terminal comum do registro herda nome e agente, sem virar orquestrador", async () => {
+    const r = await rig(baseDoc());
+    const created = await r.terminal("/api/argos/terminals", { name: "Comum 2" });
+    const herdr = (created.body as Dict).herdr as { session: string; pane: string };
+    expect(await r.run("join", "--pane", herdr.pane)).toBe(EXIT.ok);
+    const [node] = terminalsAt(await r.current(), herdr.pane) as [CanvasNode];
+    expect(node.data).toMatchObject({ name: "Comum 2" });
+    expect((node.data as Dict).orchestrator).toBeUndefined();
   });
 });

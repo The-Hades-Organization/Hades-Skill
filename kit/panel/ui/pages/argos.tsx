@@ -461,18 +461,18 @@ function Argos() {
   const [externalStale, setExternalStale] = useState(false);
   const reloadRef = useRef(async () => true);
   // por que o documento vai ser gravado (user, undo, graph) e se o dono apagou de propósito; o gravador leva ao servidor e zera
-  const saveMetaRef = useRef({ cause: 'user', confirmRemoval: false });
+  // (a causa e a confirmação ficam até o servidor aceitar: o reenvio depois de um 409 leva os mesmos cabeçalhos)
+  const saveMeta = useMemo(() => M.store.createSaveMeta(), []);
   const graphSizeRef = useRef(null);
-  const takeSaveMeta = () => { const m = saveMetaRef.current; saveMetaRef.current = { cause: 'user', confirmRemoval: false }; return { ...m, graphSize: graphSizeRef.current }; };
   const busyStateRef = useRef(() => null);
   const watch = useMemo(() => NT.createCanvasWatch({
     now: () => Date.now(), busy: () => busyStateRef.current(), reload: () => reloadRef.current(), onStale: setExternalStale,
     log: (reason) => console.debug('canvas: releitura pulada', reason),
   }), []);
-  const saver = useMemo(() => M.store.createDocSaver({ put: (doc, options) => putCanvas(canvasUrl(canvasIdRef.current), doc, options, takeSaveMeta()).then((reply) => {
-    if (reply.kind === 'saved') watch.saved(reply.rev);
+  const saver = useMemo(() => M.store.createDocSaver({ put: (doc, options) => { const sent = saveMeta.peek(); return putCanvas(canvasUrl(canvasIdRef.current), doc, options, { ...sent, graphSize: graphSizeRef.current }).then((reply) => {
+    if (reply.kind === 'saved') { saveMeta.saved(sent); watch.saved(reply.rev); }
     return reply;
-  }),
+  }); },
     setTimer: (run, ms) => setTimeout(run, ms), clearTimer: (h) => clearTimeout(h),
     fetchServer: () => getCanvas(canvasUrl(canvasIdRef.current)),
     // edição na fila: a tela não recebe o documento reconciliado (o envio dela já o leva em conta), mas fica atrás do servidor até reler
@@ -506,12 +506,9 @@ function Argos() {
   const commit = useCallback((next, meta = {}) => {
     cstateRef.current = next; setCstate(next);
     // gesto do dono vence: grafo e gesto no mesmo envio contam como gesto; a confirmação só vale para apagar de propósito
-    const prev = saveMetaRef.current;
-    const pending = scheduledSeqRef.current !== sentSeqRef.current;
-    const cause = meta.cause === 'graph' && pending ? prev.cause : (meta.cause || 'user');
-    saveMetaRef.current = { cause, confirmRemoval: prev.confirmRemoval || meta.confirmRemoval === true };
+    saveMeta.note(meta, scheduledSeqRef.current !== sentSeqRef.current);
     scheduleSave(next.doc);
-  }, [scheduleSave]);
+  }, [scheduleSave, saveMeta]);
 
   // layout de forças: a simulação anda em fatias por quadro (reading-runner) e o resultado entra na pilha de desfazer como
   // um passo só. `reading` é o que as funções daqui leem do render atual (filtro, layout, pins)

@@ -2,7 +2,7 @@
 // de quem, quem pode comandar quem, o auto-layout dos recrutas abaixo do orquestrador e a identidade que o recruta recebe no
 // prompt inicial. Lógica pura, sem Node/DOM: a CLI `hades canvas` e o painel usam o mesmo módulo. Toda mudança do
 // documento sai como `CanvasOp` de `canvas-history` (desfazer volta exatamente ao anterior).
-import { CANVAS_LIMITS, type CanvasDoc, type CanvasEdge, type CanvasNode } from "./canvas-doc.ts";
+import { CANVAS_LIMITS, type CanvasDoc, type CanvasEdge, type CanvasNode, paneKey } from "./canvas-doc.ts";
 import { type AtomicOp, type CanvasOp, opBatch, opCreate, opDelete, opMove, opUpdate } from "./canvas-history.ts";
 import { opCreateLink } from "./canvas-links.ts";
 import { hasNoteAccess, NOTE_READER_TYPES, NOTE_TYPE } from "./canvas-note.ts";
@@ -34,6 +34,7 @@ export const RECRUIT_ERRORS = {
   missingNote: "recruit_missing_note",
   noteNotShared: "recruit_note_not_shared",
   ambiguous: "recruit_ambiguous",
+  notOrchestratorTarget: "recruit_join_target_not_orchestrator",
 } as const;
 export type RecruitErrorCode = (typeof RECRUIT_ERRORS)[keyof typeof RECRUIT_ERRORS];
 
@@ -45,6 +46,7 @@ export const RECRUIT_ERROR_TEXT: Readonly<Record<RecruitErrorCode, string>> = {
   [RECRUIT_ERRORS.missingNote]: "nota não encontrada no canvas",
   [RECRUIT_ERRORS.noteNotShared]: "a nota não está ligada ao orquestrador: ligue-a a você antes de passá-la ao recruta",
   [RECRUIT_ERRORS.ambiguous]: "mais de um nó com esse nome: use o id do nó",
+  [RECRUIT_ERRORS.notOrchestratorTarget]: "--to pede um orquestrador deste canvas (nó terminal com a caixa Orquestrador): nome ou id não encontrado",
 };
 
 export class RecruitError extends Error {
@@ -276,6 +278,89 @@ export function planReassign(doc: CanvasDoc, recruitId: string, role: string | n
   if (role === null) delete data.role;
   else data.role = role;
   return opUpdate(doc, recruitId, data);
+}
+
+// ---- join e leave ----
+
+/** Tamanho do nó de um terminal trazido por `join` (o mesmo da ferramenta Terminal). */
+export const JOIN_NODE_SIZE = Object.freeze({ w: 640, h: 420 });
+
+export interface JoinInput {
+  target: HerdrTarget;
+  /** O que vai no `data` do nó novo (nome, agente, orquestrador…); no nó que já existe, só estes campos mudam. */
+  data: Dict;
+  /** Orquestrador (id ou nome) de quem o terminal passa a ser recruta. */
+  to?: string;
+  /** Notas (id ou nome do arquivo) a que o terminal se liga. */
+  notes?: readonly string[];
+  /** Nós `agent` do documento que são o mesmo pane (registrado com `agent adopt`): saem, o terminal fica no lugar deles. */
+  agentIds?: readonly string[];
+}
+
+export interface JoinPlan {
+  op: CanvasOp | undefined;
+  nodeId: string;
+  created: boolean;
+}
+
+const terminalsAt = (doc: CanvasDoc, target: HerdrTarget): CanvasNode[] =>
+  doc.nodes.filter((node) => { const at = terminalTargetOf(node); return at !== undefined && paneKey(at) === paneKey(target); });
+
+/** Onde o terminal de fora entra: à direita de tudo, na altura do nó mais alto (nada se move). */
+function joinSlot(doc: CanvasDoc): { x: number; y: number } {
+  if (doc.nodes.length === 0) return { x: 0, y: 0 };
+  return { x: Math.max(...doc.nodes.map((n) => n.x + n.w)) + RECRUIT_LAYOUT.gapX, y: Math.min(...doc.nodes.map((n) => n.y)) };
+}
+
+/**
+ * `join`: o terminal do pane vira nó `terminal` do documento, sem tocar no processo. Um pane, um nó: se o pane já é nó, o
+ * plano só atualiza o que foi pedido (nome, papel, orquestrador, notas) e repetir não muda nada. Nó `agent` no mesmo pane
+ * (registro de `agent adopt`) é trocado pelo terminal no mesmo lote. Com `to`, o terminal fica recruta do orquestrador.
+ */
+export function planJoin(doc: CanvasDoc, input: JoinInput): JoinPlan {
+  const orchestrator = input.to === undefined ? undefined : findByRef(doc, input.to, isOrchestrator) ?? fail(RECRUIT_ERRORS.notOrchestratorTarget);
+  const notes = [...new Map((input.notes ?? []).map((ref) => findNote(doc, ref) ?? fail(RECRUIT_ERRORS.missingNote)).map((n) => [n.id, n])).values()];
+  const existing = terminalsAt(doc, input.target)[0];
+  const nodeId = existing?.id ?? freshId(doc, "term-j");
+  const ops: AtomicOp[] = [];
+  let next = doc;
+  if (existing === undefined) {
+    const slot = orchestrator === undefined
+      ? joinSlot(doc)
+      : (recruitSlots(orchestrator, [...recruitsOf(doc, orchestrator.id), { w: JOIN_NODE_SIZE.w, h: JOIN_NODE_SIZE.h }].map((n) => ({ w: n.w, h: n.h }))).at(-1) as { x: number; y: number });
+    const top = Math.min(CANVAS_LIMITS.layer - 1, doc.nodes.reduce((z, n) => Math.max(z, n.z), 0));
+    const data = { ...input.data, herdr: input.target, ...(orchestrator && { recruiter: orchestrator.id }) };
+    const node: CanvasNode = { id: nodeId, type: TERMINAL_NODE_TYPE, ...slot, ...JOIN_NODE_SIZE, z: top + 1, data, locked: false, blurred: false };
+    const edges: CanvasEdge[] = orchestrator ? [{ id: freshId(doc, "recruit-e"), from: orchestrator.id, to: nodeId, kind: RECRUIT_EDGE_KIND }] : [];
+    ops.push(opCreate(doc, [node], edges));
+    next = { ...doc, nodes: [...doc.nodes, node], edges: [...doc.edges, ...edges] };
+  } else {
+    const data: Dict = { ...dataOf(existing), ...input.data };
+    if (orchestrator && recruiterOf(existing) !== orchestrator.id) {
+      data.recruiter = orchestrator.id;
+      const edge: CanvasEdge = { id: freshId(doc, "recruit-e"), from: orchestrator.id, to: nodeId, kind: RECRUIT_EDGE_KIND };
+      ops.push(opCreate(doc, [], [edge]));
+      next = { ...doc, edges: [...doc.edges, edge] };
+    }
+    if (JSON.stringify(data) !== JSON.stringify(dataOf(existing))) ops.push(opUpdate(next, nodeId, data));
+  }
+  for (const note of notes) {
+    if (hasNoteAccess(next, note.id, nodeId)) continue;
+    const op = opCreateLink(next, { id: freshId(next, "link-r"), from: nodeId, to: note.id });
+    ops.push(op);
+    if (op.kind === "edge-create") next = { ...next, edges: [...next.edges, op.edge.item] };
+  }
+  // o nó `agent` do mesmo pane sai por último: os índices dos outros passos foram tirados do documento de antes
+  const duplicated = (input.agentIds ?? []).filter((id) => doc.nodes.some((n) => n.id === id && n.id !== nodeId));
+  if (duplicated.length > 0) ops.push(opDelete(doc, duplicated));
+  return { op: ops.length === 0 ? undefined : opBatch(ops), nodeId, created: existing === undefined };
+}
+
+/** `leave`: tira do documento o nó `terminal` do pane (com as arestas dele); o processo não é tocado. */
+export function planLeave(doc: CanvasDoc, target: HerdrTarget): { op: AtomicOp; nodes: CanvasNode[] } {
+  const nodes = terminalsAt(doc, target);
+  if (nodes.length === 0) return fail(RECRUIT_ERRORS.notInCanvas);
+  return { op: opDelete(doc, nodes.map((n) => n.id)), nodes };
 }
 
 // ---- identidade ----

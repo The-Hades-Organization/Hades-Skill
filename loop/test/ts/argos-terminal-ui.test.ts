@@ -220,6 +220,13 @@ describe("cliente das rotas de terminais e papéis (terminal-create.tsx)", () =>
     expect(await TC.createTerminalClient({ fetch }).close({ session: "default", pane: "w1:p3", name: "dev" }))
       .toEqual({ ok: false, code: "herdr-failed", message: "pane sumiu" });
   });
+  test("503 herdr-server-down: o código do corpo vale e a tela diz o que fazer", async () => {
+    const { ArgosTerminalCreate: TC } = await load();
+    const { fetch } = fakeFetch({ status: 503, body: { error: "o servidor do herdr não está rodando: abra o `herdr` e tente de novo", code: "herdr-server-down" } });
+    const r = await TC.createTerminalClient({ fetch }).create({ name: "dev" });
+    expect(r.code).toBe(TC.TERMINAL_ERRORS.herdrServerDown);
+    expect(TC.errorText(r)).toContain("abra o `herdr`");
+  });
   test("429 rate-limited: erro genérico com a mensagem do servidor", async () => {
     const { ArgosTerminalCreate: TC } = await load();
     const { fetch } = fakeFetch({ status: 429, body: { error: "tente de novo em 30 s", code: "rate-limited" } });

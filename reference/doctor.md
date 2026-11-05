@@ -50,6 +50,7 @@ Quem chama: o `install.sh` (no fim, só informativo; `SKIP_DOCTOR=1` pula), o `r
 | | `notify-canal` | — | ligadas sem canal (desktop e celular desligados) | `$D/config.sh set HADES_NOTIFY_DESKTOP=1` |
 | Limites | `limites` | — | a coleta do % das janelas está desligada: o `statusLine` do `~/.claude/settings.json` não chama `hades usage sample` e não há amostra aberta (só aviso; o doctor lê o arquivo, nunca o altera) | `statusLine` = `{"type":"command","command":"hades usage sample"}` (`reference/limites.md`) |
 | Painel | `painel` | — | `HADES_PANEL_AUTOSTART` e a unit `hds-panel` incoerentes (`off` com unit enabled; `login`/`boot` sem enabled; `boot` sem linger). No macOS o estado vem do launchd (enabled = plist em `~/Library/LaunchAgents`) e `boot` avisa que o painel sobe no login, não no boot | `$D/panel.sh autostart` |
+| | `herdr-servidor` | — | painel ativo (unit `hds-panel`) e o socket do herdr sem resposta (`herdr api snapshot` falha): "painel no ar sem servidor herdr"; o painel sobe o servidor ao criar um terminal no canvas. Sem a linha com o painel parado ou sem o binário `herdr` | abrir o `herdr`, ou criar um terminal no canvas |
 
 A versão da skill vem de `HADES_SKILL_DIR` (padrão `~/.claude/skills/hades`); rodando de dentro da skill, usa o `VERSION` dela.
 

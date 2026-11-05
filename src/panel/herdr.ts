@@ -20,6 +20,11 @@ export interface Herdr {
   /** Descarta uma entrada do cache (ou todas, sem chave): a próxima leitura vê o efeito de uma escrita. */
   forget(key?: string): void;
   badge(): Promise<{ working: number; blocked: number } | null>;
+  /**
+   * Sobe um `herdr server` fora do processo (e do cgroup) do painel e devolve como: reiniciar o painel não o derruba.
+   * Só dispara; quem chama espera o socket responder.
+   */
+  startServer(): Promise<"systemd-run" | "detached">;
 }
 
 function errorMessage(raw: string): string | undefined {
@@ -243,9 +248,21 @@ export function createHerdr(): Herdr {
   const snap = (session: string): Promise<Dict | null> =>
     cached(`${session}\0snap`, async () => ((await json(session, ["api", "snapshot"]))?.snapshot as Dict | undefined) ?? null);
 
+  async function startServer(): Promise<"systemd-run" | "detached"> {
+    // unit transitória do usuário: o KillMode do hds-panel mata tudo no cgroup dele, então só `detached` não basta sob systemd
+    if (which("systemd-run")) {
+      const r = await exec(["systemd-run", "--user", "--collect", "--quiet", "herdr", "server"], { timeoutMs: CALL_TIMEOUT_MS });
+      if (r.status === 0) return "systemd-run";
+    }
+    const child = Bun.spawn(["herdr", "server"], { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true });
+    child.unref();
+    return "detached";
+  }
+
   return {
     call,
     json,
+    startServer,
     cached,
     snap,
     forget: (key) => (key === undefined ? cache.clear() : void cache.delete(key)),

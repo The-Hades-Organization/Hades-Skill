@@ -2734,8 +2734,11 @@ descoberta) e `src/lib/argos-presets.ts` (predefinições).
 
 ### Rotas
 
-Erro: `{ error, code }` com `code` `invalid` (400), `not-found` (404), `confirm-required` (403), `herdr-failed` (502) ou
-`rate-limited` (429, com `Retry-After` em segundos); falha do herdr leva mensagem genérica e o detalhe só no log.
+Erro: `{ error, code }` com `code` `invalid` (400), `not-found` (404), `confirm-required` (403), `herdr-failed` (502),
+`herdr-server-down` (503: o servidor do herdr não está rodando e a subida automática falhou ou estourou o teto) ou
+`rate-limited` (429, com `Retry-After` em segundos); falha do herdr leva mensagem genérica e o detalhe só no log. O
+`herdr-server-down` leva texto que diz o que fazer ("abra o `herdr` e tente de novo") e vale para toda rota que passa pelo
+herdr (criar, fechar, trocar o papel): o stderr "no herdr server is running…" do CLI, ou o socket sumido/recusando conexão.
 
 | Rota | Corpo | Resposta |
 |---|---|---|
@@ -2796,6 +2799,15 @@ Erro: `{ error, code }` com `code` `invalid` (400), `not-found` (404), `confirm-
   vai por arquivo (`--append-system-prompt-file`): o texto não aparece na lista de processos (só o caminho), mas o
   arquivo fica em `$D/argos/terminal-prompts/` (600) enquanto o terminal existir. Medido: com o caminho do arquivo o
   `agent start` sobe o Claude (`argv: claude --append-system-prompt-file <caminho>`).
+- **Servidor do herdr ausente (depois do reboot só o `hds-panel` sobe):** se o `workspace create` do criar terminal volta
+  com "no herdr server is running", o painel sobe um `herdr server` **por demanda** (nunca no boot do painel): `systemd-run
+  --user --collect herdr server` quando há systemd (unit transitória, fora do cgroup do painel: reiniciar o painel não o
+  derruba), senão um processo `detached` + `unref`; argumentos em lista, sem shell, sem unit nova instalada. Espera o
+  socket responder (`herdr api snapshot`) de 250 em 250 ms até 15 s (`TERMINAL_TIMEOUTS.serverUpMs`) e repete o
+  `workspace create` uma vez. Uma subida por vez (pedidos simultâneos esperam a mesma, e quem chega depois de ela
+  terminar só confere o socket). Subida falha ou teto estourado: `herdr-server-down`. O log leva `servidor do herdr
+  ausente: subida automática por demanda` (campo `via`). O `doctor` avisa (`herdr-servidor`) com o painel no ar e o socket
+  mudo.
 - O registro de terminais é deste painel: pane criado por fora (`hades agent`, herdr à mão) não se fecha por estas rotas.
 
 Prova: `loop/test/ts/argos-terminals.test.ts` (herdr falso), `argos-roles.test.ts` e `argos-presets.test.ts`.

@@ -38,6 +38,11 @@ export const routeKey = (method: string, path: string): string => `${method} ${p
 /** Units que o painel aceita ler (logs, plugin): as da instância. */
 export const unitNamePattern = (hu: string): RegExp => new RegExp(`^${hu.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-[\\w.-]+$`);
 
+const HU_TOKEN = "<HU>";
+
+/** `<HU>-ev` no manifesto vira `<prefixo da instância>-ev`; nome literal (plugin antigo) passa como está. */
+export const expandUnit = (name: string, hu: string): string => (name.startsWith(`${HU_TOKEN}-`) ? hu + name.slice(HU_TOKEN.length) : name);
+
 /** O `plugin.json` do projeto; ilegível ou ausente, vazio (o ilegível avisa no log). */
 export function readManifest(env: PanelEnv): Dict {
   let manifest: Dict = {};
@@ -80,7 +85,7 @@ export function loadPlugin(env: PanelEnv, apiFunctions: ReadonlySet<string> | un
     hasApi,
     routes,
     actions: new Set(apiFunctions?.has("action") ? strs("actions").filter((a) => NAME.test(a)) : []),
-    units: new Set(strs("units").filter((u) => unitName.test(u))),
+    units: new Set(strs("units").map((u) => expandUnit(u, env.hu)).filter((u) => unitName.test(u))),
     optionalContainers: new Set(strs("optionalContainers")),
     cycleScripts: strs("cycleScripts").filter((c) => CYCLE_SCRIPT.test(c)),
     runFlags,

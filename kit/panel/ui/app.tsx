@@ -836,7 +836,7 @@ function RunHadesDialog({ open, onClose, d }) {
       hint: cfg.HADES_TUNNEL_PORT ? `Ligado: acesso anônimo de 1 dia ao front; quem tiver a URL acessa. Desligado: front só local, em :${cfg.HADES_TUNNEL_PORT}` : 'Sem porta do túnel nas Configurações' },
     ...pluginList('runFlags').filter((s) => s.key !== 'tunnel' && s.key !== 'rebuild').map((s) => ({ key: s.key, label: s.label || s.key, hint: s.hint || '', config: s.config })),
   ];
-  const base = { ...Object.fromEntries(steps.map((s) => [s.key, !s.config || cfg[s.config] !== '0'])), rebuild: false };
+  const base = { ...Object.fromEntries(steps.map((s) => [s.key, !s.config || (s.key === 'tunnel' ? cfg[s.config] === '1' : cfg[s.config] !== '0')])), rebuild: false };
   const [f, setF] = useState(base);
   useEffect(() => { if (open) setF(base); }, [open]);
   // padrão de cada passo = Configurações (HADES_RUN_*); só o que o dono mudou aqui vira flag desta execução

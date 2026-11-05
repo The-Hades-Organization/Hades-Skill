@@ -356,7 +356,8 @@ repetido; o plugin só acrescenta, exceto o padrão de uma chave de configuraç�
 - `panel.routes[]`: `{path, method, fn, local}`, `path` `^[a-z0-9-]{1,40}$`, `method` GET ou POST, `fn` uma função do
   `api.ts`; vira `/api/plugin/<path>` com a autenticação do painel (`reference/panel.md` §Plugin: páginas, rotas e ações).
 - `panel.actions[]`: nomes de ação que o `api.ts → action` trata; `panel.units[]` (`<HU>-*`, §Várias instâncias): units do plugin que a
-  página Logs lista; `panel.cycleScripts[]` (`*.sh`): scripts do plugin que tornam o ambiente "ocupado" quando vivos.
+  página Logs lista (o núcleo troca o `<HU>` pelo prefixo da instância ao ler o manifesto: `hds` na original, `hds_<id>` nas outras; nome literal
+  `hds-*` segue valendo, mas só na original); `panel.cycleScripts[]` (`*.sh`): scripts do plugin que tornam o ambiente "ocupado" quando vivos.
 - `panel.endpoints[]`: `{name, label, icon, url | addr, probe}` na Visão geral (sonda só em `http://127.0.0.1:`).
 - `panel.runFlags[]`: `{key, label, hint, config}`, passos opcionais do `run-hades` no diálogo Subir (`--<key>` e
   `--no-<key>`; o padrão vem da chave `config`).
@@ -441,7 +442,10 @@ os nomes de sempre.
 - **O plugin usa os nomes, nunca o literal**: os scripts do `env/` sobem os serviços como `$HU-<svc>` com
   `--slice=$HSLICE` e a infra com `docker compose -p $HPROJ`; a rede do compose não fixa uma sub-rede que outra instância
   possa já usar (o `doctor.sh` acusa outra rede na sub-rede `HADES_DOCTOR_SUBNET` que não seja a `${HPROJ}_default`;
-  o plugin dá o padrão da chave, vazio = sem sub-rede fixa e sem checagem; `HADES_DOCTOR_NODE_BINS` idem para os
+  a sub-rede é do plugin: o núcleo traz a chave vazia e o plugin dá o padrão no `config.tsv` dele (vazio = sem sub-rede fixa e sem
+  checagem). O teste de firewall (`fw_test`) e o comando de liberação (`fw_cmd`, `{FW}` do onboarding) usam essa sub-rede e o gateway
+  dela (o primeiro endereço: `172.21.0.0/16` → `172.21.0.1`); com a chave vazia, a sub-rede da rede `${HPROJ}_default` se ela já existe, senão o
+  teste fica "não medível"; `HADES_DOCTOR_NODE_BINS` idem para os
   executáveis que dão o `node_modules` por completo). Portas próprias
   por projeto (as do `services.tsv`, `HADES_PORT_RANGE`, `HADES_TUNNEL_PORT`) vêm do plugin.
 - **Porta do painel**: instância com `HADES_ID` e sem `HADES_PANEL_PORT` escolhido (nem no `config.env`, que o

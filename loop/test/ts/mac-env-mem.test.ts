@@ -235,6 +235,9 @@ describe("kit: checagens de unit, linger e slice no launchd", () => {
   test("fw_cmd no launchd não propõe ufw", () => {
     expect(chk("fw_cmd").out).not.toContain("ufw");
   });
+  test("fw_cmd no launchd sem rede docker da instância não propõe ufw", () => {
+    expect(chk("fw_cmd", { HPROJ: "hades_sem_rede_no_teste", HADES_DOCTOR_SUBNET: "" }).out).not.toContain("ufw");
+  });
   test("apply-slice no launchd só avisa, sai 0 e não grava slice", () => {
     const o = r.X(["bash", `${SKILL}/kit/config.sh`, "apply-slice"], { env: launchd(), merge: true, cwd: r.T });
     expect(o.rc).toBe(0);

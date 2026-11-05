@@ -17,6 +17,8 @@ const PATH_STD = `${STUBS}:${NODE_DIR}:${SYS_PATH}`;
 const BASH = Bun.which("bash") ?? "bash";
 
 const wr = (p: string, s: string) => writeFileSync(p, s);
+/** A sub-rede é do plugin (o núcleo traz a chave vazia): o `plugin/config.tsv` de um plugin que fixa a da instância original. */
+const PLUGIN_SUBNET = "HADES_DOCTOR_SUBNET\t172.18.0.0/16\tcidr\tDiagnóstico\tSub-rede docker do ambiente\tnext\tpadrão do plugin\n";
 const rcLine = (o: Run) => `${o.out}rc=${o.rc}`;
 const slurp = (p: string) => (existsSync(p) ? readFileSync(p, "utf8") : "");
 const all = (s: string, from: string, to: string) => s.split(from).join(to);
@@ -657,6 +659,7 @@ describe("onboard", () => {
   const mko = (d: string, ...kv: string[]) => {
     mkd(d); rmSync(`${d}.home`, { recursive: true, force: true }); rmSync(`${d}/onboard.json`, { force: true }); mk(`${d}/plugin`, `${d}/checks`);
     for (const f of ["onboard.tsv", "lib-checks.sh", "config.tsv"]) copyFileSync(`${K}/${f}`, `${d}/${f}`);
+    wr(`${d}/plugin/config.tsv`, PLUGIN_SUBNET);
     wr(`${d}/plugin/onboard.tsv`, [
       "@testes\tTestes\tFeature só do teste",
       "testes\tt-ok\tPasso ok\thades\tmanual\t0\techo oi\t\t\tdetalhe {D}",
@@ -752,6 +755,7 @@ describe("doctor", () => {
   const mkdoc = (d: string, ...kv: string[]) => {
     mkd(d); rmSync(`${d}.home`, { recursive: true, force: true }); rmSync(`${d}/plugin`, { recursive: true, force: true }); mk(`${d}.home/.claude/hades/instances`, `${d}/plugin`);
     for (const f of ["config.tsv", "lib-checks.sh"]) copyFileSync(`${K}/${f}`, `${d}/${f}`); wr(`${d}/kit.version`, "4.0.0\n");
+    wr(`${d}/plugin/config.tsv`, PLUGIN_SUBNET);
     wr(`${d}.home/.claude/hades/instance`, `${d}\n`); wr(`${d}.home/.claude/hades/work-root`, `${d}.work\n`); wr(`${d}.ss`, "total  0\n");
     // o repo da skill é público: sem desligar a checagem, o doctor consulta o GitHub de verdade e o aviso versao-nova entra no golden
     appendFileSync(`${d}/env.sh`, "export HADES_VERSION_CHECK_HOURS=0\n");

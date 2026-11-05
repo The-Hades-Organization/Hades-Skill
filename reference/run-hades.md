@@ -60,7 +60,7 @@ específicas moram no pacote: `ref env-run-hades`. A ordem, em geral:
    commits de fixups/overlay trocam de SHA sem mudar conteúdo) e espera todos os serviços prontos.
 5. **Dados e processos de apoio** — carga de dados e o que mais o ambiente do projeto tiver, quando ligado.
 6. **Túnel público** — instala o `devtunnel`, loga (device-code, 1ª vez), cria o túnel + acesso anônimo + host, lê a
-   URL e reinicia os serviços cujo `.env` mudou. Pulado se o firewall bloquear, com `HADES_RUN_TUNNEL=0` ou com `--no-tunnel`. O acesso é **anônimo**: qualquer pessoa com a URL abre o front até o prazo vencer. O Cerberus (guarda `tunel-acesso`) avalia a publicação e barra com `HADES_CERBERUS_PORTA_TUNEL_HOSTS` vazia, mesmo com `HADES_RUN_TUNNEL=1` (o padrão): a convivência está em `reference/tunnel.md` §Passos.
+   URL e reinicia os serviços cujo `.env` mudou. Só roda com `HADES_RUN_TUNNEL=1` (desligado por padrão: o dono liga no onboarding ou nas Configurações) ou `--tunnel`; pulado se o firewall bloquear ou com `--no-tunnel`. O acesso é **anônimo**: qualquer pessoa com a URL abre o front até o prazo vencer. O Cerberus (guarda `tunel-acesso`) avalia a publicação e barra com `HADES_CERBERUS_PORTA_TUNEL_HOSTS` vazia, mesmo com `HADES_RUN_TUNNEL=1`: a convivência está em `reference/tunnel.md` §Passos.
 7. **STATUS** — o `STATUS.md` (o script de status do pacote do projeto, se houver) e um resumo final com as URLs e os avisos.
 
 Se o firewall do host barra o tráfego do container para o host, o `run-hades` detecta o bloqueio sem sudo e **só então**

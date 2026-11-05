@@ -50,9 +50,9 @@ $D/tunnel.sh url              # agente: grava tunnel.url e aplica no .env (as va
 **Cerberus (Porta) e `HADES_RUN_TUNNEL`:** o `publish-cmds` declara `acesso=anonimo` ao `cerberus_tunel` (guarda
 `tunel-acesso`, `reference/cerberus/porta.md`). A guarda passa só com o host do túnel em
 `HADES_CERBERUS_PORTA_TUNEL_HOSTS` ou com exceção do dono; com a lista vazia (o padrão) ela barra o front anônimo.
-`HADES_RUN_TUNNEL=1` (também padrão) só diz que o `run-hades` deve levantar o túnel (Configurações → Subida): não
+`HADES_RUN_TUNNEL=1` (desligado por padrão: o dono liga, pelo onboarding ou pelas Configurações) só diz que o `run-hades` deve levantar o túnel (Configurações → Subida): não
 libera nada. Os dois convivem assim: o interruptor liga a intenção, a guarda decide o acesso. Para publicar de fato,
-liste o host na chave da Porta ou aprove a exceção; para não tentar, desligue `HADES_RUN_TUNNEL` (ou `--no-tunnel`).
+liste o host na chave da Porta ou aprove a exceção; para não tentar, deixe `HADES_RUN_TUNNEL` desligado (ou `--no-tunnel`).
 
 Depois do `url`, reiniciar os serviços cujo `.env` mudou. O ambiente do projeto diz quais e o que mais refazer: o
 `tunnel-after.txt` é anexado à mensagem do `url`, e o `post-tunnel.sh` roda ao publicar o front pelo painel (ambos

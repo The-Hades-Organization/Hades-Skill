@@ -11,6 +11,7 @@ import { which } from "../lib/proc.ts";
 import { serviceManager } from "../lib/service-manager.ts";
 import { ListFailedError } from "../lib/service-manager-ctl.ts";
 import { exec, shlexQuote } from "./exec.ts";
+import { instanceEnv } from "../lib/systemd-run-env.ts";
 import type { PanelEnv } from "./env.ts";
 import { BadRequest, send as respond } from "./http.ts";
 import { type ChatEvent, type Tokens, chatEvents, pyDumpsUtf8 } from "./chat-events.ts";
@@ -339,7 +340,7 @@ export function createChat(deps: ChatDeps): Chat {
     const script = `"$@"; rc=$?; printf '{"type":"hds_end","rc":%s}\\n' "$rc" >> ${shlexQuote(out)}; exit $rc`;
     const launch = manager.transientArgv({
       unit: `${unit}-${id}`, workdir: clone, stdin: input, stdout: out, argv: ["/bin/bash", "-c", script, "hds-chat", ...argv],
-      env: [["PATH", process.env.PATH ?? ""], ["NO_COLOR", "1"], ["TERM", "dumb"], ["HADES_WT", env.worktree], ["HADES_DATA", env.dir]],
+      env: instanceEnv(env),
     });
     const r = await exec(launch, { timeoutMs: LAUNCH_TIMEOUT_MS });
     if (r.status !== 0) {

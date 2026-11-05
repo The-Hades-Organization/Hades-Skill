@@ -1,4 +1,5 @@
 // Worktree do Hades e o que o install liga nele e no Claude Code: branch hades/local, rerere, hook e slash-command.
+import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { sameContent } from "./install-copy.ts";
@@ -7,6 +8,7 @@ import { git } from "./kit.ts";
 import { EXIT } from "./output.ts";
 import { home, selfCli } from "./paths.ts";
 import { getField, loadProfile } from "./profile.ts";
+import { which } from "./proc.ts";
 import { resolveProject } from "./project.ts";
 import { isFile } from "./fs.ts";
 
@@ -30,6 +32,26 @@ export function worktreeOf(env: NodeJS.ProcessEnv = process.env): string {
  * O run-hades reseta o worktree para a base: nunca no clone principal. Rodado do clone principal sem HADES_WT, cria
  * <clone>-hades na branch hades/local a partir da base do perfil (branch.base > origin/<flow.base>; origin/develop sem perfil).
  */
+const GH_CREDENTIAL_HELPER = "credential.helper=!gh auth git-credential";
+const FETCH_TIMEOUT_MS = 60_000;
+
+/** Argumentos do fetch da base: o helper do `gh` entra depois dos do git do dono, para a máquina nova (sem credencial gravada) buscar. */
+export function fetchBaseArgs(main: string, branch: string, ghPresent: boolean): string[] {
+  return ["-C", main, ...(ghPresent ? ["-c", GH_CREDENTIAL_HELPER] : []), "fetch", "-q", "origin", branch];
+}
+
+/** Busca a base; devolve o motivo curto da falha (sem o `fatal:` cru do git), ou undefined quando deu certo. */
+function fetchBase(main: string, branch: string, env: NodeJS.ProcessEnv): string | undefined {
+  const r = spawnSync("git", fetchBaseArgs(main, branch, which("gh") !== undefined), {
+    env: { ...env, GIT_TERMINAL_PROMPT: "0" },
+    encoding: "utf8",
+    timeout: FETCH_TIMEOUT_MS,
+  });
+  if (r.status === 0) return undefined;
+  const reason = (r.stderr ?? "").split("\n").map((line) => line.trim()).filter(Boolean).pop() ?? `status ${r.status ?? "sinal"}`;
+  return reason.replace(/^(fatal|error): /, "");
+}
+
 export function ensureHadesWorktree(worktree: string, env: NodeJS.ProcessEnv = process.env): string {
   const listing = git(["-C", worktree, "worktree", "list", "--porcelain"]);
   const main = listing.status === 0 ? (/^worktree (.+)$/m.exec(listing.stdout)?.[1] ?? "") : "";
@@ -43,7 +65,8 @@ export function ensureHadesWorktree(worktree: string, env: NodeJS.ProcessEnv = p
     const flowBase = profileField(main, "flow.base");
     const base = profileField(main, "branch.base") || (flowBase ? `origin/${flowBase}` : "") || DEFAULT_BASE;
     const branch = base.replace(/^origin\//, "");
-    if (runStep("git", ["-C", main, "fetch", "-q", "origin", branch]) !== 0) say(`aviso: fetch de ${branch} falhou; usando a ${base} local`);
+    const fetched = fetchBase(main, branch, env);
+    if (fetched !== undefined) say(`aviso: fetch de ${branch} falhou (${fetched}); usando a ${base} local`);
     mustStep("git", ["-C", main, "worktree", "add", "-q", "-B", HADES_BRANCH, target, base]);
   }
   say(`worktree do Hades: ${target} (branch ${HADES_BRANCH})`);

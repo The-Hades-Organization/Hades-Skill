@@ -15,8 +15,10 @@ import { stateDir } from "../lib/kit.ts";
 import { EXIT, out, warn as warnErr } from "../lib/output.ts";
 import { home, selfCli } from "../lib/paths.ts";
 import { pyDumps } from "../lib/pyjson.ts";
-import { LISTENERS_TOOL, listenersToolPresent, memTotalMb, procCmdline, run, tcpListeners, which, type Listener } from "../lib/proc.ts";
-import { unitPrefix } from "../lib/config.ts";
+import { LISTENERS_TOOL, listenersToolPresent, memTotalMb, run, tcpListeners, which, type Listener } from "../lib/proc.ts";
+import { readEnvSh, unitPrefix } from "../lib/config.ts";
+import { judgeSlice, showSlice } from "../lib/doctor-slice.ts";
+import { belongsTo, otherInstances, type InstanceIdentity } from "../lib/doctor-instancias.ts";
 import { serviceManager } from "../lib/service-manager.ts";
 import { FILTERS_REL, planWorktree, policyAdvice, rtkBinary, rtkConfig, settingsFor, trustState } from "../lib/rtk-filters.ts";
 
@@ -210,12 +212,9 @@ function neededPorts(d: string): Set<number> {
   return need;
 }
 
-/** Porta ocupada por quem é desta instância: unit/slice dela ou processo com $D na linha de comando. */
-function isOwnProcess(pid: string, ctx: Ctx): boolean {
-  if (!pid) return false;
-  const cgroup = readText(`/proc/${pid}/cgroup`) ?? "";
-  if (new RegExp(`/${ctx.hslice}\\.slice/|/${ctx.hu}-`).test(cgroup)) return true;
-  return procCmdline(Number(pid)).includes(ctx.d);
+/** Porta ocupada por quem é do Hades desta máquina: desta instância ou de outra registrada (belongsTo). */
+function isHadesProcess(pid: string, ctx: Ctx, others: InstanceIdentity[]): boolean {
+  return belongsTo(pid, { d: ctx.d, hu: ctx.hu, hslice: ctx.hslice }) || others.some((other) => belongsTo(pid, other));
 }
 
 interface ForeignPorts {
@@ -225,12 +224,13 @@ interface ForeignPorts {
 
 function scanPorts(ctx: Ctx, listeners: Listener[], mine: Set<number>, need: Set<number>, lo: number, hi: number): ForeignPorts {
   const seen = new Set<number>();
+  const others = otherInstances(ctx.d);
   const found: ForeignPorts = { foreign: [], neededHit: [] };
   for (const { port, pid, name } of listeners) {
     if (!((port >= lo && port <= hi) || need.has(port))) continue;
     if (mine.has(port) || seen.has(port)) continue;
     seen.add(port);
-    if (isOwnProcess(pid, ctx)) continue;
+    if (isHadesProcess(pid, ctx, others)) continue;
     found.foreign.push(`${port}(${name || "outro usuário"})`);
     if (need.has(port)) found.neededHit.push(port);
   }
@@ -357,7 +357,19 @@ function checkSlice(r: Report, ctx: Ctx): void {
   const text = readText(file);
   if (text === undefined) r.err(g, "slice", `${ctx.hslice}.slice não instalado (os serviços ficariam sem teto de memória)`, `${ctx.d}/config.sh apply-slice`);
   else if (!text.split("\n").includes(`MemoryMax=${max}`)) r.warn(g, "slice", `${ctx.hslice}.slice com MemoryMax diferente de HADES_SLICE_MAX (${max})`, `${ctx.d}/config.sh apply-slice`);
-  else r.ok(g, "slice", `${ctx.hslice}.slice instalado (MemoryMax=${max})`);
+  else checkLoadedSlice(r, ctx, max);
+}
+
+/** O arquivo está certo; falta o gerenciador tê-lo carregado (daemon-reload) com o mesmo teto. */
+function checkLoadedSlice(r: Report, ctx: Ctx, max: string): void {
+  const g = "Instalação";
+  const loaded = showSlice(ctx.hslice);
+  const fix = `${ctx.d}/config.sh apply-slice (ou: systemctl --user daemon-reload)`;
+  if (loaded === undefined) return r.ok(g, "slice", `${ctx.hslice}.slice instalado (MemoryMax=${max}); o systemd do usuário não respondeu, carga não conferida`);
+  const verdict = judgeSlice(loaded, sliceMaxMib(max));
+  if (verdict === "nao-carregado") r.err(g, "slice", `${ctx.hslice}.slice está em ~/.config/systemd/user mas não carregado (${loaded.loadState || "sem estado"}): os serviços subiriam sem teto de memória`, fix);
+  else if (verdict === "teto-diferente") r.warn(g, "slice", `${ctx.hslice}.slice carregado com MemoryMax diferente de HADES_SLICE_MAX (${max})`, fix);
+  else r.ok(g, "slice", `${ctx.hslice}.slice carregado (MemoryMax=${max})`);
 }
 
 const versionLine = (path: string): string => firstLine(path).replace(/[ \n]/g, "");
@@ -606,6 +618,19 @@ function renderTable(items: Item[], quick: boolean): string {
   return lines.join("\n");
 }
 
+const REEXEC_GUARD = "HADES_DOCTOR_NA_INSTANCIA";
+
+/**
+ * Fora do env.sh (`hades doctor` num shell comum) o ambiente da instância (HADES_WT, HADES_SLICE_MAX, as chaves do plugin) não
+ * está exportado. O `$D/doctor.sh` o carrega e volta aqui; a guarda evita o laço quando o env.sh não exporta o worktree.
+ */
+function rerunInInstance(d: string, args: string[]): number | undefined {
+  const script = join(d, "doctor.sh");
+  if (process.env.HADES_WT !== undefined || process.env[REEXEC_GUARD] || !isFile(script)) return undefined;
+  const ran = spawnSync("bash", [script, ...args], { stdio: "inherit", env: { ...process.env, [REEXEC_GUARD]: "1" } });
+  return ran.status ?? EXIT.fail;
+}
+
 export function doctorCommand(args: string[]): number {
   let quick = false;
   let json = false;
@@ -621,11 +646,13 @@ export function doctorCommand(args: string[]): number {
     }
   }
   const d = stateDir();
+  const viaInstance = rerunInInstance(d, args);
+  if (viaInstance !== undefined) return viaInstance;
   const hu = env("HU", unitPrefix(d));
   const ctx: Ctx = {
     quick,
     d,
-    w: env("HADES_WT"),
+    w: env("HADES_WT", readEnvSh(d).get("W") ?? ""),
     hu,
     hslice: env("HSLICE", `hades${hu.slice("hds".length)}`),
     hproj: env("HPROJ", `hades${hu.slice("hds".length)}`),

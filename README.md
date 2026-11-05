@@ -92,7 +92,8 @@ alias hades='bun ~/.claude/skills/hades/src/cli.ts'    # ponha no ~/.bashrc ou ~
 ```
 
 Instale o ambiente a partir de um clone do projeto com `origin` no GitHub (sem ele o `install.sh` para com o erro
-`não tem remote.origin.url`). Ele cria `<clone>-hades` na branch `hades/local`, os dados em `<worktree>-data` e a slice de
+`não tem remote.origin.url`) e com o `gh` logado (`gh auth login`); o `install.sh` busca a base pela credencial do `gh`, sem
+mexer na configuração do seu git. Ele cria `<clone>-hades` na branch `hades/local`, os dados em `<worktree>-data` e a slice de
 memória, liga o `rerere` e registra o hook da skill no `~/.claude/settings.json`:
 
 ```bash
@@ -147,7 +148,8 @@ hades doctor                  # 1. pré-requisitos, máquina e instalação, com
 hades project resolve         # 2. o projeto ativo e o perfil do repo atual
 ```
 
-O passo 2 sai com `3` quando o repo ainda não tem perfil, o esperado na primeira vez: o passo 3 o cria. No Claude Code,
+O `hades doctor` acha a instância sozinho (a do projeto do diretório atual, como o `hades instance`), então roda em
+qualquer shell, sem carregar o `env.sh`. O passo 2 sai com `3` quando o repo ainda não tem perfil, o esperado na primeira vez: o passo 3 o cria. No Claude Code,
 dentro do clone do projeto:
 
 ```text

@@ -165,6 +165,16 @@ systemd-run
   -E
   TERM=dumb
   -E
+  HOME=<T>/home
+  -E
+  HADES_ID=
+  -E
+  HU=hds
+  -E
+  HSLICE=hades
+  -E
+  HPROJ=hades
+  -E
   HADES_WT=<T>/wt-sc
   -E
   HADES_DATA=<T>/sc-d
@@ -192,6 +202,16 @@ systemd-run
   NO_COLOR=1
   -E
   TERM=dumb
+  -E
+  HOME=<T>/home
+  -E
+  HADES_ID=
+  -E
+  HU=hds
+  -E
+  HSLICE=hades
+  -E
+  HPROJ=hades
   -E
   HADES_WT=<T>/wt-sc
   -E

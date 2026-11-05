@@ -249,12 +249,15 @@ export function createHerdr(): Herdr {
     cached(`${session}\0snap`, async () => ((await json(session, ["api", "snapshot"]))?.snapshot as Dict | undefined) ?? null);
 
   async function startServer(): Promise<"systemd-run" | "detached"> {
-    // unit transitória do usuário: o KillMode do hds-panel mata tudo no cgroup dele, então só `detached` não basta sob systemd
+    const bin = which("herdr") ?? "herdr";
+    // unit transitória do usuário: o KillMode do hds-panel mata tudo no cgroup dele, então só `detached` não basta sob systemd.
+    // O PATH do gerenciador de usuário costuma não ter ~/.local/bin nem o node do nvm, e os panes do servidor herdam o
+    // ambiente dele: sem o PATH do painel, o shell do pane não acha o CLI do agente.
     if (which("systemd-run")) {
-      const r = await exec(["systemd-run", "--user", "--collect", "--quiet", "herdr", "server"], { timeoutMs: CALL_TIMEOUT_MS });
+      const r = await exec(["systemd-run", "--user", "--collect", "--quiet", `--setenv=PATH=${process.env.PATH ?? ""}`, bin, "server"], { timeoutMs: CALL_TIMEOUT_MS });
       if (r.status === 0) return "systemd-run";
     }
-    const child = Bun.spawn(["herdr", "server"], { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true });
+    const child = Bun.spawn([bin, "server"], { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true });
     child.unref();
     return "detached";
   }

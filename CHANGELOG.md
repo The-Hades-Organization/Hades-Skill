@@ -4,6 +4,28 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.12.2 — 2026-11-05
+
+Argos sem gravar o canvas com mais de uma aba do painel aberta (issue #52, PR #53).
+
+- **Sintoma**: nota criada sumia no reload, terminal novo nascia "fora do canvas" ("Terminal criado, mas o nó não foi
+  gravado") e terminal fechado continuava no canvas. No `panel.log`, 30 min sem `canvas gravado` nem `canvas recusado`,
+  enquanto `nota gravada` e o input do herdr passavam: o `PUT /api/canvas` não chegava ao servidor.
+- **Causa**: o painel é HTTP/1.1 e o navegador abre no máximo 6 conexões por servidor, somando as abas. Cada `EventSource`
+  prende uma enquanto vive, e uma aba do Argos abre 3 (canvas, terminais, linha do tempo). Com 2 abas, o teto acaba e todo
+  `fetch` fica na fila até o `AbortSignal.timeout` de 10 s (`TimeoutError`, código 23 no console). Medido num Firefox
+  headless: 1 aba grava na hora; 4 abas, a ativa nem lê o canvas (9 conexões presas).
+- **`ui/stream-logic.tsx`** (`window.PanelStream.open(url)`): fluxo SSE com a interface do `EventSource` que solta a conexão
+  5 s depois de a aba esconder e religa ao voltar, com os mesmos ouvintes; solto, `readyState` é `CONNECTING` (ninguém cai
+  para o polling por isso) e o `open` da religação dispara a conferência do canvas. O Argos (canvas, terminais, linha do
+  tempo) e o terminal do herdr abrem por ele. Com a correção, 4 abas = 3 conexões (as da aba ativa) e nenhum timeout.
+- **`beforeunload`** no Argos com edição do canvas que o servidor ainda não tem: o navegador pergunta antes de recarregar
+  ou fechar (era assim que a nota sumia).
+- A mensagem de `canvas_save_unreachable` aponta as abas abertas; a armadilha está em `reference/panel.md` §Armadilhas.
+- Fora: o chat do Claude segue com `EventSource` direto (religa pelo `offset` da URL) e duas janelas visíveis lado a lado
+  ainda somam conexões; resolver de vez pede uma conexão só para os fluxos (WebSocket ou multiplexação).
+- Testes: `painel-stream.test.ts` (9 casos); goldens do `/sw.js` (hash novo da UI) e do drift do kit (arquivo novo).
+
 ## 6.12.1 — 2026-11-05
 
 Terminal do canvas com o servidor do herdr parado (issue #46).

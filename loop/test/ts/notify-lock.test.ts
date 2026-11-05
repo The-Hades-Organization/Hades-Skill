@@ -16,6 +16,11 @@ let hits = 0;
 
 beforeAll(() => {
   server = Bun.serve({ port: 0, fetch: async () => { hits++; await Bun.sleep(SLOW_MS); return new Response("ok"); } });
+  // o filtro por evento da instância (HADES_NOTIFY_EV_AGENT=off no config.env) silenciaria o notify do teste
+  for (const k of Object.keys(process.env).filter((key) => key.startsWith("HADES_NOTIFY_EV_"))) {
+    saved[k] = process.env[k];
+    delete process.env[k];
+  }
   for (const [k, v] of Object.entries({ ...ENV, HADES_NOTIFY_NTFY_URL: `http://127.0.0.1:${server.port}` })) {
     saved[k] = process.env[k];
     process.env[k] = v;

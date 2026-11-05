@@ -4,6 +4,52 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.13.0 — 2026-11-05
+
+Terminais do herdr no Argos: cursor, zoom do texto e fechar (issue #48, PR #51); e o canvas que deixava de gravar com
+mais de uma aba do painel aberta (issue #52, PR #53).
+
+### Terminais: cursor, zoom do texto e fechar (#51)
+
+- **Cursor estimado na caixa do Claude Code**: o herdr (0.8.2 e 0.9.5, conferido no schema da API) não entrega a posição do
+  cursor, e o `guessCursor` punha o cursor no fim da última linha com texto, que no Claude Code é o rodapé ("auto mode on…").
+  Agora `promptBoxCursor` reconhece a caixa (linha `❯` entre duas réguas `─`) e põe o cursor no fim do que foi digitado; a
+  sugestão esmaecida (SGR 2) da caixa vazia não conta. Descoberto: a premissa de que o Claude desenha o próprio cursor em
+  vídeo inverso não vale mais (ele usa o cursor do terminal), então o vídeo inverso só decide dentro da caixa.
+- **Zoom do texto** (`Ctrl+Alt+=` / `Ctrl+Alt+-` / `Ctrl+Alt+0`, também na paleta e no menu do nó): o herdr não muda colunas nem
+  linhas de um pane, então o nó vai à proporção exata do quadro na escala seguinte (`ttyZoomSize`, passo 1,2×), sem a faixa
+  vazia que o resize livre deixa. As teclas sobem ao canvas com o teclado no terminal. Resize real (colunas acompanhando o
+  nó) segue fora: não há API de tamanho por pane nem fluxo de bytes na 0.9.5.
+- **Fechar com conferência**: `ensureNodeRemoved` (o inverso de `ensureNodeSaved`) só termina com o nó fora do documento do
+  servidor, relendo e reaplicando em 409. Medido no canvas real: o `terminal-fechar` encerrou o pane e o nó ficou no
+  `canvas.json`.
+- **Delete fecha o processo** num terminal vivo, pelo diálogo do `Ctrl+Alt+W`; só tirar o nó deixava o pane órfão.
+- **Terminais encerrados**: `GET /api/argos/terminals/orphans` devolve `dead` (aditivo), conferido também a cada 30 s com a
+  aba visível. O nó mostra "Processo encerrado" com "Remover do canvas", e um banner remove todos, ocultos inclusive: no
+  canvas real 8 dos 9 nós ocultos com `Shift+H` eram terminais com o pane já morto.
+- Testes: `argos-terminal-fechar.test.ts` (novo), `argos-terminal-orfaos.test.ts` e `term-cursor.test.ts`; golden do `/sw.js`
+  com o hash novo da UI.
+
+### Canvas com várias abas (#53)
+
+- **Sintoma**: nota criada sumia no reload, terminal novo nascia "fora do canvas" ("Terminal criado, mas o nó não foi
+  gravado") e terminal fechado continuava no canvas. No `panel.log`, 30 min sem `canvas gravado` nem `canvas recusado`,
+  enquanto `nota gravada` e o input do herdr passavam: o `PUT /api/canvas` não chegava ao servidor.
+- **Causa**: o painel é HTTP/1.1 e o navegador abre no máximo 6 conexões por servidor, somando as abas. Cada `EventSource`
+  prende uma enquanto vive, e uma aba do Argos abre 3 (canvas, terminais, linha do tempo). Com 2 abas, o teto acaba e todo
+  `fetch` fica na fila até o `AbortSignal.timeout` de 10 s (`TimeoutError`, código 23 no console). Medido num Firefox
+  headless: 1 aba grava na hora; 4 abas, a ativa nem lê o canvas (9 conexões presas).
+- **`ui/stream-logic.tsx`** (`window.PanelStream.open(url)`): fluxo SSE com a interface do `EventSource` que solta a conexão
+  5 s depois de a aba esconder e religa ao voltar, com os mesmos ouvintes; solto, `readyState` é `CONNECTING` (ninguém cai
+  para o polling por isso) e o `open` da religação dispara a conferência do canvas. O Argos (canvas, terminais, linha do
+  tempo) e o terminal do herdr abrem por ele. Com a correção, 4 abas = 3 conexões (as da aba ativa) e nenhum timeout.
+- **`beforeunload`** no Argos com edição do canvas que o servidor ainda não tem: o navegador pergunta antes de recarregar
+  ou fechar (era assim que a nota sumia).
+- A mensagem de `canvas_save_unreachable` aponta as abas abertas; a armadilha está em `reference/panel.md` §Armadilhas.
+- Fora: o chat do Claude segue com `EventSource` direto (religa pelo `offset` da URL) e duas janelas visíveis lado a lado
+  ainda somam conexões; resolver de vez pede uma conexão só para os fluxos (WebSocket ou multiplexação).
+- Testes: `painel-stream.test.ts` (9 casos); goldens do `/sw.js` (hash novo da UI) e do drift do kit (arquivo novo).
+
 ## 6.12.1 — 2026-11-05
 
 Terminal do canvas com o servidor do herdr parado (issue #46).

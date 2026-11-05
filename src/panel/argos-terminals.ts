@@ -4,7 +4,7 @@
 // nunca vai a log nem ao aviso; o log leva só ação, nome, alvo e origem.
 import { chmodSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, sep } from "node:path";
-import { paneFrom } from "../lib/herdr.ts";
+import { herdrServerDown, paneFrom } from "../lib/herdr.ts";
 import {
   AGENT_KINDS, ARGOS_ERROR_CODES, agentOf, ArgosError, type ArgosErrorCode, type ArgosRoleEntry, createRoleStore,
   DEFAULT_AGENT, DISCOVER_LIMITS, discoverRoles, effortOf, modelOf, optional, readRoleFile, slugFormatOf, slugify,
@@ -24,7 +24,10 @@ export const ARGOS_ERROR_STATUS: Readonly<Record<ArgosErrorCode, number>> = {
   [ARGOS_ERROR_CODES.herdrFailed]: 502,
   [ARGOS_ERROR_CODES.rateLimited]: 429,
   [ARGOS_ERROR_CODES.unsafeArgument]: 400,
+  [ARGOS_ERROR_CODES.herdrServerDown]: 503,
 };
+
+const SERVER_DOWN_MESSAGE = "o servidor do herdr não está rodando: abra o `herdr` e tente de novo";
 
 /** Criar e fechar terminal: até 10 por minuto, por rota e por origem (local ou remoto), em janela deslizante. */
 export const TERMINAL_RATE = { max: 10, windowMs: 60_000 } as const;
@@ -65,6 +68,9 @@ export const TERMINAL_TIMEOUTS = {
   paneMs: 20_000,
   /** o `agent start` espera o agente ficar pronto (o padrão do herdr é 30 s) */
   startMs: 60_000,
+  /** subida do `herdr server` por demanda: o teto até o socket responder e de quanto em quanto conferir */
+  serverUpMs: 15_000,
+  serverUpPollMs: 250,
   /** troca de papel: quantas vezes e de quanto em quanto conferir que o processo antigo saiu */
   exitPolls: 20,
   exitPollMs: 250,
@@ -85,7 +91,7 @@ export const TERMINALS_PATH = "/api/argos/terminals";
  * `agent start` e, se ele falhar, fechar o pane, com folga.
  */
 export const TERMINAL_REQUEST_TIMEOUT_S = Math.ceil(
-  (2 * TERMINAL_TIMEOUTS.paneMs + TERMINAL_TIMEOUTS.promptPolls * TERMINAL_TIMEOUTS.promptPollMs + TERMINAL_TIMEOUTS.startMs) / 1000,
+  (2 * TERMINAL_TIMEOUTS.paneMs + TERMINAL_TIMEOUTS.promptPolls * TERMINAL_TIMEOUTS.promptPollMs + TERMINAL_TIMEOUTS.startMs + TERMINAL_TIMEOUTS.serverUpMs) / 1000,
 ) + 15;
 /** Quanto tempo um caminho devolvido pela descoberta vale para a importação, e quantos ficam guardados. */
 export const DISCOVERED_TTL_MS = 15 * 60_000;
@@ -94,7 +100,7 @@ const DISCOVERED_MAX = 1000;
 export interface ArgosTerminalsDeps {
   /** $D */
   dir: string;
-  herdr: Pick<Herdr, "call" | "json" | "snap" | "forget">;
+  herdr: Pick<Herdr, "call" | "json" | "snap" | "forget"> & Partial<Pick<Herdr, "startServer">>;
   /** Onde um terminal pode abrir: o clone do projeto primeiro (o padrão), depois as worktrees dos agentes. */
   roots: () => string[];
   /** Aviso ao dono de uma ação pelo acesso remoto (só ação e alvo). */
@@ -365,9 +371,55 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
     const r = await deps.herdr.call(session === DEFAULT_SESSION ? null : session, args, timeoutMs);
     if (r.rc !== 0) {
       deps.log("warn", "herdr recusou ação do terminal do canvas", { acao: what, reason: r.err.slice(0, 300) });
+      if (herdrServerDown(r.err)) throw serverDown();
       throw fail(ARGOS_ERROR_CODES.herdrFailed, "o herdr recusou (detalhe no log do painel)");
     }
     return r.out;
+  }
+
+  const serverDown = (): ArgosError => fail(ARGOS_ERROR_CODES.herdrServerDown, SERVER_DOWN_MESSAGE);
+
+  const serverResponds = async (): Promise<boolean> => (await deps.herdr.call(null, ["api", "snapshot"], TERMINAL_TIMEOUTS.paneMs)).rc === 0;
+
+  /** Sobe o servidor e espera o socket responder; falha ou teto estourado é `false` (e fica no log). */
+  async function launchServer(): Promise<boolean> {
+    if (await serverResponds()) return true;
+    if (!deps.herdr.startServer) return false;
+    let via: string;
+    try {
+      via = await deps.herdr.startServer();
+    } catch (error) {
+      deps.log("warn", "subida automática do servidor do herdr falhou", { reason: error instanceof Error ? error.message : String(error) });
+      return false;
+    }
+    deps.log("info", "servidor do herdr ausente: subida automática por demanda", { via });
+    const polls = Math.ceil(TERMINAL_TIMEOUTS.serverUpMs / TERMINAL_TIMEOUTS.serverUpPollMs);
+    for (let i = 0; i < polls; i++) {
+      await deps.sleep(TERMINAL_TIMEOUTS.serverUpPollMs);
+      if (await serverResponds()) return true;
+    }
+    deps.log("warn", "servidor do herdr não respondeu no teto após a subida automática", { tetoMs: TERMINAL_TIMEOUTS.serverUpMs });
+    return false;
+  }
+
+  /** Uma subida por vez: pedidos simultâneos esperam a mesma. */
+  let serverLaunch: Promise<boolean> | undefined;
+  function ensureServer(): Promise<boolean> {
+    serverLaunch ??= launchServer().finally(() => {
+      serverLaunch = undefined;
+    });
+    return serverLaunch;
+  }
+
+  /** `workspace create`; com o servidor ausente sobe o herdr por demanda e tenta uma vez mais. */
+  async function createWorkspace(session: string, args: string[]): Promise<string> {
+    try {
+      return await herdrCall(session, args, TERMINAL_TIMEOUTS.paneMs, "criar-pane");
+    } catch (error) {
+      if (!(error instanceof ArgosError) || error.code !== ARGOS_ERROR_CODES.herdrServerDown) throw error;
+      if (!(await ensureServer())) throw serverDown();
+      return herdrCall(session, args, TERMINAL_TIMEOUTS.paneMs, "criar-pane");
+    }
   }
 
   /** `$D/argos/terminal-prompts/<sessão>-<pane>.md`: o papel do processo, lido pela CLI do agente na subida. */
@@ -466,7 +518,7 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
     if (alive.length >= TERMINAL_LIMITS.terminals) throw invalid(`limite de ${TERMINAL_LIMITS.terminals} terminais do canvas`);
 
     const session = DEFAULT_SESSION;
-    const pane = paneFrom(await herdrCall(session, ["workspace", "create", "--cwd", cwd, "--label", name, "--no-focus"], TERMINAL_TIMEOUTS.paneMs, "criar-pane"));
+    const pane = paneFrom(await createWorkspace(session, ["workspace", "create", "--cwd", cwd, "--label", name, "--no-focus"]));
     if (!PANE_ID.test(pane)) throw fail(ARGOS_ERROR_CODES.herdrFailed, "o herdr não devolveu o pane criado");
     try {
       const promptText = promptFileText(choice);

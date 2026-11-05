@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { herdrServerResponds } from "../lib/herdr.ts";
 import { devtunnelLoggedIn, ghToken, lingering, unitIs } from "../lib/checks.ts";
 import { claudeSettingsPath } from "../lib/autonomy.ts";
 import { loadRegistry } from "../lib/deps.ts";
@@ -478,6 +479,14 @@ function checkPanel(r: Report, ctx: Ctx): void {
     else if (mode === "login" && linger === "yes" && !isFile(join(ctx.d, "linger.mine"))) r.ok(g, "painel", "início automático no login (linger ligado por fora do Hades)");
     else r.ok(g, "painel", `início automático (${mode}) coerente com a unit`);
   } else r.warn(g, "painel", `HADES_PANEL_AUTOSTART com valor inesperado: ${mode}`, `${ctx.d}/config.sh set HADES_PANEL_AUTOSTART=off|login|boot`);
+  checkHerdrServer(r, unit);
+}
+
+/** Painel ativo e o socket do herdr sem resposta (típico depois do reboot): o painel o sobe ao criar terminal, mas avisa. */
+function checkHerdrServer(r: Report, unit: string): void {
+  if (!has("herdr") || !unitIs(unit, "active")) return;
+  if (herdrServerResponds()) r.ok("Painel", "herdr-servidor", "painel no ar e servidor do herdr respondendo");
+  else r.warn("Painel", "herdr-servidor", "painel no ar sem servidor herdr (o terminal do canvas sobe o servidor ao ser criado)", "abra o `herdr` (ou crie um terminal no canvas: o painel sobe o servidor)");
 }
 
 function checkBoot(r: Report, ctx: Ctx): void {

@@ -17,6 +17,21 @@ export function herdrWait(name: string, until: string[], timeoutMs: number): Run
   return herdr(["agent", "wait", name, ...flags, "--timeout", String(timeoutMs)], { timeoutMs: timeoutMs + WAIT_GRACE_MS });
 }
 
+/** Teto da sondagem do servidor: ele responde em milissegundos quando está no ar. */
+const SERVER_PROBE_TIMEOUT_MS = 5000;
+
+/**
+ * Stderr do CLI quando o servidor não está no ar ("no herdr server is running at <socket>; run `herdr` to start or
+ * attach it"), ou o socket sumiu/recusa a conexão.
+ */
+const SERVER_DOWN_PATTERN = /no herdr server is running|connection refused|(?:socket|\.sock)\b.*(?:no such file|not found|does not exist)/i;
+export const herdrServerDown = (stderr: string): boolean => SERVER_DOWN_PATTERN.test(stderr);
+
+/** O servidor do herdr responde no socket? (`api snapshot` é só leitura.) */
+export function herdrServerResponds(): boolean {
+  return herdr(["api", "snapshot"], { timeoutMs: SERVER_PROBE_TIMEOUT_MS }).status === 0;
+}
+
 function parse(text: string): Json | undefined {
   try {
     return JSON.parse(text) as Json;

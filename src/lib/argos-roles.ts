@@ -17,6 +17,8 @@ export const ARGOS_ERROR_CODES = {
   rateLimited: "rate-limited",
   /** Argumento do agente com quebra de linha ou byte nulo: o herdr o recusaria (`invalid_agent_argument`). */
   unsafeArgument: "unsafe-argument",
+  /** O servidor do herdr não está rodando (e a subida automática falhou ou estourou o teto). */
+  herdrServerDown: "herdr-server-down",
 } as const;
 export type ArgosErrorCode = (typeof ARGOS_ERROR_CODES)[keyof typeof ARGOS_ERROR_CODES];
 

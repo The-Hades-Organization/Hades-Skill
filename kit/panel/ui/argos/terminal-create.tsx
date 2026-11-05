@@ -8,7 +8,7 @@ const NT = () => window.ArgosNodeTerminal;
 
 /** Códigos de erro das rotas (contrato do servidor) mais os do cliente; quem consome ramifica por eles, nunca pelo texto. */
 const TERMINAL_ERRORS = Object.freeze({
-  invalid: 'invalid', notFound: 'not-found', confirmRequired: 'confirm-required', herdrFailed: 'herdr-failed', rateLimited: 'rate-limited',
+  invalid: 'invalid', notFound: 'not-found', confirmRequired: 'confirm-required', herdrFailed: 'herdr-failed', herdrServerDown: 'herdr-server-down', rateLimited: 'rate-limited',
   network: 'terminal_network', timeout: 'terminal_timeout', badResponse: 'terminal_bad_response',
 });
 const ERROR_TEXT = Object.freeze({
@@ -16,6 +16,7 @@ const ERROR_TEXT = Object.freeze({
   [TERMINAL_ERRORS.notFound]: 'Predefinição, papel ou terminal não encontrado.',
   [TERMINAL_ERRORS.confirmRequired]: 'Pelo acesso remoto é preciso confirmar com o nome.',
   [TERMINAL_ERRORS.herdrFailed]: 'O herdr não conseguiu fazer isso.',
+  [TERMINAL_ERRORS.herdrServerDown]: 'O servidor do herdr não está rodando: abra o `herdr` e tente de novo.',
   [TERMINAL_ERRORS.network]: 'Sem resposta do painel.',
   [TERMINAL_ERRORS.timeout]: 'O painel demorou demais para responder.',
   [TERMINAL_ERRORS.badResponse]: 'O painel respondeu fora do contrato.',

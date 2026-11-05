@@ -4,6 +4,25 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.12.1 — 2026-11-05
+
+Terminal do canvas com o servidor do herdr parado (issue #46).
+
+- **Subida por demanda**: depois de um reboot só o `hds-panel` sobe, e criar terminal no Argos falhava em `workspace create`
+  com o genérico "o herdr recusou". Agora, se o servidor não responde, o painel sobe o `herdr server` (uma subida por vez,
+  pedidos simultâneos esperam a mesma; teto de 15 s até `api snapshot` responder) e repete a criação uma vez. Só ao criar
+  terminal, nunca no boot do painel.
+- **Erro com código próprio**: `herdr-server-down` (503), em toda rota que passa pelo `herdrCall`, com "o servidor do herdr não
+  está rodando: abra o `herdr` e tente de novo" na tela, quando a subida falha ou estoura o teto. `herdr-failed` segue para o resto.
+- **Doctor**: aviso `herdr-servidor` (grupo Painel) com o painel ativo e o socket do herdr mudo.
+- Armadilhas: sob systemd o `detached` sozinho não basta, porque o `KillMode=control-group` do `hds-panel` mataria o servidor
+  ao reiniciar o painel; por isso `systemd-run --user` (unit transitória), com o `detached` de reserva. O PATH do gerenciador
+  de usuário não tem `~/.local/bin` nem o node do nvm, e os panes herdam o ambiente do servidor: o `systemd-run` leva o PATH
+  do painel e o caminho absoluto do `herdr`. Não medido com o herdr real (provado com fakes).
+- Testes: o `notify-lock` herdava o filtro de eventos da instância (`HADES_NOTIFY_EV_AGENT=off` no `config.env`, que o
+  `skill-release` carrega) e falhava as quatro asserções de envio; agora tira as `HADES_NOTIFY_EV_*` do ambiente. Golden do
+  `/sw.js` com o hash novo da UI (`terminal-create.tsx`).
+
 ## 6.12.0 — 2026-11-04
 
 Sub-rede do firewall é da instância e o padrão sai do núcleo; `panel.units[]` do plugin com `<HU>`; túnel do front desligado

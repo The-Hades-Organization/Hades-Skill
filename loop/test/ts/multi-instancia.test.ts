@@ -1,7 +1,7 @@
 // Grupo multi-instancia: várias instâncias na mesma máquina (HADES_ID, registro, porta, túneis, painel, base do perfil).
 // A comparação com o original saiu na 5.0.0; o que ele produzia está em golden/legado (multi-instancia-cli.test.ts).
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { BUN, FX, Rig, SKILL, STUBS, readJson, writeJson } from "./lib/rig";
 import { mi } from "./lib/mi";
 import { healthPaths } from "../../../src/lib/config";
@@ -147,10 +147,18 @@ describe("multi-instancia", () => {
       const o = MI(["timeout", "60", BUN, `${import.meta.dir}/lib/panel-env.ts`, D2], { HADES_DATA: D2 }).out;
       expect(nl(o).split("\n").pop()).toBe(JSON.stringify({ web: "/", api: "/health/ready" }));
     });
-    test("doctor: rede e node_modules com o padrão; sem checagem com HADES_DOCTOR_SUBNET e HADES_DOCTOR_NODE_BINS vazios", () => {
-      const ids = (extra: Record<string, string>) => (JSON.parse(MI(["timeout", "60", "bash", `${D1}/doctor.sh`, "--quick", "--json"], { USER: "regressao", HADES_DATA: D1, ...extra }).out).items as { id: string }[])
-        .map((i) => i.id).filter((i) => i === "rede" || i === "node_modules").sort().join(" ");
-      expect(`${ids({})}|${ids({ HADES_DOCTOR_SUBNET: "", HADES_DOCTOR_NODE_BINS: "" })}`).toBe("node_modules rede|");
+    const doctorIds = (d: string, extra: Record<string, string>) => (JSON.parse(MI(["timeout", "60", "bash", `${d}/doctor.sh`, "--quick", "--json"], { USER: "regressao", HADES_DATA: d, ...extra }).out).items as { id: string }[])
+      .map((i) => i.id).filter((i) => i === "rede" || i === "node_modules").sort().join(" ");
+    const subnetDefault = "HADES_DOCTOR_SUBNET\t172.18.0.0/16\tcidr\tDiagnóstico\tSub-rede docker do ambiente\tnext\tpadrão do plugin\n";
+    test("doctor: sem padrão de sub-rede (núcleo sozinho, instância a mais) não há checagem de rede", () => {
+      expect(`${doctorIds(D2, {})}|${doctorIds(D1, {})}`).toBe("node_modules|node_modules");
+    });
+    test("doctor: rede e node_modules com o padrão do plugin; sem checagem com HADES_DOCTOR_SUBNET e HADES_DOCTOR_NODE_BINS vazios", () => {
+      mkdirSync(`${D1}/plugin`, { recursive: true });
+      writeFileSync(`${D1}/plugin/config.tsv`, subnetDefault);
+      try {
+        expect(`${doctorIds(D1, {})}|${doctorIds(D1, { HADES_DOCTOR_SUBNET: "", HADES_DOCTOR_NODE_BINS: "" })}`).toBe("node_modules rede|");
+      } finally { rmSync(`${D1}/plugin/config.tsv`, { force: true }); }
     });
   });
 

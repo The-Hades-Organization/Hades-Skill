@@ -44,20 +44,49 @@ const env = (key: string, fallback: string): string => process.env[key] || fallb
 const done = "feito";
 const pending = "pendente";
 
+const SUBNET = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d{1,2})$/;
+const OCTET_MAX = 255;
+const GATEWAY_MAX_PREFIX = 30;
+const NO_SUBNET_COMMAND = "libere a rede docker do Hades -> host no seu firewall (nft/iptables, ufw ou firewalld)";
+
+/** Sub-rede da instância: HADES_DOCTOR_SUBNET (o plugin dá o padrão); vazia, a da rede <projeto>_default, se existir. */
+function instanceSubnet(): string {
+  const configured = process.env.HADES_DOCTOR_SUBNET ?? "";
+  const found = configured || run("docker", ["network", "inspect", "-f", "{{range .IPAM.Config}}{{.Subnet}} {{end}}", `${process.env.HPROJ || "hades"}_default`], { timeoutMs: FIREWALL_TIMEOUT_MS }).stdout.trim().split(/\s+/)[0] || "";
+  return SUBNET.test(found) ? found : "";
+}
+
+/** Gateway da sub-rede, o primeiro endereço dela (o que o docker dá à bridge): 172.21.0.0/16 → 172.21.0.1. */
+export function subnetGateway(subnet: string): string | undefined {
+  const m = SUBNET.exec(subnet);
+  if (!m) return undefined;
+  const octets = m.slice(1, 5).map(Number);
+  const bits = Number(m[5]);
+  if (bits > GATEWAY_MAX_PREFIX || octets.some((o) => o > OCTET_MAX)) return undefined;
+  const ip = octets.reduce((acc, o) => acc * 256 + o, 0);
+  const block = 2 ** (32 - bits);
+  const first = Math.floor(ip / block) * block + 1;
+  return [24, 16, 8, 0].map((shift) => Math.floor(first / 2 ** shift) % 256).join(".");
+}
+
 /** A sonda <container>:<porta>: o container alcança o host na porta de um serviço (firewall docker → host). */
 function firewallOpen(probe: string): boolean {
   const ctr = probe.split(":")[0] as string;
   const port = probe.slice(probe.lastIndexOf(":") + 1);
   if (!probe.includes(":") || !FW_PROBE.test(ctr) || !PORT.test(port)) return false;
-  return run("docker", ["exec", ctr, "bash", "-c", `timeout 4 bash -c 'echo > /dev/tcp/172.18.0.1/${port}'`]).status === 0;
+  const gateway = subnetGateway(instanceSubnet());
+  if (!gateway) return false;
+  return run("docker", ["exec", ctr, "bash", "-c", `timeout 4 bash -c 'echo > /dev/tcp/${gateway}/${port}'`]).status === 0;
 }
 
-/** Comando certo para liberar a rede docker → host conforme o firewall ativo da máquina. */
+/** Comando certo para liberar a rede docker → host (a sub-rede desta instância) conforme o firewall ativo da máquina. */
 export function firewallCommand(): string {
+  const net = instanceSubnet();
+  if (!net) return NO_SUBNET_COMMAND;
   // ufw e firewalld são do Linux; o macOS não tem firewall de pacote para o docker → host
-  if (serviceManager().kind === "systemd" && which("ufw") && run("systemctl", ["is-active", "--quiet", "ufw"]).status === 0) return "sudo ufw allow from 172.18.0.0/16";
-  if (which("firewall-cmd")) return "sudo firewall-cmd --permanent --zone=trusted --add-source=172.18.0.0/16 && sudo firewall-cmd --reload";
-  return "libere 172.18.0.0/16 -> host no seu firewall (nft/iptables)";
+  if (serviceManager().kind === "systemd" && which("ufw") && run("systemctl", ["is-active", "--quiet", "ufw"]).status === 0) return `sudo ufw allow from ${net}`;
+  if (which("firewall-cmd")) return `sudo firewall-cmd --permanent --zone=trusted --add-source=${net} && sudo firewall-cmd --reload`;
+  return `libere ${net} -> host no seu firewall (nft/iptables)`;
 }
 
 type Check = (quick: boolean, hu: string) => string;
@@ -72,7 +101,7 @@ const CHECKS: Record<string, Check> = {
   chat: () => (env("HADES_CHAT", "1") === "1" ? done : "na opcional, desligada (Configurações → Sessão Claude)"),
   remote_key: () => (fileHasContent(join(stateDir(), "panel", "remote.key")) ? done : pending),
   front_tunnel: (_quick, hu) => {
-    if (env("HADES_RUN_TUNNEL", "1") === "0") return "na HADES_RUN_TUNNEL=0";
+    if (env("HADES_RUN_TUNNEL", "0") !== "1") return "pendente HADES_RUN_TUNNEL desligado (padrão): ligue em Configurações → Subida";
     return unitIs(`${hu}-devtunnel`, "active") ? done : pending;
   },
   notify_desktop: (_quick, hu) =>

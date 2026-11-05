@@ -50,7 +50,7 @@ Os padrões são o comportamento de antes: 8 GB, um pesado por vez, FIFO.
 ### Subida (run-hades)
 | Chaves | Aplicar |
 |---|---|
-| `HADES_RUN_TUNNEL` (1), `HADES_GH_USER` (vazio = conta ativa) | próximo `run-hades`; `--tunnel` e `--no-tunnel` forçam na hora (os passos do plugin têm chave e flag próprias, `panel.runFlags`). `HADES_RUN_TUNNEL=1` e a guarda `tunel-acesso` do Cerberus convivem: `reference/tunnel.md` §Túnel do front |
+| `HADES_RUN_TUNNEL` (0: o túnel público é escolha do dono; o onboarding → Acesso remoto e as Configurações ligam; quem já tem `HADES_RUN_TUNNEL=1` no `config.env` segue com ele), `HADES_GH_USER` (vazio = conta ativa) | próximo `run-hades`; `--tunnel` e `--no-tunnel` forçam na hora (os passos do plugin têm chave e flag próprias, `panel.runFlags`). `HADES_RUN_TUNNEL=1` (ligado pelo dono) e a guarda `tunel-acesso` do Cerberus convivem: `reference/tunnel.md` §Túnel do front |
 
 ### Plantão
 | Chaves | Aplicar |
@@ -123,7 +123,7 @@ Os padrões são o comportamento de antes: 8 GB, um pesado por vez, FIFO.
 ### Diagnóstico
 | Chaves | Aplicar |
 |---|---|
-| `HADES_DOCTOR_DISK_WARN_GB` (10), `HADES_DOCTOR_DISK_MIN_GB` (2), `HADES_DOCTOR_SUBNET`, `HADES_DOCTOR_NODE_BINS` (os dois últimos: padrão do plugin) | próxima execução do `doctor.sh` (`reference/doctor.md`) |
+| `HADES_DOCTOR_DISK_WARN_GB` (10), `HADES_DOCTOR_DISK_MIN_GB` (2), `HADES_DOCTOR_SUBNET` (vazio no núcleo: o plugin dá o padrão; o doctor, o teste de firewall e o comando que o onboarding sugere usam esta sub-rede e o gateway dela, o primeiro endereço), `HADES_DOCTOR_NODE_BINS` (padrão do plugin) | próxima execução do `doctor.sh` (`reference/doctor.md`) |
 
 ### Resumidores (rtk)
 | Chaves | Aplicar |

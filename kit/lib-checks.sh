@@ -52,22 +52,42 @@ chk_unit_active() {
   else [[ $(systemctl --user is-active "$1" 2>/dev/null) == active ]]; fi
 }
 
-# o container alcança o host na porta de um serviço? (firewall docker -> host; 25/10: o gateway não chegava nos serviços)
-# A sonda é HADES_FW_PROBE=<container>:<porta>, do plugin do projeto. 2 = sem sonda válida (não medível)
-fw_test() {
-  local probe=${HADES_FW_PROBE:-} ctr port
-  ctr=${probe%%:*}; port=${probe##*:}
-  [[ $probe == *:* && $ctr =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ && $port =~ ^[0-9]{1,5}$ ]] || return 2
-  docker exec "$ctr" bash -c "timeout 4 bash -c 'echo > /dev/tcp/172.18.0.1/$port'" >/dev/null 2>&1
+# Sub-rede docker da instância: HADES_DOCTOR_SUBNET (o plugin dá o padrão); vazia, a da rede <projeto>_default se já existe
+# (plugin antigo, que não declarava a chave); sem nenhuma das duas, vazio = não há o que medir nem o que liberar.
+fw_subnet() {
+  local subnet=${HADES_DOCTOR_SUBNET:-}
+  [[ -n $subnet ]] || subnet=$(docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' "${HPROJ:-hades}_default" 2>/dev/null | awk '$1 ~ /^[0-9.]+\/[0-9]+$/ {print $1; exit}')
+  [[ $subnet =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})/([0-9]{1,2})$ ]] && echo "$subnet"
+  return 0
 }
 
-# comando certo p/ liberar a rede docker->host conforme o firewall ativo da máquina
+# gateway da sub-rede (o primeiro endereço, que é o que o docker dá à bridge): 172.21.0.0/16 -> 172.21.0.1
+fw_gateway() {
+  local subnet=${1:-$(fw_subnet)} ip
+  [[ $subnet =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})/([0-9]{1,2})$ ]] || return 1
+  local -a o=("${BASH_REMATCH[@]:1:4}"); local bits=${BASH_REMATCH[5]}
+  (( bits <= 30 && o[0] < 256 && o[1] < 256 && o[2] < 256 && o[3] < 256 )) || return 1
+  ip=$(( (10#${o[0]} << 24) | (10#${o[1]} << 16) | (10#${o[2]} << 8) | 10#${o[3]} ))
+  ip=$(( (ip & (0xFFFFFFFF << (32 - bits) & 0xFFFFFFFF)) + 1 ))
+  echo "$(( ip >> 24 )).$(( ip >> 16 & 255 )).$(( ip >> 8 & 255 )).$(( ip & 255 ))"
+}
+
+# o container alcança o host na porta de um serviço? (firewall docker -> host; 25/10: o gateway não chegava nos serviços)
+# A sonda é HADES_FW_PROBE=<container>:<porta>, do plugin do projeto. 2 = sem sonda válida ou sem sub-rede (não medível)
+fw_test() {
+  local probe=${HADES_FW_PROBE:-} ctr port gw
+  ctr=${probe%%:*}; port=${probe##*:}
+  [[ $probe == *:* && $ctr =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ && $port =~ ^[0-9]{1,5}$ ]] || return 2
+  gw=$(fw_gateway) || return 2
+  docker exec "$ctr" bash -c "timeout 4 bash -c 'echo > /dev/tcp/$gw/$port'" >/dev/null 2>&1
+}
+
+# comando certo p/ liberar a rede docker->host conforme o firewall ativo da máquina (da sub-rede desta instância)
 fw_cmd() {
-  if ! _chk_launchd && command -v ufw >/dev/null && systemctl is-active --quiet ufw; then
-    echo "sudo ufw allow from 172.18.0.0/16"
-  elif command -v firewall-cmd >/dev/null; then
-    echo "sudo firewall-cmd --permanent --zone=trusted --add-source=172.18.0.0/16 && sudo firewall-cmd --reload"
-  else
-    echo "libere 172.18.0.0/16 -> host no seu firewall (nft/iptables)"
+  local net; net=$(fw_subnet)
+  if [[ -z $net ]]; then echo "libere a rede docker do Hades -> host no seu firewall (nft/iptables, ufw ou firewalld)"
+  elif ! _chk_launchd && command -v ufw >/dev/null && systemctl is-active --quiet ufw; then echo "sudo ufw allow from $net"
+  elif command -v firewall-cmd >/dev/null; then echo "sudo firewall-cmd --permanent --zone=trusted --add-source=$net && sudo firewall-cmd --reload"
+  else echo "libere $net -> host no seu firewall (nft/iptables)"
   fi
 }

@@ -4,6 +4,23 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.12.0 — 2026-11-04
+
+Sub-rede do firewall é da instância e o padrão sai do núcleo; `panel.units[]` do plugin com `<HU>`; túnel do front desligado
+por padrão (issues #41 e #42).
+
+- **Sub-rede da instância**: `fw_test`/`fw_cmd` (`kit/lib-checks.sh`) e o onboarding usam `HADES_DOCTOR_SUBNET` (ou a rede
+  `${HPROJ}_default`) e o gateway derivado dela, em vez de `172.18.0.0/16`/`172.18.0.1` fixos: numa instância a mais, o teste
+  de firewall e o comando sugerido eram os da original. Sem sub-rede, não há checagem. O padrão de `HADES_DOCTOR_SUBNET`
+  sai do `kit/config.tsv` do núcleo (fica vazio) e passa a ser do plugin, que o grava por instância.
+- **`<HU>` em `panel.units[]`**: o manifesto do plugin declara `<HU>-x`, e o núcleo expande para o prefixo da instância
+  (`hds-x` na original, `hds_<id>-x` nas outras). Antes, nome literal fazia a instância a mais listar as units da original.
+  Plugin que passa a usar `<HU>` exige `core >=6.12`: num núcleo anterior as units dele somem da página Logs.
+- **Túnel do front desligado por padrão** (`HADES_RUN_TUNNEL=0`): o primeiro "Subir" numa máquina nova publicava o front num
+  túnel público sem o dono ter escolhido. O onboarding (Acesso remoto) e as Configurações ligam. Armadilha: o `config.env` não
+  guarda valor igual ao padrão, então quem dependia do padrão antigo (1) sem ter gravado a chave passa a subir sem túnel;
+  para manter, grave `HADES_RUN_TUNNEL=1` depois de reinstalar.
+
 ## 6.11.1 — 2026-11-04
 
 Jobs e chat do painel com o HOME da instância (issue #38); instalação limpa e doctor numa instância a mais (issues #39 e

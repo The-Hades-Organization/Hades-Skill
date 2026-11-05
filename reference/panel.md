@@ -95,6 +95,12 @@ geral lê a mesma lista. Nada vivo: um fio parado de 1 px.
 
 Cada botão chama o **script do kit instalado** como unit transitória `hds-pjob-<id>`, fora do slice. O log e o código de saída ficam em `$D/logs/panel-jobs/`. A unit sobrevive a um restart do painel; "Interromper" faz `systemctl --user stop`.
 
+**Ambiente que o job herda:** a unit transitória (e a do chat) começa de um ambiente vazio e o gerenciador de serviço lhe daria o
+`HOME` dele, não o do painel. Por isso o painel passa o próprio `HOME`, o `PATH`, `HADES_WT`, `HADES_DATA` e as variáveis de
+instância que o `env.sh` exporta (`HADES_ID` e o que o `config.sh` deriva dele: `HU`, `HSLICE`, `HPROJ`). Numa instância com outro
+`HOME` o job lê e grava o dela, nunca o `~` real; na original os valores são os de sempre. `hades svc run` leva o `HOME` de quem o
+rodou (um `--env HOME=…` vence). Código: `src/lib/systemd-run-env.ts`.
+
 **No macOS (launchd):**
 - **Job:** um plist por job em `~/.claude/hades/launchd` (`com.hades.<HU>.pjob-<id>`, `StandardOutPath` no mesmo log, sem
   `KeepAlive`), carregado com `launchctl bootstrap`. "Interromper" faz `bootout` e apaga o plist.

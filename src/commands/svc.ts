@@ -7,7 +7,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { unitPrefix } from "../lib/config.ts";
 import { findStateDir } from "../lib/kit.ts";
 import { EXIT, HadesError, out, warn } from "../lib/output.ts";
-import { hadesHome } from "../lib/paths.ts";
+import { hadesHome, home } from "../lib/paths.ts";
 import { which } from "../lib/proc.ts";
 import { serviceManager, type EnvPairs, type ServiceManager } from "../lib/service-manager.ts";
 import { retryBootstrap } from "../lib/service-manager-ctl.ts";
@@ -80,7 +80,13 @@ function absoluteArgv(command: string[], env: EnvPairs, workdir: string): string
 function run(manager: ServiceManager, args: string[]): number {
   const a = parseRun(args);
   const unit = unitOf(a.name);
-  const env: EnvPairs = a.env.some(([k]) => k === "PATH") ? a.env : [["PATH", process.env.PATH ?? ""], ...a.env];
+  const given = (key: string): boolean => a.env.some(([k]) => k === key);
+  // a unit transitória herda o HOME do gerenciador de serviço, não o de quem rodou o `hades svc`
+  const env: EnvPairs = [
+    ...(given("PATH") ? [] : [["PATH", process.env.PATH ?? ""] as const]),
+    ...(given("HOME") ? [] : [["HOME", home()] as const]),
+    ...a.env,
+  ];
   const workdir = resolve(a.workdir);
   const argv = absoluteArgv(a.command, env, workdir);
   const log = a.log ?? join(findStateDir() ?? hadesHome(), "logs", `${unit}.log`);

@@ -4,6 +4,26 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.11.1 — 2026-11-04
+
+Jobs e chat do painel com o HOME da instância (issue #38); instalação limpa e doctor numa instância a mais (issues #39 e
+#40). As três saíram da validação de um plugin numa Hades instalada do zero, numa instância isolada ao lado da original.
+
+- **Ambiente do job**: as units transitórias dos jobs e do chat do painel recebiam só `PATH`, `HADES_WT` e `HADES_DATA`, e
+  herdavam o HOME do gerenciador de serviço do usuário, não o do painel. Numa instância com outro HOME, o job lia e gravava
+  o `~` real e via a instância errada. Agora `instanceEnv` (`src/lib/systemd-run-env.ts`) leva o HOME do painel e as
+  variáveis da instância (`HADES_ID`, `HU`, `HSLICE`, `HPROJ`); `hades svc run` leva o HOME de quem o rodou (`--env HOME=`
+  vence). O golden `systemd-contrato.txt` ganha essas variáveis. Ainda sem o HOME: as units persistentes (painel,
+  notificações, limpeza) e o keepalive do túnel, porque corrigir reescreve as units da instância original.
+- **Instalação limpa**: o fetch da base no install usa a credencial do `gh` (`gh auth git-credential`, depois dos helpers do
+  dono, sem prompt), e a falha vira aviso com o motivo em vez de `fatal:`. `hades doctor` fora do `env.sh` resolve a
+  instância pelo diretório, como o `hades instance`, e roda o `doctor.sh` dela.
+- **Doctor numa instância a mais**: processo é da instância pelo cgroup ou unit, pelo `$D` no argv ou pelo `HADES_DATA` no
+  ambiente, então o painel em primeiro plano não aparece como "porta ocupada por outro processo"; as portas de outra
+  instância registrada deixam de ser acusadas. O slice é conferido carregado (`systemctl --user show`): erro se não está,
+  aviso se o `MemoryMax` difere de `HADES_SLICE_MAX`. Armadilha: com `SKIP_SYSTEMD=1` o slice não carrega e agora o doctor
+  acusa erro, que é o caso real (serviços sem teto de memória).
+
 ## 6.11.0 — 2026-11-04
 
 Modo de loop de revisão (issue #26); rolagem do terminal do nó do Argos e limite medido do resize (issue #33).

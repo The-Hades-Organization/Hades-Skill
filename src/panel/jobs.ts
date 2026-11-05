@@ -6,6 +6,7 @@ import { readText } from "../lib/fs.ts";
 import { pyJsonDumps } from "../lib/kit.ts";
 import { serviceManager } from "../lib/service-manager.ts";
 import { ListFailedError } from "../lib/service-manager-ctl.ts";
+import { instanceEnv } from "../lib/systemd-run-env.ts";
 import type { PanelEnv } from "./env.ts";
 import { exec, shlexQuote } from "./exec.ts";
 
@@ -58,10 +59,7 @@ export function createJobs(env: PanelEnv): Jobs {
     const wrapped = `${script}\nrc=$?; echo $rc > ${shlexQuote(rc)}; exit $rc`;
     const argv = manager.transientArgv({
       unit: `${unit}-${id}`, workdir: env.dir, stdout: log, argv: ["/bin/bash", "-c", wrapped],
-      env: [
-        ["PATH", process.env.PATH ?? ""], ["NO_COLOR", "1"], ["TERM", "dumb"],
-        ["HADES_WT", env.worktree], ["HADES_DATA", env.dir], ["HADES_PANEL_JOB", id],
-      ],
+      env: instanceEnv(env, [["HADES_PANEL_JOB", id]]),
     });
     const res = await exec(argv, { timeoutMs: 30_000 });
     if (res.status !== 0) {

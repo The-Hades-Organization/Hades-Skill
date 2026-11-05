@@ -214,7 +214,7 @@ const TTY_TEXT_MIN_FACTOR = 0.45;
 // quadro do polling: as últimas linhas do /api/herdr/read, que devolve texto sem cor e sem o tamanho da tela
 const READ_ROWS = 40;
 const READ_MAX_COLS = 1000;
-const NO_FRAME_TEXT = { connecting: 'conectando ao terminal…', exited: 'o pane do agente saiu' };
+const NO_FRAME_TEXT = { connecting: 'conectando ao terminal…', exited: 'o pane do agente saiu', ended: 'Processo encerrado: o pane do herdr não existe mais.' };
 // comandos do canvas que valem com o terminal focado (as teclas de TTY_GLOBAL_KEYS, que o NodeTty não consome)
 const TTY_COMMAND = /^tty:/;
 const ALT_DIGIT_CODE = /^(?:Digit|Numpad)([1-9])$/;
@@ -310,6 +310,33 @@ function ttyMinNodeSize(frame) {
 /** Escala do quadro num nó `w`×`h` (aproximada: o cabeçalho do NodeTty mede o mesmo que o do nó). */
 function ttyScaleOf(w, h, frame) {
   return ttyApi().fitScale({ w, h: Math.max(0, h - canvasHeaderPx() - 2 * TTY_HEADER_PX) }, frame);
+}
+
+const TEXT_ZOOM_STEP = 1.2;
+/** Os três passos do zoom do texto: aumentar, diminuir e voltar a 100% (a célula na escala natural). */
+const TEXT_ZOOM_KINDS = Object.freeze(['in', 'out', 'reset']);
+
+/**
+ * Tamanho do nó para o zoom do texto: o herdr não muda colunas nem linhas de um pane (§Tamanho do terminal do nó), então o
+ * texto só cresce se o nó crescer. O nó vai à proporção exata do quadro na escala seguinte (sem faixa vazia ao lado nem
+ * embaixo), dentro dos limites da escala e nunca abaixo do mínimo do terminal. `kind`: `in`, `out` ou `reset` (100%).
+ */
+function ttyZoomSize(size, frame, kind) {
+  const api = ttyApi();
+  const extraH = canvasHeaderPx() + 2 * TTY_HEADER_PX;
+  const pad = api.gridBox(frame, 0);
+  const unit = api.gridBox(frame, 1);
+  const gridW = unit.w - pad.w;
+  const gridH = unit.h - pad.h;
+  const now = Math.min((size.w - pad.w) / gridW, (size.h - extraH - pad.h) / gridH);
+  const wanted = kind === 'reset' ? 1 : kind === 'in' ? now * TEXT_ZOOM_STEP : now / TEXT_ZOOM_STEP;
+  const scale = Math.min(api.SCALE_LIMITS.max, Math.max(api.SCALE_LIMITS.min, Number.isFinite(wanted) ? wanted : 1));
+  const min = ttyMinNodeSize(frame);
+  return {
+    w: Math.max(min.w, Math.ceil(gridW * scale + pad.w)),
+    h: Math.max(min.h, Math.ceil(gridH * scale + pad.h + extraH)),
+    scale,
+  };
 }
 
 /** Zoom baixo: o texto do quadro sairia pequeno demais na tela; o nó mostra só o cabeçalho e não converte o quadro. */
@@ -548,6 +575,13 @@ function createTtyHost(deps) {
     },
     frameOf(id) { const t = targets.get(id); return t ? frames.get(t.pane) || null : null; },
     exitedOf(id) { const t = targets.get(id); return !!t && exited.has(t.pane); },
+    /** O servidor confirmou que estes panes não existem mais (conferência de órfãos): os nós deles mostram o processo encerrado. */
+    markExited(panes) {
+      const fresh = list(panes).filter((p) => typeof p === 'string' && !exited.has(p));
+      if (fresh.length === 0) return;
+      for (const p of fresh) exited.add(p);
+      for (const p of fresh) emit(p);
+    },
     paneErrorOf(id) { const t = targets.get(id); return t ? paneErrors.get(t.pane) || null : null; },
     inputErrorOf: (id) => inputErrors.get(id) || null,
     statusOf,
@@ -627,7 +661,12 @@ function PolledTty({ session, pane, ...tty }) {
  * O desenho do terminal dentro de um nó (agent ou terminal): pequeno demais, polling, quadro do fluxo ou o aviso de espera.
  * Chamada como função (sem hooks), para o nó devolver o NodeTty direto na árvore.
  */
-function ttyBody({ host, input, target, grow }) {
+function ttyBody({ host, input, target, grow, remove }) {
+  // terminal criado no canvas com o processo encerrado: o último quadro não volta, o que resta é tirar o nó
+  if (remove && host.exitedOf(input.id)) return <div className="grid content-center justify-items-start gap-2 p-2">
+    <span role="status" className="t-meta text-muted-foreground">{NO_FRAME_TEXT.ended}</span>
+    <Button size="xs" variant="outline" icon={I.Trash2} onClick={() => remove(input.id)}>Remover do canvas</Button>
+  </div>;
   const focused = host.focused() === input.id;
   const frame = withSession(host.frameOf(input.id), target.session);
   const min = ttyMinNodeSize(frame);
@@ -759,6 +798,37 @@ async function ensureNodeSaved({ apply, flush, fetchDoc, has, reread, attempts =
   return { ok: false, code: 'terminal_node_unsaved', attempts };
 }
 
+/**
+ * O inverso de `ensureNodeSaved`, para fechar: o pane já foi encerrado e o nó só sai de vez quando o documento do servidor não o
+ * tem mais. `remove()` aplica a exclusão no documento atual (idempotente: já ausente, nada a aplicar e devolve true; false sem
+ * canvas carregado); `gone(doc)` diz se o documento do servidor já está sem o nó. Sem isso, um 409 na gravação deixava o nó de
+ * um processo morto no canvas.
+ */
+async function ensureNodeRemoved({ remove, flush, fetchDoc, gone, reread, attempts = NODE_SAVE_ATTEMPTS }) {
+  for (let n = 1; n <= attempts; n += 1) {
+    if (remove()) {
+      await flush();
+      let doc = null;
+      try { doc = await fetchDoc(); } catch (e) { console.warn('argos: conferência da remoção falhou', e && e.name); }
+      if (doc && gone(doc)) return { ok: true, attempts: n };
+    }
+    if (n < attempts) await reread();
+  }
+  return { ok: false, code: 'terminal_node_not_removed', attempts };
+}
+
+/**
+ * Ids dos nós `terminal` do documento cujo pane o servidor confirmou morto (`dead` da conferência de órfãos), ocultos
+ * inclusive. Nó no formato dos tipos vivos (sem `herdr`) fica de fora: o canvas não o criou.
+ */
+function deadTerminalIds(doc, dead) {
+  const keys = new Set(list(dead).filter((p) => p && typeof p.session === 'string' && typeof p.pane === 'string').map((p) => `${p.session}\0${p.pane}`));
+  if (keys.size === 0) return [];
+  const out = [];
+  for (const [id, ref] of ttyTargetsOfDoc(doc)) if (keys.has(`${ref.session}\0${ref.pane}`)) out.push(id);
+  return out;
+}
+
 /** O `data` do nó de um terminal órfão (registrado, vivo, sem nó): só os campos presentes, pelo mesmo filtro do documento. */
 function orphanNodeData(orphan) {
   const o = orphan && typeof orphan === 'object' ? orphan : {};
@@ -828,7 +898,7 @@ function usePrefersDark(on) {
   return dark;
 }
 
-/* Desenho do nó `terminal`. deps = { roleOf(slug) → { name, color } | null, linksOf(id) → número, onConnections(id), grow }. */
+/* Desenho do nó `terminal`. deps = { roleOf(slug) → { name, color } | null, linksOf(id) → número, onConnections(id), grow, remove(id) (tira o nó do processo encerrado) }. */
 function TerminalNode({ input, host, deps }) {
   const d = readTerminalData(input.data);
   const target = host.target(input.id);
@@ -861,7 +931,7 @@ function TerminalNode({ input, host, deps }) {
     </div>
     {inputError ? <span role="status" className="shrink-0 truncate px-2 t-meta text-bad">O herdr não aceitou: {inputError}</span> : null}
     <div className="flex min-h-0 flex-1 flex-col">
-      {target ? ttyBody({ host, input, target, grow: deps.grow })
+      {target ? ttyBody({ host, input, target, grow: deps.grow, remove: deps.remove })
         : <span role="status" className="p-2 t-meta text-muted-foreground">Sem pane do herdr: o terminal foi fechado fora do canvas ou o nó veio de uma cópia.</span>}
     </div>
   </div>;
@@ -952,10 +1022,10 @@ function createCanvasWatch({ now, busy, reload, onStale, log }) {
 window.ArgosNodeTerminal = {
   NodeTerminal, usePaneOutput, KEYS,
   AgentTtyNode, createTtyHost, filterTtyInput, ttyTargetsOf, ttyTargetOf, ttyAttention, seenAfter, nextAttentionId, jumpNumbers,
-  ttyMinNodeSize, ttyScaleOf, ttyHeaderOnly, frameFromRead, withSession, takeInputBatch, ttyKeyInput, ttyLetsCommand, TTY_BLOCKED_KEYS, TTY_HEADER_PX,
+  ttyMinNodeSize, ttyScaleOf, ttyZoomSize, TEXT_ZOOM_KINDS, ttyHeaderOnly, frameFromRead, withSession, takeInputBatch, ttyKeyInput, ttyLetsCommand, TTY_BLOCKED_KEYS, TTY_HEADER_PX,
   // terminal criado no canvas
   TERMINAL_TYPE, TERMINAL_SIZE, AGENT_NODE_SIZE, TERMINAL_MENU, TERMINAL_ICONS, TERMINAL_THEMES, TERMINAL_THEME_LABELS, TERMINAL_FONTS, TERMINAL_FONT_LABELS,
   TERMINAL_NAME_MAX, TerminalNode, readTerminalData, isLiveTerminalData, terminalThemeStyle, ttyTargetsOfDoc, linkCountOf, newTerminalNode, herdrRefOf, terminalTypeDef,
-  registerTerminalType, ensureNodeSaved, orphanNodeData, externalRevReload, createCanvasWatch, EXTERNAL_STALE_MS,
+  registerTerminalType, ensureNodeSaved, ensureNodeRemoved, deadTerminalIds, orphanNodeData, externalRevReload, createCanvasWatch, EXTERNAL_STALE_MS,
 };
 })();

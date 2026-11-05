@@ -163,6 +163,10 @@ interface CanvasTtyPort {
   /** Devolve o teclado ao canvas. */
   release(): void;
   focused(): boolean;
+  /** Há terminal-alvo do zoom do texto: o focado no teclado, senão o nó com terminal selecionado sozinho. */
+  zoomable?(): boolean;
+  /** Zoom do texto do terminal-alvo: o nó cresce ou encolhe na proporção do quadro (um passo do desfazer); `false` sem alvo ou sem quadro. */
+  zoomText?(kind: "in" | "out" | "reset"): boolean;
 }
 
 /** Terminais criados no canvas (nó `terminal`): a página faz as rotas, os diálogos e as operações do documento. */
@@ -177,6 +181,8 @@ interface CanvasTerminalPort {
   connections(id: string): Promise<void>;
   /** Diálogo com o nome do nó, fecha o pane do herdr e tira o nó (um passo do desfazer). */
   close(id: string): Promise<void>;
+  /** O nó é um terminal criado no canvas com processo vivo: excluir fecha o processo (`close`) em vez de só tirar o nó. */
+  closable?(id: string): boolean;
   /** Abre a tela de papéis (criar, editar, descobrir, apagar). */
   roles(): void;
 }
@@ -525,10 +531,18 @@ function makeArgosCanvasCommands() {
     add("O5", {
       id: "clip:delete", label: "Excluir", hint: "desfazer devolve", group: GROUP_ORGANIZE, shortcut: ["Delete", "Backspace"], surfaces: SURFACES_ALL,
       when: hasSelection(1),
-      run: guarded(() => {
-        const removal = M.clipboard.deleteNodes(docPort.doc(), selectedIds());
-        if (removal.skipped.length > 0) say("warn", skippedText(removal.skipped));
-        if (commitIf(removal.op)) docPort.select([]);
+      run: guardedAsync(async () => {
+        // terminal com processo vivo: excluir fecha o processo pelo mesmo diálogo de Ctrl+Alt+W (só tirar o nó deixava o pane órfão)
+        const terminals = api.terminals;
+        const ids = selectedIds();
+        const closing = terminals?.closable === undefined ? [] : ids.filter((id) => terminals.closable?.(id) === true);
+        const rest = ids.filter((id) => !closing.includes(id));
+        if (rest.length > 0) {
+          const removal = M.clipboard.deleteNodes(docPort.doc(), rest);
+          if (removal.skipped.length > 0) say("warn", skippedText(removal.skipped));
+          if (commitIf(removal.op) && closing.length === 0) docPort.select([]);
+        }
+        for (const id of closing) await terminals?.close(id);
       }),
     });
 
@@ -719,6 +733,23 @@ function makeArgosCanvasCommands() {
             if (!tty.jump(n)) say("info", `Nenhum terminal visível com o número ${n}.`);
           }),
         });
+      }
+      const zoomText = tty.zoomText;
+      if (zoomText !== undefined) {
+        const zoomRows: { id: string; label: string; hint: string; shortcut: string[]; kind: "in" | "out" | "reset" }[] = [
+          { id: "tty:text-bigger", label: "Aumentar o texto do terminal", hint: "o nó cresce na proporção do terminal", shortcut: ["mod+alt+=", "mod+alt++"], kind: "in" },
+          { id: "tty:text-smaller", label: "Diminuir o texto do terminal", hint: "o nó encolhe na proporção do terminal", shortcut: ["mod+alt+-"], kind: "out" },
+          { id: "tty:text-reset", label: "Texto do terminal em 100%", hint: "o nó vai ao tamanho natural do terminal", shortcut: ["mod+alt+0"], kind: "reset" },
+        ];
+        for (const row of zoomRows) {
+          add("T1", {
+            id: row.id, label: row.label, hint: row.hint, group: GROUP_TERMINAL, shortcut: row.shortcut,
+            surfaces: ["palette", "node-menu"], inEditable: true, when: () => tty.zoomable?.() === true,
+            run: guarded(() => {
+              if (!zoomText(row.kind)) say("info", "Selecione um terminal com a tela carregada para mudar o tamanho do texto.");
+            }),
+          });
+        }
       }
       add("T1", {
         id: "tty:release", label: "Soltar o teclado do terminal", hint: "clicar fora também solta", group: GROUP_TERMINAL, shortcut: "mod+]",

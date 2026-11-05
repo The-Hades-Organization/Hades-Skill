@@ -47,6 +47,33 @@ describe("guessCursor: onde o texto vai entrar", () => {
     expect(L.guessCursor("\x1b[38;5;7mtexto\x1b[0m", 80, 24)).toEqual({ row: 0, col: 5 });
     expect(L.guessCursor("\x1b[48;2;7;7;7mtexto\x1b[0m", 80, 24)).toEqual({ row: 0, col: 5 });
   });
+  describe("caixa de entrada do Claude Code", () => {
+    const rule = `\x1b[0m\x1b[38;5;7m${"─".repeat(40)}\x1b[0m`;
+    const footer = "  \x1b[0m\x1b[38;5;3m⏵⏵ auto mode on\x1b[0m\x1b[38;5;8m (shift+tab to cycle)\x1b[0m";
+    const frame = (...input: string[]) => ["✻ Baked for 2m 8s", "", rule, ...input, rule, "  5 h 10%", footer].join("\r\n");
+    test("dada a caixa vazia, então o cursor fica depois do ❯ e não no rodapé", () => {
+      expect(L.guessCursor(frame("❯\u00a0"), 80, 24)).toEqual({ row: 3, col: 2 });
+    });
+    test("dada a sugestão esmaecida na caixa vazia, então ela não conta", () => {
+      expect(L.guessCursor(frame("❯\u00a0\x1b[0m\x1b[2mpode pedir os reviewers\x1b[0m"), 80, 24)).toEqual({ row: 3, col: 2 });
+    });
+    test("dado texto digitado, então o cursor fica no fim dele", () => {
+      expect(L.guessCursor(frame("❯ corrige o teste"), 80, 24)).toEqual({ row: 3, col: 17 });
+    });
+    test("dada entrada de várias linhas, então vale a última linha com texto da caixa", () => {
+      expect(L.guessCursor(frame("❯ primeira", "  segunda linha", ""), 80, 24)).toEqual({ row: 4, col: 15 });
+    });
+    test("dado vídeo inverso no rodapé, então a caixa ainda decide", () => {
+      const withInverse = frame("❯ oi").replace("5 h 10%", "\x1b[7m5 h\x1b[27m");
+      expect(L.guessCursor(withInverse, 80, 24)).toEqual({ row: 3, col: 4 });
+    });
+    test("dado vídeo inverso dentro da caixa, então o programa desenhou o cursor e nada é estimado", () => {
+      expect(L.guessCursor(frame("❯ oi\x1b[7m \x1b[27m"), 80, 24)).toBeNull();
+    });
+    test("dadas réguas sem ❯ logo abaixo, então vale a regra geral", () => {
+      expect(L.guessCursor([rule, "texto", rule, "$ ls"].join("\r\n"), 80, 24)).toEqual({ row: 3, col: 4 });
+    });
+  });
   test("dada entrada que não serve, então nada é estimado", () => {
     expect(L.guessCursor(undefined, 80, 24)).toBeNull();
     expect(L.guessCursor("$", 0, 24)).toBeNull();

@@ -2510,7 +2510,7 @@ o aviso "grande demais" e não desenha.
   colagem grande demais) saem em `role="status"`.
 
 **Limites conhecidos** (o nó desenha com o xterm.js desde a term-argos): o quadro do herdr não traz
-posição de cursor, então não há cursor desenhado; caracteres largos (CJK) e combinantes contam como uma célula e o navegador
+posição de cursor, então o cursor é estimado (§Cursor estimado); caracteres largos (CJK) e combinantes contam como uma célula e o navegador
 decide a largura real; a largura da célula é a constante `0,6 em`, o que difere de fonte mono que não a cumpra.
 
 Prova: `loop/test/ts/term-ansi.test.ts` (cada atributo, 256 e truecolor, reset, sequência desconhecida, teto) e
@@ -3074,9 +3074,14 @@ até ela; o cabeçalho mostra o número de conexões) e Fechar. O alvo é o term
 selecionado sozinho (`terminals.target()` da porta `api.terminals`, `CanvasTerminalPort`).
 
 **Fechar** (`tty:close`, `Ctrl+Alt+W` / `⌘⌥W`, também no menu do nó e na paleta): sempre o diálogo com o nome do nó
-digitado; o nome vai como `confirm` à rota, que encerra o pane e só então o nó sai do documento (`opDelete`). Desfazer
-devolve só o nó, sem o processo (o nó mostra "Sem pane do herdr"). Nó sem pane só sai do documento. `Delete` segue só
-editando o documento: tira o nó e deixa o processo vivo. A tecla vale com o teclado no terminal porque está em
+digitado; o nome vai como `confirm` à rota, que encerra o pane e só então o nó sai do documento (`opDelete`). A saída do nó
+passa por `NT.ensureNodeRemoved` (o inverso de `ensureNodeSaved`): grava, confere o documento do servidor e, se o nó ainda
+está lá (409), relê e reaplica, até 3 vezes; esgotadas, o toast "O processo foi encerrado, mas o nó não saiu do canvas"
+(código `terminal_node_not_removed` no console). Antes, um 409 depois do fechar deixava no canvas o nó de um processo morto.
+Desfazer devolve só o nó, sem o processo. Nó sem pane só sai do documento. **`Delete` num terminal com processo vivo fecha o
+processo** pelo mesmo diálogo (porta `terminals.closable(id)`, `clip:delete`): só tirar o nó deixava o pane vivo e órfão. Nó
+sem pane, ou com o processo já encerrado, só sai do documento, sem diálogo; seleção mista tira os demais nós e fecha cada
+terminal vivo. `Shift+H` (ocultar) não fecha nada. A tecla vale com o teclado no terminal porque está em
 `TTY_CANVAS_KEYS` (o `NodeTty` não a consome, e `Ctrl+W` é do navegador); a ajuda `?` a lista, como todo comando com atalho.
 
 | Comando | Atalho | O quê |
@@ -3087,6 +3092,7 @@ editando o documento: tira o nó e deixa o processo vivo. A tecla vale com o tec
 | `term:connections` | — | Vai até a outra ponta de uma conexão |
 | `term:roles` | — | Abre a tela de papéis |
 | `tty:close` | `Ctrl+Alt+W` | Fecha o terminal (diálogo com o nome) |
+| `tty:text-bigger` / `tty:text-smaller` / `tty:text-reset` | `Ctrl+Alt+=` / `Ctrl+Alt+-` / `Ctrl+Alt+0` | Zoom do texto do terminal (§Zoom do texto) |
 
 **Erros.** O cliente (`createTerminalClient`, prazo de 20 s) devolve `{ ok, code, message }` com código estável
 (`TERMINAL_ERRORS`: `invalid`, `not-found`, `confirm-required`, `herdr-failed`, `rate-limited` e os do cliente
@@ -3101,10 +3107,47 @@ próprio no fim de `canvas-toolbar.tsx`; a página decide o que o retângulo sol
 **Grafo e nó `agent`.** O grafo traz, aditivos, `herdr { session, pane }` no nó `agent` quando o herdr conhece o agente
 (o nó vale antes de casar por nome ou pasta), `shortId` (`<repo>/<agente>`, mostrado no seletor de canvas) e a rodada do
 registro (`round`, plano aprovado com hash de 7 dígitos). Nó `agent` novo nasce com `AGENT_NODE_SIZE` (480×320, cabe ~80×24
-células). O quadro desenha o cursor quando o produtor entrega `frame.cursor = { row, col, visible? }` (`cursorOf`); o
-herdr 0.8.2 não o expõe, então hoje nada é desenhado.
+células). O quadro desenha o cursor que o produtor entrega (`frame.cursor = { row, col, visible? }`, `cursorOf`); sem o campo,
+o cursor é estimado (§Cursor estimado).
 
-Prova: `loop/test/ts/argos-terminal-ui.test.ts`.
+### Terminais encerrados
+
+O pane que morre fora do canvas (o agente saiu, `herdr pane close`, reinício do herdr) deixava o nó com o último quadro, e o
+nó oculto com `Shift+H` ficava no documento para sempre.
+
+- **Servidor.** `GET /api/argos/terminals/orphans` devolve, aditivo, `dead: [{ session, pane }]`: nó `terminal` de algum canvas
+  cujo pane o herdr confirmou que não existe (sem repetir o par). Com o herdr fora do ar `checked: false` e nada é chamado de
+  morto.
+- **Tela.** A conferência roda na montagem, no evento `registry` e a cada 30 s com a aba visível (`ORPHANS_POLL_MS`). Os panes
+  mortos vão a `ttyHost.markExited`: o nó mostra "Processo encerrado" com **Remover do canvas**, sem diálogo (não há processo a
+  perder). O banner "N terminais encerrados no canvas (K ocultos): nomes" tem a mesma ação para todos de uma vez, ocultos
+  inclusive (`NT.deadTerminalIds(doc, dead)`), num passo do desfazer e com a mesma conferência de `ensureNodeRemoved`.
+
+### Cursor estimado
+
+O herdr (0.8.2 e a 0.9.5, conferido no schema da API) não entrega a posição do cursor. `guessCursor` (`term-logic.tsx`)
+estima pelo quadro:
+
+- **Caixa de entrada do Claude Code** (`promptBoxCursor`): a linha que começa com `❯` logo abaixo de uma régua `─`, com outra
+  régua embaixo. O cursor vai ao fim da última linha com texto da caixa; a sugestão esmaecida (SGR 2) da caixa vazia não
+  conta. A regra antiga punha o cursor no fim do rodapé ("auto mode on…"), a última linha com texto do quadro, e supunha que
+  o Claude desenhava o próprio cursor em vídeo inverso, o que as versões atuais não fazem. Vídeo inverso dentro da caixa ainda
+  quer dizer cursor desenhado pelo programa (nada é estimado); fora dela não decide mais.
+- **Fora da caixa** (shell, outros programas): a regra de antes, o fim da última linha com texto, e quadro com vídeo inverso
+  não estima.
+- Limite: as setas que movem o cursor no meio do texto não aparecem; a estimativa fica no fim.
+
+### Zoom do texto
+
+O herdr não muda colunas nem linhas de um pane (§Tamanho do terminal do nó): redimensionar o nó só muda a escala, e a
+proporção diferente da do quadro sobra em faixa vazia. O zoom do texto age sobre o terminal focado, ou o nó com terminal
+selecionado sozinho (agente ou criado no canvas), e leva o nó à **proporção exata do quadro** na escala seguinte
+(`NT.ttyZoomSize(size, frame, kind)`: passo 1,2×, entre os limites de `fitScale`, nunca abaixo do mínimo do terminal), num
+passo do desfazer, com um toast da escala. `Ctrl+Alt+0` volta a 100% (a célula natural). As teclas estão em
+`TTY_CANVAS_KEYS`: com o teclado no terminal elas sobem ao canvas e não chegam ao agente.
+
+Prova: `loop/test/ts/argos-terminal-ui.test.ts`, `argos-terminal-fechar.test.ts` (Delete, fechar com conferência, encerrados,
+zoom), `argos-terminal-orfaos.test.ts` (`dead`) e `term-cursor.test.ts` (caixa do Claude Code).
 
 ## Barra e atalhos do canvas montados
 

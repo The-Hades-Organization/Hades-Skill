@@ -88,16 +88,16 @@ describe("órfãos: terminal registrado e vivo, sem nó em canvas nenhum", () =>
 
   test("dado herdr fora do ar, então não afirma órfão e diz que não conferiu", async () => {
     const r = rig({ registered: [record(PANE)], alive: null });
-    expect((await r.orphans()).body).toEqual({ orphans: [], checked: false });
+    expect((await r.orphans()).body).toEqual({ orphans: [], dead: [], checked: false });
   });
 
   test("dado sem registro de terminais, então lista vazia conferida", async () => {
-    expect((await rig().orphans()).body).toEqual({ orphans: [], checked: true });
+    expect((await rig().orphans()).body).toEqual({ orphans: [], dead: [], checked: true });
   });
 
   test("dado painel sem a lista de panes dos canvases, então não afirma órfão", async () => {
     const r = rig({ registered: [record(PANE)], canvasPanes: null });
-    expect((await r.orphans()).body).toEqual({ orphans: [], checked: false });
+    expect((await r.orphans()).body).toEqual({ orphans: [], dead: [], checked: false });
   });
 
   test("dado registro ilegível, então 500 genérico com código e sem o caminho", async () => {
@@ -107,6 +107,21 @@ describe("órfãos: terminal registrado e vivo, sem nó em canvas nenhum", () =>
     expect(out.status).toBe(500);
     expect(JSON.stringify(out.body)).not.toContain(T);
     expect(out.body.code).toBe("terminals_unreadable");
+  });
+
+  test("dado nó de terminal num canvas com o pane morto no herdr, então vem em dead e não em orphans", async () => {
+    const r = rig({ registered: [record(PANE), record(OTHER, { name: "outro" })], alive: [OTHER.pane], canvasPanes: [PANE, OTHER] });
+    expect((await r.orphans()).body).toEqual({ orphans: [], dead: [PANE], checked: true });
+  });
+
+  test("dado o mesmo pane em dois canvases, então aparece uma vez só em dead", async () => {
+    const r = rig({ alive: [], canvasPanes: [PANE, PANE] });
+    expect((await r.orphans()).body.dead).toEqual([PANE]);
+  });
+
+  test("dado herdr fora do ar, então nenhum nó é chamado de morto", async () => {
+    const r = rig({ alive: null, canvasPanes: [PANE] });
+    expect((await r.orphans()).body).toEqual({ orphans: [], dead: [], checked: false });
   });
 
   test("dado outro caminho, então a rota não é dela", () => {

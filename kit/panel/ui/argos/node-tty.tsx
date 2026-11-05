@@ -45,11 +45,14 @@ const TTY_GLOBAL_KEYS = Object.freeze(['Ctrl+Shift+A', 'Alt+1', 'Alt+2', 'Alt+3'
 /**
  * Teclas do terminal criado no canvas que também sobem: fechar é Ctrl+Alt+W (Ctrl+W é do navegador); sem isto chegaria ao
  * agente como o texto "w". Lista à parte porque o comando só existe quando a página liga a porta dos terminais.
+ * Ctrl+Alt+= / Ctrl+Alt+- / Ctrl+Alt+0 aumentam, diminuem e voltam a 100% o texto do terminal focado.
  * Ctrl+Alt+P abre o compositor sobre o terminal focado e Ctrl+L arma uma conexão a partir dele (sem isto, Ctrl+L limparia
  * a tela do agente). Ctrl+Shift+O abre e fecha o painel do supervisor.
  */
 const TTY_CANVAS_KEYS = Object.freeze([
   'Ctrl+Alt+W',
+  // zoom do texto do terminal focado (o nó cresce ou encolhe na proporção do quadro)
+  'Ctrl+Alt+=', 'Ctrl+Alt++', 'Ctrl+Alt+Shift++', 'Ctrl+Alt+-', 'Ctrl+Alt+0',
   'Ctrl+Alt+P',
   'Ctrl+L',
   'Ctrl+Shift+O',
@@ -190,6 +193,14 @@ function areaBox(clientW, clientH) {
 function fitForNode(size, frame) {
   return fitScale(areaBox(size.w, size.h - HEADER_H), frame);
 }
+
+/** Grade do quadro com o respiro, na escala `scale`: o tamanho da área de desenho em que `fitScale` daria exatamente `scale`. */
+function gridBox(frame, scale) {
+  return { w: frame.cols * CELL_W * scale + 2 * PAD, h: frame.rows * CELL_H * scale + 2 * PAD };
+}
+
+/** Limites da escala do quadro (os mesmos de `fitScale`). */
+const SCALE_LIMITS = Object.freeze({ min: FIT_MIN, max: FIT_MAX });
 
 const validScale = (s) => (typeof s === 'number' && Number.isFinite(s) && s > 0 ? s : null);
 
@@ -529,5 +540,5 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   </div>;
 }
 
-window.ArgosNodeTty = { NodeTty, muteXtermWheel, frameCursor, setTermFocus, TTY_GLOBAL_KEYS, TTY_CANVAS_KEYS, minSize, translateKey, clipboardIntent, clipboardAction, selectedText, wheelIntent, touchWheel, historyLinesOf, historyWindow, clampOffset, wheelStep, scrollLive, wheelScroll, historyLoaded, ownsWheel, screenLinePx, createTextInput, isCompositionKey, fitScale, areaBox, fitForNode, rowsToShow, cursorOf, screenOf, screenRows, ttyDrawing, oversize, selectionOf };
+window.ArgosNodeTty = { NodeTty, muteXtermWheel, frameCursor, setTermFocus, TTY_GLOBAL_KEYS, TTY_CANVAS_KEYS, minSize, translateKey, clipboardIntent, clipboardAction, selectedText, wheelIntent, touchWheel, historyLinesOf, historyWindow, clampOffset, wheelStep, scrollLive, wheelScroll, historyLoaded, ownsWheel, screenLinePx, createTextInput, isCompositionKey, fitScale, areaBox, fitForNode, gridBox, SCALE_LIMITS, rowsToShow, cursorOf, screenOf, screenRows, ttyDrawing, oversize, selectionOf };
 })();

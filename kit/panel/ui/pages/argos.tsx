@@ -71,6 +71,8 @@ const CANVAS_STREAM_URL = '/api/canvas/stream';
 const CANVASES_URL = '/api/canvases';
 // terminais registrados e vivos sem nó em canvas nenhum (`checked: false` quando o servidor não pôde afirmar)
 const ORPHANS_URL = '/api/argos/terminals/orphans';
+/** Conferência dos órfãos e dos panes encerrados com a aba visível: o pane que morre por fora não avisa o painel. */
+const ORPHANS_POLL_MS = 30_000;
 const SCOPE_URL = '/api/canvases/_scope';
 const FILTERS_URL = '/api/canvases/_filters';
 const FILTERS_UNREACHABLE = 'saved_filters_unreachable';
@@ -270,6 +272,8 @@ function Argos() {
   const reloadGraph = useRef(() => {});
   const reloadOrphans = useRef(async () => {});
   const [orphans, setOrphans] = useState([]);
+  // pares sessão/pane dos nós `terminal` cujo processo o servidor confirmou encerrado (conferência dos órfãos)
+  const [deadPanes, setDeadPanes] = useState([]);
   const orphansToldRef = useRef(new Set());
   const [saveFails, setSaveFails] = useState(0);
   const [now, setNow] = useState(() => Date.now());
@@ -321,6 +325,11 @@ function Argos() {
   const [canvasError, setCanvasError] = useState(null);
   const [saveStatus, setSaveStatus] = useState({ kind: 'idle' });
   const saveStatusRef = useRef(saveStatus);
+  // nós `terminal` do canvas aberto cujo pane o servidor confirmou encerrado (ocultos inclusive): o banner oferece tirá-los
+  const deadIds = useMemo(() => (cstate ? NT.deadTerminalIds(cstate.doc, deadPanes) : NO_NODES), [cstate, deadPanes]);
+  const deadIdsRef = useRef(deadIds);
+  deadIdsRef.current = deadIds;
+  const deadHidden = cstate ? deadIds.filter((id) => (cstate.doc.hidden ?? NO_NODES).includes(id)).length : 0;
   // canvas aberto (W2): o padrão ou o de uma worktree/rodada; o gravador e a leitura usam o id da ref
   const canvasIdRef = useRef(M.store.DEFAULT_CANVAS_ID);
   const [canvasInfo, setCanvasInfo] = useState(() => ({ id: M.store.DEFAULT_CANVAS_ID, name: 'Canvas padrão' }));
@@ -416,10 +425,12 @@ function Argos() {
       savedFilters: { set: () => savedRef.current, current: () => chipsRef.current, apply: call('applyChips'), save: call('saveFilters'), reload: call('reloadFilters') },
       scope: { options: call('scopeOptions'), current: () => canvasIdRef.current, open: call('openScope'), openDefault: call('openDefaultCanvas') },
       sketch: { at: call('viewCenter') },
-      tty: { nextAttention: call('ttyNextAttention'), jump: call('ttyJump'), release: () => ttyHost.focus(null), focused: () => ttyHost.focused() !== null },
+      tty: { nextAttention: call('ttyNextAttention'), jump: call('ttyJump'), release: () => ttyHost.focus(null), focused: () => ttyHost.focused() !== null,
+        zoomable: () => host.current.ttyZoomTarget() !== null, zoomText: call('ttyZoomText') },
       focus: { enabled: () => focusRef.current.on, available: () => focusRef.current.available, setEnabled: call('setFocus') },
       terminals: { armTool: call('termArm'), target: () => host.current.termTarget(), edit: call('termEdit'), role: call('termRole'),
-        connections: call('openLinks'), close: call('termClose'), roles: call('termRolesOpen') },
+        connections: call('openLinks'), close: call('termClose'), roles: call('termRolesOpen'),
+        closable: (id) => !!host.current.termClosable?.(id) },
       composer: { toggle: call('composerToggle'), available: () => host.current.composerAvailable() },
       supervisor: { toggle: call('supervisorToggle') },
       links: { start: () => host.current.linkStart() },
@@ -443,7 +454,8 @@ function Argos() {
     // Registra antes dos tipos vivos, que mantêm o tipo já registrado; o nó no formato deles segue com o desenho deles.
     // o badge conta as conexões (arestas `link`), as mesmas linhas do popover que ele abre
     const terminalDeps = { roleOf: (slug) => host.current.termRoleOf(slug), linksOf: (id) => { const d = docNow(); return d ? M.links.linkCount(d, id) : 0; },
-      onConnections: (id) => host.current.termRun(() => host.current.openLinks(id)), grow: call('growNode') };
+      onConnections: (id) => host.current.termRun(() => host.current.openLinks(id)), grow: call('growNode'),
+      remove: (id) => host.current.termRun(() => host.current.termRemoveEnded([id])) };
     const liveTerminal = MOUNT_PARTS.typesLive.liveTypeDefs(liveDeps).find((d) => d.type === NT.TERMINAL_TYPE);
     let terminalDef = null;
     try {
@@ -1198,6 +1210,25 @@ function Argos() {
     return true;
   };
   // "Ampliar para o terminal": o nó pequeno cresce até o mínimo, um passo do desfazer
+  // zoom do texto: o terminal focado no teclado, senão o nó com terminal (agente ou criado no canvas) selecionado sozinho
+  const ttyZoomTarget = () => {
+    const focusedId = ttyHost.focused();
+    if (focusedId && ttyHost.frameOf(focusedId)) return focusedId;
+    const ids = selectionRef.current;
+    return ids.length === 1 && ttyHost.frameOf(ids[0]) ? ids[0] : null;
+  };
+  const ttyZoomText = (kind) => {
+    const id = ttyZoomTarget();
+    const n = id ? docNode(id) : null;
+    const frame = id ? ttyHost.frameOf(id) : null;
+    if (!n || !frame) return false;
+    const next = NT.ttyZoomSize({ w: n.w, h: n.h }, frame, kind);
+    if (next.w === n.w && next.h === n.h) return true;
+    try { commitOp(M.history.opResize(cstateRef.current.doc, id, { x: n.x, y: n.y, w: next.w, h: next.h })); }
+    catch (e) { if (!e || typeof e.code !== 'string') throw e; opFailed(e.code); return false; }
+    toast({ kind: 'info', title: `Texto do terminal em ${Math.round(next.scale * 100)}%` });
+    return true;
+  };
   const growNode = (id, min) => {
     const n = docNode(id);
     if (!n) return;
@@ -1229,7 +1260,12 @@ function Argos() {
     if (presets.ok) setTermPresets(presets.value);
     if (!roles.ok || !presets.ok) console.warn('argos: papéis ou predefinições indisponíveis', roles.ok ? presets.code : roles.code);
   }, [termClient]);
-  useEffect(() => { reloadOrphans.current().catch((e) => console.warn('argos: órfãos indisponíveis', e && e.name)); }, []);
+  useEffect(() => {
+    const check = () => { if (!document.hidden) reloadOrphans.current().catch((e) => console.warn('argos: órfãos indisponíveis', e && e.name)); };
+    check();
+    const timer = setInterval(check, ORPHANS_POLL_MS);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(() => { reloadTermLists().catch((e) => console.error('argos: leitura dos papéis falhou', e && e.name)); }, [reloadTermLists]);
   const termFailed = (r) => {
     if (r.code === 'cancelled') return;
@@ -1297,6 +1333,9 @@ function Argos() {
     const d = await res.json();
     const list = d && d.checked === true && Array.isArray(d.orphans) ? d.orphans : [];
     setOrphans(list);
+    const dead = d && d.checked === true && Array.isArray(d.dead) ? d.dead : [];
+    setDeadPanes(dead);
+    ttyHost.markExited(dead.map((p) => p && p.pane));
     const fresh = list.filter((o) => !orphansToldRef.current.has(`${o.session}\0${o.pane}`));
     fresh.forEach((o) => orphansToldRef.current.add(`${o.session}\0${o.pane}`));
     if (fresh.length > 0) toast({ kind: 'warn', title: 'Terminal fora do canvas', desc: fresh.map((o) => o.name).join(', ') });
@@ -1386,7 +1425,38 @@ function Argos() {
       askName: askTermName('Fechar terminal', `Encerra o processo do agente no herdr e tira "${name}" do canvas. Desfazer devolve só o nó, sem o processo.`) });
     if (!r.ok) { termFailed(r); return; }
     if (ttyHost.focused() === id) ttyHost.focus(null);
-    if (docNode(id)) termCommit((doc) => M.history.opDelete(doc, [id]));
+    await removeTermNodes([id], 'O processo foi encerrado, mas o nó não saiu do canvas');
+  };
+  // o processo já não existe: o nó sai do documento e só termina quando o servidor grava sem ele (um 409 não o devolve)
+  const removeTermNodes = async (ids, failTitle) => {
+    const removed = await NT.ensureNodeRemoved({
+      remove: () => {
+        const doc = cstateRef.current?.doc;
+        if (!doc) return false;
+        const present = ids.filter((id) => doc.nodes.some((n) => n.id === id));
+        return present.length === 0 || termCommit((d) => M.history.opDelete(d, present));
+      },
+      gone: (d) => !d.nodes.some((n) => ids.includes(n.id)),
+      flush: () => saver.flush(), fetchDoc: () => getCanvas(canvasUrl(canvasIdRef.current)), reread: () => loadCanvas(),
+    });
+    if (!removed.ok) {
+      console.error('argos: nó do terminal encerrado não saiu', removed.code, removed.attempts);
+      toast({ kind: 'bad', title: failTitle, desc: 'Use "Remover do canvas" no nó para tentar de novo.' });
+    }
+    return removed.ok;
+  };
+  const termRemoveEnded = async (ids) => {
+    if (ids.length === 0) return;
+    ids.forEach((id) => { if (ttyHost.focused() === id) ttyHost.focus(null); });
+    if (await removeTermNodes(ids, 'Não deu para tirar do canvas os terminais encerrados')) {
+      toast({ kind: 'ok', title: ids.length === 1 ? 'Terminal encerrado removido' : `${ids.length} terminais encerrados removidos`, desc: 'Desfazer devolve o nó, sem o processo.' });
+    }
+  };
+  // Delete num terminal com pane fecha o processo (o mesmo diálogo de Ctrl+Alt+W); nó sem pane ou já encerrado só sai do documento
+  const termClosable = (id) => {
+    const n = docNode(id);
+    if (!n || !isTerminal(id) || !NT.readTerminalData(n.data).herdr) return false;
+    return !ttyHost.exitedOf(id) && !deadIdsRef.current.includes(id);
   };
   // ---- nota, conexões e compositor montados na página ----
   const noteClient = useMemo(() => {
@@ -1512,7 +1582,7 @@ function Argos() {
     && M.store.scopedCanvasId({ kind: 'worktree', key: `${n.registry}:${n.label}` }) === canvasIdRef.current)?.worktree || '';
   host.current = {
     setFocus, growNode,
-    termRun, termTarget, termEdit, termRole, termClose,
+    termRun, termTarget, termEdit, termRole, termClose, termRemoveEnded, termClosable,
     openLinks, linkStart, noteTarget, noteClose,
     composerToggle: () => setComposer((c) => (c !== null ? null : ttyHost.focused())),
     supervisorToggle: () => setSupOpen((o) => !o),
@@ -1522,6 +1592,7 @@ function Argos() {
     termRoleOf: (slug) => termRoles.find((r) => r.slug === slug) || null,
     ttyNextAttention: () => focusTty(ttyHost.nextAttention()),
     ttyJump: (n) => focusTty(ttyHost.jumpTarget(n)),
+    ttyZoomTarget, ttyZoomText,
     selectIds: (ids) => { selectionRef.current = ids.length ? [...ids] : NO_NODES; onSelectionChange(ids); },
     select, commitOp, opFailed, copyText, ask: askOwner,
     hideTargets: (id) => HID.hideTargets(engineSelection, id), hideNodes, unhideNodes,
@@ -1878,6 +1949,11 @@ function Argos() {
         <I.CircleAlert className="size-3.5 shrink-0" aria-hidden="true" />
         <span>{orphans.length === 1 ? '1 terminal vivo fora do canvas' : `${orphans.length} terminais vivos fora do canvas`}: {orphans.map((o) => o.name).join(', ')}</span>
         <button type="button" onClick={bringOrphans} className="cursor-pointer underline underline-offset-3 hover:no-underline max-md:min-h-11">Trazer para o canvas</button>
+      </p> : null}
+      {deadIds.length > 0 ? <p className="pointer-events-auto flex w-fit items-center gap-2 border border-border-strong bg-background px-2 py-1 t-meta text-muted-foreground" role="status">
+        <I.CircleAlert className="size-3.5 shrink-0" aria-hidden="true" />
+        <span>{deadIds.length === 1 ? '1 terminal encerrado no canvas' : `${deadIds.length} terminais encerrados no canvas`}{deadHidden > 0 ? ` (${deadHidden} oculto${deadHidden === 1 ? '' : 's'})` : ''}: {deadIds.map((id) => nodeLabel(id) || id).join(', ')}</span>
+        <button type="button" onClick={() => termRun(() => termRemoveEnded(deadIds))} className="cursor-pointer underline underline-offset-3 hover:no-underline max-md:min-h-11">Remover do canvas</button>
       </p> : null}
       {externalStale ? <p className="pointer-events-auto flex w-fit items-center gap-2 border border-border-strong bg-background px-2 py-1 t-meta text-muted-foreground" role="status">
         <I.RefreshCw className="size-3.5 shrink-0" aria-hidden="true" />

@@ -432,16 +432,64 @@ function makeTermLogic() {
     return false;
   }
 
+  const RULE_LINE = /^─{8,}/;
+  const BOX_PROMPT = "❯";
+  /** O texto visível da linha sem o que está em SGR 2 (esmaecido): a sugestão que o Claude Code mostra na caixa vazia. */
+  function undimmedText(line: string): string {
+    let dim = false;
+    let out = "";
+    let last = 0;
+    for (const m of line.matchAll(ANSI_SEQ)) {
+      if (!dim) out += line.slice(last, m.index);
+      last = (m.index ?? 0) + m[0].length;
+      const sgr = /^\x1b\[([0-9;:]*)m$/.exec(m[0]);
+      if (!sgr) continue;
+      for (const p of (sgr[1] ?? "").split(";")) {
+        if (p === "" || p === "0" || p === "22") dim = false;
+        else if (p === "2") dim = true;
+      }
+    }
+    if (!dim) out += line.slice(last);
+    return out;
+  }
+
+  /**
+   * Caixa de entrada do Claude Code (e de quem desenha igual): a linha que começa com `❯` logo abaixo de uma régua `─`, com
+   * outra régua embaixo. O programa usa o cursor do terminal, que o herdr não entrega, e a última linha com texto é o rodapé,
+   * não a entrada. O cursor fica no fim da última linha com texto da caixa; a sugestão esmaecida da caixa vazia não conta.
+   * `undefined` quando o quadro não tem a caixa (vale a regra geral); `null` quando a caixa tem vídeo inverso (o programa
+   * desenhou o próprio cursor).
+   */
+  function promptBoxCursor(lines: string[], cols: number): { row: number; col: number } | null | undefined {
+    const trimEnd = (l: string): string => l.replace(ANSI_SEQ, "").replace(/[\s\u00a0]+$/, "");
+    const plain = lines.map(trimEnd);
+    const at = (i: number): string => plain[i] ?? "";
+    let bottom = plain.length - 1;
+    while (bottom >= 0 && !RULE_LINE.test(at(bottom).trimStart())) bottom -= 1;
+    let top = bottom - 1;
+    while (top >= 0 && !RULE_LINE.test(at(top).trimStart())) top -= 1;
+    if (top < 0 || top + 1 >= bottom || !at(top + 1).trimStart().startsWith(BOX_PROMPT)) return undefined;
+    if (hasInverse(lines.slice(top + 1, bottom).join("\n"))) return null;
+    let row = bottom - 1;
+    while (row > top + 1 && at(row).trim() === "") row -= 1;
+    const text = row === top + 1 ? trimEnd(undimmedText(lines[row] ?? "")) : at(row);
+    const width = [...text].length + (text.trimStart() === BOX_PROMPT ? 1 : 0);
+    return { row, col: Math.min(width, cols - 1) };
+  }
+
   /**
    * Onde está o cursor de um quadro do herdr, que não o entrega (0.8.2: `pane.read` traz só texto e revisão). Estimativa pelo
-   * texto: a última linha com conteúdo, logo depois do último caractere (um espaço além, se a linha termina em prompt).
-   * Quadro com vídeo inverso é de um programa que desenha o próprio cursor (Claude Code, editores): nada é inferido, o
-   * cursor dele já está no quadro. Tela vazia: canto superior esquerdo. Sempre dentro da grade.
+   * texto: na caixa de entrada do Claude Code (`promptBoxCursor`), o fim do que foi digitado; fora dela, a última linha com
+   * conteúdo, logo depois do último caractere (um espaço além, se a linha termina em prompt). Quadro com vídeo inverso fora
+   * da caixa é de um programa que desenha o próprio cursor (editores): nada é inferido. Tela vazia: canto superior esquerdo.
+   * Sempre dentro da grade.
    */
   function guessCursor(ansi: unknown, cols: number, rows: number): { row: number; col: number } | null {
     if (typeof ansi !== "string" || !Number.isInteger(cols) || !Number.isInteger(rows) || cols < 1 || rows < 1) return null;
-    if (hasInverse(ansi)) return null;
     const lines = ansi.split(/\r?\n/);
+    const boxed = promptBoxCursor(lines.slice(0, rows), cols);
+    if (boxed !== undefined) return boxed;
+    if (hasInverse(ansi)) return null;
     let row = Math.min(lines.length, rows) - 1;
     while (row >= 0 && (lines[row] ?? "").replace(ANSI_SEQ, "").trim() === "") row -= 1;
     if (row < 0) return { row: 0, col: 0 };

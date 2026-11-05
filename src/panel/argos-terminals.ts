@@ -132,6 +132,12 @@ export interface OrphanTerminal {
   createdAt: string;
 }
 
+/** Nó `terminal` de algum canvas cujo pane o herdr confirmou que não existe mais: a tela oferece tirá-lo do canvas. */
+export interface DeadTerminalPane {
+  session: string;
+  pane: string;
+}
+
 /** Caminho da conferência de terminais órfãos (GET). */
 export const ORPHANS_PATH = `${TERMINALS_PATH}/orphans`;
 const UNREADABLE_REGISTRY = "terminals_unreadable";
@@ -718,9 +724,9 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
   };
 
   /**
-   * Reconcilia `terminals.json` com os canvases: terminal registrado, com pane vivo e sem nó em canvas nenhum. `checked: false`
-   * quando não deu para afirmar (herdr fora do ar, ou o painel sem a lista de panes dos canvases): nunca se chama de órfão o que
-   * não foi conferido.
+   * Reconcilia `terminals.json` com os canvases: terminal registrado, com pane vivo e sem nó em canvas nenhum (`orphans`), e nó
+   * `terminal` de canvas cujo pane não existe mais (`dead`). `checked: false` quando não deu para afirmar tudo (herdr fora do
+   * ar, ou o painel sem a lista de panes dos canvases): nunca se chama de órfão nem de morto o que não foi conferido.
    */
   async function orphans(): Promise<Response> {
     let registered: TerminalRecord[];
@@ -730,8 +736,9 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
       deps.log("error", "registro de terminais ilegível", { reason: error instanceof Error ? error.name : "erro" });
       return send(500, { error: "o registro de terminais não pôde ser lido", code: UNREADABLE_REGISTRY });
     }
-    if (!deps.canvasPanes) return send(200, { orphans: [], checked: false });
-    const inCanvas = new Set(deps.canvasPanes().map((p) => `${p.session}\0${p.pane}`));
+    if (!deps.canvasPanes) return send(200, { orphans: [], dead: [], checked: false });
+    const canvasPanes = new Map(deps.canvasPanes().map((p) => [`${p.session}\0${p.pane}`, p] as const));
+    const inCanvas = new Set(canvasPanes.keys());
     const found: OrphanTerminal[] = [];
     let checked = true;
     for (const t of registered) {
@@ -745,8 +752,14 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
         ...(t.role !== undefined && { role: t.role }), ...(t.orchestrator === true && { orchestrator: true }),
       });
     }
+    const dead: DeadTerminalPane[] = [];
+    for (const { session, pane } of canvasPanes.values()) {
+      const alive = await paneAlive(session, pane);
+      if (alive === undefined) { checked = false; continue; }
+      if (!alive) dead.push({ session, pane });
+    }
     if (found.length > 0) deps.log("warn", "terminal fora do canvas", { terminais: found.length });
-    return send(200, { orphans: found, checked });
+    return send(200, { orphans: found, dead, checked });
   }
 
   return {

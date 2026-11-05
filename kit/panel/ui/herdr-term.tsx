@@ -56,7 +56,7 @@ function useHerdrFrame(session, pane, attempt) {
   const [s, setS] = useState({ state: 'connecting', frame: null, error: '' });
   useEffect(() => {
     setS({ state: 'connecting', frame: null, error: '' });
-    const es = new EventSource(streamUrl(session, pane));
+    const es = window.PanelStream ? window.PanelStream.open(streamUrl(session, pane)) : new EventSource(streamUrl(session, pane));
     let fails = 0, revision = -1;
     const on = (type, fn) => es.addEventListener(type, (m) => {
       const d = parseData(m && m.data);

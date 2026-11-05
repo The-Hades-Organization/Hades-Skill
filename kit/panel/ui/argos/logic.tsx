@@ -166,7 +166,7 @@ function makeArgosLogic() {
     canvas_stale_revision: "O canvas mudou em outra aba.",
     canvas_too_large: "O canvas passou do tamanho aceito.",
     canvas_unreadable: "O arquivo do canvas no painel está ilegível.",
-    canvas_save_unreachable: "Sem resposta do painel ao gravar.",
+    canvas_save_unreachable: "Sem resposta do painel ao gravar. Muitas abas do painel abertas esgotam as conexões do navegador: feche as que não usa.",
     canvas_save_conflict: "Outra aba gravou o canvas e a junção não coube.",
     canvas_mass_removal: "O canvas recusou apagar tantos nós de uma vez sem confirmação, e nada foi gravado. Desfaça (Ctrl+Z) ou recarregue a página; se a remoção é de propósito, apague de novo.",
     graph_failed: "O painel não conseguiu montar o grafo dos agentes.",

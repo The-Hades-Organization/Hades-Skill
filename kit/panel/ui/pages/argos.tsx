@@ -123,6 +123,8 @@ const codedError = (message, code) => Object.assign(new Error(message), { code }
 const canvasUrl = (id) => (id === M.store.DEFAULT_CANVAS_ID ? CANVAS_URL : `${CANVASES_URL}/${encodeURIComponent(id)}`);
 // o preset de estado só vai ao endereço quando não é o de abertura: links antigos e o endereço padrão ficam iguais
 const linkPreset = (state) => (state !== DEFAULT_STATE && M.urlstate.URLSTATE_PRESETS.includes(state) ? state : undefined);
+// fluxo SSE que solta a conexão com a aba escondida (stream-logic.tsx): o teto de 6 conexões por servidor é do navegador inteiro
+const openSse = (url) => (window.PanelStream ? window.PanelStream.open(url) : new EventSource(url));
 const withTimeout = (signal) => AbortSignal.any([signal, AbortSignal.timeout(CANVAS_TIMEOUT_MS)]);
 
 // entrada do terminal do nó: rejeita com o código (ou a mensagem) do servidor, para o nó mostrar o motivo
@@ -371,7 +373,7 @@ function Argos() {
 
   // terminais dos nós de agente: uma conexão SSE para os panes dos nós montados, foco do teclado, atenção e salto
   const ttyHost = useMemo(() => NT.createTtyHost({
-    openStream: (url) => new EventSource(url),
+    openStream: (url) => openSse(url),
     sendInput: sendHerdrInput,
     setTimer: (run, ms) => setTimeout(run, ms),
     clearTimer: (h) => clearTimeout(h),
@@ -664,10 +666,14 @@ function Argos() {
   useEffect(() => {
     const leave = () => { saver.flush({ leaving: true }); };
     const hide = () => { if (document.visibilityState === 'hidden') leave(); };
+    // recarregar ou fechar com edição que o servidor ainda não tem: o navegador pergunta antes (a nota nova sumia no reload)
+    const guard = (e) => { if (busyStateRef.current() === null) return; leave(); e.preventDefault(); e.returnValue = ''; };
     addEventListener('pagehide', leave);
+    addEventListener('beforeunload', guard);
     document.addEventListener('visibilitychange', hide);
     return () => {
       removeEventListener('pagehide', leave);
+      removeEventListener('beforeunload', guard);
       document.removeEventListener('visibilitychange', hide);
       // sai da página com mudança na fila: grava antes de largar o gravador (flush nunca rejeita)
       saver.flush({ leaving: true }).then(() => saver.dispose());
@@ -706,7 +712,7 @@ function Argos() {
     document.addEventListener('visibilitychange', visible);
     let stream = null;
     try {
-      stream = new EventSource(CANVAS_STREAM_URL);
+      stream = openSse(CANVAS_STREAM_URL);
       stream.addEventListener('canvas', (ev) => {
         let d = null;
         try { d = JSON.parse(ev.data); } catch (e) { console.warn('canvas: aviso do servidor ilegível', e && e.name); }
@@ -1026,7 +1032,7 @@ function Argos() {
   const streamUrl = detail?.timeline?.stream;
   useEffect(() => {
     if (!streamUrl) return;
-    const es = new EventSource(streamUrl);
+    const es = openSse(streamUrl);
     es.onopen = () => setLive(true);
     es.onerror = () => setLive(false);
     es.onmessage = (m) => {

@@ -20,6 +20,9 @@ por padrão (issues #41 e #42).
   túnel público sem o dono ter escolhido. O onboarding (Acesso remoto) e as Configurações ligam. Armadilha: o `config.env` não
   guarda valor igual ao padrão, então quem dependia do padrão antigo (1) sem ter gravado a chave passa a subir sem túnel;
   para manter, grave `HADES_RUN_TUNNEL=1` depois de reinstalar.
+- **Armadilha de teste**: sem sub-rede, o texto genérico do `fw_cmd` citava "ufw" também no macOS. O teste do launchd só
+  passava na máquina que tinha a rede docker da instância (o `fw_subnet` a encontrava); a CI, sem rede, pegou. O texto genérico
+  agora segue a plataforma, e um teste cobre a instância sem rede.
 
 ## 6.11.1 — 2026-11-04
 

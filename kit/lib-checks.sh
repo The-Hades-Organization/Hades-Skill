@@ -85,7 +85,8 @@ fw_test() {
 # comando certo p/ liberar a rede docker->host conforme o firewall ativo da máquina (da sub-rede desta instância)
 fw_cmd() {
   local net; net=$(fw_subnet)
-  if [[ -z $net ]]; then echo "libere a rede docker do Hades -> host no seu firewall (nft/iptables, ufw ou firewalld)"
+  if [[ -z $net ]] && _chk_launchd; then echo "libere a rede docker do Hades -> host no firewall do macOS (pf)"
+  elif [[ -z $net ]]; then echo "libere a rede docker do Hades -> host no seu firewall (nft/iptables, ufw ou firewalld)"
   elif ! _chk_launchd && command -v ufw >/dev/null && systemctl is-active --quiet ufw; then echo "sudo ufw allow from $net"
   elif command -v firewall-cmd >/dev/null; then echo "sudo firewall-cmd --permanent --zone=trusted --add-source=$net && sudo firewall-cmd --reload"
   else echo "libere $net -> host no seu firewall (nft/iptables)"

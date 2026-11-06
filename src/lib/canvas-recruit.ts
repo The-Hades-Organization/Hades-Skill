@@ -372,6 +372,8 @@ export interface Identity {
   orchestrator: string;
   /** Nomes de arquivo das notas ligadas ao recruta. */
   notes: readonly string[];
+  /** Bloco "PR pronta" (assignee, labels, reviewers); só quando o papel do recruta abre PR. */
+  prReady?: string;
   /** Tarefa que o orquestrador passou, depois da identidade. */
   task?: string;
 }
@@ -386,6 +388,7 @@ export function identityPrompt(identity: Identity): string {
       : "Nenhuma nota ligada a você por enquanto (`hades canvas note list` mostra quando houver).",
     `Responda ao orquestrador ${identity.orchestrator}; não recrute, não dispense e não reatribua ninguém.`,
   ];
+  if (identity.prReady) lines.push(identity.prReady);
   if (identity.task && identity.task.trim()) lines.push("", identity.task.trim());
   return lines.join("\n");
 }

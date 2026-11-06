@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ARGOS_ERROR_CODES } from "../../../src/lib/argos-roles";
 import {
-  agentWorktrees, createArgosTerminalsRoutes, createRateLimiter, DISCOVERED_TTL_MS, IMPORT_SKIP, TERMINAL_RATE, TERMINAL_REQUEST_TIMEOUT_S, TERMINAL_TIMEOUTS,
+  agentWorktrees, chooseTerminal, createArgosTerminalsRoutes, createRateLimiter, DISCOVERED_TTL_MS, IMPORT_SKIP, TERMINAL_RATE, TERMINAL_REQUEST_TIMEOUT_S, TERMINAL_TIMEOUTS,
 } from "../../../src/panel/argos-terminals";
 import type { HerdrCall } from "../../../src/panel/herdr";
 
@@ -575,5 +575,32 @@ describe("argos-terminals: raízes das worktrees de agente", () => {
     writeFileSync(join(orch, "agents", "c.json"), JSON.stringify({ worktree: "relativa" }));
     writeFileSync(join(orch, "agents", "d.json"), "{");
     expect(agentWorktrees([orch, join(T, "nao-ha")])).toEqual(["/wt/a"]);
+  });
+});
+
+describe("argos-terminals: escolha com as Configurações do papel", () => {
+  const role = (extra: Dict = {}) => ({ slug: "impl", name: "impl", color: "#000000", instructions: "x", ...extra }) as never;
+  const settings = { model: "claude-sonnet-5-5", effort: "medium" };
+
+  test("dado nada mandado nem no papel, quando escolhe, então valem as Configurações", () => {
+    expect(chooseTerminal({}, undefined, role(), settings)).toMatchObject({ model: "claude-sonnet-5-5", effort: "medium" });
+  });
+
+  test("dado campo no corpo, na predefinição ou no papel, quando escolhe, então ele vence as Configurações, nessa ordem", () => {
+    const preset = { slug: "p", name: "p", agent: "claude", model: "do-preset" } as never;
+    expect(chooseTerminal({ model: "do-corpo" }, preset, role({ model: "do-papel" }), settings).model).toBe("do-corpo");
+    expect(chooseTerminal({}, preset, role({ model: "do-papel" }), settings).model).toBe("do-preset");
+    expect(chooseTerminal({}, undefined, role({ model: "do-papel" }), settings).model).toBe("do-papel");
+  });
+
+  test("dado agente sem flag de esforço, quando escolhe, então o esforço das Configurações não entra (não recusa a criação)", () => {
+    const choice = chooseTerminal({ agent: "codex" }, undefined, role(), settings);
+    expect(choice.effort).toBeUndefined();
+    expect(choice.model).toBe("claude-sonnet-5-5");
+  });
+
+  test("dado sem Configurações, quando escolhe, então modelo e esforço ficam ausentes (herda o settings.json)", () => {
+    const choice = chooseTerminal({}, undefined, role());
+    expect([choice.model, choice.effort]).toEqual([undefined, undefined]);
   });
 });

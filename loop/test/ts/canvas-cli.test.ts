@@ -134,6 +134,7 @@ async function rig(doc: CanvasDoc, managerText: () => string = () => MANAGER) {
       return { rc: r.rc, err: r.err };
     },
     caller: async () => io.caller,
+    prReady: () => ({ assignee: "dono-da-pr", labels: "fix,bug", reviewers: "revisora" }),
     stdin: async () => io.stdin,
     async notify(text, obj) {
       notified.push([text, obj]);
@@ -289,6 +290,112 @@ describe("canvas-cli: notas pela conexão", () => {
     expect(await r.run("note", "write", "contexto", "sobrescrito")).toBe(EXIT.fail);
     expect(lastCode(r.err)).toBe(CANVAS_CLI_ERRORS.noteWriteDirect);
     expect(await r.noteText("contexto")).toBe("original");
+  });
+});
+
+/** HADES_* só pelo ambiente do teste (a configuração real da máquina não entra); o que o teste pôs volta ao fim. */
+async function withEnv(vars: Record<string, string>, body: () => Promise<void>): Promise<void> {
+  const before = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, vars);
+  try {
+    await body();
+  } finally {
+    for (const [k, v] of Object.entries(before)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+}
+const startArgs = (r: Awaited<ReturnType<typeof rig>>): string[] => {
+  const call = r.fake.calls.filter((c) => c.args[0] === "agent" && c.args[1] === "start").at(-1);
+  return call ? call.args.slice(call.args.indexOf("--") + 1) : [];
+};
+const SETTINGS = { HADES_MODEL_IMPL: "claude-sonnet-5-5", HADES_EFFORT_IMPL: "medium" };
+
+describe("canvas-cli: modelo e esforço do recruta (Configurações)", () => {
+  test("dado papel sem modelo e Configurações do papel, quando recruta, então o agente sobe com --model e --effort delas", async () => {
+    await withEnv(SETTINGS, async () => {
+      const r = await rig(baseDoc());
+      await r.terminal("/api/argos/roles", { role: { name: "impl", color: "#a0b", instructions: "implemente" } });
+      expect(await r.run("recruit", "--role", "impl")).toBe(EXIT.ok);
+      const args = startArgs(r);
+      expect(args.slice(args.indexOf("--model"), args.indexOf("--model") + 2)).toEqual(["--model", "claude-sonnet-5-5"]);
+      expect(args.slice(args.indexOf("--effort"), args.indexOf("--effort") + 2)).toEqual(["--effort", "medium"]);
+      const node = (await r.current()).nodes.find((n2) => (n2.data as Dict).name === "Chefe 1") as CanvasNode;
+      expect([(node.data as Dict).model, (node.data as Dict).effort]).toEqual(["claude-sonnet-5-5", "medium"]);
+      const saved = JSON.parse(readFileSync(join(r.D, "argos", "terminals.json"), "utf8")) as { terminals: Dict[] };
+      expect([saved.terminals[0]!.model, saved.terminals[0]!.effort]).toEqual(["claude-sonnet-5-5", "medium"]);
+      expect(r.err).toEqual([]);
+    });
+  });
+
+  test("dada flag e papel com modelo próprio, quando recruta, então a flag vence o papel e o papel vence as Configurações", async () => {
+    await withEnv(SETTINGS, async () => {
+      const r = await rig(baseDoc());
+      await r.terminal("/api/argos/roles", { role: { name: "impl", color: "#a0b", instructions: "implemente", model: "claude-opus-5-5" } });
+      expect(await r.run("recruit", "--role", "impl")).toBe(EXIT.ok);
+      expect(startArgs(r)).toContain("claude-opus-5-5");
+      expect(startArgs(r)).not.toContain("claude-sonnet-5-5");
+      expect(startArgs(r)).toContain("medium"); // esforço: o papel não tem, valem as Configurações
+      expect(await r.run("recruit", "--role", "impl", "--model", "claude-haiku-5-5", "--effort", "low")).toBe(EXIT.ok);
+      const args = startArgs(r);
+      expect(args).toContain("claude-haiku-5-5");
+      expect(args).toContain("low");
+      expect(args).not.toContain("medium");
+    });
+  });
+
+  test("dado recruta sem papel e sem modelo, quando recruta, então avisa que herda o settings.json e o nó fica sem modelo", async () => {
+    await withEnv(SETTINGS, async () => {
+      const r = await rig(baseDoc());
+      expect(await r.run("recruit", "--no-role")).toBe(EXIT.ok);
+      expect(startArgs(r)).not.toContain("--model");
+      expect(startArgs(r)).not.toContain("--effort");
+      expect(r.err.join("\n")).toContain("herda o default do settings.json");
+      const node = (await r.current()).nodes.find((n2) => (n2.data as Dict).name === "Chefe 1") as CanvasNode;
+      expect((node.data as Dict).model).toBeUndefined();
+    });
+  });
+
+  test("dado valor inválido nas Configurações, quando recruta, então o terminal sobe sem ele e avisa", async () => {
+    await withEnv({ HADES_MODEL_IMPL: "modelo com espaço", HADES_EFFORT_IMPL: "enorme" }, async () => {
+      const r = await rig(baseDoc());
+      await r.terminal("/api/argos/roles", { role: { name: "impl", color: "#a0b", instructions: "implemente" } });
+      expect(await r.run("recruit", "--role", "impl")).toBe(EXIT.ok);
+      expect(startArgs(r)).not.toContain("--model");
+      expect(r.err.join("\n")).toContain("herda o default do settings.json");
+    });
+  });
+});
+
+describe("canvas-cli: bloco PR pronta no prompt do recruta", () => {
+  const promptOf = (r: Awaited<ReturnType<typeof rig>>): string => String(r.fake.calls.filter((c) => c.args[0] === "agent" && c.args[1] === "prompt").at(-1)?.args[3]);
+
+  test("dado papel que abre PR, quando recruta, então o primeiro prompt leva assignee, labels e reviewers antes da tarefa", async () => {
+    await withEnv(SETTINGS, async () => {
+      const r = await rig(baseDoc());
+      await r.terminal("/api/argos/roles", { role: { name: "impl", color: "#a0b", instructions: "implemente" } });
+      expect(await r.run("recruit", "--role", "impl", "--prompt", "faça X")).toBe(EXIT.ok);
+      const prompt = promptOf(r);
+      expect(prompt).toContain("assignee `dono-da-pr`, labels `fix,bug`, reviewers `revisora`");
+      expect(prompt.indexOf("PR pronta")).toBeLessThan(prompt.indexOf("faça X"));
+    });
+  });
+
+  test("dado papel que não abre PR ou sem papel, quando recruta, então o prompt não leva o bloco", async () => {
+    await withEnv(SETTINGS, async () => {
+      const r = await rig(baseDoc());
+      await r.terminal("/api/argos/roles", { role: { name: "review", color: "#a0b", instructions: "revise" } });
+      expect(await r.run("recruit", "--role", "review")).toBe(EXIT.ok);
+      expect(promptOf(r)).not.toContain("PR pronta");
+      expect(await r.run("recruit", "--no-role")).toBe(EXIT.ok);
+      expect(promptOf(r)).not.toContain("PR pronta");
+    });
+  });
+
+  test("as instruções de gerente mandam consolidar com `hades consolidate ready <N> --post`", () => {
+    const text = readFileSync(join(import.meta.dir, "../../../kit/panel/argos/orchestrator-role.md"), "utf8");
+    expect(text).toContain("hades consolidate ready <N> --post");
   });
 });
 

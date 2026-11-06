@@ -12,6 +12,7 @@ import { agentShortId, herdrRefOf, orchestratorOf, roundOf, type HerdrRef } from
 import { readText } from "../lib/fs.ts";
 import { type JournalEvent, parseEvent, parseSince, readTailText } from "../lib/journal.ts";
 import { parseSection } from "../lib/moirai.ts";
+import { agentRoleOf, contextOfDir } from "../lib/guard-hook.ts";
 import { exec } from "./exec.ts";
 import type { Herdr } from "./herdr.ts";
 import { LIMIT_DEFAULT, LIMIT_MAX } from "./journal.ts";
@@ -83,6 +84,10 @@ export interface GraphDeps {
   costBudgetBytes?: number;
   /** horas sem atividade a partir das quais o agente sai do grafo (`HADES_ARGOS_AGENT_MAX_AGE_H`, padrão 24 no catálogo); ausente ou 0 = sem corte */
   agentMaxAgeHours?(): number;
+  /** teto de contexto (tokens) do papel; ausente = o nó não é marcado (`ctxCapOf`, das Configurações) */
+  ctxCap?(role: string): number;
+  /** contexto atual (tokens) da sessão mais recente da worktree (padrão: `contextOfDir`) */
+  contextOf?(worktree: string): number;
 }
 
 interface AgentRecord {
@@ -233,6 +238,15 @@ export function createGraph(deps: GraphDeps): Graph {
     return entry.byUnit.get(a.name);
   }
 
+  /** `{usedK, capK}` quando a sessão do agente vivo passou do teto do papel; abaixo dele (ou sem teto configurado) o campo não existe. */
+  function ctxOverOf(a: AgentRecord): Dict | undefined {
+    const tree = text(a.data.worktree);
+    if (!deps.ctxCap || tree === "" || REGISTRY_DONE.has(text(a.data.state))) return undefined;
+    const cap = deps.ctxCap(agentRoleOf(a.data));
+    const used = (deps.contextOf ?? contextOfDir)(tree);
+    return used > cap ? { usedK: Math.floor(used / 1000), capK: Math.floor(cap / 1000) } : undefined;
+  }
+
   /** Arquivos do agente que existem (brief, report, questions, handoff; caminhos relativos à worktree) e quantas perguntas do `questions.md` seguem abertas. */
   function reportInfo(a: AgentRecord): { paths: AgentNodeFiles; openQuestions: number } {
     const tree = text(a.data.worktree);
@@ -277,7 +291,7 @@ export function createGraph(deps: GraphDeps): Graph {
     const { paths, openQuestions } = reportInfo(a);
     const extra = definedOnly({
       costUsd: costOf(a, ctx.budget), estimateUsd: estimateOf(a), card: text(a.data.card) || undefined, files: paths.length > 0 ? paths : undefined,
-      openQuestions: openQuestions > 0 ? openQuestions : undefined,
+      openQuestions: openQuestions > 0 ? openQuestions : undefined, ctxOver: ctxOverOf(a),
       gate: gateStateOf(a, tail, ctx.gates), pr: pr ?? undefined, ci: pr === null ? undefined : ciOfAgentPr(a, pr),
     });
     return {

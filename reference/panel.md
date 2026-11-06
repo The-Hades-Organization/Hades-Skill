@@ -263,6 +263,8 @@ coleta (`hades usage sample` no `statusLine`), nunca um número. As tabelas Por 
 `~% semana` (estimadas, `~`; `+` = só os modelos calibrados) quando há calibração. No Argos, o painel lateral de um agente
 leva a mesma medida em uma linha discreta. Fonte e regra: `reference/limites.md`.
 
+Sessões que passaram do teto de contexto do papel: o **Máximo** do agente em tom de aviso com a linha "acima do teto de Nk" (texto, não só cor) e um cartão **Sessões acima do teto** (sessão, papel, turnos, máximo, teto) que só existe quando há alguma; `overCap` do `/api/usage` (`hades usage`, `reference/cli.md`).
+
 Tour da página (§Tour por página): nove passos (resumo, ações, janelas do plano, as quatro leituras, papel, dia, estimado × real e agentes); sem
 prévia, porque a leitura depende do cálculo real dos transcripts; passos de card condicional levam `fallback`. Código:
 `ui/pages/usage.tour.tsx`.

@@ -97,9 +97,9 @@ describe("legenda: o modelo", () => {
     }
   });
 
-  test("dado o modelo, então cobre os sete indicadores do nó e a CI nos três veredictos", () => {
+  test("dado o modelo, então cobre os oito indicadores do nó e a CI nos três veredictos", () => {
     const kinds = new Set(model.indicators.map((i) => i.kind));
-    expect([...kinds].sort()).toEqual(["ci", "cost", "gate", "herdr", "permission", "pr", "question"]);
+    expect([...kinds].sort()).toEqual(["ci", "context", "cost", "gate", "herdr", "permission", "pr", "question"]);
     expect(model.indicators.filter((i) => i.kind === "gate")).toHaveLength(3);
     expect(model.indicators.filter((i) => i.kind === "ci")).toHaveLength(3);
     for (const i of model.indicators) expect(i.label.trim(), `rótulo de ${i.kind}`).not.toBe("");

@@ -20,7 +20,7 @@ const RESTART_WINDOW_S = 600;
 const HEALTH_TIMEOUT_MS = 3000;
 const HEALTH_FAILS_TO_ALERT = 2; // uma falha só é o serviço subindo
 const GATE_TOOLS = new Set(["gate", "build", "test", "test:integration"]);
-const AGENT_WORDS = ["STALLED", "QUESTION", "DONE", "BUDGET"] as const;
+const AGENT_WORDS = ["STALLED", "QUESTION", "DONE", "BUDGET", "CTX-OVER"] as const;
 type AgentWord = (typeof AGENT_WORDS)[number];
 
 type Problem = [severity: string, text: string, sig: string];
@@ -216,7 +216,7 @@ export class Watcher {
     await this.problems("doctor", probs);
   }
 
-  /** Agentes orquestrados: STALLED/QUESTION/DONE/BUDGET do `hades watch` (estado próprio, para não roubar o do orquestrador). */
+  /** Agentes orquestrados: STALLED/QUESTION/DONE/BUDGET/CTX-OVER do `hades watch` (estado próprio, para não roubar o do orquestrador). */
   private async agents(): Promise<void> {
     const state = join(this.ctx.state, "agents");
     const fresh = !existsSync(state);
@@ -252,6 +252,7 @@ export class Watcher {
         QUESTION: "pergunta aberta para o dono",
         DONE: "terminou (STATUS: DONE)",
         BUDGET: `passou do estimado: ${w[2] ?? "?"}% do p75 da Moirai`,
+        "CTX-OVER": `contexto em ${w[2] ?? "?"}, acima do teto do papel (${w[3] ?? "?"}): estacionar`,
       };
       await notify(this.ctx, "agent", word === "DONE" ? "info" : "warn", text[word], { obj: w[1], sig: `${word}|${line.trim()}` });
     }

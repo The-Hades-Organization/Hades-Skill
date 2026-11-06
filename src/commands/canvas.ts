@@ -12,8 +12,11 @@ import {
   findNote, type HerdrTarget, identityPrompt, isOrchestrator, nodeName, nodesAtTarget, planConnect, planDismiss, planJoin, planLeave, planReassign,
   planRecruit, RECRUIT_ERRORS, RecruitError, recruitsOf, requireOrchestrator, requireRecruit, requireSharedNote, terminalTargetOf,
 } from "../lib/canvas-recruit.ts";
+import { labelsText, opensPr, prReadyPromptBlock, prReadyValues, type PrReadyValues } from "../lib/brief-pr.ts";
 import { effectiveConfig } from "../lib/config.ts";
 import { findStateDir } from "../lib/kit.ts";
+import { loadProfile, pathValue } from "../lib/profile.ts";
+import { resolveProject } from "../lib/project.ts";
 import { EXIT } from "../lib/output.ts";
 import { TERMINAL_NAME_MAX } from "../panel/argos-terminals.ts";
 import { exec } from "../panel/exec.ts";
@@ -104,6 +107,8 @@ export interface CanvasCliDeps {
   /** O pane do herdr deste processo, ou `undefined` fora do herdr. */
   caller(): Promise<HerdrTarget | undefined>;
   stdin(): Promise<string>;
+  /** Assignee, labels e reviewers das Configurações (e do perfil do projeto) para o bloco "PR pronta" do recruta. */
+  prReady?(): PrReadyValues;
   /** `notify.sh send agent info <texto> --obj <nome>` da instância. */
   notify(text: string, obj: string): Promise<{ rc: number; err: string }>;
   out(text: string): void;
@@ -371,12 +376,21 @@ export function recruitBody(orchestrator: Dict, p: Parsed, name: string): Dict {
   return body;
 }
 
-function identityOf(doc: CanvasDoc, recruit: CanvasNode, orchestrator: CanvasNode, task?: string): string {
+function identityOf(deps: CanvasCliDeps, doc: CanvasDoc, recruit: CanvasNode, orchestrator: CanvasNode, task?: string): string {
   const data = isDict(recruit.data) ? recruit.data : {};
+  // o papel (ou o da predefinição, que o painel devolve em `data.role`) diz se o recruta abre PR
+  const role = textField(data, "role") ?? null;
+  const values = opensPr(role) ? deps.prReady?.() : undefined;
   return identityPrompt({
-    name: nodeName(recruit), role: textField(data, "role") ?? null, orchestrator: nodeName(orchestrator),
-    notes: directNotesOf(doc, recruit.id).map((id) => noteName(doc, id)), ...(task !== undefined && { task }),
+    name: nodeName(recruit), role, orchestrator: nodeName(orchestrator),
+    notes: directNotesOf(doc, recruit.id).map((id) => noteName(doc, id)),
+    ...(values !== undefined && { prReady: prReadyPromptBlock(values) }), ...(task !== undefined && { task }),
   });
+}
+
+/** Modelo ou esforço que ninguém definiu (flag, papel, predefinição, Configurações): o terminal herda o settings.json do dono. */
+function inheritedDefaults(reply: Dict): string[] {
+  return (["model", "effort"] as const).filter((key) => typeof reply[key] !== "string");
 }
 
 async function sendPrompt(deps: CanvasCliDeps, target: HerdrTarget, text: string): Promise<void> {
@@ -420,8 +434,12 @@ async function recruit(deps: CanvasCliDeps, at: Located, p: Parsed): Promise<num
     throw error;
   }
   const node = placed.doc.nodes.find((n) => n.id === placed.result) as CanvasNode;
-  await sendPrompt(deps, target, identityOf(placed.doc, node, orchestrator, flag(p, "prompt")));
-  deps.out(`recruta ${name}: nó ${node.id}, pane ${target.pane}, em (${node.x}, ${node.y})`);
+  await sendPrompt(deps, target, identityOf(deps, placed.doc, node, orchestrator, flag(p, "prompt")));
+  const inherited = inheritedDefaults(reply);
+  if (inherited.length > 0) {
+    deps.err(`hades canvas: aviso: o recruta ${name} ficou sem ${inherited.join(" e ")} (sem papel com valor nas Configurações): herda o default do settings.json`);
+  }
+  deps.out(`recruta ${name}: nó ${node.id}, pane ${target.pane}, em (${node.x}, ${node.y})${data.model !== undefined ? `, modelo ${String(data.model)}` : ""}${data.effort !== undefined ? `, esforço ${String(data.effort)}` : ""}`);
   return EXIT.ok;
 }
 
@@ -460,7 +478,7 @@ async function reassign(deps: CanvasCliDeps, at: Located, p: Parsed): Promise<nu
     return refused(changed);
   }
   const node = placed.doc.nodes.find((n) => n.id === recruitNode.id) as CanvasNode;
-  await sendPrompt(deps, terminalTargetOf(node) as HerdrTarget, identityOf(placed.doc, node, orchestrator, flag(p, "prompt")));
+  await sendPrompt(deps, terminalTargetOf(node) as HerdrTarget, identityOf(deps, placed.doc, node, orchestrator, flag(p, "prompt")));
   deps.out(`recruta ${nodeName(node)} reiniciado com papel ${role ?? "nenhum"}`);
   return EXIT.ok;
 }
@@ -649,6 +667,11 @@ async function callerTarget(env: NodeJS.ProcessEnv): Promise<HerdrTarget | undef
   return { session: name, pane };
 }
 
+/** Labels de PR do perfil do projeto do diretório atual; fora de um projeto (ou sem perfil), sem labels. */
+function projectLabels(): string {
+  return labelsText(pathValue(loadProfile(resolveProject(process.cwd())), "pr.labels"));
+}
+
 function realDeps(): CanvasCliDeps {
   const dir = findStateDir();
   const base = panelBase(process.env, dir ? effectiveConfig(dir) : new Map());
@@ -681,6 +704,7 @@ function realDeps(): CanvasCliDeps {
       return { rc: r.timedOut ? 124 : r.status, err: r.stderr };
     },
     caller: () => callerTarget(process.env),
+    prReady: () => prReadyValues(projectLabels()),
     stdin: () => Bun.stdin.text(),
     async notify(text, obj) {
       if (!dir) return { rc: 1, err: "sem instalação do Hades" };

@@ -47,6 +47,8 @@ pelo Origin. Tudo que sobe do herdr, do `gh` ou do disco chega por leitura; nada
   - `card`: o card do registro do agente, quando tem.
   - `files`: caminhos (relativos à worktree) dos `brief.md`, `report.md`, `questions.md` e `handoff.md` que existem.
   - `openQuestions`: quantas perguntas do `questions.md` seguem sem resposta (só quando é maior que zero).
+  - `ctxOver`: `{usedK, capK}` quando a sessão do agente vivo passou do teto de contexto do papel (`HADES_CTX_CAP_<PAPEL>`);
+    o nó mostra o chip `context`. Agente encerrado ou dentro do teto: sem campo.
   - `gate`: `running` ou `waiting` (a fila do gate-lock é a verdade) ou `failed` (o último gate encerrado do diário
     reprovou e nada rodou depois).
   - `orchestrator`: `{session, pane}` do herdr de quem alocou o agente (`hades agent new|skill-new|review|adopt` chamado
@@ -3265,6 +3267,12 @@ agente, modelo, esforço, papel e predefinição, e nunca a caixa Orquestrador (
 A aparência (ícone, cor, tema, fonte) vem sempre do orquestrador. Nome padrão `<nome do orquestrador> <n>`, com a base
 encurtada para caber em `TERMINAL_NAME_MAX` (40) da rota de terminais.
 
+**Modelo e esforço do recruta.** Precedência: flag (`--model`/`--effort`) > predefinição ou papel do Argos > Configurações
+(`HADES_MODEL_<PAPEL>` / `HADES_EFFORT_<PAPEL>`, lidas por `roleModelDefaults` do `agent-registry`, o mesmo `configValue` do
+`agent new`) > `settings.json` do agente. O valor das Configurações só vale se o agente aceita a flag; valor inválido é
+ignorado com aviso. O nó do terminal mostra `modelo · esforço` efetivos (gravados em `argos/terminals.json`) ou "herda
+settings.json" quando nada foi resolvido, e o `recruit` avisa nesse caso (recruta sem papel e sem modelo).
+
 **Auto-layout.** Só no recrutamento: os recrutas daquele orquestrador ficam em fileiras de até `RECRUIT_LAYOUT.perRow`
 (4), centradas abaixo dele, com passo uniforme (maior largura + `gapX` 48; maior altura + `gapY` 96), na ordem em que
 foram criados (`recruitSlots`). O nó novo, a aresta, as conexões e o reposicionamento dos outros saem num lote só: um
@@ -3272,6 +3280,9 @@ desfazer tira o recruta e devolve as posições. `connect`, `reassign` e `dismis
 
 **Identidade do recruta** (`identityPrompt`): o primeiro prompt diz o nome, o papel, o orquestrador a quem responde, as
 notas ligadas e como lê-las e escrevê-las, e que ele não recruta nem dispensa ninguém; a tarefa de `--prompt` vem depois.
+Quando o papel abre PR (`impl`, `spec`, `consolidate`; lista fixa `PR_OPENING_ROLES` em `src/lib/brief-pr.ts`), a identidade
+leva também o bloco "PR pronta" (assignee, labels e reviewers de `HADES_ORCH_PR_ASSIGNEE` / labels / `HADES_ORCH_PR_REVIEWERS`),
+renderizado pela mesma função do `agent new`. As instruções de gerente mandam consolidar com `hades consolidate ready <N> --post`.
 
 **Página.** O documento muda por fora da página quando a CLI grava. Com a aba visível e o gravador parado, a cada
 `POLL_MS` a página compara a `rev` de `GET /api/canvases` com a que conhece e, passou dela, relê o documento (a pilha do

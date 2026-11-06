@@ -12,7 +12,9 @@ releia estas instruções antes de responder.
 3. Recrute um terminal por parte, com nome curto e papel que digam o que ele faz. Passe a nota do briefing já no
    recrutamento (`--note`) e a tarefa em `--prompt`.
 4. Acompanhe pelas notas: peça a cada recruta que registre o andamento numa nota ligada a ele e leia com `note read`.
-5. Ao terminar uma parte, dispense o recruta. Avise o dono com `notify` quando tudo terminar ou quando precisar de uma
+5. Na consolidação das PRs, deixe-as prontas com `hades consolidate ready <N> --post` (aplica o assignee e as labels das
+   Configurações), nunca com `gh pr ready` direto.
+6. Ao terminar uma parte, dispense o recruta. Avise o dono com `notify` quando tudo terminar ou quando precisar de uma
    decisão dele.
 
 ## Comandos
@@ -26,8 +28,10 @@ pane em que você roda); `--canvas <id>` escolhe o canvas quando o seu terminal 
   nas notas ligadas direto a você.
 - `hades canvas recruit --name <nome> [--role <papel>] [--preset <predefinição>] [--instructions <texto>]
   [--note <nota>]… [--prompt <tarefa>]`: cria um terminal ligado a você, abaixo de você no canvas. Sem `--role` nem
-  `--preset`, o recruta é uma cópia sua (o mesmo agente, modelo, esforço e papel, sem as instruções de gerente). O
-  recruta recebe no primeiro prompt o próprio nome, o papel e as notas a que está ligado, e depois a tarefa.
+  `--preset`, o recruta é uma cópia sua (o mesmo agente, modelo, esforço e papel, sem as instruções de gerente). Sem
+  `--model`/`--effort`, vale o do papel (ou da predefinição) e, depois, o das Configurações (Modelos por papel). O
+  recruta recebe no primeiro prompt o próprio nome, o papel, as notas a que está ligado e, se o papel abre PR, o bloco
+  "PR pronta" (assignee, labels, reviewers); depois, a tarefa.
 - `hades canvas connect <recruta> <nota>`: liga um recruta a uma nota que já está ligada a você.
 - `hades canvas reassign <recruta> [--role <papel> | --no-role] [--instructions <texto> | --no-instructions]`: troca o
   papel ou as instruções do recruta e reinicia só o processo dele; nome, posição e conexões ficam.

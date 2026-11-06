@@ -4,6 +4,7 @@
 // nunca vai a log nem ao aviso; o log leva só ação, nome, alvo e origem.
 import { chmodSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, sep } from "node:path";
+import { roleModelDefaults } from "../lib/agent-registry.ts";
 import { herdrServerDown, paneFrom } from "../lib/herdr.ts";
 import {
   AGENT_KINDS, ARGOS_ERROR_CODES, agentOf, ArgosError, type ArgosErrorCode, type ArgosRoleEntry, createRoleStore,
@@ -189,11 +190,24 @@ export function systemPromptOf(choice: TerminalChoice): string | undefined {
 const fail = (code: ArgosErrorCode, message: string): ArgosError => new ArgosError(code, message);
 const invalid = (message: string): ArgosError => fail(ARGOS_ERROR_CODES.invalid, message);
 
-/** Regra pura da escolha (D4): campo mandado vence; ausente segue predefinição, depois papel, depois o padrão global. */
-export function chooseTerminal(input: { agent?: string; model?: string; effort?: string }, preset: ArgosPresetEntry | undefined, role: ArgosRoleEntry | undefined): TerminalChoice {
+/** Modelo e esforço do papel nas Configurações (HADES_MODEL_<PAPEL>, HADES_EFFORT_<PAPEL>), já validados. */
+export interface SettingsChoice {
+  model?: string;
+  effort?: string;
+}
+
+/**
+ * Regra pura da escolha (D4): campo mandado vence; ausente segue predefinição, depois papel, depois as Configurações do
+ * papel e por fim o padrão global (o default do settings.json do dono). As Configurações só valem para o que o agente
+ * aceita: um agente sem flag de esforço não recusa a criação por causa de um default.
+ */
+export function chooseTerminal(
+  input: { agent?: string; model?: string; effort?: string }, preset: ArgosPresetEntry | undefined, role: ArgosRoleEntry | undefined, settings: SettingsChoice = {},
+): TerminalChoice {
   const agent = input.agent ?? preset?.agent ?? role?.agent ?? DEFAULT_AGENT;
-  const model = input.model ?? preset?.model ?? role?.model;
-  const effort = input.effort ?? preset?.effort ?? role?.effort;
+  const flags = AGENT_KINDS[agent];
+  const model = input.model ?? preset?.model ?? role?.model ?? (flags?.model ? settings.model : undefined);
+  const effort = input.effort ?? preset?.effort ?? role?.effort ?? (flags?.effort ? settings.effort : undefined);
   return { agent, ...(model !== undefined && { model }), ...(effort !== undefined && { effort }), ...(role !== undefined && { role }) };
 }
 
@@ -338,6 +352,21 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
     const role = roles.get(slugFormatOf(slug));
     if (!role) throw fail(ARGOS_ERROR_CODES.notFound, "papel inexistente");
     return role;
+  }
+
+  /** As Configurações do papel; valor inválido é ignorado com aviso (o terminal sobe, herdando o padrão), nunca derruba a criação. */
+  function settingsOf(slug: string): SettingsChoice {
+    const raw = roleModelDefaults(slug);
+    const checked: SettingsChoice = {};
+    try {
+      if (raw.model !== undefined) checked.model = modelOf(raw.model);
+      if (raw.effort !== undefined) checked.effort = effortOf(raw.effort);
+    } catch (error) {
+      if (!(error instanceof ArgosError)) throw error;
+      warn("configuração de modelo ou esforço do papel inválida: ignorada", { papel: slug });
+      return {};
+    }
+    return checked;
   }
 
   /** `orchestrator` do corpo: ausente, `true` ou `false`. */
@@ -509,7 +538,7 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
     const role = optional(roleSlug, roleOf);
     const orchestrator = orchestratorOf(body.orchestrator) === true;
     const instructions = instructionsOf(body.instructions) ?? undefined;
-    const chosen = chooseTerminal({ agent: optional(body.agent, agentOf), model: optional(body.model, modelOf), effort: optional(body.effort, effortOf) }, preset, role);
+    const chosen = chooseTerminal({ agent: optional(body.agent, agentOf), model: optional(body.model, modelOf), effort: optional(body.effort, effortOf) }, preset, role, role ? settingsOf(role.slug) : {});
     const extra = extraOf(instructions, orchestrator);
     const choice: TerminalChoice = extra.length ? { ...chosen, extra } : chosen;
     agentArgs(choice); // recusa (modelo, esforço, papel) que o agente não aceita antes de abrir o pane

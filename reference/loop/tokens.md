@@ -15,7 +15,10 @@ output, não o componente dominante. O que corta é **contexto curto** e **menos
    `/clear` pelo herdr); a continuidade é o `handoff.md` e o estado do loop, não o histórico.
 3. **Teto de contexto por papel**, aplicado pelo `hades guard` (PostToolUse) em toda sessão. Agente orquestrado:
    grava `handoff.md` com `STATUS: PARKED — teto de contexto` e para; o orquestrador `resume`. Orquestrador e sessão
-   interativa: só o aviso para atualizar o estado e pedir `/clear` ao dono — nunca param sozinhos.
+   interativa: só o aviso para atualizar o estado e pedir `/clear` ao dono — nunca param sozinhos. O papel vem do registro cuja
+   worktree é a **mais específica** da pasta da sessão (fronteira de diretório) e vale também depois de o agente encerrar; o
+   registro recusa (`WORKTREE_CONTAINS_AGENTS`) uma worktree que contém outras. Recruta do canvas sem registro: o teto da chave
+   do papel do Argos, senão `HADES_CTX_CAP_RECRUIT` (`reference/config.md`).
 4. **Zero polling.** O `hades guard` (PreToolUse) barra `sleep` de espera, laço com `sleep`, `tail -f`, `--watch` e
    `herdr wait` em primeiro plano e a mesma checagem repetida dentro da janela. Toda espera é um comando em segundo
    plano que acorda a sessão: `hades wait` (agentes) e `hades watch --next` (orquestrador). Para esperar um processo
@@ -39,6 +42,7 @@ output, não o componente dominante. O que corta é **contexto curto** e **menos
   barra na repetição (`gh pr checks`, `gh run view`, `herdr agent|pane read|list`, `gate-lock.sh status`). Não conta
   `| tail -N` (corta saída), `sleep` curto esperando processo subir, `Monitor` nem nada em segundo plano. Medido em
   2026-10-26 (3 dias): a regex antiga marcava US$ 42, a definição acima, US$ 4.
-- O `hades watch` avisa `CONTEXT` e `PARKED`; o painel mostra agente com contexto médio acima de 200 mil em destaque.
+- O `hades watch` avisa `CTX-OVER` (agente que passou do teto do papel e seguiu trabalhando; o orquestrador estaciona com `hades agent park`) e `PARKED`; o painel mostra agente com contexto médio acima de 200 mil em destaque.
+- Consumo (`hades usage` e a página) destaca as sessões cujo contexto máximo passou do teto do papel (`ctxMax` > `ctxCap`; igual ao teto não conta). Subagente não entra: o teto é da sessão principal.
 - Meta da mudança de 2026-10-23: custo por entrega concluída ~45% menor que a linha de base, sem aumentar as rodadas de
   review por PR. Julgue por entrega, não por requisição.

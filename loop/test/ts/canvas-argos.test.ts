@@ -207,8 +207,8 @@ describe("argos: indicadores no nó (T1, T2)", () => {
   });
 
   test("dado tudo junto, então a ordem é a do que pede o dono primeiro", () => {
-    const all = agent({ pendingPermission: { tool: "Bash" }, openQuestions: 2, ctxOver: { usedK: 320, capK: 200 }, gate: "failed", ci: { passing: 1, failing: 1, pending: 0 }, pr: 12, costUsd: 3, estimateUsd: 2, herdrState: "idle" });
-    expect(kinds(all)).toEqual(["permission", "question", "context", "gate", "ci", "pr", "cost", "herdr"]);
+    const all = agent({ pendingPermission: { tool: "Bash" }, openQuestions: 2, ctxOver: { usedK: 320, capK: 200 }, gate: "failed", ci: { passing: 1, failing: 1, pending: 0 }, pr: 12, costUsd: 3, estimateUsd: 2, herdrState: "idle", closedOnDone: true });
+    expect(kinds(all)).toEqual(["permission", "question", "context", "gate", "ci", "pr", "cost", "herdr", "closed"]);
   });
 
   test("dado contexto acima do teto, então o chip diz usado e teto; sem o campo ou com valor inválido, nenhum chip", () => {
@@ -275,6 +275,14 @@ describe("argos: indicadores no nó (T1, T2)", () => {
     expect(nodeIndicators(agent({ state: "done", herdrState: "working" }))[0]).toMatchObject({ kind: "herdr", label: "No herdr: trabalhando" });
     expect(kinds(agent({ state: "done", herdrState: "fora" }))).toEqual([]);
     expect(kinds({ type: "gate", state: "running", herdrState: "idle" })).toEqual([]);
+  });
+
+  test("dado agente fechado ao concluir, então o chip informativo aparece; em nó que não é agente ou sem a marca, não", () => {
+    expect(nodeIndicators(agent({ state: "done", closedOnDone: true }))).toEqual([
+      { kind: "closed", icon: "DoorClosed", tone: "muted", short: "fechado", label: "Fechado ao concluir" },
+    ]);
+    expect(kinds(agent({ state: "done", closedOnDone: false }))).toEqual([]);
+    expect(kinds({ type: "gate", state: "done", closedOnDone: true })).toEqual([]);
   });
 
   test("dado pouco espaço, então cabem os mais importantes e o resto vira contagem; ao menos um cabe com a contagem", () => {

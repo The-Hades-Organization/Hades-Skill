@@ -8,6 +8,9 @@ export const DEFAULT_INTERACTIVE_CAP = 300_000;
 export const RECRUIT_CAP_KEY = "HADES_CTX_CAP_RECRUIT";
 export const DEFAULT_RECRUIT_CAP = 200_000;
 
+export const COMPACT_AT_KEY = "HADES_CTX_COMPACT_AT";
+export const DEFAULT_COMPACT_AT = 150_000;
+
 /** Leitor de chave de configuração: ausente = `undefined`. */
 export type CapReader = (key: string) => string | undefined;
 
@@ -30,4 +33,13 @@ export function ctxCapOf(role: string, read: CapReader, recruit = false): number
   if (own !== undefined) return own;
   if (recruit) return positiveInt(read(RECRUIT_CAP_KEY)) ?? DEFAULT_RECRUIT_CAP;
   return positiveInt(read(INTERACTIVE_CAP_KEY)) ?? DEFAULT_INTERACTIVE_CAP;
+}
+
+/**
+ * Contexto a partir do qual o hook sugere `/compact`, ainda abaixo do teto. `undefined` quando o limiar não cabe abaixo do
+ * teto do papel (teto menor ou igual a ele): a sugestão some, o aviso do teto segue sendo o único.
+ */
+export function compactAtOf(read: CapReader, cap: number): number | undefined {
+  const at = positiveInt(read(COMPACT_AT_KEY)) ?? DEFAULT_COMPACT_AT;
+  return at < cap ? at : undefined;
 }

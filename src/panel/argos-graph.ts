@@ -292,6 +292,7 @@ export function createGraph(deps: GraphDeps): Graph {
     const extra = definedOnly({
       costUsd: costOf(a, ctx.budget), estimateUsd: estimateOf(a), card: text(a.data.card) || undefined, files: paths.length > 0 ? paths : undefined,
       openQuestions: openQuestions > 0 ? openQuestions : undefined, ctxOver: ctxOverOf(a),
+      closedOnDone: a.data.closedOnDone === true ? true : undefined,
       gate: gateStateOf(a, tail, ctx.gates), pr: pr ?? undefined, ci: pr === null ? undefined : ciOfAgentPr(a, pr),
     });
     return {

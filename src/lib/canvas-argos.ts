@@ -201,7 +201,7 @@ export function shapePoints(shape: Shape, x: number, y: number, w: number, h: nu
 
 // ------------------------------------------------------------------ indicadores no nó (T1, T2)
 
-export type IndicatorKind = "permission" | "question" | "context" | "gate" | "ci" | "pr" | "cost" | "herdr";
+export type IndicatorKind = "permission" | "question" | "context" | "gate" | "ci" | "pr" | "cost" | "herdr" | "closed";
 export interface Indicator { kind: IndicatorKind; icon: string; tone: Tone; short: string; label: string }
 
 export interface CiCounts { passing: number; failing: number; pending: number }
@@ -216,6 +216,8 @@ export interface IndicatorNode {
   openQuestions?: number | null;
   /** sessão do agente acima do teto de contexto do papel (`argos-graph`); ausente = dentro do teto */
   ctxOver?: { usedK: number; capK: number } | null;
+  /** sessão fechada pelo watch ao concluir (`closedOnDone` no registro); a worktree e o report seguem */
+  closedOnDone?: boolean | null;
   gate?: string | null;
   costUsd?: number | null;
   estimateUsd?: number | null;
@@ -239,7 +241,8 @@ const CI_LOOKS: Readonly<Record<CiVerdict, { icon: string; tone: Tone; short: st
   running: { icon: "Loader", tone: "warn", short: "CI", label: "CI rodando" },
 });
 /** Ordem de importância: o que pede o dono primeiro; o que couber é mostrado. */
-const KIND_ORDER: readonly IndicatorKind[] = ["permission", "question", "context", "gate", "ci", "pr", "cost", "herdr"];
+const KIND_ORDER: readonly IndicatorKind[] = ["permission", "question", "context", "gate", "ci", "pr", "cost", "herdr", "closed"];
+const ICON_CLOSED = "DoorClosed";
 const ICON_PERMISSION = "Hand";
 const ICON_QUESTION = "MessageCircleQuestion";
 const ICON_CONTEXT = "Gauge";
@@ -306,6 +309,7 @@ export function nodeIndicators(node: IndicatorNode): Indicator[] {
     const look = stateLook(herdr);
     found.push({ kind: "herdr", icon: ICON_HERDR, tone: look.tone, short: look.word, label: `No herdr: ${look.word}` });
   }
+  if (node.type === "agent" && node.closedOnDone === true) found.push({ kind: "closed", icon: ICON_CLOSED, tone: "muted", short: "fechado", label: "Fechado ao concluir" });
   return found.sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
 }
 
@@ -370,6 +374,7 @@ export function legendModel(): { types: TypeLook[]; states: LegendState[]; indic
       sample("pr", { pr: 1 }),
       { ...sample("cost", { costUsd: 1, estimateUsd: 2 }), label: "Custo × estimado da Moirai (amarelo a partir de 100%, vermelho a partir de 150%)" },
       { ...sample("herdr", { herdrState: "idle" }), label: "Estado no herdr, quando difere do registro" },
+      sample("closed", { closedOnDone: true }),
     ],
   };
 }

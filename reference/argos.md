@@ -49,6 +49,8 @@ pelo Origin. Tudo que sobe do herdr, do `gh` ou do disco chega por leitura; nada
   - `openQuestions`: quantas perguntas do `questions.md` seguem sem resposta (só quando é maior que zero).
   - `ctxOver`: `{usedK, capK}` quando a sessão do agente vivo passou do teto de contexto do papel (`HADES_CTX_CAP_<PAPEL>`);
     o nó mostra o chip `context`. Agente encerrado ou dentro do teto: sem campo.
+  - `closedOnDone`: `true` quando o `hades watch` fechou a sessão ao concluir (`HADES_ORCH_AUTO_DISMISS`); o nó mostra o chip
+    `fechado`. Encerrado à mão ou ainda vivo: sem campo.
   - `gate`: `running` ou `waiting` (a fila do gate-lock é a verdade) ou `failed` (o último gate encerrado do diário
     reprovou e nada rodou depois).
   - `orchestrator`: `{session, pane}` do herdr de quem alocou o agente (`hades agent new|skill-new|review|adopt` chamado
@@ -1684,6 +1686,7 @@ escuro, por isso o texto dele usa a cor de primeiro plano.
 | PR | `pr` (`#n`) | muted |
 | custo | `costUsd`; com `estimateUsd`, `$gasto/estimado` | warn a partir de 100% do estimado, bad a partir de 150% |
 | herdr | `herdrState` **difere** do estado do nó (senão repetiria a palavra do estado) | o do estado no herdr |
+| fechado | agente com `closedOnDone` (o watch fechou a sessão ao concluir; `DoorClosed`, "fechado ao concluir"); informativo, o último na ordem | muted |
 
 Os limites 100% e 150% são os padrões da Moirai (`HADES_MOIRAI_WARN_PCT`, `HADES_MOIRAI_ASK_PCT`); o navegador não lê a
 configuração, então a cópia está em `COST_WARN_PCT` e `COST_BAD_PCT` e muda junto. O percentual não é arredondado antes
@@ -3231,7 +3234,8 @@ e refaz o plano até 3 vezes (`canvas_doc_conflict`).
 | Subcomando | Quem pode | O que faz | Recusas |
 |---|---|---|---|
 | `note list\|read\|write` | qualquer terminal | §Conexões | `canvas_note_no_access`, `canvas_note_write_direct_only`, `canvas_note_conflict` |
-| `recruit [--name] [--role\|--no-role] [--preset] [--agent] [--model] [--effort] [--cwd] [--instructions] [--note]… [--prompt]` | orquestrador | cria o terminal pela rota de criar (a mesma do modal: local direto, pelo acesso remoto `confirm` e aviso), põe o nó abaixo do orquestrador com aresta `recruit` e as conexões às `--note` pedidas, e manda a identidade no primeiro prompt | `recruit_not_orchestrator`, `recruit_note_not_shared`, `recruit_missing_note` |
+| `recruit [--name] [--role\|--no-role] [--preset] [--agent] [--model] [--effort] [--cwd] [--instructions] [--note]… [--new-note <nome>] [--prompt]` | orquestrador | cria o terminal pela rota de criar (a mesma do modal: local direto, pelo acesso remoto `confirm` e aviso), põe o nó abaixo do orquestrador com aresta `recruit` e as conexões às `--note` pedidas, e manda a identidade no primeiro prompt; `--new-note` cria no mesmo lote a nota de andamento (ligada ao recruta e ao orquestrador, arquivo com `# Andamento: <recruta>`), conferida antes de abrir o pane | `recruit_not_orchestrator`, `recruit_note_not_shared`, `recruit_missing_note`, `recruit_note_exists`, `canvas_note_file_exists`, `note_invalid_name` |
+| `note new <nome> [--title] [--text\|entrada padrão] [--link-to <recruta>]…` | orquestrador | cria o nó `note` perto do orquestrador (grade dos recrutas espelhada para cima, para não cair sobre eles), liga-o ao orquestrador e aos recrutas de `--link-to` (mesma regra do `connect`) num lote só, e depois grava o arquivo (revisão nula) como o orquestrador; `--title` vai pela rota de renomear. Sem `--text`, lê a entrada padrão só se ela não for o teclado (sem nenhuma, nota vazia). Tudo o que recusa é conferido antes de gravar | `note_invalid_name`, `recruit_note_exists`, `canvas_note_file_exists`, `recruit_not_orchestrator`, `recruit_not_yours`, `recruit_not_recruit`, `recruit_not_in_canvas` |
 | `connect <recruta> <nota>` | orquestrador, sobre recruta seu | liga o recruta a uma nota já ligada ao orquestrador (repetir não duplica) | `recruit_not_yours`, `recruit_note_not_shared` |
 | `reassign <recruta> [--role r\|--no-role] [--instructions t\|--no-instructions]` | orquestrador, sobre recruta seu | grava o papel no nó e depois troca papel ou instruções pela rota de papel, que reinicia só o processo (reinício recusado devolve o papel de antes ao nó); posição, nome e conexões ficam; a identidade sai de novo | `recruit_not_yours` |
 | `dismiss <recruta>` | orquestrador, sobre recruta seu | fecha o pane pela rota de fechar e tira o nó com as arestas dele | `recruit_not_yours` |

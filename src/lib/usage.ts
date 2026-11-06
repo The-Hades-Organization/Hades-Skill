@@ -383,6 +383,12 @@ interface AgentTotals extends Totals {
   pr: unknown;
   models: Record<string, number>;
   cwd: string;
+  /** Sessões distintas do agente (sem subagente). */
+  sessionIds: Set<string>;
+  /** Último instante (epoch ms) de atividade do agente. */
+  lastMs: number;
+  /** Reaproveitado: mais de um prompt de fase na sessão do agente, ou ela seguiu depois do DONE. */
+  reused: boolean;
 }
 interface SessionTotals {
   cwd: string;
@@ -394,8 +400,25 @@ interface SessionTotals {
   ctx_max: number;
 }
 
+const epochMs = (iso: string): number => {
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? 0 : ms;
+};
+
+/**
+ * O agente (a sessão do herdr, que o `/clear` das fases e do resume reaproveita) foi reaproveitado: recebeu mais de uma
+ * fase (`clears`), voltou depois de um DONE (`reopenedAfterDone`, gravado pelo `done`) ou a atividade passou do `doneAt`.
+ */
+export function agentReused(record: Agent | undefined, lastMs: number): boolean {
+  if (record === undefined) return false;
+  if (Number(record.clears) > 0 || record.reopenedAfterDone === true) return true;
+  const doneAt = typeof record.doneAt === "string" ? epochMs(record.doneAt) : 0;
+  return doneAt > 0 && lastMs > doneAt;
+}
+
 export function byRoles(rows: Row[], agents: Agent[], isGitDir: (dir: string) => boolean | undefined): Roles {
   const byRole = new Map<string, Totals>();
+  const recordOf = new Map<string, Agent>(agents.map((a) => [text(a.name, ""), a]));
   const sessions = new Map<string, SessionTotals>();
   const named = new Map<string, AgentTotals>();
   for (const row of rows) {
@@ -409,11 +432,14 @@ export function byRoles(rows: Row[], agents: Agent[], isGitDir: (dir: string) =>
     session.ctx_sum += row.ctx_sum;
     session.ctx_max = Math.max(session.ctx_max, row.ctx_max);
     if (typeof name === "string" && name !== "") {
-      const agent = slot(named, name, (): AgentTotals => ({ ...ZERO, name, role, pr, models: {}, cwd: row.cwd }));
+      const agent = slot(named, name, (): AgentTotals => ({ ...ZERO, name, role, pr, models: {}, cwd: row.cwd, sessionIds: new Set(), lastMs: 0, reused: false }));
       add(agent, row);
+      if (!row.sidechain) agent.sessionIds.add(row.session);
+      agent.lastMs = Math.max(agent.lastMs, epochMs(row.last));
       for (const [model, count] of Object.entries(row.models)) agent.models[model] = (agent.models[model] ?? 0) + count;
     }
   }
+  for (const agent of named.values()) agent.reused = agentReused(recordOf.get(agent.name), agent.lastMs);
   const sessionsByRole = new Map<string, number>();
   for (const session of sessions.values()) {
     const roleKey = session.role + (session.side ? " · subagente" : "");
@@ -469,8 +495,10 @@ export function buildReport(rows: Row[], roles: Roles, days: number, since: stri
   const byAgent = [...roles.agents.values()].map((agent) => ({
     name: agent.name, role: agent.role, pr: agent.pr, cost: rf(agent.cost, 2), turns: agent.turns, poll_cost: rf(agent.poll_cost, 2),
     rewrite_cost: rf(agent.rewrite_cost, 2), ctx_max: agent.ctx_max, models: agent.models, cwd: agent.cwd, ctxAvg: avg(agent.ctx_sum, agent.turns), ...pcts(agent.tok),
-    ...capFields(agent.role, agent.ctx_max),
+    sessions: agent.sessionIds.size, reused: agent.reused, ...capFields(agent.role, agent.ctx_max),
   }));
+  // sem agente nomeado o relatório segue idêntico ao anterior
+  const reuse = reuseOf([...roles.agents.values()]);
   const topSessions = [...roles.sessions.values()].map((s) => ({
     cwd: s.cwd, role: s.role, subagent: s.side, cost: rf(s.cost, 2), turns: s.turns, ctxAvg: avg(s.ctx_sum, s.turns), ctxMax: s.ctx_max,
     ...(s.side ? {} : capFields(s.role, s.ctx_max)),
@@ -489,7 +517,25 @@ export function buildReport(rows: Row[], roles: Roles, days: number, since: stri
     byAgent: byAgent.sort(byCostDesc),
     topSessions: topSessions.sort(byCostDesc).slice(0, 15),
     ...(overCap.length ? { overCap } : {}),
+    ...(reuse ? { reuse } : {}),
   };
+}
+
+interface ReuseBucket {
+  units: number;
+  sessions: number;
+  cost: PyFloat;
+  turns: number;
+}
+
+/** Turnos e custo por unidade, separando as reaproveitadas das novas (medida do auto-dismiss); sem agente, nada. */
+function reuseOf(agents: AgentTotals[]): { reused: ReuseBucket; fresh: ReuseBucket } | undefined {
+  if (agents.length === 0) return undefined;
+  const bucket = (list: AgentTotals[]): ReuseBucket => ({
+    units: list.length, sessions: list.reduce((n, a) => n + a.sessionIds.size, 0), cost: rf(list.reduce((n, a) => n + a.cost, 0), 2),
+    turns: list.reduce((n, a) => n + a.turns, 0),
+  });
+  return { reused: bucket(agents.filter((a) => a.reused)), fresh: bucket(agents.filter((a) => !a.reused)) };
 }
 
 /** Sessões principais (sem subagente) cujo contexto máximo passou do teto do papel, as de maior excesso primeiro. */

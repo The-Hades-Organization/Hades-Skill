@@ -178,6 +178,13 @@ function overCapLines(over: Dict[] | undefined): string[] {
   return lines;
 }
 
+/** Reaproveitadas × novas (auto-dismiss): turnos e custo por unidade; relatório sem agente não leva o bloco. */
+function reuseLines(reuse: { reused: Dict; fresh: Dict } | undefined): string[] {
+  if (reuse === undefined) return [];
+  const row = (label: string, b: Dict): string => `  ${pad(label, 16)}${pad(String(b.units), 9, true)}${pad(String(b.sessions), 9, true)}${pad(String(b.turns), 9, true)}${pad(fixed(plain(b.cost), 0), 9, true)}`;
+  return ["", "sessões reaproveitadas × novas:", `  ${pad("", 16)}${pad("unidades", 9, true)}${pad("sessões", 9, true)}${pad("turnos", 9, true)}${pad("custo", 9, true)}`, row("reaproveitadas", reuse.reused), row("novas", reuse.fresh)];
+}
+
 function printable(report: Report, limits: Limits | undefined): string[] {
   const total = report.total as Dict;
   const value = plain;
@@ -202,6 +209,7 @@ function printable(report: Report, limits: Limits | undefined): string[] {
       lines.push(`  ${pad(String(a.name), 22)}${pad(String(a.role), 24)}US$ ${pad(fixed(value(a.cost), 0), 6, true)}  ctx médio ${pad(fixed(Number(a.ctxAvg) / 1000, 0), 4, true)}k  polling US$ ${fixed(value(a.poll_cost), 0)}${a.overCap === true ? "  acima do teto" : ""}${a.pct5h === undefined ? "" : `  5h ${pctText(a.pct5h, a.pct5hPartial)}  semana ${pctText(a.pctWeek, a.pctWeekPartial)}`}`);
     }
   }
+  lines.push(...reuseLines(report.reuse as { reused: Dict; fresh: Dict } | undefined));
   lines.push(...overCapLines(report.overCap as Dict[] | undefined));
   const days = report.byDay as Dict[];
   if (withPct && days.length) {

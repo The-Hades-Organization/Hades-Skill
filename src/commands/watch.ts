@@ -5,6 +5,7 @@ import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, rmSyn
 import { dirname, join } from "node:path";
 import { parsePullRequest, text } from "../lib/activity.ts";
 import { need } from "../lib/deps.ts";
+import { dismissHeld } from "../lib/agent-dismiss.ts";
 import { agentRoleOf, contextOfDir } from "../lib/guard-hook.ts";
 import { emitJournal } from "../lib/journal.ts";
 import { commitsCitados, reportTemProva } from "../lib/cerberus-vigilia.ts";
@@ -13,12 +14,13 @@ import { JANELAS, type Janela } from "../lib/limites.ts";
 import { janelasParaAvisar, linhaDeLimite } from "../lib/limites-aviso.ts";
 import { chaves, limiaresDeAviso, medidas } from "../lib/limites-io.ts";
 import { firstLine, readText } from "../lib/fs.ts";
-import { out, warn } from "../lib/output.ts";
+import { HadesError, out, warn } from "../lib/output.ts";
 import { run } from "../lib/proc.ts";
 import { inScope, observerKey, parseWatchArgs, WatchUsageError, type WatchScope } from "../lib/watch-scope.ts";
 import { loadProfile } from "../lib/profile.ts";
 import { ctxCapOf } from "../lib/ctx-cap.ts";
 import { resolveProject } from "../lib/project.ts";
+import { closeAgent, pushedRef } from "./agent-run.ts";
 import { currentCost, type CostCache } from "./moirai.ts";
 import { exists, fixRuleOf, isProductionFix } from "../lib/thanatos.ts";
 import {
@@ -168,8 +170,9 @@ class Watcher {
     // antes das perguntas: a QUESTION de custo é gravada aqui e sai pelo mesmo caminho das do agente
     this.scanBudget(name, file, worktree, text(reg.phase) || text(reg.role) || "impl");
     this.scanQuestions(name, worktree);
-    this.scanDone(name, join(reports, "report.md"), worktree, promptedAt, promptedEpoch, reg.noCommit === true);
+    const doneClean = this.scanDone(name, join(reports, "report.md"), worktree, promptedAt, promptedEpoch, reg.noCommit === true);
     const pr = this.scanPrOpen(name, file, reg, text(reg.pr));
+    if (doneClean) this.scanDismiss(name, file, { ...reg, ...(pr ? { pr: Number(pr) } : {}) }, hostStatus.get(name) ?? "", promptedAt || "sem-prompt");
     if (pr) this.scanReview(name, pr);
     const parked = this.scanParked(name, join(reports, "handoff.md"), promptedEpoch);
     this.scanContext(name, worktree, agentRoleOf(reg), parked);
@@ -223,15 +226,75 @@ class Watcher {
    * `--no-commit` dispensa o commit). Reescrever o report no mesmo prompt não reemite. Report que se declara DONE mas
    * falta prova ou commit sai como DONE-HELD, uma vez por prompt e motivo, para o orquestrador não esperar calado.
    */
-  private scanDone(name: string, report: string, worktree: string, promptedAt: string, promptedEpoch: number, noCommit: boolean): void {
-    if (!firstLine(report).startsWith("STATUS: DONE") || this.mtimeSeconds(report) <= promptedEpoch) return;
+  private scanDone(name: string, report: string, worktree: string, promptedAt: string, promptedEpoch: number, noCommit: boolean): boolean {
+    if (!firstLine(report).startsWith("STATUS: DONE") || this.mtimeSeconds(report) <= promptedEpoch) return false;
     const held = this.heldReason(readText(report) ?? "", worktree, noCommit);
     const cycle = promptedAt || "sem-prompt";
     if (held === undefined) {
       if (this.seen(`${name}.done`, cycle)) this.emit(`DONE ${name}`);
-      return;
+      return true;
     }
     if (this.seen(`${name}.done-held`, `${cycle}|${held}`)) this.emit(`DONE-HELD ${name} ${held}`);
+    return false;
+  }
+
+  /**
+   * Fechamento ao concluir (reference/loop/orchestrate.md), reavaliado a cada passada enquanto o DONE do ciclo vale: a
+   * sessão pode ficar ociosa depois do report. Condição que falha: `DISMISS-HELD <agente> <motivo>` (uma vez por ciclo e
+   * motivo) e nada fecha. Tudo ok com HADES_ORCH_AUTO_DISMISS=0: `DISMISS-READY` (uma vez por ciclo), o fechamento fica
+   * com o dono. Ligado: o `closeAgent` do `hades agent done` audita e fecha, e sai `DISMISSED`. Worktree, branch, report e
+   * diário ficam.
+   */
+  private scanDismiss(name: string, file: string, reg: Json, herdrStatus: string, cycle: string): void {
+    const worktree = text(reg.worktree);
+    const pr = reg.pr === undefined || reg.pr === null ? "" : text(reg.pr);
+    const held = dismissHeld({
+      mode: text(reg.mode),
+      herdr: herdrStatus,
+      pr,
+      prHead: () => this.prHead(pr),
+      localHead: run("git", ["-C", worktree, "rev-parse", "HEAD"]).stdout.trim(),
+    });
+    if (held !== undefined) {
+      if (this.seen(`${name}.dismiss-held`, `${cycle}|${held}`)) this.emit(`DISMISS-HELD ${name} ${held}`);
+      return;
+    }
+    if (configValue("HADES_ORCH_AUTO_DISMISS", "1") === "0") {
+      if (this.seen(`${name}.dismiss-ready`, cycle)) this.emit(`DISMISS-READY ${name}`);
+      return;
+    }
+    // a auditoria registra o veredito no Cerberus a cada chamada: só se repete quando o estado do git mudou
+    const auditFile = join(this.seenDir, `${name}.dismiss-audit`);
+    const state = `${cycle}|${this.gitState(worktree)}`;
+    if (readText(auditFile) === state) return;
+    try {
+      const closed = closeAgent(this.work, name, reg, { keepPane: false, closedOnDone: true, say: () => undefined, quiet: true, file });
+      if (!closed.ok) {
+        writeFileSync(auditFile, state);
+        if (this.seen(`${name}.dismiss-held`, `${cycle}|${closed.reason}`)) this.emit(`DISMISS-HELD ${name} ${closed.reason}`);
+        return;
+      }
+    } catch (error) {
+      if (!(error instanceof HadesError)) throw error;
+      writeFileSync(auditFile, state);
+      if (this.seen(`${name}.dismiss-held`, `${cycle}|erro`)) this.emit(`DISMISS-HELD ${name} erro`);
+      return;
+    }
+    rmSync(auditFile, { force: true });
+    this.emit(`DISMISSED ${name} fechado ao concluir`);
+  }
+
+  /** headRefOid da PR da unidade; undefined quando o `gh` não respondeu. */
+  private prHead(pr: string): string | undefined {
+    const r = run("gh", ["pr", "view", pr, "-R", `${this.owner}/${this.repo}`, "--json", "headRefOid", "--jq", ".headRefOid"], { timeoutMs: GH_TIMEOUT_MS });
+    return r.status === 0 ? r.stdout.trim() : undefined;
+  }
+
+  /** Impressão do que a auditoria do `done` lê no git: HEAD, mudança sem commit e a referência publicada. */
+  private gitState(worktree: string): string {
+    const git = (...args: string[]): string => run("git", ["-C", worktree, ...args]).stdout.trim();
+    const pushed = pushedRef(worktree);
+    return [git("rev-parse", "HEAD"), git("status", "--porcelain", "--untracked-files=no"), pushed ? git("rev-parse", pushed) : ""].join("|");
   }
 
   /** Por que o DONE do report ainda não vale; undefined quando vale. */

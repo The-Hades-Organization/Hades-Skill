@@ -40,7 +40,7 @@ Os subcomandos vêm agrupados por área. Coluna "Shim": `kit/<arquivo>` é um sh
 | `caronte unpack <arq> [--work-root <d>] [--plans <d>] [--worktrees <d>] [--clone <d>] [--dry-run]` | abre o pacote cifrado e refaz plano, registros (agentes `parked`), relatórios e worktrees (bundle + patch) com os caminhos reescritos; recusa sem tocar em nada se algo já existe ou falta, desfaz se falha no meio, nunca clona (`reference/caronte.md`) | — |
 | `caronte brief <plano>` | imprime o prompt de retomada do orquestrador numa outra sessão da mesma máquina (só leitura) | — |
 | `pr-set [--heads]` | conjunto de PRs da `hades/local` (`$D/prs.list`) em ordem topológica | — |
-| `usage [--days N] [--json] [--baseline]` | consumo de tokens por papel de sessão (custo equivalente de API, polling, reescrita de contexto) e, ao lado do US$, `% 5h` e `% semana` estimados pela calibração mais o % medido das janelas; grava `~/.claude/hades/usage/`; sessão e agente acima do teto de contexto do papel ganham `ctxCap`/`overCap` e o relatório, `overCap[]` (só as principais, maior excesso primeiro); a saída de texto lista "acima do teto de contexto" | — |
+| `usage [--days N] [--json] [--baseline]` | consumo de tokens por papel de sessão (custo equivalente de API, polling, reescrita de contexto) e, ao lado do US$, `% 5h` e `% semana` estimados pela calibração mais o % medido das janelas; grava `~/.claude/hades/usage/`; sessão e agente acima do teto de contexto do papel ganham `ctxCap`/`overCap` e o relatório, `overCap[]` (só as principais, maior excesso primeiro); a saída de texto lista "acima do teto de contexto"; o relatório separa sessões reaproveitadas (`clears`, continuou depois do `DONE` ou reaberta depois dele) das novas em `reuse {reused, fresh}`, com turnos e custo de cada lado, e a página Consumo mostra o mesmo | — |
 | `usage sample [--quiet]` | comando do `statusLine`: lê o JSON do Claude Code no stdin e grava o % das janelas de 5 h e semanal em `~/.claude/hades/limits/samples.jsonl` (`reference/limites.md`) | — |
 | `guard [context <cwd>]` · `guard register` | hook PreToolUse/PostToolUse (JSON no stdin) e o registro dele no `settings.json` (abaixo) | — |
 
@@ -49,6 +49,7 @@ Notas do `agent`:
 - `phase <nome> <fase> --no-commit`: a fase não faz commit e o `DONE` do `hades watch` exige só a prova (`resume` mantém,
   `phase` sem a flag reseta).
 - `prompt|resume|answer|phase` avisam quando o `report.md` ainda começa com `STATUS: DONE`.
+- `resume` (e `canvas recruit --cwd` numa worktree concluída) avisa que a sessão foi encerrada ao concluir (`HADES_ORCH_AUTO_DISMISS`) e que a correção abre agente novo na mesma worktree a partir do `handoff.md`/`report.md`. Aviso, não recusa.
 
 ### Ambiente
 
@@ -77,7 +78,7 @@ Notas do `agent`:
 |---|---|---|
 | `panel serve [--port <porta>]` | servidor do painel em TypeScript (`src/panel/`, `reference/panel.md`) | — |
 | `panel service start\|stop\|restart\|status\|url\|autostart` | o painel como serviço do usuário, pelo gerenciador da plataforma (systemd ou launchd; `HADES_SERVICE_MANAGER` força um) | `kit/panel.sh` |
-| `canvas note list\|read\|write`, `recruit\|connect\|reassign\|dismiss\|notify [--canvas <id>]` | o agente de um terminal do canvas lê e grava as notas ligadas ao nó dele (a cadeia só se lê) e, se o terminal tem a caixa Orquestrador, comanda os recrutas que criou; recusa sai 1, uso errado sai 2 (`reference/argos.md` §Orquestrador no canvas); `recruit` aplica `HADES_MODEL_<PAPEL>`/`HADES_EFFORT_<PAPEL>` quando a linha de comando não traz modelo/esforço e leva o bloco "PR pronta" no primeiro prompt de papel que abre PR | — |
+| `canvas note list\|read\|write\|new`, `recruit\|connect\|reassign\|dismiss\|notify [--canvas <id>]` | o agente de um terminal do canvas lê e grava as notas ligadas ao nó dele (a cadeia só se lê) e, se o terminal tem a caixa Orquestrador, comanda os recrutas que criou; recusa sai 1, uso errado sai 2 (`reference/argos.md` §Orquestrador no canvas); `recruit` aplica `HADES_MODEL_<PAPEL>`/`HADES_EFFORT_<PAPEL>` quando a linha de comando não traz modelo/esforço e leva o bloco "PR pronta" no primeiro prompt de papel que abre PR; `note new <nome> [--title] [--text] [--link-to <recruta>]…` cria a nota perto do orquestrador, ligada a ele e aos recrutas citados, e `recruit --new-note <nome>` cria a nota de andamento do recruta | — |
 | `canvas join [--pane <id>] [--canvas <id>] [--name n] [--role r] [--to <orquestrador>] [--note <nota>]…` · `canvas leave [--pane <id>]` | `join` traz para o canvas, como nó `terminal`, um pane do herdr que não nasceu nele, sem tocar no processo (sem `--pane`, o próprio terminal; pane que já é nó não duplica; nó `agent` do mesmo pane é trocado pelo terminal; terminal do registro volta com nome, agente e orquestrador); `leave` tira o nó sem fechar o pane. Fora do herdr recusa `canvas_join_outside_herdr`; recusa sai 1 (`reference/argos.md` §Orquestrador no canvas) | — |
 
 ### Projeto e plugin

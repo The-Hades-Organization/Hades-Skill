@@ -5,7 +5,7 @@
 import { CANVAS_LIMITS, type CanvasDoc, type CanvasEdge, type CanvasNode, paneKey } from "./canvas-doc.ts";
 import { type AtomicOp, type CanvasOp, opBatch, opCreate, opDelete, opMove, opUpdate } from "./canvas-history.ts";
 import { opCreateLink } from "./canvas-links.ts";
-import { hasNoteAccess, NOTE_READER_TYPES, NOTE_TYPE } from "./canvas-note.ts";
+import { createNoteNode, directNotesOf, hasNoteAccess, NOTE_READER_TYPES, NOTE_TYPE, requireNoteName } from "./canvas-note.ts";
 
 /** O nó que a ferramenta Terminal cria; só ele vira orquestrador ou recruta (tem processo que o canvas criou). */
 export const TERMINAL_NODE_TYPE = "terminal";
@@ -35,6 +35,7 @@ export const RECRUIT_ERRORS = {
   noteNotShared: "recruit_note_not_shared",
   ambiguous: "recruit_ambiguous",
   notOrchestratorTarget: "recruit_join_target_not_orchestrator",
+  noteExists: "recruit_note_exists",
 } as const;
 export type RecruitErrorCode = (typeof RECRUIT_ERRORS)[keyof typeof RECRUIT_ERRORS];
 
@@ -47,6 +48,7 @@ export const RECRUIT_ERROR_TEXT: Readonly<Record<RecruitErrorCode, string>> = {
   [RECRUIT_ERRORS.noteNotShared]: "a nota não está ligada ao orquestrador: ligue-a a você antes de passá-la ao recruta",
   [RECRUIT_ERRORS.ambiguous]: "mais de um nó com esse nome: use o id do nó",
   [RECRUIT_ERRORS.notOrchestratorTarget]: "--to pede um orquestrador deste canvas (nó terminal com a caixa Orquestrador): nome ou id não encontrado",
+  [RECRUIT_ERRORS.noteExists]: "já existe uma nota com esse nome (no canvas ou em arquivo): escolha outro nome",
 };
 
 export class RecruitError extends Error {
@@ -217,14 +219,17 @@ export interface RecruitInput {
   size?: { w: number; h: number };
   /** Notas já ligadas ao orquestrador que o recruta recebe ao nascer. */
   notes?: readonly string[];
+  /** Nome de uma nota de andamento nova, ligada ao recruta e ao orquestrador no mesmo lote. */
+  newNote?: string;
 }
 
 /**
  * O passo do recrutamento: o nó novo (com `recruiter`), a aresta do orquestrador até ele, as conexões às notas pedidas e o
  * auto-layout de todos os recrutas daquele orquestrador. Um lote só: desfazer tira o recruta e devolve as posições.
  */
-export function planRecruit(doc: CanvasDoc, input: RecruitInput): { op: CanvasOp; nodeId: string } {
+export function planRecruit(doc: CanvasDoc, input: RecruitInput): { op: CanvasOp; nodeId: string; noteId?: string } {
   const orchestrator = requireOrchestrator(doc, input.orchestratorId);
+  if (input.newNote !== undefined) requireFreshNoteName(doc, input.newNote);
   // a mesma nota pedida duas vezes (pelo nome e pelo id, ou repetida) vira uma conexão só
   const notes = [...new Map((input.notes ?? []).map((ref) => requireSharedNote(doc, orchestrator.id, ref)).map((n) => [n.id, n])).values()];
   const size = input.size ?? { w: orchestrator.w, h: orchestrator.h };
@@ -245,11 +250,63 @@ export function planRecruit(doc: CanvasDoc, input: RecruitInput): { op: CanvasOp
     ops.push(op);
     if (op.kind === "edge-create") next = { ...next, edges: [...next.edges, op.edge.item] };
   }
+  const progress = input.newNote === undefined ? undefined : planNoteNode(next, orchestrator, input.newNote, [orchestrator.id, nodeId]);
+  if (progress) ops.push(...progress.ops);
   team.forEach((member, i) => {
     const to = slots[i] as { x: number; y: number };
     if (member.x !== to.x || member.y !== to.y) ops.push(opMove(doc, member.id, to));
   });
-  return { op: opBatch(ops), nodeId };
+  return { op: opBatch(ops), nodeId, ...(progress && { noteId: progress.node.id }) };
+}
+
+/** Recusa nome fora do formato (`note_invalid_name`) e nome que já é nota do documento; o arquivo se confere na rota. */
+export function requireFreshNoteName(doc: CanvasDoc, name: string): string {
+  requireNoteName(name);
+  return findNote(doc, name) === undefined ? name : fail(RECRUIT_ERRORS.noteExists);
+}
+
+/**
+ * Onde a nota nova do orquestrador fica: a mesma grade dos recrutas (`recruitSlots`, passo e colunas), espelhada para cima
+ * dele, para não cair em cima dos recrutas, que ocupam as fileiras de baixo. A posição conta as notas já ligadas direto a ele.
+ */
+export function noteSlot(doc: CanvasDoc, orchestrator: CanvasNode, size: { w: number; h: number }): { x: number; y: number } {
+  const placed = directNotesOf(doc, orchestrator.id).flatMap((id) => doc.nodes.filter((n) => n.id === id));
+  const sizes = [...placed.map((n) => ({ w: n.w, h: n.h })), size];
+  // fileiras sempre cheias: o centramento de uma fileira incompleta deslocaria as notas que já estão no lugar
+  const full = Array.from({ length: Math.ceil(sizes.length / RECRUIT_LAYOUT.perRow) * RECRUIT_LAYOUT.perRow }, (_, i) => sizes[i] ?? size);
+  const slot = recruitSlots(orchestrator, full)[sizes.length - 1] as { x: number; y: number };
+  const below = orchestrator.y + orchestrator.h + RECRUIT_LAYOUT.gapY;
+  return { x: slot.x, y: orchestrator.y - RECRUIT_LAYOUT.gapY - size.h - (slot.y - below) };
+}
+
+/** O nó `note` novo perto do orquestrador, com uma ligação de cada nó em `linkFrom` até ele; as operações seguem o documento que cada uma viu. */
+function planNoteNode(doc: CanvasDoc, orchestrator: CanvasNode, name: string, linkFrom: readonly string[]): { ops: AtomicOp[]; node: CanvasNode } {
+  const frame = NEW_NOTE_SIZE;
+  const top = Math.min(CANVAS_LIMITS.layer - 1, doc.nodes.reduce((z, n) => Math.max(z, n.z), 0));
+  const { op, node } = createNoteNode(doc, { id: freshId(doc, "note-r"), note: name, ...noteSlot(doc, orchestrator, frame), ...frame, z: top + 1 });
+  const ops: AtomicOp[] = [op];
+  let next = { ...doc, nodes: [...doc.nodes, node] };
+  for (const from of new Set(linkFrom)) {
+    const link = opCreateLink(next, { id: freshId(next, "link-r"), from, to: node.id });
+    ops.push(link);
+    if (link.kind === "edge-create") next = { ...next, edges: [...next.edges, link.edge.item] };
+  }
+  return { ops, node };
+}
+
+/** Tamanho do nó de uma nota criada pela CLI (o mesmo da ferramenta Nota). */
+const NEW_NOTE_SIZE = Object.freeze({ w: 280, h: 200 });
+
+/**
+ * `note new`: o nó `note` novo perto do orquestrador, ligado a ele e aos recrutas dele em `linkTo` (mesma regra e mesmas
+ * recusas do `connect`). Um lote só: desfazer tira a nota e as ligações; o arquivo nasce na primeira gravação.
+ */
+export function planNewNote(doc: CanvasDoc, input: { callerId: string; name: string; linkTo?: readonly string[] }): { op: CanvasOp; node: CanvasNode; recruits: CanvasNode[] } {
+  const orchestrator = requireOrchestrator(doc, input.callerId);
+  const recruits = [...new Map((input.linkTo ?? []).map((ref) => requireRecruit(doc, orchestrator.id, ref)).map((n) => [n.id, n])).values()];
+  requireFreshNoteName(doc, input.name);
+  const { ops, node } = planNoteNode(doc, orchestrator, input.name, [orchestrator.id, ...recruits.map((n) => n.id)]);
+  return { op: opBatch(ops), node, recruits };
 }
 
 /** A nota que o orquestrador pode passar ao recruta: existe e está ligada direto a ele. */
@@ -391,4 +448,22 @@ export function identityPrompt(identity: Identity): string {
   if (identity.prReady) lines.push(identity.prReady);
   if (identity.task && identity.task.trim()) lines.push("", identity.task.trim());
   return lines.join("\n");
+}
+
+/** O que o aviso de "sessão encerrada ao concluir" lê do registro de um agente. */
+export interface AgentRecordView {
+  name: string;
+  worktree: string;
+  state: string;
+  closedOnDone: boolean;
+}
+
+/** O agente já concluído cuja worktree é (ou contém) `cwd`: recrutar ali reaproveitaria uma sessão que não existe mais. */
+export function concludedAgentAt(cwd: string, records: readonly AgentRecordView[]): string | undefined {
+  const here = cwd.replace(/\/+$/, "");
+  const found = records.find((r) => {
+    const worktree = r.worktree.replace(/\/+$/, "");
+    return worktree !== "" && (r.closedOnDone || r.state === "done") && (here === worktree || here.startsWith(`${worktree}/`));
+  });
+  return found?.name;
 }

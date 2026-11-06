@@ -15,7 +15,7 @@
 import { closeSync, mkdirSync, openSync, readSync, readdirSync, renameSync, statSync, writeFileSync, fstatSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { readText, firstLine, isFile, isDir } from "./fs.ts";
-import { ctxCapOf } from "./ctx-cap.ts";
+import { compactAtOf, ctxCapOf } from "./ctx-cap.ts";
 import { guardRules, maskDataStatements, stripAgentText, stripHeredocBodies, type GuardRules } from "./guard-rules.ts";
 import { hadesHome, home } from "./paths.ts";
 import { pyDumps, splitLines } from "./pyjson.ts";
@@ -585,6 +585,24 @@ export function contextTokens(path: string): number {
   return 0;
 }
 
+/**
+ * Sugestão de `/compact` antes do teto: uma vez por sessão, quando o contexto cruza `HADES_CTX_COMPACT_AT` (abaixo do teto do
+ * papel). Quem pode fechar a sessão (unidade curta) conclui; quem não pode compacta em vez de esperar o teto estourar.
+ */
+function compactSuggestion(file: string, ctx: number, cap: number, role: string, registered: boolean, at: number | undefined): string {
+  if (at === undefined || ctx < at) return "";
+  const state = loadState(file);
+  if (state.compactSuggested === true) return "";
+  state.compactSuggested = true;
+  saveState(file, state);
+  const head = `HADES: contexto em ${Math.floor(ctx / 1000)}k (papel ${role}; compactar a partir de ${Math.floor(at / 1000)}k, teto ${Math.floor(cap / 1000)}k). `;
+  const tail = registered
+    ? "Se a unidade está perto de concluir, siga e conclua (a sessão fecha sozinha no DONE). Se ainda vai longe, deixe o handoff.md " +
+      "atualizado e peça ao orquestrador um /compact: cada turno relê todo o contexto, e compactar agora sai mais barato que estacionar no teto."
+    : "Se a tarefa ainda vai longe, sugira ao dono rodar /compact (cada turno relê todo o contexto); compactar agora sai mais barato que esperar o teto.";
+  return additionalContext("PostToolUse", head + tail);
+}
+
 function postTool(d: HookInput, cfg: Cfg, env: HookEnv): string {
   const transcript = typeof d.transcript_path === "string" ? d.transcript_path : "";
   if ((cfg.HADES_CTX_GUARD ?? "1") !== "1" || !transcript) return "";
@@ -592,8 +610,8 @@ function postTool(d: HookInput, cfg: Cfg, env: HookEnv): string {
   const cwd = (d.cwd as string | undefined) || env.cwd();
   const { role, agent, recruit } = roleOf(cwd, env);
   const cap = ctxCapOf(role, (key) => cfg[key], recruit);
-  if (ctx < cap) return "";
   const file = stateFile(env.home(), (d.session_id as string | undefined) || "x");
+  if (ctx < cap) return compactSuggestion(file, ctx, cap, role, agent !== undefined, compactAtOf((key) => cfg[key], cap));
   const state = loadState(file);
   const rewarn = intOf(cfg, "HADES_CTX_REWARN", "50000");
   const warned = typeof state.warnedAt === "number" ? state.warnedAt : 0;

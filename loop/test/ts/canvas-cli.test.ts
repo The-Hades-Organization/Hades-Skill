@@ -2,7 +2,7 @@
 // sobre uma pasta temporária, com herdr falso (nenhum pane de verdade) — a leitura e a escrita de nota pela conexão (e a
 // cadeia nota↔nota), o recrutamento com auto-layout e identidade, as recusas a quem não é orquestrador e o dispensar.
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CANVAS_CLI_ERRORS, type CanvasCliDeps, recruitBody, runCanvas, USAGE } from "../../../src/commands/canvas";
@@ -117,6 +117,7 @@ async function rig(doc: CanvasDoc, managerText: () => string = () => MANAGER) {
       panelCalls.push(`${method} ${path}`);
       if (method === "GET" && path === "/api/argos/graph") return { status: 200, body: { nodes: [] } };
       if (path.startsWith("/api/canvas-notes/")) {
+        if (method === "POST") return reply(await notes.action(path, req(method, path, body), { remote: false }));
         return reply(method === "GET" ? notes.get(path) : await notes.write(path, req(method, path, body), { remote: false }));
       }
       if (path.startsWith("/api/canvases")) {
@@ -753,5 +754,184 @@ describe("canvas-cli: join e leave", () => {
     const [node] = terminalsAt(await r.current(), herdr.pane) as [CanvasNode];
     expect(node.data).toMatchObject({ name: "Comum 2" });
     expect((node.data as Dict).orchestrator).toBeUndefined();
+  });
+});
+
+describe("canvas-cli: note new e recruit --new-note", () => {
+  const noteNode = (doc: CanvasDoc, file: string): CanvasNode => doc.nodes.find((n) => n.type === "note" && (n.data as Dict).note === file) as CanvasNode;
+  const linksTo = (doc: CanvasDoc, id: string): string[] => doc.edges.filter((e) => e.kind === LINK_EDGE_KIND && e.to === id).map((e) => e.from);
+
+  test("com texto pelo argumento: cria arquivo (rev nula), nó acima do orquestrador e ligação a ele", async () => {
+    const r = await rig(baseDoc());
+    expect(await r.run("note", "new", "plano", "--text", "# Plano\npasso 1")).toBe(EXIT.ok);
+    const doc = await r.current();
+    const node = noteNode(doc, "plano");
+    expect(await r.noteText("plano")).toBe("# Plano\npasso 1");
+    expect(linksTo(doc, node.id)).toEqual(["term-orq"]);
+    const orq = doc.nodes.find((n) => n.id === "term-orq") as CanvasNode;
+    expect(node.y + node.h).toBeLessThan(orq.y);
+    expect(r.out).toEqual([`nota plano: nó ${node.id}, em (${node.x}, ${node.y}), ligada a Chefe`]);
+  });
+
+  test("texto pela entrada padrão; sem texto e com entrada do teclado, a nota nasce vazia", async () => {
+    const r = await rig(baseDoc());
+    r.io.stdin = "vindo do pipe";
+    expect(await r.run("note", "new", "pipe")).toBe(EXIT.ok);
+    expect(await r.noteText("pipe")).toBe("vindo do pipe");
+    (r.deps as { stdinPiped?: () => boolean }).stdinPiped = () => false;
+    expect(await r.run("note", "new", "vazia")).toBe(EXIT.ok);
+    expect(await r.noteText("vazia")).toBe("");
+  });
+
+  test("--link-to liga a nota aos recrutas (repetido ou pelo id vira uma ligação só) e --title dá o título", async () => {
+    const r = await rig(baseDoc());
+    expect(await r.run("recruit")).toBe(EXIT.ok);
+    expect(await r.run("recruit")).toBe(EXIT.ok);
+    const team = (await r.current()).nodes.filter((n) => (n.data as Dict).recruiter === "term-orq");
+    expect(await r.run("note", "new", "rev-1", "--title", "Review 1", "--link-to", "Chefe 1", "--link-to", team[0]!.id, "--link-to", "Chefe 2")).toBe(EXIT.ok);
+    const doc = await r.current();
+    expect(linksTo(doc, noteNode(doc, "rev-1").id)).toEqual(["term-orq", team[0]!.id, team[1]!.id]);
+    expect(r.out[0]).toContain("ligada a Chefe, Chefe 1, Chefe 2");
+    expect(r.err).toEqual([]);
+    const meta = (await (r.deps.panel("GET", "/api/canvas-notes/rev-1") as Promise<{ body: Dict }>)).body;
+    expect(meta.title).toBe("Review 1");
+  });
+
+  test("notas novas em sequência não se sobrepõem (mesma grade dos recrutas, espelhada para cima)", async () => {
+    const r = await rig(baseDoc());
+    for (const name of ["a1", "a2", "a3", "a4", "a5"]) expect(await r.run("note", "new", name, "--text", "x")).toBe(EXIT.ok);
+    const doc = await r.current();
+    const boxes = ["a1", "a2", "a3", "a4", "a5"].map((f) => noteNode(doc, f));
+    for (const [i, a] of boxes.entries()) {
+      for (const b of boxes.slice(i + 1)) expect(a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h).toBe(false);
+    }
+  });
+
+  test("desfazer do lote: um único passo (nó e ligações) numa revisão só", async () => {
+    const r = await rig(baseDoc());
+    const before = (await r.current()).rev;
+    expect(await r.run("note", "new", "lote", "--text", "x")).toBe(EXIT.ok);
+    expect((await r.current()).rev).toBe(before + 1);
+  });
+
+  test("recusas: nome fora do formato, nome de nota do canvas, arquivo que já existe, recruta alheio, quem não é orquestrador", async () => {
+    const r = await rig(baseDoc());
+    const before = await r.current();
+    expect(await r.run("note", "new", "../fora", "--text", "x")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe("note_invalid_name");
+    expect(await r.run("note", "new", "briefing", "--text", "x")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(RECRUIT_ERRORS.noteExists);
+    await r.writeNote("orfa", "de outro canvas");
+    expect(await r.run("note", "new", "orfa", "--text", "x")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(CANVAS_CLI_ERRORS.noteFileExists);
+    expect(await r.noteText("orfa")).toBe("de outro canvas");
+    expect(await r.run("note", "new", "n1", "--link-to", "Comum", "--text", "x")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(RECRUIT_ERRORS.notYourRecruit);
+    expect(await r.run("note", "new", "n1", "--link-to", "Fantasma", "--text", "x")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(RECRUIT_ERRORS.notRecruit);
+    expect(await r.noteText("n1")).toBeUndefined();
+    expect((await r.current()).rev).toBe(before.rev);
+    r.io.caller = { session: "default", pane: "w9:p1" };
+    expect(await r.run("note", "new", "n2", "--text", "x")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(RECRUIT_ERRORS.notOrchestrator);
+    r.io.caller = { session: "default", pane: "w77:p1" };
+    expect(await r.run("note", "new", "n2", "--text", "x")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(RECRUIT_ERRORS.notInCanvas);
+    r.io.caller = { session: "default", pane: ORQ_PANE };
+    expect(await r.run("note", "new")).toBe(EXIT.usage);
+  });
+
+  test("--canvas outro que o do chamador é recusado como fora do canvas", async () => {
+    const r = await rig(baseDoc());
+    expect(await r.run("note", "new", "x1", "--canvas", "nao-existe", "--text", "x")).toBe(EXIT.fail);
+  });
+
+  test("recruit --new-note: nota de andamento ligada ao recruta e ao orquestrador, citada no primeiro prompt", async () => {
+    const r = await rig(baseDoc());
+    expect(await r.run("recruit", "--new-note", "andamento-1")).toBe(EXIT.ok);
+    const doc = await r.current();
+    const recruitNode = doc.nodes.find((n) => (n.data as Dict).recruiter === "term-orq") as CanvasNode;
+    const node = noteNode(doc, "andamento-1");
+    expect(new Set(linksTo(doc, node.id))).toEqual(new Set(["term-orq", recruitNode.id]));
+    expect(await r.noteText("andamento-1")).toBe("# Andamento: Chefe 1\n");
+    const prompt = r.fake.calls.find((c) => c.args[0] === "agent" && c.args[1] === "prompt")!.args[3];
+    expect(prompt).toContain("Notas ligadas a você: andamento-1.");
+    expect(r.out[0]).toBe("nota andamento-1: ligada a Chefe 1 e a você");
+  });
+
+  test("recruit --new-note com nome ruim ou já usado é recusado antes de abrir o pane", async () => {
+    const r = await rig(baseDoc());
+    expect(await r.run("recruit", "--new-note", "briefing")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(RECRUIT_ERRORS.noteExists);
+    expect(await r.run("recruit", "--new-note", "a b")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe("note_invalid_name");
+    await r.writeNote("tem-arquivo", "x");
+    expect(await r.run("recruit", "--new-note", "tem-arquivo")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(CANVAS_CLI_ERRORS.noteFileExists);
+    expect(r.fake.calls.filter((c) => c.args[0] === "workspace")).toEqual([]);
+  });
+
+  test("as instruções de gerente mandam criar o briefing com `note new` e o andamento com `--new-note`", () => {
+    const text = readFileSync(join(import.meta.dir, "../../../kit/panel/argos/orchestrator-role.md"), "utf8");
+    expect(text).toContain("hades canvas note new");
+    expect(text).toContain("--new-note");
+  });
+});
+
+describe("canvas-cli: recruit --cwd em worktree de agente que já concluiu", () => {
+  const AVISO = "foi encerrado ao concluir";
+
+  /** Registro único _skill numa pasta do teste: o cwd fora de git cai no escopo da skill. */
+  async function comRegistro<R>(worktree: string, record: Dict, body: () => Promise<R>): Promise<R> {
+    const workRoot = join(T, `work-${n++}`);
+    mkdirSync(join(workRoot, "_skill/orchestration/agents"), { recursive: true });
+    writeFileSync(join(workRoot, "_skill/orchestration/agents/ag.json"), JSON.stringify({ name: "ag", mode: "skill", role: "impl", worktree, ...record }));
+    const before = process.env.HADES_WORK_ROOT;
+    process.env.HADES_WORK_ROOT = workRoot;
+    try {
+      return await body();
+    } finally {
+      if (before === undefined) delete process.env.HADES_WORK_ROOT;
+      else process.env.HADES_WORK_ROOT = before;
+    }
+  }
+
+  test("dado --cwd na worktree de agente fechado ao concluir, então avisa que a correção abre agente novo e recruta mesmo assim", async () => {
+    const r = await rig(baseDoc());
+    const worktree = join(r.D, "clone", "wt-feito");
+    mkdirSync(worktree, { recursive: true });
+    await comRegistro(worktree, { state: "done", closedOnDone: true }, async () => {
+      expect(await r.run("recruit", "--no-role", "--cwd", worktree)).toBe(EXIT.ok);
+    });
+    const aviso = r.err.find((l) => l.includes(AVISO));
+    expect(aviso).toContain("ag foi encerrado ao concluir");
+    expect(aviso).toContain("agente novo na mesma worktree");
+    expect(r.fake.calls.some((c) => c.args[0] === "workspace" && c.args[1] === "create")).toBe(true);
+  });
+
+  test("dado --cwd numa subpasta da worktree concluída, então também avisa", async () => {
+    const r = await rig(baseDoc());
+    const worktree = join(r.D, "clone", "wt-sub");
+    mkdirSync(join(worktree, "src"), { recursive: true });
+    await comRegistro(worktree, { state: "done" }, async () => {
+      await r.run("recruit", "--no-role", "--cwd", join(worktree, "src"));
+    });
+    expect(r.err.some((l) => l.includes(AVISO))).toBe(true);
+  });
+
+  test("dado agente ainda em andamento na worktree, então não avisa", async () => {
+    const r = await rig(baseDoc());
+    const worktree = join(r.D, "clone", "wt-vivo");
+    mkdirSync(worktree, { recursive: true });
+    await comRegistro(worktree, { state: "working" }, async () => {
+      expect(await r.run("recruit", "--no-role", "--cwd", worktree)).toBe(EXIT.ok);
+    });
+    expect(r.err.some((l) => l.includes(AVISO))).toBe(false);
+  });
+
+  test("dado recruit sem --cwd, então não consulta o registro nem avisa", async () => {
+    const r = await rig(baseDoc());
+    expect(await r.run("recruit", "--no-role")).toBe(EXIT.ok);
+    expect(r.err.some((l) => l.includes(AVISO))).toBe(false);
   });
 });

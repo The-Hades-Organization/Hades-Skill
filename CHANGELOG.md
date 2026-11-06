@@ -4,6 +4,34 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.16.0 — 2026-11-06
+
+Custo dos agentes, terceira onda: o doctor aponta o padrão caro herdado do `settings.json` (issue #67) e o Consumo mostra
+quando um agente rodou num modelo diferente do configurado para o papel, com o custo da diferença (issue #64). Na
+auditoria que motivou a #64, 36 de 37 sessões de recruta rodaram em Opus com `HADES_MODEL_IMPL` em Sonnet, por uma
+semana, sem ninguém perceber.
+
+### Padrão herdado do settings.json (#67)
+
+- `hades doctor` ganha a linha `settings-padrao`: avisa `effortLevel` global `xhigh`/`max`, modelo padrão com janela
+  `[1m]` (que deixa os tetos `HADES_CTX_CAP_*` só como aviso), chave de `modelSettings` que não casa com nenhum id de
+  modelo das sessões recentes e padrão global mais caro que todos os `HADES_MODEL_*`/`HADES_EFFORT_*`. Só avisa; não
+  grava no `settings.json`. Arquivo ausente ou ilegível vira aviso, nunca quebra o doctor.
+- Configurações → Modelos por papel mostra o padrão herdado (modelo e esforço) e quem herda (sessões interativas,
+  agentes sem flags, subagentes), só leitura.
+
+### Modelo real × configurado (#64)
+
+- `hades usage` e a página Consumo leem o `message.model` das sessões principais de cada agente registrado e comparam
+  com o `HADES_MODEL_<PAPEL>`: coluna com o modelo real e, na divergência, `DIVERGE de X: +US$ N` (custo real menos o
+  custo no modelo configurado, sobre os mesmos tokens). O esforço entra só quando a transcrição o registra, sem custo.
+- O watch emite `MODEL-MISMATCH <agente> <real> <configurado>` no primeiro turno divergente, uma vez por sessão, e o nó
+  do agente no Argos ganha o indicador `model`.
+- Sessão iniciada depois da escalada registrada (`escalatedAt`, `HADES_MODEL_ESCALATE`) não conta; subagentes ficam fora.
+- Interno: tabela de preço única em `src/lib/price.ts`; a ordem de custo do doctor deriva dela, em vez de uma cópia.
+- Armadilhas: escrita de cache conta a 1,25× (o TTL de 1 h não é separado); apelido de família (`sonnet`) resolve para a
+  versão mais nova da tabela e modelo fora da tabela não é comparado.
+
 ## 6.15.0 — 2026-11-06
 
 Custo dos agentes, segunda onda: o orquestrador do canvas cria as próprias notas (issue #50) e o agente que conclui

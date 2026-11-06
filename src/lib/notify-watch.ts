@@ -20,7 +20,7 @@ const RESTART_WINDOW_S = 600;
 const HEALTH_TIMEOUT_MS = 3000;
 const HEALTH_FAILS_TO_ALERT = 2; // uma falha só é o serviço subindo
 const GATE_TOOLS = new Set(["gate", "build", "test", "test:integration"]);
-const AGENT_WORDS = ["STALLED", "QUESTION", "DONE", "BUDGET", "CTX-OVER", "DISMISSED", "DISMISS-READY", "DISMISS-HELD"] as const;
+const AGENT_WORDS = ["STALLED", "QUESTION", "DONE", "BUDGET", "CTX-OVER", "MODEL-MISMATCH", "DISMISSED", "DISMISS-READY", "DISMISS-HELD"] as const;
 type AgentWord = (typeof AGENT_WORDS)[number];
 const INFO_WORDS: ReadonlySet<AgentWord> = new Set<AgentWord>(["DONE", "DISMISSED"]);
 
@@ -217,7 +217,7 @@ export class Watcher {
     await this.problems("doctor", probs);
   }
 
-  /** Agentes orquestrados: STALLED/QUESTION/DONE/BUDGET/CTX-OVER/DISMISS* do `hades watch` (estado próprio, para não roubar o do orquestrador). */
+  /** Agentes orquestrados: STALLED/QUESTION/DONE/BUDGET/CTX-OVER/MODEL-MISMATCH/DISMISS* do `hades watch` (estado próprio, para não roubar o do orquestrador). */
   private async agents(): Promise<void> {
     const state = join(this.ctx.state, "agents");
     const fresh = !existsSync(state);
@@ -254,6 +254,7 @@ export class Watcher {
         DONE: "terminou (STATUS: DONE)",
         BUDGET: `passou do estimado: ${w[2] ?? "?"}% do p75 da Moirai`,
         "CTX-OVER": `contexto em ${w[2] ?? "?"}, acima do teto do papel (${w[3] ?? "?"}): estacionar`,
+        "MODEL-MISMATCH": `rodando em ${w[2] ?? "?"}, não no modelo do papel (${w[3] ?? "?"})`,
         DISMISSED: "sessão fechada ao concluir",
         "DISMISS-READY": "pronto para fechar (fechamento automático desligado): hades agent done",
         "DISMISS-HELD": `não fechou ao concluir: ${w[2] ?? "?"}`,

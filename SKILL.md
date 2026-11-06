@@ -263,6 +263,8 @@ Pedido do dono → comando e referência, por tema. Na dúvida entre duas linhas
 | "levar a orquestração para outra máquina" · "abrir o pacote do Caronte" | clone o projeto e `hades caronte unpack <arq> [--work-root <d>] [--plans <d>] [--worktrees <d>] [--clone <d>] [--dry-run]` (senha uma vez; refaz plano, worktrees e registros, agentes `parked`; imprime a retomada por agente) (`reference/caronte.md`) |
 | "cria a nota do briefing" · "recruta com nota de andamento" | `hades canvas note new <nome> [--title t] [--text t] [--link-to <recruta>]…` (texto também pela entrada padrão) e `hades canvas recruit --new-note <nome>` (`reference/argos.md` §Orquestrador no canvas) |
 | "fecha o agente quando terminar" · "por que o agente não fechou" | o watch fecha sozinho no `DONE` limpo (`DISMISSED`); `HADES_ORCH_AUTO_DISMISS=0` só emite `DISMISS-READY`; condição que falha emite `DISMISS-HELD <motivo>` (`reference/loop/orchestrate.md`) |
+| "o que o settings.json está custando" · "por que o agente sem flags está caro" | `hades doctor` (linha `settings-padrao`) e Configurações → Modelos por papel, que mostra o padrão herdado (`reference/doctor.md`) |
+| "esse agente está no modelo certo?" · "quanto custou a divergência de modelo" | `hades usage` (coluna modelo, `DIVERGE de X: +US$ N`) e o evento `MODEL-MISMATCH` do watch (`reference/loop/tokens.md`) |
 
 ### Evolução da skill
 

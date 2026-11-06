@@ -265,6 +265,8 @@ leva a mesma medida em uma linha discreta. Fonte e regra: `reference/limites.md`
 
 Sessões que passaram do teto de contexto do papel: o **Máximo** do agente em tom de aviso com a linha "acima do teto de Nk" (texto, não só cor) e um cartão **Sessões acima do teto** (sessão, papel, turnos, máximo, teto) que só existe quando há alguma; `overCap` do `/api/usage` (`hades usage`, `reference/cli.md`).
 
+Modelo real × configurado: a coluna **Modelos** da tabela Agentes mostra o modelo que cada agente rodou; quando difere do `HADES_MODEL_<PAPEL>`, fica em tom de aviso com a linha "diverge de <configurado>: +US$ N" (o custo da divergência) e, se o esforço observável também difere, "esforço X, configurado Y". Fonte: `byAgent[].divergence` do `latest.json` (regra: `reference/loop/tokens.md`). No Argos, o nó ganha o chip `model` enquanto a sessão diverge.
+
 Tour da página (§Tour por página): nove passos (resumo, ações, janelas do plano, as quatro leituras, papel, dia, estimado × real e agentes); sem
 prévia, porque a leitura depende do cálculo real dos transcripts; passos de card condicional levam `fallback`. Código:
 `ui/pages/usage.tour.tsx`.

@@ -155,7 +155,7 @@ depois do `caronte unpack`), `--all` (todos, no "já visto" compartilhado: o pai
 flag, o comportamento é o de sempre (todos). Herdr reiniciou e os panes mudaram: `hades agent adopt <nome>` (agente
 vivo) ou `hades agent reassign-orchestrator <nome>…|--all` apontam o registro para o pane de quem chama.
 
-Eventos: `QUESTION`, `PR-OPEN`, `DONE`, `DONE-HELD`, `DISMISSED`, `DISMISS-READY`, `DISMISS-HELD`, `REVIEW`, `MERGED`/`CLOSED`, `PARKED`, `CTX-OVER`, `STALLED`, `BUDGET`, `LIMITE`.
+Eventos: `QUESTION`, `PR-OPEN`, `DONE`, `DONE-HELD`, `DISMISSED`, `DISMISS-READY`, `DISMISS-HELD`, `REVIEW`, `MERGED`/`CLOSED`, `PARKED`, `CTX-OVER`, `MODEL-MISMATCH`, `STALLED`, `BUDGET`, `LIMITE`.
 - **`LIMITE <5h|semana> <pct> renova <hora>`**: a janela do plano passou de `HADES_LIMITS_WARN_FIVE_PCT` (80) ou
   `HADES_LIMITS_WARN_SEVEN_PCT` (90). É da máquina, não de um agente: sai para todo observador (o filtro de dono não vale),
   uma vez por janela e por renovação. Só aviso: diga ao dono e pese antes de alocar mais em paralelo. Sem coleta
@@ -190,7 +190,11 @@ Eventos: `QUESTION`, `PR-OPEN`, `DONE`, `DONE-HELD`, `DISMISSED`, `DISMISS-READY
 - **`CTX-OVER <agente> <usado>k <teto>k`** (o agente seguiu trabalhando acima do teto do papel depois do aviso do hook):
   `hades agent park <nome>` (o agente grava o handoff e para), depois `resume`. O `hades watch` só avisa, nunca estaciona;
   o evento sai uma vez por limiar cruzado (o teto e cada `HADES_CTX_REWARN` acima dele) e some quando a sessão volta ao
-  teto. O Argos marca o nó do agente (chip `context`) e Consumo lista a sessão como acima do teto. Não saem: `PARKED` de handoff mais velho que o último prompt (o `resume` não apaga o arquivo,
+  teto. O Argos marca o nó do agente (chip `context`) e Consumo lista a sessão como acima do teto.
+- **`MODEL-MISMATCH <agente> <real> <configurado>`** (a sessão atual do agente rodou num modelo diferente do `HADES_MODEL_<PAPEL>`):
+  o `watch` só avisa, uma vez por sessão (o estado guarda o id dela). Descubra o caminho que ignorou as Configurações (agente
+  iniciado à mão, `--resume` sem flags, preset do Argos) e, se o custo importa, reabra a sessão com `hades agent start`/`resume`
+  já com o modelo do papel. Sessão aberta por `hades agent escalate` não conta. O Argos marca o nó (chip `model`). Não saem: `PARKED` de handoff mais velho que o último prompt (o `resume` não apaga o arquivo,
   e a sessão retomada já o leu) e nenhum evento de unidade `archived` ou `done` (vale também quando o mesmo nome ficou em outra raiz do registro, resto de um clone antigo).
 - **Review novo** vai ao agente daquela PR. Agente já encerrado: repasse a um agente ativo da mesma área como segunda
   tarefa, ou `new --resume <worktree>` e peça ao dono o `start`.

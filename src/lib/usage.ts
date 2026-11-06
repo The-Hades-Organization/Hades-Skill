@@ -4,8 +4,12 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { readText } from "./fs.ts";
 import { type GuardRules, isPolling } from "./guard-rules.ts";
+import { modelKey, PRICE } from "./price.ts";
 import { PyFloat, pyRound } from "./pyjson.ts";
+import { agentDivergence, dominantModel, type AgentDivergence, type ExpectedOf } from "./usage-model.ts";
 import { mostSpecific } from "./worktree-scope.ts";
+
+export { modelKey };
 
 export type Dict = Record<string, unknown>;
 
@@ -13,18 +17,6 @@ export const CACHE_VERSION = 4;
 const REWRITE_GAP_SECONDS = 3600;
 const REWRITE_MIN_TOKENS = 100_000;
 const CACHE_READ_PRICE_SHARE = 0.2e-6;
-
-// US$/MTok: entrada, saída, leitura de cache
-const PRICE: Record<string, readonly [number, number, number]> = {
-  "opus-5-5": [4, 20, 0.2],
-  "sonnet-5-5": [2, 10, 0.2],
-  "haiku-5-5": [0.1, 0.5, 0.01],
-  "fable-5-1": [10, 50, 0.25],
-  "opus-5": [5, 25, 0.5],
-  "opus-4-8": [5, 25, 0.5],
-  "sonnet-5": [2, 10, 0.2],
-};
-const MODEL_KEYS = Object.keys(PRICE).sort((a, b) => b.length - a.length);
 
 const isDict = (value: unknown): value is Dict => typeof value === "object" && value !== null && !Array.isArray(value);
 const num = (value: unknown): number => (typeof value === "number" ? value : 0);
@@ -77,11 +69,6 @@ interface Request {
   cwd: string;
   effort: string;
   poll: boolean;
-}
-
-export function modelKey(model: unknown): string | undefined {
-  const name = (typeof model === "string" ? model : "").replaceAll("claude-", "");
-  return MODEL_KEYS.find((key) => name.startsWith(key));
 }
 
 /** (custo da requisição, parte de escrita de cache) em US$. */
@@ -389,6 +376,10 @@ interface AgentTotals extends Totals {
   lastMs: number;
   /** Reaproveitado: mais de um prompt de fase na sessão do agente, ou ela seguiu depois do DONE. */
   reused: boolean;
+  /** As linhas do agente, para a comparação de modelo (só quando há `expectedOf`). */
+  rows: Row[];
+  /** Modelo ou esforço reais diferentes dos do papel; ausente quando bate, é escalada ou não há o que comparar. */
+  divergence?: AgentDivergence;
 }
 interface SessionTotals {
   cwd: string;
@@ -416,7 +407,7 @@ export function agentReused(record: Agent | undefined, lastMs: number): boolean 
   return doneAt > 0 && lastMs > doneAt;
 }
 
-export function byRoles(rows: Row[], agents: Agent[], isGitDir: (dir: string) => boolean | undefined): Roles {
+export function byRoles(rows: Row[], agents: Agent[], isGitDir: (dir: string) => boolean | undefined, expectedOf?: ExpectedOf): Roles {
   const byRole = new Map<string, Totals>();
   const recordOf = new Map<string, Agent>(agents.map((a) => [text(a.name, ""), a]));
   const sessions = new Map<string, SessionTotals>();
@@ -432,14 +423,18 @@ export function byRoles(rows: Row[], agents: Agent[], isGitDir: (dir: string) =>
     session.ctx_sum += row.ctx_sum;
     session.ctx_max = Math.max(session.ctx_max, row.ctx_max);
     if (typeof name === "string" && name !== "") {
-      const agent = slot(named, name, (): AgentTotals => ({ ...ZERO, name, role, pr, models: {}, cwd: row.cwd, sessionIds: new Set(), lastMs: 0, reused: false }));
+      const agent = slot(named, name, (): AgentTotals => ({ ...ZERO, name, role, pr, models: {}, cwd: row.cwd, sessionIds: new Set(), lastMs: 0, reused: false, rows: [] }));
       add(agent, row);
+      agent.rows.push(row);
       if (!row.sidechain) agent.sessionIds.add(row.session);
       agent.lastMs = Math.max(agent.lastMs, epochMs(row.last));
       for (const [model, count] of Object.entries(row.models)) agent.models[model] = (agent.models[model] ?? 0) + count;
     }
   }
-  for (const agent of named.values()) agent.reused = agentReused(recordOf.get(agent.name), agent.lastMs);
+  for (const agent of named.values()) {
+    agent.reused = agentReused(recordOf.get(agent.name), agent.lastMs);
+    if (expectedOf) agent.divergence = agentDivergence(agent.rows, recordOf.get(agent.name), expectedOf(agent.role));
+  }
   const sessionsByRole = new Map<string, number>();
   for (const session of sessions.values()) {
     const roleKey = session.role + (session.side ? " · subagente" : "");
@@ -495,7 +490,8 @@ export function buildReport(rows: Row[], roles: Roles, days: number, since: stri
   const byAgent = [...roles.agents.values()].map((agent) => ({
     name: agent.name, role: agent.role, pr: agent.pr, cost: rf(agent.cost, 2), turns: agent.turns, poll_cost: rf(agent.poll_cost, 2),
     rewrite_cost: rf(agent.rewrite_cost, 2), ctx_max: agent.ctx_max, models: agent.models, cwd: agent.cwd, ctxAvg: avg(agent.ctx_sum, agent.turns), ...pcts(agent.tok),
-    sessions: agent.sessionIds.size, reused: agent.reused, ...capFields(agent.role, agent.ctx_max),
+    sessions: agent.sessionIds.size, reused: agent.reused, model: dominantModel(agent.models), ...capFields(agent.role, agent.ctx_max),
+    ...(agent.divergence ? { divergence: { ...agent.divergence, extraCost: rf(agent.divergence.extraCost, 2), models: agent.divergence.models.map((m) => ({ ...m, extraCost: rf(m.extraCost, 2) })) } } : {}),
   }));
   // sem agente nomeado o relatório segue idêntico ao anterior
   const reuse = reuseOf([...roles.agents.values()]);

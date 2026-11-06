@@ -20,6 +20,8 @@ import { LISTENERS_TOOL, listenersToolPresent, memTotalMb, run, tcpListeners, wh
 import { readEnvSh, unitPrefix } from "../lib/config.ts";
 import { judgeSlice, showSlice } from "../lib/doctor-slice.ts";
 import { belongsTo, otherInstances, type InstanceIdentity } from "../lib/doctor-instancias.ts";
+import { inheritedDefault, judgeSettings, readSettings, recentModelIds, roleSettings } from "../lib/settings-default.ts";
+import { configValue } from "../lib/work.ts";
 import { serviceManager } from "../lib/service-manager.ts";
 import { FILTERS_REL, planWorktree, policyAdvice, rtkBinary, rtkConfig, settingsFor, trustState } from "../lib/rtk-filters.ts";
 
@@ -462,6 +464,18 @@ function checkRtk(r: Report, ctx: Ctx): void {
   else r.ok(g, "rtk-politica", "política do rtk coerente com o recomendado");
 }
 
+/** O padrão herdado do settings.json do dono (reference/doctor.md, `settings-padrao`): só avisa, nunca grava. */
+function checkSettingsDefault(r: Report): void {
+  const g = "Claude";
+  const settings = readSettings();
+  if (!settings.ok) return r.warn(g, "settings-padrao", `${settings.path}: ${settings.reason}; o padrão herdado não foi conferido`, "confira o ~/.claude/settings.json (HADES_CLAUDE_SETTINGS aponta outro caminho)");
+  const projects = env("HADES_CLAUDE_PROJECTS");
+  const findings = judgeSettings({ json: settings.json, roles: roleSettings((key) => configValue(key, "")), recentModels: projects ? recentModelIds(projects) : recentModelIds() });
+  const { model, effort } = inheritedDefault(settings.json);
+  if (!findings.length) return r.ok(g, "settings-padrao", `padrão herdado ${model || "sem model"}${effort ? ` ${effort}` : ""}: sem armadilha de custo`);
+  for (const f of findings) r.warn(g, "settings-padrao", f.msg, f.fix);
+}
+
 function checkPanel(r: Report, ctx: Ctx): void {
   const g = "Painel";
   const mode = env("HADES_PANEL_AUTOSTART", "off");
@@ -673,6 +687,7 @@ export function doctorCommand(args: string[]): number {
   checkMachine(report, ctx);
   checkInstallation(report, ctx);
   checkRtk(report, ctx);
+  checkSettingsDefault(report);
   checkPanel(report, ctx);
   checkBoot(report, ctx);
   checkCleaning(report, ctx);

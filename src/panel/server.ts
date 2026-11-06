@@ -1,5 +1,6 @@
 // Servidor do painel (Bun.serve): escuta só em 127.0.0.1, confere o Host (DNS rebinding) e o Origin, e toda ação exige o
 // token da sessão (embutido na página servida) em POST JSON.
+import { inheritedView } from "../lib/settings-default.ts";
 import { createHash, randomBytes } from "node:crypto";
 import { readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
@@ -412,6 +413,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
       const routed = await getMisc(path, query, remote);
       if (routed) return routed;
       if (path === "/api/config") return send(200, core.configState(env));
+      if (path === "/api/config/inherited") return send(200, inheritedView());
       if (path === "/api/quality") return send(200, core.qualityState(env));
       if (path === "/api/cerberus") return send(200, { ...core.cerberusState(env), remote });
       if (path === "/api/config/export") return send(200, core.configExport(env, query, remote), "text/plain; charset=utf-8");

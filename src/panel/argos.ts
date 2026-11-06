@@ -51,6 +51,7 @@ export function createArgos(deps: ArgosDeps): Argos {
     gates: deps.gates,
     reportsDir,
     ctxCap: (role) => ctxCapOf(role, (key) => deps.config()[key]),
+    modelOf: (role) => deps.config()[`HADES_MODEL_${role.toUpperCase()}`] || undefined,
     agentMaxAgeHours: () => {
       const n = Number.parseInt(deps.config().HADES_ARGOS_AGENT_MAX_AGE_H ?? "", 10);
       // o padrão (24) vem do catálogo; sem a chave ou com valor inválido, nada é cortado

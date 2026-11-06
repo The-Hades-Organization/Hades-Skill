@@ -19,6 +19,9 @@ import { run } from "../lib/proc.ts";
 import { inScope, observerKey, parseWatchArgs, WatchUsageError, type WatchScope } from "../lib/watch-scope.ts";
 import { loadProfile } from "../lib/profile.ts";
 import { ctxCapOf } from "../lib/ctx-cap.ts";
+import { roleModelDefaults } from "../lib/agent-registry.ts";
+import { home } from "../lib/paths.ts";
+import { agentModelMismatch } from "../lib/usage-model.ts";
 import { resolveProject } from "../lib/project.ts";
 import { closeAgent, pushedRef } from "./agent-run.ts";
 import { currentCost, type CostCache } from "./moirai.ts";
@@ -176,6 +179,7 @@ class Watcher {
     if (pr) this.scanReview(name, pr);
     const parked = this.scanParked(name, join(reports, "handoff.md"), promptedEpoch);
     this.scanContext(name, worktree, agentRoleOf(reg), parked);
+    this.scanModel(name, worktree, reg);
     this.scanStall(name, hostStatus.get(name) ?? "", promptedAt !== "");
   }
 
@@ -379,6 +383,16 @@ class Watcher {
     if (parked) return;
     const crossed = Math.floor((used - cap) / step) + 1;
     if (this.seen(`${name}.ctx`, String(crossed))) this.emit(`CTX-OVER ${name} ${Math.floor(used / 1000)}k ${Math.floor(cap / 1000)}k`);
+  }
+
+  /**
+   * `MODEL-MISMATCH <agente> <real> <configurado>` no primeiro turno da sessão atual que rodou num modelo diferente do
+   * HADES_MODEL_<PAPEL>; uma vez por sessão (o estado guarda o id da sessão, como o `CTX-OVER` guarda o limiar).
+   * Sessão aberta pela escalada não conta.
+   */
+  private scanModel(name: string, worktree: string, reg: Json): void {
+    const found = agentModelMismatch(worktree, reg, roleModelDefaults(agentRoleOf(reg)).model, home());
+    if (found && this.seen(`${name}.model`, found.session)) this.emit(`MODEL-MISMATCH ${name} ${found.real} ${found.configured}`);
   }
 
   /** sem prompt ainda, o idle é a sessão à espera do dono, não parada. */

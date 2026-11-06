@@ -201,7 +201,7 @@ export function shapePoints(shape: Shape, x: number, y: number, w: number, h: nu
 
 // ------------------------------------------------------------------ indicadores no nó (T1, T2)
 
-export type IndicatorKind = "permission" | "question" | "context" | "gate" | "ci" | "pr" | "cost" | "herdr" | "closed";
+export type IndicatorKind = "permission" | "question" | "context" | "gate" | "ci" | "pr" | "cost" | "herdr" | "closed" | "model";
 export interface Indicator { kind: IndicatorKind; icon: string; tone: Tone; short: string; label: string }
 
 export interface CiCounts { passing: number; failing: number; pending: number }
@@ -216,6 +216,8 @@ export interface IndicatorNode {
   openQuestions?: number | null;
   /** sessão do agente acima do teto de contexto do papel (`argos-graph`); ausente = dentro do teto */
   ctxOver?: { usedK: number; capK: number } | null;
+  /** sessão rodando num modelo diferente do configurado para o papel (`MODEL-MISMATCH` do watch); ausente = bate com o papel */
+  modelMismatch?: { real: string; configured: string } | null;
   /** sessão fechada pelo watch ao concluir (`closedOnDone` no registro); a worktree e o report seguem */
   closedOnDone?: boolean | null;
   gate?: string | null;
@@ -241,11 +243,12 @@ const CI_LOOKS: Readonly<Record<CiVerdict, { icon: string; tone: Tone; short: st
   running: { icon: "Loader", tone: "warn", short: "CI", label: "CI rodando" },
 });
 /** Ordem de importância: o que pede o dono primeiro; o que couber é mostrado. */
-const KIND_ORDER: readonly IndicatorKind[] = ["permission", "question", "context", "gate", "ci", "pr", "cost", "herdr", "closed"];
+const KIND_ORDER: readonly IndicatorKind[] = ["permission", "question", "context", "model", "gate", "ci", "pr", "cost", "herdr", "closed"];
 const ICON_CLOSED = "DoorClosed";
 const ICON_PERMISSION = "Hand";
 const ICON_QUESTION = "MessageCircleQuestion";
 const ICON_CONTEXT = "Gauge";
+const ICON_MODEL = "Cpu";
 const ICON_PR = "GitPullRequest";
 const ICON_COST = "CircleDollarSign";
 const ICON_HERDR = "Terminal";
@@ -294,6 +297,10 @@ export function nodeIndicators(node: IndicatorNode): Indicator[] {
   const over = node.ctxOver;
   if (over && finite(over.usedK) && finite(over.capK)) {
     found.push({ kind: "context", icon: ICON_CONTEXT, tone: "warn", short: `${over.usedK}k`, label: `Contexto em ${over.usedK}k, acima do teto do papel (${over.capK}k): estacionar` });
+  }
+  const mismatch = node.modelMismatch;
+  if (mismatch && mismatch.real && mismatch.configured) {
+    found.push({ kind: "model", icon: ICON_MODEL, tone: "warn", short: mismatch.real, label: `Modelo ${mismatch.real}, diferente do configurado para o papel (${mismatch.configured})` });
   }
   if (typeof node.gate === "string" && isGateState(node.gate)) found.push({ kind: "gate", ...GATE_LOOKS[node.gate] });
   const verdict = ciVerdict(node.ci);
@@ -369,6 +376,7 @@ export function legendModel(): { types: TypeLook[]; states: LegendState[]; indic
       sample("permission", { pendingPermission: { tool: null } }),
       sample("question", { openQuestions: 1 }),
       sample("context", { ctxOver: { usedK: 320, capK: 200 } }),
+      sample("model", { modelMismatch: { real: "opus-5-5", configured: "sonnet-5-5" } }),
       ...(["running", "waiting", "failed"] as const).map((gate) => sample("gate", { gate })),
       ...[{ passing: 1, failing: 0, pending: 0 }, { passing: 0, failing: 1, pending: 0 }, { passing: 0, failing: 0, pending: 1 }].map((counts) => sample("ci", ci(counts))),
       sample("pr", { pr: 1 }),

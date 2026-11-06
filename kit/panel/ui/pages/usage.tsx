@@ -421,9 +421,15 @@ function Usage() {
                 {roleLabel(a.role)}
               </Td>
               <Td>
-                <Mono className="text-muted-foreground">
+                <Mono className={a.divergence?.models.length ? 'font-medium text-warn' : 'text-muted-foreground'}>
                   {Object.keys(a.models).join(', ')}
                 </Mono>
+                {a.divergence?.models.length ? <div className="t-meta text-warn">
+                  diverge de {a.divergence.configured}: +{usd2(a.divergence.extraCost)}
+                </div> : null}
+                {a.divergence?.effort ? <div className="t-meta text-warn">
+                  esforço {a.divergence.effort.real}, configurado {a.divergence.effort.configured}
+                </div> : null}
               </Td>
               <Td className="text-right">
                 {usd(a.cost)}

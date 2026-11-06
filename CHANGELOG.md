@@ -4,6 +4,41 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.15.0 — 2026-11-06
+
+Custo dos agentes, segunda onda: o orquestrador do canvas cria as próprias notas (issue #50) e o agente que conclui
+deixa de ficar vivo para ser reaproveitado (issue #62). Nas medições de uma semana, sessões de Opus reaproveitadas
+chegaram a 70–131 turnos e 146k–221k de contexto médio; do meio para o fim, cada turno custava de 2 a 4 vezes o do início.
+
+### Notas criadas pelo orquestrador (#50)
+
+- `hades canvas note new <nome> [--title t] [--text t] [--link-to <recruta>]…`: nó `note` ligado ao orquestrador e aos
+  recrutas citados (mesmas recusas do `connect`), num lote só pelo `commit`; depois o arquivo com revisão nula e o título.
+  Sem `--text`, lê a entrada padrão só quando ela não é o teclado.
+- `hades canvas recruit --new-note <nome>`: o recruta nasce com a nota de andamento (`# Andamento: <recruta>`) ligada a
+  ele e ao orquestrador, citada no primeiro prompt. As instruções de gerente passam a usar os dois.
+- Códigos novos: `recruit_note_exists` e `canvas_note_file_exists` (nome que já é arquivo, ainda que órfão, é recusado
+  para não sobrescrever).
+- Armadilha: a nota nasce **acima** do orquestrador, na grade espelhada do `recruit`, porque as fileiras de baixo são
+  dos recrutas; o arquivo só é gravado depois do nó, porque a rota confere o vínculo no documento.
+
+### Fechar o agente ao concluir (#62)
+
+- **Fechamento automático**: depois do `DONE`, o watch fecha a sessão quando o herdr mostra `idle`/`done` e, nos modos
+  com PR, o head da PR é o último commit da worktree; a auditoria de git e o Cerberus vêm do `closeAgent`, agora o
+  caminho único do `agent done` e do watch. Eventos: `DISMISSED <agente> fechado ao concluir`, `DISMISS-HELD <agente>
+  <motivo>` (herdr-working|blocked|fora, sem-pr, pr-head-diferente, auditoria, cerberus…) e `DISMISS-READY` com
+  `HADES_ORCH_AUTO_DISMISS=0`. Registro vai a encerrado com `closedOnDone`; o nó do Argos ganha o chip "fechado".
+- **Não reaproveitar**: `agent resume` e `canvas recruit --cwd` avisam (não recusam) quando a sessão foi encerrada ao
+  concluir; a correção abre agente novo na mesma worktree.
+- **Compactar antes do teto**: o aviso de contexto do hook sugere `/compact` a partir de `HADES_CTX_COMPACT_AT` (150000),
+  uma vez por sessão.
+- **Consumo**: `hades usage` e a página separam unidades reaproveitadas das novas (sessões, turnos e custo).
+- Defeito achado por teste: o fechamento gravava o registro no caminho do projeto, não no da unidade `_skill`.
+- Fica para depois: recruta do canvas não está no registro de agentes, então o watch não o fecha (só o aviso do recruit).
+- Medido no caminho: a própria unidade (sonnet/high) estourou o teto de 160k três vezes e terminou em quatro sessões
+  pelo `park`/`resume`, a cerca de 1,5× o p75 estimado; foi o primeiro uso real do `CTX-OVER` da 6.14.0.
+
 ## 6.14.0 — 2026-11-06
 
 Custo dos agentes, primeira onda: o recruta do canvas passa a usar o modelo e o esforço do papel e a abrir a PR com

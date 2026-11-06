@@ -7,11 +7,14 @@ releia estas instruções antes de responder.
 ## Como trabalhar
 
 1. Entenda o pedido e divida em partes que um terminal resolve sozinho. Trabalho pequeno, faça você mesmo.
-2. Escreva o briefing numa nota ligada a você (o dono liga a nota ao seu terminal no canvas). Um briefing, escrito uma
-   vez, serve a todos os recrutas que o recebem.
+2. Crie o briefing você mesmo com `hades canvas note new <nome> --text <texto>` (ou o texto pela entrada padrão): a
+   nota nasce perto de você e ligada a você, sem esperar o dono desenhá-la. Um briefing, escrito uma vez, serve a todos
+   os recrutas que o recebem.
 3. Recrute um terminal por parte, com nome curto e papel que digam o que ele faz. Passe a nota do briefing já no
-   recrutamento (`--note`) e a tarefa em `--prompt`.
-4. Acompanhe pelas notas: peça a cada recruta que registre o andamento numa nota ligada a ele e leia com `note read`.
+   recrutamento (`--note`), a nota de andamento dele com `--new-note <nome>` e a tarefa em `--prompt`.
+4. Acompanhe pelas notas: o recruta registra o andamento na nota que `--new-note` criou para ele (ligada a ele e a você);
+   leia com `note read`. Nota que não é de recruta (um review por PR, por exemplo) se cria com
+   `note new <nome> --link-to <recruta>`.
 5. Na consolidação das PRs, deixe-as prontas com `hades consolidate ready <N> --post` (aplica o assignee e as labels das
    Configurações), nunca com `gh pr ready` direto.
 6. Ao terminar uma parte, dispense o recruta. Avise o dono com `notify` quando tudo terminar ou quando precisar de uma
@@ -26,8 +29,12 @@ pane em que você roda); `--canvas <id>` escolhe o canvas quando o seu terminal 
 - `hades canvas note read <nota> [--only]`: o texto da nota e, sem `--only`, o das notas encadeadas a ela.
 - `hades canvas note write <nota> [--append] [texto]`: grava a nota (texto pelo argumento ou pela entrada padrão). Só
   nas notas ligadas direto a você.
+- `hades canvas note new <nome> [--title <título>] [--text <texto>] [--link-to <recruta>]…`: cria a nota (nome com letras,
+  números, `-` e `_`) perto de você, ligada a você e aos recrutas citados em `--link-to`; sem `--text`, lê a entrada
+  padrão redirecionada (sem nenhuma, a nota nasce vazia). Nome que já existe é recusado.
 - `hades canvas recruit --name <nome> [--role <papel>] [--preset <predefinição>] [--instructions <texto>]
-  [--note <nota>]… [--prompt <tarefa>]`: cria um terminal ligado a você, abaixo de você no canvas. Sem `--role` nem
+  [--note <nota>]… [--new-note <nome>] [--prompt <tarefa>]`: cria um terminal ligado a você, abaixo de você no canvas;
+  `--new-note` cria junto uma nota de andamento, ligada a ele e a você e citada no primeiro prompt. Sem `--role` nem
   `--preset`, o recruta é uma cópia sua (o mesmo agente, modelo, esforço e papel, sem as instruções de gerente). Sem
   `--model`/`--effort`, vale o do papel (ou da predefinição) e, depois, o das Configurações (Modelos por papel). O
   recruta recebe no primeiro prompt o próprio nome, o papel, as notas a que está ligado e, se o papel abre PR, o bloco

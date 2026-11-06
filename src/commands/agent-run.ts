@@ -11,7 +11,7 @@ import { findAgent, herdr, herdrWait, listAgents, paneFrom } from "../lib/herdr.
 import { die, out } from "../lib/output.ts";
 import { selfCli, skillRoot } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
-import { agentFile, agentFiles, configValue, openQuestions, readJson, regGet, type Json, type WorkEnv } from "../lib/work.ts";
+import { agentFile, agentFiles, configValue, openQuestions, readJson, regGet, writeJsonAtomic, type Json, type WorkEnv } from "../lib/work.ts";
 
 const TURN_WAIT_MS = 900_000;
 const CLEAR_SETTLE_WAIT_MS = 30_000;
@@ -85,6 +85,12 @@ function warnStaleReport(work: WorkEnv, name: string, worktree: string): void {
   if (firstLine(report).startsWith("STATUS: DONE")) out(`AVISO: ${report} já começa com STATUS: DONE (rodada anterior). Renomeie para report-<n>.md para o agente não tomá-lo por entregue.`);
 }
 
+/** A sessão concluída (fechada pelo watch ou por `agent done`) não é reaproveitada: o aviso diz o caminho (aviso, não recusa). */
+function warnClosedOnDone(record: Json, name: string): void {
+  if (record.closedOnDone !== true && record.state !== "done") return;
+  out(`AVISO: ${name} foi encerrado ao concluir. Para corrigir, abra um agente novo na mesma worktree a partir do handoff.md/report.md em vez de reaproveitar esta sessão.`);
+}
+
 export function phaseOrResume(sub: "phase" | "resume", argv: string[], work: WorkEnv): number {
   const noCommit = argv.includes(NO_COMMIT_FLAG);
   if (noCommit && sub === "resume") die(`${NO_COMMIT_FLAG} é da fase: use hades agent phase <nome> <fase> ${NO_COMMIT_FLAG}`);
@@ -99,6 +105,7 @@ export function phaseOrResume(sub: "phase" | "resume", argv: string[], work: Wor
   const quality = phaseQuality(work, worktree, phase || role);
   if (quality) text += ` Regras de qualidade ligadas desta fase: ${quality}.`;
   warnStaleReport(work, name, worktree);
+  if (sub === "resume") warnClosedOnDone(readJson(agentFile(work, name)) ?? {}, name);
   freshPrompt(name, text);
   // a dispensa de commit vale pela fase: phase nova a reseta, resume a mantém
   regUpdate(work, name, (r) => {
@@ -324,11 +331,29 @@ export function pushedRef(worktree: string): string {
   return run("git", ["-C", worktree, "rev-parse", "--verify", "--quiet", remote]).status === 0 ? remote : "";
 }
 
-export function done(args: string[], work: WorkEnv): number {
-  const name = needArg(args[0], "nome");
-  const keepPane = args[1] === "--keep-pane";
-  const file = agentFile(work, name);
-  const record = readJson(file) ?? die(`agente ${name} não registrado`);
+/** Como o fechamento sai: o `done` do orquestrador imprime e morre; o watch devolve o motivo e segue. */
+export interface CloseOptions {
+  keepPane: boolean;
+  /** `true` quando o watch fecha ao concluir: grava `closedOnDone` no registro (o nó do Argos e o aviso do resume leem). */
+  closedOnDone: boolean;
+  say: (line: string) => void;
+  /** Cerberus sem escrever no stdout (o watch emite uma linha por evento: ruído vira evento falso). */
+  quiet: boolean;
+  /**
+   * Arquivo do registro lido. O watch varre também as unidades do registro único `_skill`, que não são o `agentFile` do
+   * projeto onde ele roda: gravar no caminho do projeto deixaria o registro lido em `working` e criaria um espúrio.
+   */
+  file?: string;
+}
+
+export type CloseResult = { ok: true } | { ok: false; reason: "auditoria" | "cerberus"; message: string };
+
+/**
+ * O fechamento do agente (auditoria, lock, entrega, registro `done`, painel): o único caminho, do `hades agent done` e do
+ * auto-dismiss do watch. Não decide quando fechar; só confere e fecha. Falha devolve o motivo, sem fechar nada.
+ */
+export function closeAgent(work: WorkEnv, name: string, record: Json, opts: CloseOptions): CloseResult {
+  const { say, quiet } = opts;
   const worktree = jqText(record.worktree);
   const lock = typeof record.lock === "string" ? record.lock : "";
   const key = typeof record.key === "string" ? record.key : "";
@@ -337,41 +362,41 @@ export function done(args: string[], work: WorkEnv): number {
   let pr = "";
   const reportHead = (readText(join(worktree, work.reports, "report.md")) ?? "").split("\n")[0] ?? "";
   if (!reportHead.startsWith("STATUS: DONE")) {
-    out(`✗ ${work.reports}/report.md não começa com STATUS: DONE`);
+    say(`✗ ${work.reports}/report.md não começa com STATUS: DONE`);
     bad = true;
   }
   const dirty = (): boolean => {
     const status = run("git", ["-C", worktree, "status", "--porcelain", "--untracked-files=no"]);
-    if (status.stderr) process.stderr.write(status.stderr);
+    if (status.stderr && !quiet) process.stderr.write(status.stderr);
     return status.stdout.trim() !== "";
   };
   if (mode === "skill") {
     if (dirty()) {
-      out("✗ worktree com mudança sem commit");
+      say("✗ worktree com mudança sem commit");
       bad = true;
     }
   } else if (mode !== "review") {
     if (dirty()) {
-      out("✗ worktree com mudança sem commit");
+      say("✗ worktree com mudança sem commit");
       bad = true;
     }
     const pushed = pushedRef(worktree);
     if (!pushed) {
-      out("✗ branch sem upstream nem origin/<branch> (nada foi pushado?)");
+      say("✗ branch sem upstream nem origin/<branch> (nada foi pushado?)");
       bad = true;
     }
     const ahead = pushed ? run("git", ["-C", worktree, "rev-list", "--count", `${pushed}..HEAD`]).stdout.trim() : "";
     if (!pushed || ahead !== "0") {
-      out("✗ há commit sem push");
+      say("✗ há commit sem push");
       bad = true;
     }
     pr = record.pr === undefined || record.pr === null ? "" : jqText(record.pr);
     if (!pr) pr = prOfBranch(jqText(record.branch));
     if (pr) {
       const info = ghText(["pr", "view", pr, "--json", "state,isDraft,mergeable,headRefOid", "--jq", '"\\(.state) draft=\\(.isDraft) \\(.mergeable) \\(.headRefOid[0:11])"']);
-      out(`  PR #${pr}: ${info}`);
+      say(`  PR #${pr}: ${info}`);
     } else {
-      out("✗ nenhuma PR aberta para a branch");
+      say("✗ nenhuma PR aberta para a branch");
       bad = true;
     }
   }
@@ -382,22 +407,34 @@ export function done(args: string[], work: WorkEnv): number {
     "--ctx", `agente=${name}`, "--ctx", `modo=${mode}`, "--dir", worktree,
     "--evidencia", `report.md com STATUS: DONE, worktree sem mudança${scope}: ${bad ? "falhou (itens ✗ acima)" : "conferido"}|hades agent done em ${worktree}`,
   ], true);
-  if (bad) die("auditoria falhou: confira com o agente antes de encerrar");
+  if (bad) return { ok: false, reason: "auditoria", message: "auditoria falhou: confira com o agente antes de encerrar" };
   const evaluate = ["avaliar", "done", "--dir", worktree, "--ctx", `agente=${name}`, "--ctx", `modo=${mode}`, ...(pr ? ["--ctx", `pr=${pr}`] : [])];
-  if (cerberus(evaluate, false) !== 0) die(`o Cerberus barrou o DONE de ${name} (acima)`);
+  if (cerberus(evaluate, quiet) !== 0) return { ok: false, reason: "cerberus", message: `o Cerberus barrou o DONE de ${name} (acima)` };
   if (lock && isDir(join(work.locks, lock))) {
     rmSync(join(work.locks, lock), { recursive: true });
-    out(`  lock ${lock} liberado`);
+    say(`  lock ${lock} liberado`);
   }
   if (key && mode !== "review" && mode !== "skill") {
     const state = ghText(["pr", "view", pr, "--json", "state", "--jq", ".state"]);
     const head = run("git", ["-C", worktree, "rev-parse", "--short", "HEAD"]).stdout.trim();
     deliverySet(work, key, (d) => ({ ...d, pr: Number(pr), status: state === "MERGED" ? "merged" : "open", head }));
   }
-  regUpdate(work, name, (r) => ({ ...r, state: "done", doneAt: isoNow() }));
+  // um doneAt anterior: o agente voltou a trabalhar depois de concluir (a Consumo conta como reaproveitado)
+  const reopened = typeof record.doneAt === "string";
+  const closed = (r: Json): Json => ({ ...r, state: "done", doneAt: isoNow(), ...(opts.closedOnDone ? { closedOnDone: true } : {}), ...(reopened ? { reopenedAfterDone: true } : {}) });
+  if (opts.file === undefined) regUpdate(work, name, closed);
+  else writeJsonAtomic(opts.file, closed(readJson(opts.file) ?? record));
   journalAgentEnd(name, "done", worktree);
   const pane = typeof record.pane === "string" ? record.pane : "";
-  if (!keepPane && pane && herdr(["pane", "close", pane]).status === 0) out(`  painel ${pane} fechado`);
-  out(`agente ${name} encerrado; a worktree ${worktree} fica ${mode === "skill" ? "até o skill-clean" : "enquanto a PR estiver aberta"}`);
+  if (!opts.keepPane && pane && herdr(["pane", "close", pane]).status === 0) say(`  painel ${pane} fechado`);
+  say(`agente ${name} encerrado; a worktree ${worktree} fica ${mode === "skill" ? "até o skill-clean" : "enquanto a PR estiver aberta"}`);
+  return { ok: true };
+}
+
+export function done(args: string[], work: WorkEnv): number {
+  const name = needArg(args[0], "nome");
+  const record = readJson(agentFile(work, name)) ?? die(`agente ${name} não registrado`);
+  const result = closeAgent(work, name, record, { keepPane: args[1] === "--keep-pane", closedOnDone: false, say: out, quiet: false });
+  if (!result.ok) die(result.message);
   return 0;
 }

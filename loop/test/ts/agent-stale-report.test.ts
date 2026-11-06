@@ -1,6 +1,6 @@
 // `hades agent prompt|answer|phase`: aviso do report.md de rodada anterior e o --no-commit da fase (herdr falso).
-import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { afterAll, beforeEach, describe, expect, test } from "bun:test";
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Rig } from "./lib/rig";
 
@@ -143,5 +143,36 @@ describe("agent: done grava o encerramento no diário (some a permissão pendent
     expect(o).toContain("encerrado");
     expect(JSON.parse(readFileSync(join(skillAgents, "stale.json"), "utf8")).state).toBe("done");
     expect(ended("stale")).toBe(true);
+  }, 30_000);
+});
+
+describe("agent: resume de sessão encerrada ao concluir", () => {
+  const AVISO = "foi encerrado ao concluir";
+  // o bloco do done acima registra o mesmo nome em _skill: aqui só vale o registro do projeto
+  beforeEach(() => rmSync(join(r.T, "work/_skill/orchestration/agents/stale.json"), { force: true }));
+
+  test("dado agente fechado ao concluir, então o resume avisa do agente novo e segue (aviso, não recusa)", () => {
+    register("stale", { state: "done", closedOnDone: true, doneAt: "2026-01-02T00:00:00Z" });
+    const saida = run(["resume", "stale"]);
+    expect(saida).toContain(`AVISO: stale ${AVISO}`);
+    expect(saida).toContain("agente novo na mesma worktree");
+    expect(saida).toContain("handoff.md/report.md");
+    expect(saida).toContain("stale: sessão limpa");
+    expect(record("stale")).toMatchObject({ state: "working" });
+  }, 30_000);
+
+  test("dado agente encerrado à mão pelo agent done (state done, sem closedOnDone), então o resume avisa igual", () => {
+    register("stale", { state: "done" });
+    expect(run(["resume", "stale"])).toContain(AVISO);
+  }, 30_000);
+
+  test("dado agente ainda em andamento, então o resume não avisa", () => {
+    register("stale");
+    expect(run(["resume", "stale"])).not.toContain(AVISO);
+  }, 30_000);
+
+  test("dado agente concluído, então a fase nova não avisa (o aviso é do resume)", () => {
+    register("stale", { state: "done", closedOnDone: true });
+    expect(run(["phase", "stale", "impl"])).not.toContain(AVISO);
   }, 30_000);
 });

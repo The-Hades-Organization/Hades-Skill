@@ -3,21 +3,23 @@
 // são do orquestrador (D7) sobre os recrutas dele; `notify` manda uma notificação ao dono. O nó de quem chama se resolve
 // pelo pane do herdr em que o processo roda (HERDR_PANE_ID e a sessão do socket). Tudo passa pelas rotas do painel: o
 // documento muda por `CanvasOp` (desfazer volta exatamente ao anterior) e a escrita na nota é conferida no servidor.
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { type CanvasDoc, type CanvasNode, readCanvasDoc } from "../lib/canvas-doc.ts";
 import { applyOp, type CanvasOp } from "../lib/canvas-history.ts";
 import { LinkError } from "../lib/canvas-links.ts";
-import { directNotesOf, hasNoteAccess, noteChainFrom, readableNotesOf } from "../lib/canvas-note.ts";
+import { directNotesOf, hasNoteAccess, noteChainFrom, NoteError, readableNotesOf } from "../lib/canvas-note.ts";
 import {
-  findNote, type HerdrTarget, identityPrompt, isOrchestrator, nodeName, nodesAtTarget, planConnect, planDismiss, planJoin, planLeave, planReassign,
-  planRecruit, RECRUIT_ERRORS, RecruitError, recruitsOf, requireOrchestrator, requireRecruit, requireSharedNote, terminalTargetOf,
+  type AgentRecordView, concludedAgentAt, findNote, type HerdrTarget, identityPrompt, isOrchestrator, nodeName, nodesAtTarget, planConnect, planDismiss, planJoin, planLeave, planReassign,
+  planNewNote, planRecruit, RECRUIT_ERRORS, requireFreshNoteName, RecruitError, recruitsOf, requireOrchestrator, requireRecruit, requireSharedNote, terminalTargetOf,
 } from "../lib/canvas-recruit.ts";
 import { labelsText, opensPr, prReadyPromptBlock, prReadyValues, type PrReadyValues } from "../lib/brief-pr.ts";
 import { effectiveConfig } from "../lib/config.ts";
 import { findStateDir } from "../lib/kit.ts";
 import { loadProfile, pathValue } from "../lib/profile.ts";
 import { resolveProject } from "../lib/project.ts";
-import { EXIT } from "../lib/output.ts";
+import { EXIT, HadesError } from "../lib/output.ts";
+import { text } from "../lib/activity.ts";
+import { agentFiles, loadWorkEnv, readJson } from "../lib/work.ts";
 import { TERMINAL_NAME_MAX } from "../panel/argos-terminals.ts";
 import { exec } from "../panel/exec.ts";
 
@@ -25,8 +27,12 @@ export const USAGE = `Uso: hades canvas <subcomando> [--canvas <id>]
   note list                                   notas que o seu terminal lê (diretas e encadeadas)
   note read <nota> [--only]                   texto da nota e da cadeia dela (--only: só ela)
   note write <nota> [--append] [texto]        grava a nota ligada direto a você (sem texto: entrada padrão)
+  note new <nome> [--title t] [--text t] [--link-to <recruta>]…
+                                              (orquestrador) cria a nota perto de você, ligada a você e aos recrutas citados
+                                              (texto: --text ou entrada padrão redirecionada; sem nenhum, a nota nasce vazia)
   recruit [--name n] [--role r|--no-role] [--preset p] [--agent a] [--model m] [--effort e] [--cwd d]
-          [--instructions t] [--note <nota>]… [--prompt <tarefa>]   (orquestrador) cria um recruta abaixo de você
+          [--instructions t] [--note <nota>]… [--new-note <nome>] [--prompt <tarefa>]
+                                              (orquestrador) cria um recruta abaixo de você (--new-note: com uma nota de andamento nova)
   connect <recruta> <nota>                    (orquestrador) liga o recruta a uma nota já ligada a você
   reassign <recruta> [--role r|--no-role] [--instructions t|--no-instructions]   (orquestrador) troca papel/instruções
   dismiss <recruta>                           (orquestrador) fecha o terminal do recruta
@@ -50,6 +56,7 @@ export const CANVAS_CLI_ERRORS = {
   joinOutsideHerdr: "canvas_join_outside_herdr",
   joinPaneNotFound: "canvas_join_pane_not_found",
   joinBadPane: "canvas_join_bad_pane",
+  noteFileExists: "canvas_note_file_exists",
 } as const;
 export type CanvasCliErrorCode = (typeof CANVAS_CLI_ERRORS)[keyof typeof CANVAS_CLI_ERRORS];
 
@@ -67,6 +74,7 @@ const ERROR_TEXT: Readonly<Record<CanvasCliErrorCode, string>> = {
   [CANVAS_CLI_ERRORS.joinOutsideHerdr]: "este terminal não está dentro do herdr, e o canvas só mostra panes dele: abra o terminal (ou a sessão do Claude Code) num pane do herdr e rode de novo",
   [CANVAS_CLI_ERRORS.joinPaneNotFound]: "o herdr não tem esse pane",
   [CANVAS_CLI_ERRORS.joinBadPane]: "--pane inválido",
+  [CANVAS_CLI_ERRORS.noteFileExists]: "já existe um arquivo de nota com esse nome: escolha outro nome",
 };
 
 class CanvasCliError extends Error {
@@ -107,6 +115,8 @@ export interface CanvasCliDeps {
   /** O pane do herdr deste processo, ou `undefined` fora do herdr. */
   caller(): Promise<HerdrTarget | undefined>;
   stdin(): Promise<string>;
+  /** A entrada padrão é um pipe ou arquivo (não o teclado)? Sem isso, `note new` não a lê. Ausente: lê. */
+  stdinPiped?(): boolean;
   /** Assignee, labels e reviewers das Configurações (e do perfil do projeto) para o bloco "PR pronta" do recruta. */
   prReady?(): PrReadyValues;
   /** `notify.sh send agent info <texto> --obj <nome>` da instância. */
@@ -122,7 +132,7 @@ interface Parsed {
   flags: Map<string, string[]>;
 }
 
-const VALUE_FLAGS = new Set(["canvas", "name", "role", "preset", "agent", "model", "effort", "cwd", "instructions", "note", "prompt", "pane", "to"]);
+const VALUE_FLAGS = new Set(["canvas", "name", "role", "preset", "agent", "model", "effort", "cwd", "instructions", "note", "prompt", "pane", "to", "text", "title", "link-to", "new-note"]);
 const BOOL_FLAGS = new Set(["only", "append", "no-role", "no-instructions"]);
 
 class UsageError extends Error {}
@@ -164,6 +174,8 @@ async function panelJson(deps: CanvasCliDeps, method: "GET" | "POST" | "PUT", pa
     return failWith(CANVAS_CLI_ERRORS.panelDown, error instanceof Error ? error.message : String(error));
   }
 }
+
+const refusedCode = (reply: PanelReply): string => (isDict(reply.body) && typeof reply.body.code === "string" ? reply.body.code : `http_${reply.status}`);
 
 /** Resposta de recusa do painel → erro com o código que o painel deu (a mensagem dele é genérica e sem caminho). */
 function refused(reply: PanelReply): never {
@@ -340,6 +352,49 @@ async function noteWrite(deps: CanvasCliDeps, at: Located, p: Parsed): Promise<n
   }
 }
 
+/** O texto inicial da nota de andamento de um recruta. */
+const progressSeed = (recruitName: string): string => `# Andamento: ${recruitName}\n`;
+
+/** Recusa nome cujo arquivo já existe (nota órfã de outro canvas, por exemplo): gravar com revisão nula o perderia. */
+async function requireNoNoteFile(deps: CanvasCliDeps, name: string): Promise<void> {
+  if ((await noteText(deps, name)).rev !== null) failWith(CANVAS_CLI_ERRORS.noteFileExists, name);
+}
+
+/**
+ * Cria o arquivo da nota (revisão nula) como quem chama; o nó e a ligação já estão no documento, e é isso que a rota confere.
+ * Ao final de `commit` o nó existe: sem arquivo a nota se lê vazia, e `note write` a cria, então falha aqui não deixa estado quebrado.
+ */
+async function createNoteFile(deps: CanvasCliDeps, canvas: string, doc: CanvasDoc, name: string, writerId: string, text: string): Promise<void> {
+  const node = findNote(doc, name) as CanvasNode;
+  const reply = await panelJson(deps, "PUT", `/api/canvas-notes/${encodeURIComponent(name)}`, { text, rev: null, as: { canvas, node: node.id, agent: writerId } });
+  if (reply.status !== STATUS.ok) refused(reply);
+}
+
+async function noteNew(deps: CanvasCliDeps, at: Located, p: Parsed): Promise<number> {
+  const name = p.positional[2] ?? fail(new UsageError("note new <nome> [--title t] [--text t] [--link-to <recruta>]…"));
+  const orchestrator = orchestratorOf(at);
+  const linkTo = p.flags.get("link-to") ?? [];
+  // tudo que se pode recusar se confere antes de gravar: nome, recrutas e arquivo existente
+  requireFreshNoteName(at.doc, name);
+  await requireNoNoteFile(deps, name);
+  const given = flag(p, "text");
+  const text = given ?? (deps.stdinPiped?.() === false ? "" : await deps.stdin());
+  const placed = await commit(deps, at, (doc) => {
+    const plan = planNewNote(doc, { callerId: orchestrator.id, name, linkTo });
+    return { op: plan.op, result: plan };
+  });
+  await createNoteFile(deps, at.canvas, placed.doc, name, orchestrator.id, text);
+  const title = flag(p, "title");
+  if (title !== undefined) {
+    const renamed = await panelJson(deps, "POST", `/api/canvas-notes/${encodeURIComponent(name)}/rename`, { title });
+    if (renamed.status !== STATUS.ok) deps.err(`hades canvas: a nota ${name} nasceu sem o título (${refusedCode(renamed)})`);
+  }
+  const { node, recruits } = placed.result;
+  const linked = [nodeName(orchestrator), ...recruits.map(nodeName)].join(", ");
+  deps.out(`nota ${name}: nó ${node.id}, em (${node.x}, ${node.y}), ligada a ${linked}`);
+  return EXIT.ok;
+}
+
 // ---- orquestrador ----
 
 const orchestratorOf = (at: Located): CanvasNode => at.me.find((node) => isOrchestrator(node)) ?? requireOrchestrator(at.doc, (at.me[0] as CanvasNode).id);
@@ -404,14 +459,42 @@ const closeBody = (node: CanvasNode): Dict => {
   return { name: nodeName(node), session: target.session, pane: target.pane };
 };
 
+/** `--cwd` na worktree de um agente que já concluiu: avisa que a correção abre agente novo (aviso, não recusa). */
+function warnConcludedWorktree(deps: CanvasCliDeps, cwd: string | undefined): void {
+  if (cwd === undefined) return;
+  const target = resolve(cwd);
+  let records: AgentRecordView[];
+  try {
+    const work = loadWorkEnv({ skillOk: true, cwd: target });
+    records = agentFiles(work).flatMap((file) => {
+      const reg = readJson(file);
+      if (reg === undefined) return [];
+      return [{ name: text(reg.name), worktree: text(reg.worktree), state: text(reg.state), closedOnDone: reg.closedOnDone === true }];
+    });
+  } catch (error) {
+    // sem projeto ao redor do cwd não há registro a consultar; o aviso é cortesia, o recrutamento segue
+    if (error instanceof HadesError) return;
+    throw error;
+  }
+  const concluded = concludedAgentAt(target, records);
+  if (concluded === undefined) return;
+  deps.err(`hades canvas: aviso: ${concluded} foi encerrado ao concluir; a correção abre agente novo na mesma worktree a partir do handoff.md/report.md, não reaproveita a sessão`);
+}
+
 async function recruit(deps: CanvasCliDeps, at: Located, p: Parsed): Promise<number> {
   const orchestrator = orchestratorOf(at);
   const look = isDict(orchestrator.data) ? orchestrator.data : {};
   const notes = p.flags.get("note") ?? [];
+  const newNote = flag(p, "new-note");
   // as notas pedidas são conferidas antes de abrir o pane: recusa não deixa terminal órfão
   for (const ref of notes) requireSharedNote(at.doc, orchestrator.id, ref);
+  if (newNote !== undefined) {
+    requireFreshNoteName(at.doc, newNote);
+    await requireNoNoteFile(deps, newNote);
+  }
   const name = flag(p, "name") ?? freeName(at.doc, orchestrator);
   const body = recruitBody(look, p, name);
+  warnConcludedWorktree(deps, flag(p, "cwd"));
   const created = await panelJson(deps, "POST", "/api/argos/terminals", body, CANVAS_CLI_TIMEOUTS.startMs);
   if (created.status !== STATUS.ok || !isDict(created.body) || !isDict(created.body.herdr)) return refused(created);
   const reply = created.body;
@@ -424,7 +507,7 @@ async function recruit(deps: CanvasCliDeps, at: Located, p: Parsed): Promise<num
   let placed: { doc: CanvasDoc; result: string };
   try {
     placed = await commit(deps, at, (doc) => {
-      const plan = planRecruit(doc, { orchestratorId: orchestrator.id, data, notes });
+      const plan = planRecruit(doc, { orchestratorId: orchestrator.id, data, notes, ...(newNote !== undefined && { newNote }) });
       return { op: plan.op, result: plan.nodeId };
     });
   } catch (error) {
@@ -434,11 +517,13 @@ async function recruit(deps: CanvasCliDeps, at: Located, p: Parsed): Promise<num
     throw error;
   }
   const node = placed.doc.nodes.find((n) => n.id === placed.result) as CanvasNode;
+  if (newNote !== undefined) await createNoteFile(deps, at.canvas, placed.doc, newNote, orchestrator.id, progressSeed(name));
   await sendPrompt(deps, target, identityOf(deps, placed.doc, node, orchestrator, flag(p, "prompt")));
   const inherited = inheritedDefaults(reply);
   if (inherited.length > 0) {
     deps.err(`hades canvas: aviso: o recruta ${name} ficou sem ${inherited.join(" e ")} (sem papel com valor nas Configurações): herda o default do settings.json`);
   }
+  if (newNote !== undefined) deps.out(`nota ${newNote}: ligada a ${name} e a você`);
   deps.out(`recruta ${name}: nó ${node.id}, pane ${target.pane}, em (${node.x}, ${node.y})${data.model !== undefined ? `, modelo ${String(data.model)}` : ""}${data.effort !== undefined ? `, esforço ${String(data.effort)}` : ""}`);
   return EXIT.ok;
 }
@@ -595,7 +680,7 @@ async function leave(deps: CanvasCliDeps, p: Parsed): Promise<number> {
 // ---- entrada ----
 
 type Handler = (deps: CanvasCliDeps, at: Located, p: Parsed) => Promise<number>;
-const NOTE_HANDLERS: Readonly<Record<string, Handler>> = { list: noteList, read: noteRead, write: noteWrite };
+const NOTE_HANDLERS: Readonly<Record<string, Handler>> = { list: noteList, read: noteRead, write: noteWrite, new: noteNew };
 const HANDLERS: Readonly<Record<string, Handler>> = { recruit, connect, reassign, dismiss, notify: notifyOwner };
 
 /** Comandos que valem para um pane que ainda não é nó: não procuram o chamador no canvas. */
@@ -626,7 +711,7 @@ export async function runCanvas(args: readonly string[], deps: CanvasCliDeps): P
       deps.err(`hades canvas: uso: ${error.message}`);
       return EXIT.usage;
     }
-    const code = error instanceof CanvasCliError || error instanceof RecruitError || error instanceof LinkError ? error.code : undefined;
+    const code = error instanceof CanvasCliError || error instanceof RecruitError || error instanceof LinkError || error instanceof NoteError ? error.code : undefined;
     if (code === undefined) throw error;
     deps.err(`hades canvas: ${error instanceof Error ? error.message : String(error)} (${code})`);
     return EXIT.fail;
@@ -706,6 +791,7 @@ function realDeps(): CanvasCliDeps {
     caller: () => callerTarget(process.env),
     prReady: () => prReadyValues(projectLabels()),
     stdin: () => Bun.stdin.text(),
+    stdinPiped: () => !process.stdin.isTTY,
     async notify(text, obj) {
       if (!dir) return { rc: 1, err: "sem instalação do Hades" };
       const r = await exec(["bash", join(dir, "notify.sh"), "send", "agent", "info", text, "--obj", obj], { timeoutMs: CANVAS_CLI_TIMEOUTS.notifyMs });

@@ -19,6 +19,6 @@ checagem-outra-sessao	rc=0
 ls	rc=0	
 ctx-orquestrador	rc=0	HADES: contexto do orquestrador em 260k, acima do teto (250k). Atualize o plan.md e o esta
 ctx-orquestrador-de-novo	rc=0	
-ctx-worktree	rc=0	
+ctx-worktree	rc=0	HADES: contexto em 260k (papel interactive; compactar a partir de 150k, teto 300k). Se a t
 ctx-agente	rc=0	HADES: contexto em 210k, acima do teto do papel impl (200k). Termine o passo atual sem com
 ctx-fora-de-git	rc=0	HADES: contexto em 310k, acima do teto das sessões interativas (300k). Ao terminar o passo

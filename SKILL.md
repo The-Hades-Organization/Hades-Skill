@@ -261,6 +261,8 @@ Pedido do dono → comando e referência, por tema. Na dúvida entre duas linhas
 | "página do Caronte" · "ver a orquestração pronta para levar" | painel, página **Caronte** (grupo Hades): planos e agentes com a prontidão para o pack, prévia do `pack --dry-run`, pacotes, prompt de retomada e os comandos para copiar; **Estacionar** por agente. Pack e unpack ficam no terminal (a senha não passa pelo navegador) (`reference/panel.md` §Caronte) |
 | "leva a orquestração para outra sessão" · "empacota o plano para outra máquina" · "estaciona o agente X" | `hades agent park <nome>` (pede o handoff e que pare), depois `hades caronte pack <plano> [--out <arq>] [--with-journal] [--allow <caminho>]… [--dry-run]` (pacote cifrado com senha; senha esquecida perde o pacote) ou, na mesma máquina, `hades caronte brief <plano>` (prompt de retomada) (`reference/caronte.md`) |
 | "levar a orquestração para outra máquina" · "abrir o pacote do Caronte" | clone o projeto e `hades caronte unpack <arq> [--work-root <d>] [--plans <d>] [--worktrees <d>] [--clone <d>] [--dry-run]` (senha uma vez; refaz plano, worktrees e registros, agentes `parked`; imprime a retomada por agente) (`reference/caronte.md`) |
+| "cria a nota do briefing" · "recruta com nota de andamento" | `hades canvas note new <nome> [--title t] [--text t] [--link-to <recruta>]…` (texto também pela entrada padrão) e `hades canvas recruit --new-note <nome>` (`reference/argos.md` §Orquestrador no canvas) |
+| "fecha o agente quando terminar" · "por que o agente não fechou" | o watch fecha sozinho no `DONE` limpo (`DISMISSED`); `HADES_ORCH_AUTO_DISMISS=0` só emite `DISMISS-READY`; condição que falha emite `DISMISS-HELD <motivo>` (`reference/loop/orchestrate.md`) |
 
 ### Evolução da skill
 

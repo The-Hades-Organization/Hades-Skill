@@ -365,6 +365,31 @@ function Usage() {
         </Table>
       </CardContent>
     </Card> : null}
+    {d.reuse ? <Card>
+      <CardHeader title="Sessões reaproveitadas × novas" summary="reaproveitada: mais de uma fase na sessão do agente, ou ela seguiu depois do DONE" />
+      <CardContent>
+        <Table>
+          <thead>
+            <tr className="border-b">
+              <Th className="pl-0">Sessão</Th>
+              <Th className="text-right">Unidades</Th>
+              <Th className="text-right">Sessões</Th>
+              <Th className="text-right">Turnos</Th>
+              <Th className="pr-0 text-right">Custo (US$)</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {[['Reaproveitadas', d.reuse.reused], ['Novas', d.reuse.fresh]].map(([label, b]) => <Tr key={label}>
+              <Td className="pl-0 font-medium">{label}</Td>
+              <Td className="text-right">{b.units.toLocaleString('pt-BR')}</Td>
+              <Td className="text-right">{b.sessions.toLocaleString('pt-BR')}</Td>
+              <Td className="text-right">{b.turns.toLocaleString('pt-BR')}</Td>
+              <Td className="pr-0 text-right">{usd(b.cost)}</Td>
+            </Tr>)}
+          </tbody>
+        </Table>
+      </CardContent>
+    </Card> : null}
     <Card data-tour-step-id="usage-agentes">
       <CardHeader title="Agentes" summary={d.byAgent.length > 25 ? `25 mais caros de ${d.byAgent.length}` : 'por agente do herdr'} />
       <CardContent className={CARD_SCROLL}>
@@ -390,6 +415,7 @@ function Usage() {
                 {a.pr ? <Mono className="ml-1.5 text-muted-foreground">
                   {'#' + a.pr}
                 </Mono> : null}
+                {a.reused ? <div className="t-meta text-muted-foreground">sessão reaproveitada</div> : null}
               </Td>
               <Td className="text-muted-foreground">
                 {roleLabel(a.role)}

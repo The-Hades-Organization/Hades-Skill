@@ -155,7 +155,7 @@ depois do `caronte unpack`), `--all` (todos, no "já visto" compartilhado: o pai
 flag, o comportamento é o de sempre (todos). Herdr reiniciou e os panes mudaram: `hades agent adopt <nome>` (agente
 vivo) ou `hades agent reassign-orchestrator <nome>…|--all` apontam o registro para o pane de quem chama.
 
-Eventos: `QUESTION`, `PR-OPEN`, `DONE`, `DONE-HELD`, `REVIEW`, `MERGED`/`CLOSED`, `PARKED`, `CTX-OVER`, `STALLED`, `BUDGET`, `LIMITE`.
+Eventos: `QUESTION`, `PR-OPEN`, `DONE`, `DONE-HELD`, `DISMISSED`, `DISMISS-READY`, `DISMISS-HELD`, `REVIEW`, `MERGED`/`CLOSED`, `PARKED`, `CTX-OVER`, `STALLED`, `BUDGET`, `LIMITE`.
 - **`LIMITE <5h|semana> <pct> renova <hora>`**: a janela do plano passou de `HADES_LIMITS_WARN_FIVE_PCT` (80) ou
   `HADES_LIMITS_WARN_SEVEN_PCT` (90). É da máquina, não de um agente: sai para todo observador (o filtro de dono não vale),
   uma vez por janela e por renovação. Só aviso: diga ao dono e pese antes de alocar mais em paralelo. Sem coleta
@@ -175,6 +175,17 @@ Eventos: `QUESTION`, `PR-OPEN`, `DONE`, `DONE-HELD`, `REVIEW`, `MERGED`/`CLOSED`
   diário do agente). Não espere calado: audite o report e o `git log` da worktree, e então (a) devolva o report pedindo a
   linha de prova ou o commit citado (`hades agent prompt`), (b) aceite à mão (`hades agent done`, se a entrega está de
   fato pronta, ex.: relatório de teste que falhou de propósito) ou (c) se a fase nunca comita, relance-a com `--no-commit`.
+- **`DISMISSED <agente> fechado ao concluir`**: o `DONE` limpo fecha a sessão sozinho (`HADES_ORCH_AUTO_DISMISS`, padrão
+  ligado), pelo mesmo caminho do `hades agent done`: registro em encerrado (`closedOnDone`), pane fechado, nó do Argos com o
+  chip "fechado". Worktree, branch, report e diário ficam. Vale quando o report é `STATUS: DONE` sem `DONE-HELD`, o git está
+  limpo e sem commit sem push, a PR da unidade (nos modos com PR) tem o head igual ao último commit da worktree e o herdr
+  mostra `idle`/`done`. Nos modos `skill` e `review`, sem PR da unidade, valem o herdr e a auditoria do `agent done`.
+  Correção depois disso abre agente novo na mesma worktree (`agent new --resume <worktree>`/`phase`), a partir do
+  `handoff.md` e do `report.md`: `agent resume` e `canvas recruit --cwd` avisam disso (aviso, não recusa).
+- **`DISMISS-READY <agente>`**: tudo ok para fechar, mas a chave está desligada: o fechamento é seu (`hades agent done`).
+- **`DISMISS-HELD <agente> <motivo>`**: o `DONE` saiu, mas o fechamento não: `herdr-working`/`herdr-blocked` (sessão ainda
+  ativa), `herdr-fora`, `herdr-desconhecido`, `sem-pr`, `pr-ilegivel`, `pr-head-diferente`, `auditoria` (git sujo ou commit
+  fora da branch), `cerberus` (o Cerberus barrou o fechamento), `erro`. Nunca fecha no escuro: corrija a condição (ou feche à mão) e o próximo ciclo reavalia.
 - **`PARKED`** (agente estacionou com o handoff): `resume <nome>`, ou `phase` se a fase mudou.
 - **`CTX-OVER <agente> <usado>k <teto>k`** (o agente seguiu trabalhando acima do teto do papel depois do aviso do hook):
   `hades agent park <nome>` (o agente grava o handoff e para), depois `resume`. O `hades watch` só avisa, nunca estaciona;

@@ -105,6 +105,7 @@ Os padrões são o comportamento de antes: 8 GB, um pesado por vez, FIFO.
 | `HADES_CARONTE_OUT_DIR` (vazio: `~/.claude/hades/caronte`; pasta dos pacotes do `hades caronte pack`, fora de qualquer repo), `HADES_CARONTE_SCRYPT_LOG2N` (17, 14–20: custo do scrypt da senha do pacote; 17 usa 128 MB, e o valor vai no cabeçalho do arquivo) | próxima execução |
 | `HADES_ORCH_AUTO_DISMISS` (1; 0 = o `hades watch` não fecha a sessão ao concluir e emite `DISMISS-READY <agente>`; ligado, o `DONE` limpo fecha pelo mesmo caminho do `hades agent done` e a condição que falha emite `DISMISS-HELD <agente> <motivo>`; worktree, branch, report e diário ficam) | próxima passada do `hades watch` (`reference/loop/orchestrate.md`) |
 | `HADES_ORCH_AUTO_START` (0; 1 = `new`/`skill-new` imprimem o `herdr agent start` sem o `! ` para o orquestrador rodar como Bash, e a regra allow `Bash(herdr agent start:*)` entra no `settings.json` do usuário), `HADES_ORCH_AUTONOMY` (0, 0–3, controle deslizante: quanto o orquestrador decide sozinho; `reference/autonomia.md`). Só o dono muda (painel local ou `!`; o hook e o painel remoto barram) | próxima execução |
+| `HADES_ORCH_WAKE_MIN_S` (30, 0–3600 s: intervalo mínimo entre despertares do `hades wait agents --any`; os eventos que chegam juntos (folga de 2 s) viram um despertar só, e o seguinte espera este intervalo desde o anterior; 0 deixa só a folga) | próximo `wait agents` |
 
 ### Modelos por papel
 | Chaves | Aplicar |

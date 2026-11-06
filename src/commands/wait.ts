@@ -1,5 +1,6 @@
 // `hades wait`: esperas que notificam. Cada subcomando bloqueia até o evento e sai com UMA linha (hades wait).
 // Rode sempre em segundo plano: o laço fica aqui, nunca na conversa (o hook da Hades barra polling).
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parsePullRequest, text } from "../lib/activity.ts";
 import { need } from "../lib/deps.ts";
@@ -7,7 +8,10 @@ import { isFile, readText } from "../lib/fs.ts";
 import { EXIT, die, out } from "../lib/output.ts";
 import { home } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
-import { DEFAULT_REPORTS } from "../lib/work.ts";
+import { selfCli } from "../lib/paths.ts";
+import { WatchUsageError, observerKey, parseWatchArgs } from "../lib/watch-scope.ts";
+import { DEFAULT_WAKE_MIN_S, SETTLE_MS, ensureDir, formatWake, gatherWake, lastWakeFile, readLastWake, watchSource } from "../lib/wait-agents.ts";
+import { DEFAULT_REPORTS, configValue, loadWorkEnv } from "../lib/work.ts";
 
 const DEFAULT_EVERY_SECONDS = 60;
 const DEFAULT_MAX_SECONDS = 21_600;
@@ -29,6 +33,8 @@ const USAGE = `# Esperas que notificam: cada subcomando bloqueia até o evento e
 #   hades wait review <PR>                review/comentário novo  → "REVIEW #N <k> novos"
 #   hades wait answer <worktree> <Qn>     dono respondeu          → "ANSWER Qn"
 #   hades wait agent <nome> [estado]      agente chegou ao estado → "AGENT <nome> <estado>" (padrão idle)
+#   hades wait agents --any [flags do watch]  qualquer agente do orquestrador → "AGENTS <n>" e uma linha por evento (DONE, QUESTION, …),
+#                                         eventos que chegam juntos num despertar só; intervalo mínimo HADES_ORCH_WAKE_MIN_S
 #   hades wait proc <padrão>              nenhum processo casa    → "PROC <padrão> terminou" (padrão do pgrep -f)
 # Intervalos: HADES_WAIT_EVERY (padrão 60 s). Tempo máximo: HADES_WAIT_MAX (padrão 6 h) → sai com "TIMEOUT ...".`.replace(/^# ?/gm, "");
 
@@ -242,6 +248,42 @@ function waitAgent(name: string, state: string, clock: Clock): number {
   return TIMEOUT_EXIT;
 }
 
+/** `wait agents --any`: um despertar por rajada de eventos do `hades watch` (já filtrado pelo orquestrador). */
+async function waitAgents(args: string[], clock: Clock): Promise<number> {
+  const flags = args.filter((a) => a !== "--any");
+  if (flags.length === args.length) die("wait agents pede --any (esperar qualquer agente do orquestrador)", EXIT.usage);
+  let scope;
+  try {
+    if (flags.includes("--next")) throw new WatchUsageError("--next não vale aqui: o wait já sai no primeiro despertar");
+    scope = parseWatchArgs(flags).scope;
+  } catch (error) {
+    if (!(error instanceof WatchUsageError)) throw error;
+    die(`wait agents: ${error.message}`, EXIT.usage);
+  }
+  const minIntervalS = Number(configValue("HADES_ORCH_WAKE_MIN_S", String(DEFAULT_WAKE_MIN_S))) || DEFAULT_WAKE_MIN_S;
+  const work = loadWorkEnv({ skillOk: true });
+  const lastFile = lastWakeFile(join(work.orch, "watch"), observerKey(scope));
+  const watch = selfCli("watch", ...flags);
+  const { source, stop } = watchSource(watch.command, watch.args);
+  try {
+    const got = await gatherWake({ source, clock: { now: Date.now }, lastWakeAt: readLastWake(lastFile), minIntervalS, settleMs: SETTLE_MS, maxMs: clock.maxMs });
+    if (got.kind === "timeout") {
+      out(`TIMEOUT agents depois de ${Math.floor(clock.maxMs / 60_000)} min`);
+      return TIMEOUT_EXIT;
+    }
+    if (got.kind === "end") {
+      out("END agents: o hades watch encerrou sem evento");
+      return EXIT.fail;
+    }
+    ensureDir(lastFile);
+    writeFileSync(lastFile, `${Math.floor(got.wokeAt / 1000)}\n`);
+    for (const line of formatWake(got.lines)) out(line);
+    return EXIT.ok;
+  } finally {
+    stop();
+  }
+}
+
 export async function waitCommand(args: string[]): Promise<number> {
   const [sub = "", first, second] = args;
   const clock = new Clock(process.env, `${sub} ${sub === "answer" ? (second ?? "") : (first ?? "")}`.trim());
@@ -253,6 +295,7 @@ export async function waitCommand(args: string[]): Promise<number> {
     case "review": return waitReview(requireArg(first, "PR"), clock);
     case "answer": return waitAnswer(requireArg(first, "worktree"), requireArg(second, "Qn"), clock);
     case "proc": return waitProc(requireArg(first, "padrão"), clock);
+    case "agents": return waitAgents(args.slice(1), clock);
     case "agent": return waitAgent(requireArg(first, "nome"), second ?? "idle", clock);
     default:
       out(USAGE);

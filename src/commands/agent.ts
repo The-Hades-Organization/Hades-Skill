@@ -137,7 +137,7 @@ function workFor(sub: string, args: string[]): WorkEnv {
   return loadWorkEnv({
     skillOk: true,
     skillForce: sub.startsWith("skill-"),
-    ...(agentScoped.includes(sub) ? { agent: args[0] ?? "" } : {}),
+    ...(agentScoped.includes(sub) ? { agent: args.find((a) => !a.startsWith("--")) ?? "" } : {}),
   });
 }
 
@@ -166,7 +166,8 @@ const USAGE = `Agentes alocados pelo orquestrador (reference/loop/orchestrate.md
                                                        (já estacionado ou encerrado: avisa e sai 0; é o que o caronte pack exige)
   hades agent escalate <nome> "<motivo>"            agente estaciona; painel novo no mesmo worktree para o dono iniciar
                                                        com o modelo de escalada (nunca /model: ele vira padrão global)
-  hades agent status [<nome>]                       agentes, estado no herdr, PR, perguntas abertas e relatório
+  hades agent status [--compact] [<nome>]           agentes, estado no herdr, PR, perguntas abertas e relatório
+                                                     --compact: uma linha por agente (nome herdr fase evento pr ctx custo)
   hades agent list [--all] [--json]                 rápido e offline (registro + um herdr agent list): nome, papel, modo,
                                                        registro (ativo|encerrado|arquivado), herdr, branch, worktree; sem --all
                                                        só os não encerrados

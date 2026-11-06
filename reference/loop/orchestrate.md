@@ -144,6 +144,14 @@ da fila barra o texto do comando.
 
 ## 4. Acompanhamento
 
+**Por evento, em lote:** `hades wait agents --any` em segundo plano (run_in_background) espera o primeiro evento de qualquer
+agente seu e sai com `AGENTS <n>` e uma linha por evento; o que chega junto (folga de 2 s) vira um despertar só, e o seguinte
+só vem `HADES_ORCH_WAKE_MIN_S` (30 s) depois do anterior. Aceita as flags de escopo do `watch` abaixo. Panorama sob demanda:
+`hades agent status --compact` (uma linha por agente: `nome herdr fase evento pr ctx custo`, sem consultar a PR). **Pane do
+herdr só para diagnóstico**, com teto de linhas (`herdr pane read … --lines 40`), nunca para acompanhar. **Cada despertar relê
+o contexto inteiro** da sessão: o custo de acompanhar é o número de despertares vezes o contexto, não o que cada olhada lê
+(`reference/loop/tokens.md`: o Consumo separa acompanhamento × decisão).
+
 `hades watch --next` em segundo plano (run_in_background), de dentro de um clone:
 sai no primeiro evento novo e acorda o orquestrador, que trata e relança. Sem `Monitor`, sem religar a cada 30 min.
 **Escopo:** chamado de um pane do herdr (`HERDR_PANE_ID`), o watch acompanha só os agentes cujo `orchestrator` do registro

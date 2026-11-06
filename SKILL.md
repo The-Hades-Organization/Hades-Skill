@@ -265,6 +265,7 @@ Pedido do dono → comando e referência, por tema. Na dúvida entre duas linhas
 | "fecha o agente quando terminar" · "por que o agente não fechou" | o watch fecha sozinho no `DONE` limpo (`DISMISSED`); `HADES_ORCH_AUTO_DISMISS=0` só emite `DISMISS-READY`; condição que falha emite `DISMISS-HELD <motivo>` (`reference/loop/orchestrate.md`) |
 | "o que o settings.json está custando" · "por que o agente sem flags está caro" | `hades doctor` (linha `settings-padrao`) e Configurações → Modelos por papel, que mostra o padrão herdado (`reference/doctor.md`) |
 | "esse agente está no modelo certo?" · "quanto custou a divergência de modelo" | `hades usage` (coluna modelo, `DIVERGE de X: +US$ N`) e o evento `MODEL-MISMATCH` do watch (`reference/loop/tokens.md`) |
+| "acompanha os agentes sem gastar contexto" · "o que cada agente está fazendo" · "espera qualquer agente" | `hades agent status --compact`; `hades wait agents --any` em segundo plano (`reference/loop/orchestrate.md` §4) |
 
 ### Evolução da skill
 

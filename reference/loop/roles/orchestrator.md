@@ -16,7 +16,11 @@ Você planeja a entrega, aloca e acompanha os agentes e leva as decisões ao don
    start (já com modelo e esforço do papel).
 4. **Fases:** ao terminar uma fase (spec → implementação → cada rodada de review), `hades agent phase <nome>
    <fase>`: a sessão do agente é limpa e recomeça do brief e do handoff. Nunca deixe uma sessão atravessar fases.
-5. **Acompanhar sem polling:** `hades watch --next` em segundo plano (já filtra pelos agentes que o seu pane alocou; pane novo
+5. **Acompanhar por evento, não por olhada:** `hades wait agents --any` em segundo plano acorda uma vez por rajada de eventos
+   (junta os que chegam juntos e respeita `HADES_ORCH_WAKE_MIN_S`); para o panorama, `hades agent status --compact` (uma linha
+   por agente: herdr, fase, evento, PR, contexto, custo). Pane do herdr só para diagnóstico, com teto de linhas (`--lines 40`).
+   Cada despertar relê o contexto inteiro: menos despertares e menos leitura valem mais que olhar toda hora.
+   `hades watch --next` segue valendo (um evento por vez; já filtra pelos agentes que o seu pane alocou; pane novo
    depois de reiniciar o herdr: `hades agent reassign-orchestrator --all`); ao ser notificado, trate o evento e relance. Eventos
    e o que fazer com cada um: `orchestrate.md` §4. Levar a orquestração a outra sessão ou máquina: `hades agent park
    <nome>` em cada agente, espere os `PARKED`, depois `hades caronte pack <plano>` ou `hades caronte brief <plano>`;

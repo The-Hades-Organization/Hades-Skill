@@ -12,7 +12,7 @@ import { loadRegistry } from "../lib/deps.ts";
 import { firstLine, isDir, isFile, listDir, readText, realpathMissingOk } from "../lib/fs.ts";
 import { coletaLigada } from "../lib/limites-aviso.ts";
 import { chaves, medidas } from "../lib/limites-io.ts";
-import { stateDir } from "../lib/kit.ts";
+import { findStateDir } from "../lib/kit.ts";
 import { EXIT, out, warn as warnErr } from "../lib/output.ts";
 import { home, selfCli } from "../lib/paths.ts";
 import { pyDumps } from "../lib/pyjson.ts";
@@ -654,6 +654,16 @@ function rerunInInstance(d: string, args: string[]): number | undefined {
   return ran.status ?? EXIT.fail;
 }
 
+/** Sem instalação não há `$D` para os checks do ambiente, mas o doctor não sai mudo: relata a falta e confere o que não depende dela. */
+function reportWithoutInstallation(quick: boolean, json: boolean): number {
+  const report = new Report();
+  report.err("Instalação", "instalacao", "sem instalação do Hades para guardar o estado", "rode kit/install.sh (ou defina HADES_DATA)");
+  checkSettingsDefault(report);
+  const code = exitCode(report.items);
+  out(json ? renderJson(report.items, quick, code) : renderTable(report.items, quick));
+  return code;
+}
+
 export function doctorCommand(args: string[]): number {
   let quick = false;
   let json = false;
@@ -668,7 +678,8 @@ export function doctorCommand(args: string[]): number {
       return EXIT.usage;
     }
   }
-  const d = stateDir();
+  const d = findStateDir();
+  if (d === undefined) return reportWithoutInstallation(quick, json);
   const viaInstance = rerunInInstance(d, args);
   if (viaInstance !== undefined) return viaInstance;
   const hu = env("HU", unitPrefix(d));

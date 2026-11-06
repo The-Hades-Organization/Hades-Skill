@@ -187,6 +187,14 @@ function divergenceText(d: Dict | undefined): string {
   return `${model}${effort ? `  esforço ${String(effort.real)} ≠ ${String(effort.configured)}` : ""}`;
 }
 
+/** Orquestrador: turnos de acompanhamento × decisão (turnos, contexto médio e custo de cada grupo); sem a medida, nada. */
+function followupLines(roles: Dict[]): string[] {
+  const split = roles.find((r) => r.role === "orchestrator")?.followup as { follow: Dict; decision: Dict } | undefined;
+  if (split === undefined) return [];
+  const row = (label: string, g: Dict): string => `  ${pad(label, 16)}${pad(String(g.turns), 9, true)}${pad(kilo(g.ctxAvg), 11, true)}${pad(fixed(plain(g.cost), 0), 9, true)}`;
+  return ["", "orquestrador, acompanhamento × decisão:", `  ${pad("", 16)}${pad("turnos", 9, true)}${pad("ctx médio", 11, true)}${pad("custo", 9, true)}`, row("acompanhamento", split.follow), row("decisão", split.decision)];
+}
+
 /** Reaproveitadas × novas (auto-dismiss): turnos e custo por unidade; relatório sem agente não leva o bloco. */
 function reuseLines(reuse: { reused: Dict; fresh: Dict } | undefined): string[] {
   if (reuse === undefined) return [];
@@ -218,6 +226,7 @@ function printable(report: Report, limits: Limits | undefined): string[] {
       lines.push(`  ${pad(String(a.name), 22)}${pad(String(a.role), 24)}${pad(String(a.model ?? ""), 12)}US$ ${pad(fixed(value(a.cost), 0), 6, true)}  ctx médio ${pad(fixed(Number(a.ctxAvg) / 1000, 0), 4, true)}k  polling US$ ${fixed(value(a.poll_cost), 0)}${a.overCap === true ? "  acima do teto" : ""}${divergenceText(a.divergence as Dict | undefined)}${a.pct5h === undefined ? "" : `  5h ${pctText(a.pct5h, a.pct5hPartial)}  semana ${pctText(a.pctWeek, a.pctWeekPartial)}`}`);
     }
   }
+  lines.push(...followupLines(roles));
   lines.push(...reuseLines(report.reuse as { reused: Dict; fresh: Dict } | undefined));
   lines.push(...overCapLines(report.overCap as Dict[] | undefined));
   const days = report.byDay as Dict[];

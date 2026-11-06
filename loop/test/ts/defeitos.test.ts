@@ -68,7 +68,7 @@ describe("defeitos", () => {
     const p = r.X(["timeout", "30", process.execPath, `${SKILL}/src/cli.ts`, "watch", "--next", "1"], {
       cwd: r.C, merge: true, env: { ...r.ae, FAKE_HERDR_AGENTS: ag, HADES_WATCH_STATE: ws, HADES_ORCH_STALL_MIN: "5" } });
     const got = nl(p.out).split("\n").map((l) => l.replace(/^(STALLED [^ ]+) [0-9]+$/, "$1 <min>")).sort().join("\n");
-    expect(got, "watch: só os eventos legítimos saem").toBe("CONTEXT w-contexto 300k\nPARKED w-reparked teto\nSTALLED w-comprompt <min>");
+    expect(got, "watch: só os eventos legítimos saem").toBe("CTX-OVER w-contexto 300k 200k\nPARKED w-reparked teto\nSTALLED w-comprompt <min>");
     for (const f of readdirSync(o)) if (f.startsWith("w-")) rmSync(`${o}/${f}`);
   });
 

@@ -98,6 +98,12 @@ describe("nó terminal: dados, tema e alvos (node-terminal.tsx)", () => {
     expect(NT.readTerminalData(null)).toEqual({ name: null });
     expect(NT.readTerminalData({ name: "x".repeat(NT.TERMINAL_NAME_MAX + 1) }).name).toBeNull();
   });
+  test("dado modelo e esforço gravados no nó, então o rótulo os mostra; sem nenhum, diz que herda o settings.json", async () => {
+    const { ArgosNodeTerminal: NT } = await load();
+    expect(NT.terminalModelLabel(NT.readTerminalData({ model: "claude-sonnet-5-5", effort: "medium" })).text).toBe("claude-sonnet-5-5 · medium");
+    expect(NT.terminalModelLabel(NT.readTerminalData({ model: "claude-sonnet-5-5" })).text).toBe("claude-sonnet-5-5");
+    expect(NT.terminalModelLabel(NT.readTerminalData({ name: "dev" })).text).toBe("herda settings.json");
+  });
   test("tema vazio segue o painel; Sistema troca pelo esquema; Personalizado só com fundo e texto", async () => {
     const { ArgosNodeTerminal: NT } = await load();
     expect(NT.terminalThemeStyle({ name: "t" }, true)).toEqual({});

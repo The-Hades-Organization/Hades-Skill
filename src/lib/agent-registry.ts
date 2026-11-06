@@ -3,8 +3,10 @@
 import { join } from "node:path";
 import { herdrRefOf, type HerdrRef } from "./argos-graph-ui.ts";
 import { AGENT_END_KIND, emitJournal } from "./journal.ts";
+import { die } from "./output.ts";
 import { run, which } from "./proc.ts";
-import { readJson, writeJsonAtomic, agentFile, configValue, type Json, type WorkEnv } from "./work.ts";
+import { agentFiles, readJson, writeJsonAtomic, agentFile, configValue, type Json, type WorkEnv } from "./work.ts";
+import { nestedUnder } from "./worktree-scope.ts";
 
 export const isoNow = (): string => `${new Date().toISOString().slice(0, 19)}Z`;
 
@@ -48,11 +50,17 @@ export function deliverySet(work: WorkEnv, key: string, update: (delivery: Json)
   writeJsonAtomic(file, { ...doc, deliveries: { ...deliveries, [key]: update(delivery) } });
 }
 
-/** O comando de start do dono, com modelo e esforço do papel (Configurações). */
-export function startCommand(name: string, pane: string, role: string): string {
+/** Modelo e esforço do papel nas Configurações (HADES_MODEL_<PAPEL> / HADES_EFFORT_<PAPEL>); vazio quando o papel não tem. */
+export function roleModelDefaults(role: string): { model?: string; effort?: string } {
   const key = role.toUpperCase();
   const model = configValue(`HADES_MODEL_${key}`, "");
   const effort = configValue(`HADES_EFFORT_${key}`, "");
+  return { ...(model && { model }), ...(effort && { effort }) };
+}
+
+/** O comando de start do dono, com modelo e esforço do papel (Configurações). */
+export function startCommand(name: string, pane: string, role: string): string {
+  const { model, effort } = roleModelDefaults(role);
   return `! herdr agent start ${name} --kind claude --pane ${pane || "<pane>"} -- --permission-mode auto${model ? ` --model ${model}` : ""}${effort ? ` --effort ${effort}` : ""}`;
 }
 
@@ -104,4 +112,23 @@ export function orchestratorField(agentPane: string, env: NodeJS.ProcessEnv = pr
 /** Grava no diário o fim da atividade do agente (`done`, `park`, `skill-clean`): é o que apaga a permissão pendente do Argos. */
 export function journalAgentEnd(name: string, how: "done" | "park" | "skill-clean", cwd: string): void {
   emitJournal("orch", AGENT_END_KIND, `agente encerrado: ${how}`, { agent: name, cwd, get: (key) => configValue(key, "") });
+}
+
+/** Código estável da recusa (só ganha valores, nunca renomeia): quem consome ramifica por ele, não pelo texto. */
+export const WORKTREE_CONTAINS_AGENTS = "WORKTREE_CONTAINS_AGENTS";
+
+/**
+ * Recusa registrar `worktree` quando ela contém worktrees de outros agentes: casando por prefixo, o registro da pasta-mãe
+ * tomaria o papel e o handoff de todos os recrutas de baixo. Arquivado não conta (a worktree se foi); `done` conta, porque a
+ * sessão que segue lá mantém o papel. O mesmo caminho é retomada e passa; o próprio nome é ignorado.
+ */
+export function assertNoNestedWorktrees(work: Pick<WorkEnv, "orch" | "skillOrch" | "skillScope">, name: string, worktree: string): void {
+  const others = agentFiles(work)
+    .map((file) => readJson(file))
+    .filter((record): record is Json => record !== undefined && record.name !== name && record.state !== "archived")
+    .map((record) => ({ name: String(record.name ?? ""), worktree: typeof record.worktree === "string" ? record.worktree : "" }));
+  const inside = nestedUnder(worktree, others.map((o) => o.worktree));
+  if (inside.length === 0) return;
+  const names = others.filter((o) => inside.includes(o.worktree)).map((o) => o.name);
+  die(`${WORKTREE_CONTAINS_AGENTS}: ${worktree} contém a worktree de ${names.join(", ")}; registre uma worktree sua, não a pasta-mãe`);
 }

@@ -28,8 +28,7 @@ com gh pr edit <n> --base <nova> quando a de baixo entrar, nunca commitar na bra
 - Branch `{{BRANCH}}`, base `{{BASE}}` em `{{BASE_SHA}}`
 - Regras do projeto: {{REFS}}
 - Lock `{{LOCK}}` (do orquestrador; não libere)
-- Título da PR: `{{TITULO}}`. Pronta: assignee `{{ASSIGNEE}}`, labels `{{LABELS}}`, reviewers
-  `{{REVIEWERS}}`, depois `gh pr ready`.
+- Título da PR: `{{TITULO}}`. {{PR_PRONTA}}
 - Specs novas: owner `{{SPEC_OWNERS}}`, reviewers `{{SPEC_REVIEWERS}}`.
 - Limites desta máquina: escalar depois de {{ESCALATE_WAVES}} ondas de gate falhando; estacionar se a fila do gate
   passar de {{PARK_GATE_MIN}} min.

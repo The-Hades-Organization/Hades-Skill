@@ -10,6 +10,7 @@
 // Cache por arquivo em ~/.claude/hades/usage/cache.json: só transcript que mudou é relido.
 import { mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { ctxCapOf } from "../lib/ctx-cap.ts";
 import { EXIT } from "../lib/output.ts";
 import { workRoot } from "../lib/cerberus.ts";
 import { guardRules } from "../lib/guard-rules.ts";
@@ -17,9 +18,10 @@ import { chaves, gravarAmostra, linhaAtual, medidas, renova, type Chaves } from 
 import { calibra, JANELAS, pctDeTokens, ROTULO, textoPct, type Amostra, type Atual, type Calibracao, type Estimativa, type Janela } from "../lib/limites.ts";
 import { home } from "../lib/paths.ts";
 import { pyDumps } from "../lib/pyjson.ts";
+import { configValue } from "../lib/work.ts";
 import {
   baselineOf, buildReport, byRoles, CACHE_VERSION, fixed, gitKind, parseFileFull, plain, readFileOr, transcriptsIn, withBaseline,
-  type Agent, type Dict, type PctOf, type Report, type Req, type Row, type Tok,
+  type Agent, type CapOf, type Dict, type PctOf, type Report, type Req, type Row, type Tok,
 } from "../lib/usage.ts";
 
 const PROG = "hades usage";
@@ -163,6 +165,19 @@ function limitsLines(limits: Limits | undefined, withColumns: boolean): string[]
   return lines;
 }
 
+const kilo = (tokens: unknown): string => `${fixed(Number(tokens) / 1000, 0)}k`;
+
+/** Sessões que passaram do teto de contexto do papel: o nome curto da pasta, o papel, o máximo medido e o teto. */
+function overCapLines(over: Dict[] | undefined): string[] {
+  if (!over?.length) return [];
+  const lines = ["", "acima do teto de contexto:"];
+  for (const s of over) {
+    const name = String(s.cwd).replace(/\/+$/, "").split("/").pop() || String(s.cwd);
+    lines.push(`  ${pad(name, 30)}${pad(String(s.role), 22)}ctx máx ${kilo(s.ctxMax)}, teto ${kilo(s.ctxCap)}`);
+  }
+  return lines;
+}
+
 function printable(report: Report, limits: Limits | undefined): string[] {
   const total = report.total as Dict;
   const value = plain;
@@ -184,9 +199,10 @@ function printable(report: Report, limits: Limits | undefined): string[] {
   if (agents.length) {
     lines.push("", "agentes:");
     for (const a of agents.slice(0, 12)) {
-      lines.push(`  ${pad(String(a.name), 22)}${pad(String(a.role), 24)}US$ ${pad(fixed(value(a.cost), 0), 6, true)}  ctx médio ${pad(fixed(Number(a.ctxAvg) / 1000, 0), 4, true)}k  polling US$ ${fixed(value(a.poll_cost), 0)}${a.pct5h === undefined ? "" : `  5h ${pctText(a.pct5h, a.pct5hPartial)}  semana ${pctText(a.pctWeek, a.pctWeekPartial)}`}`);
+      lines.push(`  ${pad(String(a.name), 22)}${pad(String(a.role), 24)}US$ ${pad(fixed(value(a.cost), 0), 6, true)}  ctx médio ${pad(fixed(Number(a.ctxAvg) / 1000, 0), 4, true)}k  polling US$ ${fixed(value(a.poll_cost), 0)}${a.overCap === true ? "  acima do teto" : ""}${a.pct5h === undefined ? "" : `  5h ${pctText(a.pct5h, a.pct5hPartial)}  semana ${pctText(a.pctWeek, a.pctWeekPartial)}`}`);
     }
   }
+  lines.push(...overCapLines(report.overCap as Dict[] | undefined));
   const days = report.byDay as Dict[];
   if (withPct && days.length) {
     lines.push("", `${pad("dia", 12)}${pad("custo", 9, true)}${pad("% 5h", 12, true)}${pad("% semana", 12, true)}`);
@@ -282,7 +298,8 @@ export function usageCommand(args: string[]): number {
   const { rows, reqs } = collectRows(join(home(), ".claude", "projects"), since, loadSince, outDir, Date.parse(`${loadSince}T00:00:00Z`));
   const { limits, pctOf } = buildLimits(measured.amostras, measured.atual, reqs, k);
   const roles = byRoles(rows, registry(), gitKind);
-  const report = buildReport(rows, roles, days, since, `${now.toISOString().slice(0, 19)}+00:00`, pctOf);
+  const capOf: CapOf = (role) => ctxCapOf(role, (key) => configValue(key, "") || undefined);
+  const report = buildReport(rows, roles, days, since, `${now.toISOString().slice(0, 19)}+00:00`, pctOf, capOf);
   report.limits = limitsJson(limits);
   const baselineFile = join(outDir, "baseline.json");
   if (baseline) writeFileSync(baselineFile, dumps(baselineOf(report, days), 1));

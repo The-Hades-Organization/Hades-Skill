@@ -15,9 +15,11 @@
 import { closeSync, mkdirSync, openSync, readSync, readdirSync, renameSync, statSync, writeFileSync, fstatSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { readText, firstLine, isFile, isDir } from "./fs.ts";
+import { ctxCapOf } from "./ctx-cap.ts";
 import { guardRules, maskDataStatements, stripAgentText, stripHeredocBodies, type GuardRules } from "./guard-rules.ts";
 import { hadesHome, home } from "./paths.ts";
 import { pyDumps, splitLines } from "./pyjson.ts";
+import { containsDir, mostSpecific } from "./worktree-scope.ts";
 
 type Dict = Record<string, unknown>;
 export type HookInput = Dict;
@@ -103,6 +105,8 @@ export interface HookEnv {
   cerberusEmit: (guarda: string, conferido: string, d: HookInput) => void;
   /** ferramentas do PreToolUse em que o guard decide; fora delas o PreToolUse só alimenta o diário (undefined = todas) */
   decidingTools?: readonly string[];
+  /** terminal do canvas cujo cwd contém o da sessão, com o papel (slug do Argos) dele (padrão: argos/terminals.json da instância) */
+  terminal?: (cwd: string) => TerminalMatch | undefined;
   /** grava o evento no diário (src/lib/journal.ts); nunca lança nem muda o resultado */
   journal?: (d: HookInput, cfg: Cfg, result: HookResult) => void;
 }
@@ -182,27 +186,92 @@ function agentFiles(): string[] {
   return files;
 }
 
-/** (papel, agente) da sessão a partir do cwd. */
-function roleOf(cwd: string, env: HookEnv): { role: string; agent: Dict | undefined } {
+/** Terminal do canvas que contém a sessão; `role` é o slug livre do Argos, ausente quando o terminal não tem papel. */
+export interface TerminalMatch {
+  role: string | undefined;
+}
+
+/**
+ * O terminal do canvas cujo cwd contém `cwd`, lido do `argos/terminals.json`; o mais específico vale. Arquivo ausente
+ * ou ilegível não decide nada: o hook nunca falha por causa dele.
+ */
+export function terminalOf(file: string, cwd: string): TerminalMatch | undefined {
+  const doc = readObject(file);
+  const list = Array.isArray(doc?.terminals) ? (doc.terminals as unknown[]) : [];
+  const terminals = list.filter((t): t is Dict => typeof t === "object" && t !== null && typeof (t as Dict).cwd === "string");
+  const terminal = mostSpecific(cwd, terminals, (t) => t.cwd as string) as Dict | undefined;
+  if (!terminal) return undefined;
+  return { role: typeof terminal.role === "string" && terminal.role !== "" ? terminal.role : undefined };
+}
+
+interface Registered {
+  agent: Dict;
+  worktree: string;
+}
+
+/**
+ * O registro cuja worktree contém `cwd`: a mais específica (a pasta-mãe de um recruta não toma o papel dele) e, na mesma
+ * worktree, o agente vivo antes do encerrado. Encerrado (`done`) continua valendo: quem retoma o recruta à mão segue sob o
+ * teto do papel.
+ */
+function registeredAgentOf(cwd: string): Dict | undefined {
+  const records: Registered[] = [];
   for (const file of agentFiles()) {
     const agent = readObject(file);
-    if (!agent) continue;
-    const worktree = typeof agent.worktree === "string" ? agent.worktree : "";
-    if (agent.state !== "done" && worktree && (cwd === worktree || cwd.startsWith(`${worktree}/`))) {
-      const declared = typeof agent.role === "string" ? agent.role : "";
-      const mode = typeof agent.mode === "string" ? agent.mode : "";
-      return { role: declared || ROLE_BY_MODE[mode] || "impl", agent };
-    }
+    const worktree = typeof agent?.worktree === "string" ? agent.worktree : "";
+    if (agent && worktree && containsDir(worktree, cwd)) records.push({ agent, worktree });
+  }
+  const live = records.filter((r) => r.agent.state !== "done");
+  const best = mostSpecific(cwd, records, (r) => r.worktree);
+  const sameWorktreeLive = best ? live.find((r) => r.worktree === best.worktree) : undefined;
+  return (sameWorktreeLive ?? best)?.agent;
+}
+
+/** A pasta de dados ($D) da instância: HADES_DATA ou a instância ativa da máquina (a mesma que o hookConfig lê). */
+function defaultTerminal(cwd: string): TerminalMatch | undefined {
+  const instance = readText(join(hadesHome(), "instance"))?.trim();
+  const data = process.env.HADES_DATA || instance;
+  return data ? terminalOf(join(data, "argos", "terminals.json"), cwd) : undefined;
+}
+
+const RECRUIT_ROLE = "recruit";
+
+/** Sessão que não é agente registrado: recruta (terminal do canvas, com o papel dele ou `recruit`), senão interativa. */
+function interactiveRole(cwd: string, env: HookEnv): SessionRole {
+  const terminal = (env.terminal ?? defaultTerminal)(cwd);
+  if (!terminal) return { role: "interactive", agent: undefined, recruit: false };
+  return { role: terminal.role ?? RECRUIT_ROLE, agent: undefined, recruit: true };
+}
+
+/** Papel do agente registrado: o declarado, senão o do modo (revisão, consolidação), senão implementação. */
+export function agentRoleOf(agent: Dict): string {
+  const declared = typeof agent.role === "string" ? agent.role : "";
+  const mode = typeof agent.mode === "string" ? agent.mode : "";
+  return declared || ROLE_BY_MODE[mode] || "impl";
+}
+
+interface SessionRole {
+  role: string;
+  agent: Dict | undefined;
+  /** terminal do canvas sem registro de agente: o teto cai em `HADES_CTX_CAP_RECRUIT` quando o papel não tem chave própria */
+  recruit: boolean;
+}
+
+/** (papel, agente) da sessão a partir do cwd. */
+function roleOf(cwd: string, env: HookEnv): SessionRole {
+  const agent = registeredAgentOf(cwd);
+  if (agent) {
+    return { role: agentRoleOf(agent), agent, recruit: false };
   }
   // regra de projeto: clone principal só é orquestrador num repo com perfil (fora dele, a sessão é interativa)
-  if (env.projectOf(cwd) === undefined) return { role: "interactive", agent: undefined };
+  if (env.projectOf(cwd) === undefined) return interactiveRole(cwd, env);
   let dir = resolve(cwd);
   for (;;) {
     const git = join(dir, ".git");
-    if (isDir(git)) return { role: "orchestrator", agent: undefined };
-    if (isFile(git)) return { role: "interactive", agent: undefined };
+    if (isDir(git)) return { role: "orchestrator", agent: undefined, recruit: false };
+    if (isFile(git)) return interactiveRole(cwd, env);
     const parent = dirname(dir);
-    if (parent === dir) return { role: "interactive", agent: undefined };
+    if (parent === dir) return interactiveRole(cwd, env);
     dir = parent;
   }
 }
@@ -521,8 +590,8 @@ function postTool(d: HookInput, cfg: Cfg, env: HookEnv): string {
   if ((cfg.HADES_CTX_GUARD ?? "1") !== "1" || !transcript) return "";
   const ctx = contextTokens(transcript);
   const cwd = (d.cwd as string | undefined) || env.cwd();
-  const { role, agent } = roleOf(cwd, env);
-  const cap = intOf(cfg, `HADES_CTX_CAP_${role.toUpperCase()}`, cfg.HADES_CTX_CAP_INTERACTIVE ?? "300000");
+  const { role, agent, recruit } = roleOf(cwd, env);
+  const cap = ctxCapOf(role, (key) => cfg[key], recruit);
   if (ctx < cap) return "";
   const file = stateFile(env.home(), (d.session_id as string | undefined) || "x");
   const state = loadState(file);
@@ -547,8 +616,9 @@ function postTool(d: HookInput, cfg: Cfg, env: HookEnv): string {
       "orquestração com o que importa para continuar e peça ao dono para rodar /clear; depois, retome a partir do " +
       "plan.md (os agentes e seus registros não dependem desta conversa).";
   } else {
+    const who = role === "interactive" ? "das sessões interativas" : `do papel ${role} (terminal do canvas)`;
     message =
-      `HADES: contexto em ${k}, acima do teto das sessões interativas (${capK}k). Ao terminar o passo atual, ` +
+      `HADES: contexto em ${k}, acima do teto ${who} (${capK}k). Ao terminar o passo atual, ` +
       "resuma num arquivo de handoff o que importa para continuar e sugira ao dono rodar /clear (cada turno relê " +
       "todo o contexto). Não interrompa o trabalho por conta própria.";
   }

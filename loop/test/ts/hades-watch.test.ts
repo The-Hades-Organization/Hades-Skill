@@ -88,7 +88,7 @@ esac
     }
     return t + slurp(`${root}-gh.log`);
   }
-  const eventos = (s: string) => lines(s).filter((l) => /^(QUESTION|DONE|PR-OPEN|REVIEW|MERGED|CLOSED|PARKED|CONTEXT|STALLED) /.test(l));
+  const eventos = (s: string) => lines(s).filter((l) => /^(QUESTION|DONE|PR-OPEN|REVIEW|MERGED|CLOSED|PARKED|CTX-OVER|STALLED) /.test(l));
   const wnorm = (s: string) => lines(r.norm(s)).map((l) => l.replace(/^(STALLED [^ ]+) [0-9]+$/, "$1 <min>").replace(/^(wp-(?:stall\.idle|done\.done))=.*/, "$1=<epoch>").split("bl-w-b").join("bl-w-a")).filter((l) => l !== "--version ").join("\n");
   for (const [nome, wd] of [["monorepo", C], ["nogit", NOGIT]] as const) {
     test(`hades-watch.sh em ${nome}: eventos, estado visto, registros e chamadas ao gh iguais ao gravado`, () => {

@@ -68,7 +68,7 @@ Tudo pelo `hades agent`, de dentro de um clone. A **pasta de relatórios** é `.
 | brief | editar `<worktree>/<pasta>/brief.md` | completar **Item** e **Contexto** (§3); o resto já vem preenchido |
 | iniciar | o **dono** roda o `! herdr agent start ... --model <m> --effort <e>` que o `new` imprime (modelo e esforço do papel, das Configurações; `start-cmd <nome>` reimprime; se o pane do registro não existe mais no `herdr pane list`, p.ex. depois de reiniciar o herdr, cria um workspace novo na worktree como o `skill-new` e grava o pane novo no registro) | o classificador recusa quando é o orquestrador |
 | fase | `phase <nome> <fase>` | `/clear` na sessão do agente e prompt da fase (cartão + brief + handoff): sessão nova por fase sem o dono reiniciar nada |
-| retomar | `resume <nome> ["<texto>"]` | depois de `PARKED` ou `CONTEXT`: sessão limpa continuando do `handoff.md`; o prompt manda conferir `hades gate-lock status` e esperar o check que já está na fila, sem reenfileirar; a fase vem do registro ou do cabeçalho ``# Handoff — <u>, fase `<f>` `` do `handoff.md`, e sem ela o prompt não cita fase (nunca o papel) e o registro não ganha `phase` |
+| retomar | `resume <nome> ["<texto>"]` | depois de `PARKED` (ou de `CTX-OVER` e do `agent park`): sessão limpa continuando do `handoff.md`; o prompt manda conferir `hades gate-lock status` e esperar o check que já está na fila, sem reenfileirar; a fase vem do registro ou do cabeçalho ``# Handoff — <u>, fase `<f>` `` do `handoff.md`, e sem ela o prompt não cita fase (nunca o papel) e o registro não ganha `phase` |
 | estacionar | `park <nome> ["<motivo>"]` | pede o `handoff.md` (`STATUS: PARKED`) e que o agente pare, sem matar a sessão nem fechar o pane; o registro vira `parked` e o `watch` já emite `PARKED`. Já estacionado ou encerrado: avisa e sai 0. É o passo que o `hades caronte pack` exige antes de empacotar (`reference/caronte.md`) |
 | abrir o pacote | `hades caronte unpack <arq> [--dry-run]` (fora do `hades agent`) | na outra máquina, com o clone do projeto: refaz plano, worktrees (bundle + patch) e registros com os agentes `parked` e sem `pane`, e imprime por agente o start do herdr e `adopt <n> && resume <n>`; recusa sem tocar em nada se algo já existe, desfaz se falha no meio (`reference/caronte.md`) |
 | escalar | `escalate <nome> "<motivo>"` | o agente estaciona; pane novo do herdr na mesma worktree; o dono inicia a sessão de escalada (modelo de escalada); depois `resume`. Nunca `/model` (vira o padrão global da máquina) |
@@ -155,7 +155,7 @@ depois do `caronte unpack`), `--all` (todos, no "já visto" compartilhado: o pai
 flag, o comportamento é o de sempre (todos). Herdr reiniciou e os panes mudaram: `hades agent adopt <nome>` (agente
 vivo) ou `hades agent reassign-orchestrator <nome>…|--all` apontam o registro para o pane de quem chama.
 
-Eventos: `QUESTION`, `PR-OPEN`, `DONE`, `DONE-HELD`, `REVIEW`, `MERGED`/`CLOSED`, `PARKED`, `CONTEXT`, `STALLED`, `BUDGET`, `LIMITE`.
+Eventos: `QUESTION`, `PR-OPEN`, `DONE`, `DONE-HELD`, `REVIEW`, `MERGED`/`CLOSED`, `PARKED`, `CTX-OVER`, `STALLED`, `BUDGET`, `LIMITE`.
 - **`LIMITE <5h|semana> <pct> renova <hora>`**: a janela do plano passou de `HADES_LIMITS_WARN_FIVE_PCT` (80) ou
   `HADES_LIMITS_WARN_SEVEN_PCT` (90). É da máquina, não de um agente: sai para todo observador (o filtro de dono não vale),
   uma vez por janela e por renovação. Só aviso: diga ao dono e pese antes de alocar mais em paralelo. Sem coleta
@@ -175,8 +175,11 @@ Eventos: `QUESTION`, `PR-OPEN`, `DONE`, `DONE-HELD`, `REVIEW`, `MERGED`/`CLOSED`
   diário do agente). Não espere calado: audite o report e o `git log` da worktree, e então (a) devolva o report pedindo a
   linha de prova ou o commit citado (`hades agent prompt`), (b) aceite à mão (`hades agent done`, se a entrega está de
   fato pronta, ex.: relatório de teste que falhou de propósito) ou (c) se a fase nunca comita, relance-a com `--no-commit`.
-- **`PARKED`** (agente estacionou com o handoff) e **`CONTEXT`** (passou do teto do papel): `resume <nome>`, ou
-  `phase` se a fase mudou. Não saem: `PARKED` de handoff mais velho que o último prompt (o `resume` não apaga o arquivo,
+- **`PARKED`** (agente estacionou com o handoff): `resume <nome>`, ou `phase` se a fase mudou.
+- **`CTX-OVER <agente> <usado>k <teto>k`** (o agente seguiu trabalhando acima do teto do papel depois do aviso do hook):
+  `hades agent park <nome>` (o agente grava o handoff e para), depois `resume`. O `hades watch` só avisa, nunca estaciona;
+  o evento sai uma vez por limiar cruzado (o teto e cada `HADES_CTX_REWARN` acima dele) e some quando a sessão volta ao
+  teto. O Argos marca o nó do agente (chip `context`) e Consumo lista a sessão como acima do teto. Não saem: `PARKED` de handoff mais velho que o último prompt (o `resume` não apaga o arquivo,
   e a sessão retomada já o leu) e nenhum evento de unidade `archived` ou `done` (vale também quando o mesmo nome ficou em outra raiz do registro, resto de um clone antigo).
 - **Review novo** vai ao agente daquela PR. Agente já encerrado: repasse a um agente ativo da mesma área como segunda
   tarefa, ou `new --resume <worktree>` e peça ao dono o `start`.
@@ -200,7 +203,7 @@ para tudo: nada muda para quem não ligou.
 
 | Ponto de decisão | Nível mínimo |
 |---|---|
-| `resume` / `phase` depois de `PARKED`, `CONTEXT` ou fim de fase | 1 |
+| `resume` / `phase` depois de `PARKED`, `CTX-OVER` (após o `park`) ou fim de fase | 1 |
 | Retry de gate, de CI ou de comando que falhou por causa externa | 1 |
 | Reestimar o plano (`hades moirai estimate --write`) | 1 |
 | `STALLED`: ler o terminal e cutucar o agente | 1 |

@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { readText } from "./fs.ts";
 import { type GuardRules, isPolling } from "./guard-rules.ts";
 import { PyFloat, pyRound } from "./pyjson.ts";
+import { mostSpecific } from "./worktree-scope.ts";
 
 export type Dict = Record<string, unknown>;
 
@@ -224,12 +225,8 @@ function chain(cwd: string): string[] {
 }
 
 export function classify(cwd: string, agents: Agent[], isGitDir: (dir: string) => boolean | undefined): Classified {
-  for (const agent of agents) {
-    const worktree = typeof agent.worktree === "string" ? agent.worktree : "";
-    if (worktree && (cwd === worktree || cwd.startsWith(`${worktree}/`))) {
-      return { role: text(agent.role, "impl"), name: agent.name ?? null, pr: agent.pr ?? null };
-    }
-  }
+  const agent = mostSpecific(cwd, agents, (candidate) => (typeof candidate.worktree === "string" ? candidate.worktree : ""));
+  if (agent) return { role: text(agent.role, "impl"), name: agent.name ?? null, pr: agent.pr ?? null };
   if (cwd.includes("/.herdr/worktrees/")) return { role: "agente-nao-registrado", name: cwd.replace(/\/+$/, "").split("/").pop() ?? "", pr: null };
   for (const dir of chain(cwd)) {
     const git = isGitDir(dir);
@@ -452,8 +449,19 @@ export interface Report extends Dict {
   since: string;
 }
 
-export function buildReport(rows: Row[], roles: Roles, days: number, since: string, generatedAt: string, pctOf?: PctOf): Report {
+/** Teto de contexto (tokens) do papel; vem de `ctxCapOf` com a leitura das Configurações. */
+export type CapOf = (role: string) => number;
+
+/** Quantas sessões acima do teto o relatório lista (as de maior excesso). */
+const OVER_CAP_LIMIT = 15;
+
+export function buildReport(rows: Row[], roles: Roles, days: number, since: string, generatedAt: string, pctOf?: PctOf, capOf?: CapOf): Report {
   const pcts: PctOf = pctOf ?? (() => ({}));
+  // Só quem passou do teto ganha os campos: o relatório de quem está dentro do teto segue idêntico ao anterior.
+  const capFields = (role: string, ctxMax: number): Dict => {
+    const ctxCap = capOf?.(role);
+    return ctxCap !== undefined && ctxMax > ctxCap ? { ctxCap, overCap: true } : {};
+  };
   const sum = (key: "cost" | "turns" | "poll_cost" | "rewrite_cost" | "read" | "write" | "output"): number => rows.reduce((acc, row) => acc + row[key], 0);
   const grand = sum("cost") || 1;
   const byDay = [...grouped(rows, (row) => row.day)].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
@@ -461,10 +469,13 @@ export function buildReport(rows: Row[], roles: Roles, days: number, since: stri
   const byAgent = [...roles.agents.values()].map((agent) => ({
     name: agent.name, role: agent.role, pr: agent.pr, cost: rf(agent.cost, 2), turns: agent.turns, poll_cost: rf(agent.poll_cost, 2),
     rewrite_cost: rf(agent.rewrite_cost, 2), ctx_max: agent.ctx_max, models: agent.models, cwd: agent.cwd, ctxAvg: avg(agent.ctx_sum, agent.turns), ...pcts(agent.tok),
+    ...capFields(agent.role, agent.ctx_max),
   }));
   const topSessions = [...roles.sessions.values()].map((s) => ({
     cwd: s.cwd, role: s.role, subagent: s.side, cost: rf(s.cost, 2), turns: s.turns, ctxAvg: avg(s.ctx_sum, s.turns), ctxMax: s.ctx_max,
+    ...(s.side ? {} : capFields(s.role, s.ctx_max)),
   }));
+  const overCap = capOf ? mainSessionsOverCap(roles, capOf) : [];
   return {
     generatedAt, days, since,
     note: "custo equivalente de API (US$/MTok: Opus 5.5 4/20, Sonnet 5.5 2/10, leitura de cache 0,20 nos dois)",
@@ -477,7 +488,19 @@ export function buildReport(rows: Row[], roles: Roles, days: number, since: stri
     byDay: byDay.map(([day, t]) => ({ day, cost: rf(t.cost, 2), pollCost: rf(t.poll_cost, 2), turns: t.turns, ...pcts(t.tok) })),
     byAgent: byAgent.sort(byCostDesc),
     topSessions: topSessions.sort(byCostDesc).slice(0, 15),
+    ...(overCap.length ? { overCap } : {}),
   };
+}
+
+/** Sessões principais (sem subagente) cujo contexto máximo passou do teto do papel, as de maior excesso primeiro. */
+function mainSessionsOverCap(roles: Roles, capOf: CapOf): Dict[] {
+  return [...roles.sessions.values()]
+    .filter((s) => !s.side)
+    .map((s) => ({ s, ctxCap: capOf(s.role) }))
+    .filter(({ s, ctxCap }) => s.ctx_max > ctxCap)
+    .sort((a, b) => b.s.ctx_max - b.ctxCap - (a.s.ctx_max - a.ctxCap))
+    .slice(0, OVER_CAP_LIMIT)
+    .map(({ s, ctxCap }) => ({ cwd: s.cwd, role: s.role, cost: rf(s.cost, 2), turns: s.turns, ctxMax: s.ctx_max, ctxCap }));
 }
 
 /** Linha de base gravada por `--baseline`: o relatório da janela mais o que a compara depois. */

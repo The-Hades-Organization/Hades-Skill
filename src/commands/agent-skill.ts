@@ -3,7 +3,7 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, uti
 import { basename, join } from "node:path";
 import { startOrOwnerCommand } from "./agent-autonomy.ts";
 import { appendQuality, excludeReports, step } from "../lib/agent-project.ts";
-import { isoNow, journalAgentEnd, orchestratorField, regReplace, regUpdate, roleCard, startCommand } from "../lib/agent-registry.ts";
+import { assertNoNestedWorktrees, isoNow, journalAgentEnd, orchestratorField, regReplace, regUpdate, roleCard, startCommand } from "../lib/agent-registry.ts";
 import { need } from "../lib/deps.ts";
 import { isDir, isFile, readText } from "../lib/fs.ts";
 import { agentActiveIn, herdr, listPanes, paneFrom, paneInCwd } from "../lib/herdr.ts";
@@ -102,6 +102,7 @@ export function skillNew(args: string[], work: WorkEnv): number {
   const worktree = join(skillDev(), unit);
   if (git(repo, "show-ref", "--verify", "-q", `refs/heads/${branch}`).status === 0) die(`branch ${branch} já existe`);
   if (existsSync(worktree)) die(`${worktree} já existe`);
+  assertNoNestedWorktrees(work, unit, worktree);
   if (isFile(join(work.orch, "agents", `${unit}.json`)) && regGet(work, unit, "state") !== "archived") die(`agente ${unit} já registrado (hades agent list --all)`);
   const baseSha = git(repo, "rev-parse", "--short", base).stdout.trim();
   const unitPort = port ? Number(port) : skillPort(work);

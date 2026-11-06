@@ -4,6 +4,41 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.14.0 — 2026-11-06
+
+Custo dos agentes, primeira onda: o recruta do canvas passa a usar o modelo e o esforço do papel e a abrir a PR com
+assignee, labels e reviewers das Configurações (issues #57 e #49), e o teto de contexto por papel deixa de ser só uma
+instrução (issue #58). Na auditoria de 05/11, 36 de 37 recrutas rodaram no modelo e esforço mais caros da máquina, e
+agentes de impl chegaram a 490k de contexto com teto de 200k.
+
+### Recruta com o modelo, o esforço e a PR das Configurações (#57, #49)
+
+- **Modelo e esforço**: `canvas recruit` (e a criação de terminal pelo Argos) aplica `HADES_MODEL_<PAPEL>` /
+  `HADES_EFFORT_<PAPEL>` como default, pelo mesmo leitor do `agent new` (`roleModelDefaults`). Precedência: flag > predefinição
+  ou papel do Argos > Configurações > `settings.json`. Valor inválido nas Configurações é ignorado com aviso, sem derrubar a
+  criação, e só vale para o que o agente aceita. Recruta sem modelo resolvido: o `recruit` avisa que vai herdar o
+  `settings.json`, e o nó mostra `modelo · esforço` ou "herda settings.json".
+- **PR pronta**: `src/lib/brief-pr.ts` é o render único do bloco (assignee, labels, reviewers); o `agent new` o usa pelo token
+  `{{PR_PRONTA}}` do brief-template e o `canvas recruit` o põe no primeiro prompt quando o papel abre PR (impl, spec,
+  consolidate). As instruções de gerente do canvas citam `hades consolidate ready <N> --post`.
+- Fica para depois: evento `PR-OPEN` no watch sem assignee e um campo "abre PR" no papel do Argos.
+
+### Teto de contexto que segura (#58)
+
+- **Papel certo**: o `roleOf` escolhe o registro de worktree mais específica (por componente de caminho, não `startsWith`);
+  sessão na worktree de agente encerrado mantém o papel; recruta do canvas sem registro usa o papel do Argos. O registro
+  (`agent new|adopt|review|skill-new`) recusa worktree que contém outras (`WORKTREE_CONTAINS_AGENTS`): um registro na
+  pasta-mãe das worktrees tomava o papel e o handoff de todos os recrutas.
+- **Teto do recruta**: `ctxCapOf` é o único ponto que traduz papel em teto; chave própria `HADES_CTX_CAP_<SLUG>` vence, e o
+  recruta sem ela usa a chave nova `HADES_CTX_CAP_RECRUIT` (200000), em vez do teto interativo, que só avisa.
+- **Conferência fora do agente**: o `hades watch` emite `CTX-OVER <agente> <usado>k <teto>k` uma vez por limiar cruzado
+  (`HADES_CTX_REWARN`), no lugar de `CONTEXT`; o orquestrador estaciona com `hades agent park`. O nó do agente no Argos
+  ganha `ctxOver` e o chip "context".
+- **Consumo**: `hades usage` e a página destacam as sessões principais acima do teto do papel (`ctxCap`, `overCap`, cartão
+  "Sessões acima do teto"); dentro do teto o relatório não muda. O `classify` do usage também passa a usar a worktree mais
+  específica.
+- Fica para depois: `journal.ts` (`agentOfCwd`) ainda resolve cwd → agente por conta própria.
+
 ## 6.13.0 — 2026-11-05
 
 Terminais do herdr no Argos: cursor, zoom do texto e fechar (issue #48, PR #51); e o canvas que deixava de gravar com

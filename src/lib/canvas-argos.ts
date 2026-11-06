@@ -201,7 +201,7 @@ export function shapePoints(shape: Shape, x: number, y: number, w: number, h: nu
 
 // ------------------------------------------------------------------ indicadores no nó (T1, T2)
 
-export type IndicatorKind = "permission" | "question" | "gate" | "ci" | "pr" | "cost" | "herdr";
+export type IndicatorKind = "permission" | "question" | "context" | "gate" | "ci" | "pr" | "cost" | "herdr";
 export interface Indicator { kind: IndicatorKind; icon: string; tone: Tone; short: string; label: string }
 
 export interface CiCounts { passing: number; failing: number; pending: number }
@@ -214,6 +214,8 @@ export interface IndicatorNode {
   herdrState?: string | null;
   pendingPermission?: { tool: string | null } | null;
   openQuestions?: number | null;
+  /** sessão do agente acima do teto de contexto do papel (`argos-graph`); ausente = dentro do teto */
+  ctxOver?: { usedK: number; capK: number } | null;
   gate?: string | null;
   costUsd?: number | null;
   estimateUsd?: number | null;
@@ -237,9 +239,10 @@ const CI_LOOKS: Readonly<Record<CiVerdict, { icon: string; tone: Tone; short: st
   running: { icon: "Loader", tone: "warn", short: "CI", label: "CI rodando" },
 });
 /** Ordem de importância: o que pede o dono primeiro; o que couber é mostrado. */
-const KIND_ORDER: readonly IndicatorKind[] = ["permission", "question", "gate", "ci", "pr", "cost", "herdr"];
+const KIND_ORDER: readonly IndicatorKind[] = ["permission", "question", "context", "gate", "ci", "pr", "cost", "herdr"];
 const ICON_PERMISSION = "Hand";
 const ICON_QUESTION = "MessageCircleQuestion";
+const ICON_CONTEXT = "Gauge";
 const ICON_PR = "GitPullRequest";
 const ICON_COST = "CircleDollarSign";
 const ICON_HERDR = "Terminal";
@@ -285,6 +288,10 @@ export function nodeIndicators(node: IndicatorNode): Indicator[] {
   }
   const questions = Number(node.openQuestions) || 0;
   if (questions > 0) found.push({ kind: "question", icon: ICON_QUESTION, tone: "warn", short: String(questions), label: `${questions} pergunta${questions === 1 ? "" : "s"} aberta${questions === 1 ? "" : "s"} para o dono` });
+  const over = node.ctxOver;
+  if (over && finite(over.usedK) && finite(over.capK)) {
+    found.push({ kind: "context", icon: ICON_CONTEXT, tone: "warn", short: `${over.usedK}k`, label: `Contexto em ${over.usedK}k, acima do teto do papel (${over.capK}k): estacionar` });
+  }
   if (typeof node.gate === "string" && isGateState(node.gate)) found.push({ kind: "gate", ...GATE_LOOKS[node.gate] });
   const verdict = ciVerdict(node.ci);
   if (verdict) {
@@ -357,6 +364,7 @@ export function legendModel(): { types: TypeLook[]; states: LegendState[]; indic
     indicators: [
       sample("permission", { pendingPermission: { tool: null } }),
       sample("question", { openQuestions: 1 }),
+      sample("context", { ctxOver: { usedK: 320, capK: 200 } }),
       ...(["running", "waiting", "failed"] as const).map((gate) => sample("gate", { gate })),
       ...[{ passing: 1, failing: 0, pending: 0 }, { passing: 0, failing: 1, pending: 0 }, { passing: 0, failing: 0, pending: 1 }].map((counts) => sample("ci", ci(counts))),
       sample("pr", { pr: 1 }),

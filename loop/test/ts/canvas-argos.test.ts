@@ -207,8 +207,14 @@ describe("argos: indicadores no nó (T1, T2)", () => {
   });
 
   test("dado tudo junto, então a ordem é a do que pede o dono primeiro", () => {
-    const all = agent({ pendingPermission: { tool: "Bash" }, openQuestions: 2, gate: "failed", ci: { passing: 1, failing: 1, pending: 0 }, pr: 12, costUsd: 3, estimateUsd: 2, herdrState: "idle" });
-    expect(kinds(all)).toEqual(["permission", "question", "gate", "ci", "pr", "cost", "herdr"]);
+    const all = agent({ pendingPermission: { tool: "Bash" }, openQuestions: 2, ctxOver: { usedK: 320, capK: 200 }, gate: "failed", ci: { passing: 1, failing: 1, pending: 0 }, pr: 12, costUsd: 3, estimateUsd: 2, herdrState: "idle" });
+    expect(kinds(all)).toEqual(["permission", "question", "context", "gate", "ci", "pr", "cost", "herdr"]);
+  });
+
+  test("dado contexto acima do teto, então o chip diz usado e teto; sem o campo ou com valor inválido, nenhum chip", () => {
+    expect(nodeIndicators(agent({ ctxOver: { usedK: 320, capK: 200 } }))[0]).toMatchObject({ kind: "context", tone: "warn", short: "320k", label: "Contexto em 320k, acima do teto do papel (200k): estacionar" });
+    expect(kinds(agent({ ctxOver: null }))).toEqual([]);
+    expect(kinds(agent({ ctxOver: { usedK: Number.NaN, capK: 200 } }))).toEqual([]);
   });
 
   test("dado permissão pendente, então diz a ferramenta; sem ferramenta, só o pedido", () => {

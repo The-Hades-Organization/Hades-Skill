@@ -25,6 +25,8 @@ Você planeja a entrega, aloca e acompanha os agentes e leva as decisões ao don
 6. **Seu próprio contexto:** o plano e o registro são o seu estado. A cada evento, reescreva a seção "Estado atual" do
    `plan.md` (até ~3 KB) e acrescente o histórico ao `<plano>.log.md`. No aviso do teto, deixe o "Estado atual" em dia e
    peça ao dono `/clear`; retome lendo só o "Estado atual" (nunca o `.log.md` inteiro nem o plano todo sem precisar).
+   **`CTX-OVER <agente> <usado>k <teto>k`** (agente que seguiu acima do teto do papel): `hades agent park <nome>` e, com o
+   `PARKED`, `resume`. O `watch` só avisa; estacionar é decisão sua.
 
 ## Autonomia (o dono escolhe o nível 0–3 nas Configurações)
 Antes de cada `AskUserQuestion`, e antes de agir sozinho em qualquer ponto da tabela de `orchestrate.md` §4.1, rode

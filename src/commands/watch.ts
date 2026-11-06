@@ -5,7 +5,7 @@ import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, rmSyn
 import { dirname, join } from "node:path";
 import { parsePullRequest, text } from "../lib/activity.ts";
 import { need } from "../lib/deps.ts";
-import { contextOfDir } from "../lib/guard-hook.ts";
+import { agentRoleOf, contextOfDir } from "../lib/guard-hook.ts";
 import { emitJournal } from "../lib/journal.ts";
 import { commitsCitados, reportTemProva } from "../lib/cerberus-vigilia.ts";
 import { budgetOf, budgetQuestion, DEFAULT_ASK_PCT, DEFAULT_WARN_PCT, estimateOfUnit, hasBudgetQuestion, nextQuestionNumber } from "../lib/moirai.ts";
@@ -17,6 +17,7 @@ import { out, warn } from "../lib/output.ts";
 import { run } from "../lib/proc.ts";
 import { inScope, observerKey, parseWatchArgs, WatchUsageError, type WatchScope } from "../lib/watch-scope.ts";
 import { loadProfile } from "../lib/profile.ts";
+import { ctxCapOf } from "../lib/ctx-cap.ts";
 import { resolveProject } from "../lib/project.ts";
 import { currentCost, type CostCache } from "./moirai.ts";
 import { exists, fixRuleOf, isProductionFix } from "../lib/thanatos.ts";
@@ -26,8 +27,7 @@ import {
 
 const DEFAULT_EVERY_SECONDS = 60;
 const DEFAULT_STALL_MINUTES = 25;
-const DEFAULT_CONTEXT_CAP = 200_000;
-const CONTEXT_STEP = 50_000;
+const DEFAULT_CONTEXT_STEP = 50_000;
 const FINAL_STATES = ["done", "archived"];
 const GH_TIMEOUT_MS = 60_000;
 const PR_QUERY = `query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){state
@@ -171,8 +171,8 @@ class Watcher {
     this.scanDone(name, join(reports, "report.md"), worktree, promptedAt, promptedEpoch, reg.noCommit === true);
     const pr = this.scanPrOpen(name, file, reg, text(reg.pr));
     if (pr) this.scanReview(name, pr);
-    this.scanParked(name, join(reports, "handoff.md"), promptedEpoch);
-    this.scanContext(name, worktree, text(reg.role) || "impl");
+    const parked = this.scanParked(name, join(reports, "handoff.md"), promptedEpoch);
+    this.scanContext(name, worktree, agentRoleOf(reg), parked);
     this.scanStall(name, hostStatus.get(name) ?? "", promptedAt !== "");
   }
 
@@ -292,16 +292,30 @@ class Watcher {
   }
 
   /** handoff mais velho que o último prompt já foi retomado (o resume não apaga o arquivo): não é estacionamento novo. */
-  private scanParked(name: string, handoff: string, promptedEpoch: number): void {
+  private scanParked(name: string, handoff: string, promptedEpoch: number): boolean {
     const head = firstLine(handoff);
-    if (!head.startsWith("STATUS: PARKED") || this.mtimeSeconds(handoff) <= promptedEpoch) return;
+    if (!head.startsWith("STATUS: PARKED") || this.mtimeSeconds(handoff) <= promptedEpoch) return false;
     if (this.seen(`${name}.parked`, String(this.mtimeSeconds(handoff)))) this.emit(`PARKED ${name} ${head.replace(/^STATUS: PARKED *—* */, "")}`);
+    return true;
   }
 
-  private scanContext(name: string, worktree: string, role: string): void {
-    const cap = Number(configValue(`HADES_CTX_CAP_${role.toUpperCase()}`, String(DEFAULT_CONTEXT_CAP))) || DEFAULT_CONTEXT_CAP;
+  /**
+   * O hook só pede ao agente que estacione; aqui se confere se ele obedeceu. `CTX-OVER <agente> <usado>k <teto>k` sai uma
+   * vez por limiar cruzado (o teto do papel e cada HADES_CTX_REWARN acima dele), não a cada passada. Voltou ao teto (a
+   * sessão limpa do resume): o limiar zera e um novo estouro avisa de novo. Agente que já estacionou nesta rodada não
+   * volta a avisar: o orquestrador já tem o PARKED. O watch avisa; estacionar é do orquestrador (`hades agent park`).
+   */
+  private scanContext(name: string, worktree: string, role: string, parked: boolean): void {
+    const cap = ctxCapOf(role, (key) => configValue(key, "") || undefined);
+    const step = Number(configValue("HADES_CTX_REWARN", String(DEFAULT_CONTEXT_STEP))) || DEFAULT_CONTEXT_STEP;
     const used = contextOfDir(worktree);
-    if (used > cap && this.seen(`${name}.ctx`, String(Math.floor(used / CONTEXT_STEP)))) this.emit(`CONTEXT ${name} ${Math.floor(used / 1000)}k`);
+    if (used <= cap) {
+      rmSync(join(this.seenDir, `${name}.ctx`), { force: true });
+      return;
+    }
+    if (parked) return;
+    const crossed = Math.floor((used - cap) / step) + 1;
+    if (this.seen(`${name}.ctx`, String(crossed))) this.emit(`CTX-OVER ${name} ${Math.floor(used / 1000)}k ${Math.floor(cap / 1000)}k`);
   }
 
   /** sem prompt ainda, o idle é a sessão à espera do dono, não parada. */

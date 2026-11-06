@@ -898,6 +898,13 @@ function usePrefersDark(on) {
   return dark;
 }
 
+/** O modelo e o esforço que o nó mostra; nenhum dos dois gravado: o terminal herda o default do settings.json do dono. */
+const INHERITED_MODEL_TEXT = 'herda settings.json';
+function terminalModelLabel(d) {
+  const text = [d.model, d.effort].filter(Boolean).join(' · ');
+  return text ? { text, title: `Modelo e esforço: ${text}` } : { text: INHERITED_MODEL_TEXT, title: 'Sem modelo nem esforço definidos: o agente herda o default do settings.json' };
+}
+
 /* Desenho do nó `terminal`. deps = { roleOf(slug) → { name, color } | null, linksOf(id) → número, onConnections(id), grow, remove(id) (tira o nó do processo encerrado) }. */
 function TerminalNode({ input, host, deps }) {
   const d = readTerminalData(input.data);
@@ -909,6 +916,7 @@ function TerminalNode({ input, host, deps }) {
   const Icon = (d.icon && I[d.icon]) || I.SquareTerminal;
   const name = d.name || 'terminal';
   const role = d.role ? deps.roleOf(d.role) : null;
+  const modelLabel = terminalModelLabel(d);
   const links = deps.linksOf(input.id);
   const attention = target ? host.attentionOf(input.id) : false;
   const jump = target && host.alt() ? host.jumpNumbers().get(input.id) : undefined;
@@ -922,6 +930,7 @@ function TerminalNode({ input, host, deps }) {
       {d.orchestrator ? <span title="Orquestrador: comanda recrutas pelo hades canvas" className="inline-flex shrink-0 items-center gap-0.5 border border-primary px-1 t-micro text-primary">
         <I.Network aria-hidden="true" className="size-3" />Orquestrador</span> : null}
       {d.role ? <span title={`Papel: ${role ? role.name : d.role}`} className="max-w-28 shrink-0 truncate t-micro text-muted-foreground">{role ? role.name : d.role}</span> : null}
+      <span title={modelLabel.title} data-terminal-model className="max-w-32 shrink-0 truncate t-micro text-muted-foreground">{modelLabel.text}</span>
       {links ? <button type="button" aria-label={`${links} ${links === 1 ? 'conexão' : 'conexões'}`} title="Conexões" onClick={() => deps.onConnections(input.id)}
         className="inline-flex h-5 shrink-0 items-center gap-0.5 px-1 text-muted-foreground outline-none hover:bg-accent/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
         <I.Cable aria-hidden="true" className="size-3" />{links}
@@ -1025,7 +1034,7 @@ window.ArgosNodeTerminal = {
   ttyMinNodeSize, ttyScaleOf, ttyZoomSize, TEXT_ZOOM_KINDS, ttyHeaderOnly, frameFromRead, withSession, takeInputBatch, ttyKeyInput, ttyLetsCommand, TTY_BLOCKED_KEYS, TTY_HEADER_PX,
   // terminal criado no canvas
   TERMINAL_TYPE, TERMINAL_SIZE, AGENT_NODE_SIZE, TERMINAL_MENU, TERMINAL_ICONS, TERMINAL_THEMES, TERMINAL_THEME_LABELS, TERMINAL_FONTS, TERMINAL_FONT_LABELS,
-  TERMINAL_NAME_MAX, TerminalNode, readTerminalData, isLiveTerminalData, terminalThemeStyle, ttyTargetsOfDoc, linkCountOf, newTerminalNode, herdrRefOf, terminalTypeDef,
+  TERMINAL_NAME_MAX, TerminalNode, terminalModelLabel, readTerminalData, isLiveTerminalData, terminalThemeStyle, ttyTargetsOfDoc, linkCountOf, newTerminalNode, herdrRefOf, terminalTypeDef,
   registerTerminalType, ensureNodeSaved, ensureNodeRemoved, deadTerminalIds, orphanNodeData, externalRevReload, createCanvasWatch, EXTERNAL_STALE_MS,
 };
 })();

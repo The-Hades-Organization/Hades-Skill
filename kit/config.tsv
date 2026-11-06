@@ -76,6 +76,7 @@ HADES_CTX_CAP_IMPL	200000	int:50000:1000000	Contexto e espera	Teto: implementaç
 HADES_CTX_CAP_CONSOLIDATE	200000	int:50000:1000000	Contexto e espera	Teto: consolidação (tokens)	hooks	
 HADES_CTX_CAP_REVIEW	200000	int:50000:1000000	Contexto e espera	Teto: revisão (tokens)	hooks	
 HADES_CTX_CAP_INTERACTIVE	300000	int:50000:1000000	Contexto e espera	Teto: sessões interativas (tokens)	hooks	Sessões que não são agentes registrados (as suas, no terminal). Só avisam; nunca param sozinhas.
+HADES_CTX_CAP_RECRUIT	200000	int:50000:1000000	Contexto e espera	Teto: recrutas do canvas (tokens)	hooks	Terminal do canvas sem registro de agente cujo papel do Argos não tem chave HADES_CTX_CAP_<PAPEL> própria (com chave própria, vale a dela), e terminal sem papel. Só avisa; nunca para sozinho.
 HADES_CTX_REWARN	50000	int:10000:500000	Contexto e espera	Avisar de novo a cada (tokens)	hooks	Depois do primeiro aviso, repete quando o contexto cresce mais isso.
 HADES_POLL_GUARD	1	bool	Contexto e espera	Bloquear polling	hooks	O hook barra sleep de espera, laços com sleep, tail -f e checagem repetida (CI, fila, terminal de agente) e ensina o hades-wait.
 HADES_POLL_REPEAT_MIN	10	int:1:120	Contexto e espera	Repetição de checagem conta como polling em (min)	hooks	A mesma checagem repetida pela mesma sessão dentro desse intervalo é barrada; a primeira sempre passa.

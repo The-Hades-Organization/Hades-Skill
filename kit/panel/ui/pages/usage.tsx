@@ -330,6 +330,41 @@ function Usage() {
       </Card>
     </div>
     <Estimated />
+    {d.overCap?.length ? <Card>
+      <CardHeader title="Sessões acima do teto" summary={`contexto máximo contra o teto do papel · ${d.overCap.length}`} />
+      <CardContent className={CARD_SCROLL}>
+        <Table>
+          <thead>
+            <tr className="border-b">
+              <Th className="pl-0">Sessão</Th>
+              <Th>Papel</Th>
+              <Th className="text-right">Turnos</Th>
+              <Th className="text-right">Máximo (tokens)</Th>
+              <Th className="pr-0 text-right">Teto (tokens)</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {d.overCap.map((s, i) => <Tr key={s.cwd + i}>
+              <Td className="pl-0 font-medium">
+                <Mono title={s.cwd}>{s.cwd.replace(/\/+$/, '').split('/').pop() || s.cwd}</Mono>
+              </Td>
+              <Td className="text-muted-foreground">
+                {roleLabel(s.role)}
+              </Td>
+              <Td className="text-right">
+                {s.turns.toLocaleString('pt-BR')}
+              </Td>
+              <Td className="text-right font-medium text-warn">
+                {ktok(s.ctxMax)}
+              </Td>
+              <Td className="pr-0 text-right">
+                {ktok(s.ctxCap)}
+              </Td>
+            </Tr>)}
+          </tbody>
+        </Table>
+      </CardContent>
+    </Card> : null}
     <Card data-tour-step-id="usage-agentes">
       <CardHeader title="Agentes" summary={d.byAgent.length > 25 ? `25 mais caros de ${d.byAgent.length}` : 'por agente do herdr'} />
       <CardContent className={CARD_SCROLL}>
@@ -375,8 +410,9 @@ function Usage() {
               <Td className={cn('text-right', a.ctxAvg > CTX_LIMIT && 'font-medium text-warn')}>
                 {ktok(a.ctxAvg)}
               </Td>
-              <Td className="text-right text-muted-foreground">
+              <Td className={cn('text-right', a.overCap ? 'font-medium text-warn' : 'text-muted-foreground')}>
                 {ktok(a.ctx_max)}
+                {a.overCap ? <div className="t-meta">acima do teto de {ktok(a.ctxCap)}</div> : null}
               </Td>
               <Td className="pr-0 text-right">
                 {usd(a.poll_cost)}

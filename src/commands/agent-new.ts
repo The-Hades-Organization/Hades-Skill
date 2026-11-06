@@ -4,12 +4,13 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { join, resolve } from "node:path";
 import { startOrOwnerCommand } from "./agent-autonomy.ts";
-import { callerPane, deliverySet, expandHome, isoNow, orchestratorField, regReplace, roleCard, startCommand } from "../lib/agent-registry.ts";
+import { assertNoNestedWorktrees, callerPane, deliverySet, expandHome, isoNow, orchestratorField, regReplace, roleCard, startCommand } from "../lib/agent-registry.ts";
 import { appendQuality, phaseQuality, prepWorktree, projectEnv, projectNeed, step, type ProjectEnv } from "../lib/agent-project.ts";
 import { need } from "../lib/deps.ts";
 import { isDir, isFile, readText } from "../lib/fs.ts";
 import { findAgent, herdr, paneFrom, paneInCwd } from "../lib/herdr.ts";
 import { die, out } from "../lib/output.ts";
+import { labelsText, prReadyValues, renderPrReady } from "../lib/brief-pr.ts";
 import { dataDirOf, installForWorktree } from "../lib/rtk-filters.ts";
 import { run } from "../lib/proc.ts";
 import { home, skillRoot } from "../lib/paths.ts";
@@ -47,8 +48,7 @@ function writeBrief(work: WorkEnv, project: ProjectEnv, w: { name: string; workt
     out(`  brief existente mantido: ${file}`);
     return;
   }
-  const labelsValue = project.value("pr.labels");
-  const labels = Array.isArray(labelsValue) && labelsValue.length > 0 ? labelsValue.join(",") : "—";
+  const prReady = renderPrReady(prReadyValues(labelsText(project.value("pr.labels"))));
   const refs = ["invariants", "deliver", "gates", "review", "spec"].map((n) => project.ref(n)).filter((r): r is string => r !== undefined && isFile(r)).map((r) => `\`${r}\``);
   const title = project.get("card.provider", "none") === "none" ? "[Módulo] Título" : "{{CARD}} - [Módulo] Título";
   const dash = (value: string): string => value || "—";
@@ -57,8 +57,8 @@ function writeBrief(work: WorkEnv, project: ProjectEnv, w: { name: string; workt
     ["{{BASE}}", w.base], ["{{BASE_SHA}}", w.baseSha], ["{{LOCK}}", w.lock], ["{{MODO}}", w.mode], ["{{SPECS}}", dash(w.specs)],
     ["{{PR}}", dash(w.pr)], ["{{PAPEL}}", w.role || "impl"], ["{{CARTAO}}", roleCard(skillRoot, w.role || "impl")],
     ["{{ESCALATE_WAVES}}", configValue("HADES_ESCALATE_GATE_WAVES", "2") || "2"], ["{{PARK_GATE_MIN}}", configValue("HADES_PARK_GATE_WAIT_MIN", "20") || "20"],
-    ["{{REPORTS}}", work.reports], ["{{ASSIGNEE}}", dash(configValue("HADES_ORCH_PR_ASSIGNEE", ""))], ["{{LABELS}}", labels],
-    ["{{REVIEWERS}}", dash(configValue("HADES_ORCH_PR_REVIEWERS", ""))], ["{{SPEC_OWNERS}}", dash(configValue("HADES_ORCH_SPEC_OWNERS", ""))],
+    ["{{REPORTS}}", work.reports], ["{{PR_PRONTA}}", prReady],
+    ["{{SPEC_OWNERS}}", dash(configValue("HADES_ORCH_SPEC_OWNERS", ""))],
     ["{{SPEC_REVIEWERS}}", dash(configValue("HADES_ORCH_SPEC_REVIEWERS", ""))],
   ];
   const template = readText(join(skillRoot, "reference", "loop", "brief-template.md")) ?? die("modelo do brief ausente: reference/loop/brief-template.md");
@@ -155,11 +155,13 @@ export async function newAgent(args: string[], work: WorkEnv): Promise<number> {
   if (o.resume) {
     if (!isDir(o.resume)) die(`worktree ${o.resume} não existe`);
     worktree = resolve(o.resume);
+    assertNoNestedWorktrees(work, name, worktree);
     branch = run("git", ["-C", worktree, "branch", "--show-current"]).stdout.trim();
     created = o.dry ? "{}" : herdr(["workspace", "create", "--cwd", worktree, "--label", name, "--no-focus"], { showStderr: true }).stdout;
   } else {
     worktree = join(worktreeRoot(work), name);
     if (existsSync(worktree)) die(`${worktree} já existe: use --resume ${worktree}`);
+    assertNoNestedWorktrees(work, name, worktree);
     if (run("git", ["-C", work.repoTop, "fetch", "-q", "origin"], { timeoutMs: GIT_FETCH_TIMEOUT_MS }).status !== 0) die("git fetch falhou");
     const workspace = configValue("HADES_ORCH_HERDR_WORKSPACE", "");
     const create = [...(workspace ? ["--workspace", workspace] : []), "--branch", branch, "--base", o.base, "--path", worktree, "--label", name, "--no-focus"];
@@ -276,6 +278,7 @@ export function adopt(args: string[], work: WorkEnv): number {
   }
   const project = projectEnv(work);
   projectNeed(project);
+  assertNoNestedWorktrees(work, name, worktree);
   const branch = run("git", ["-C", worktree, "branch", "--show-current"]).stdout.trim();
   const card = firstEreMatch(project.get("card.newIdPattern", "^$") ?? "^$", branch);
   const lock = lockOf(work, name);
@@ -330,6 +333,7 @@ export function reviewAgent(args: string[], work: WorkEnv): number {
   if (view.status !== 0) die(`PR ${pr} não encontrada`);
   const head = view.stdout.replace(/\n+$/, "");
   const worktree = join(worktreeRoot(work), name);
+  assertNoNestedWorktrees(work, name, worktree);
   step(dry, "git", ["-C", work.repoTop, "fetch", "-q", "origin", head]);
   step(dry, "git", ["-C", work.repoTop, "worktree", "add", "--detach", worktree, `origin/${head}`]);
   const created = dry ? "{}" : herdr(["workspace", "create", "--cwd", worktree, "--label", name, "--no-focus"], { showStderr: true }).stdout;

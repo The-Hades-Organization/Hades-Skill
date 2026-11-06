@@ -3,6 +3,7 @@
 // diário (/api/journal/stream); nenhum stream novo.
 import { join } from "node:path";
 import { ARGOS_ERRORS, ArgosError } from "../lib/argos.ts";
+import { ctxCapOf } from "../lib/ctx-cap.ts";
 import { journalWorkRoot } from "../lib/journal.ts";
 import { type Caller, createActions, notifyVia } from "./argos-actions.ts";
 import { createGraph, registriesOf } from "./argos-graph.ts";
@@ -49,6 +50,7 @@ export function createArgos(deps: ArgosDeps): Argos {
     herdr: deps.herdr,
     gates: deps.gates,
     reportsDir,
+    ctxCap: (role) => ctxCapOf(role, (key) => deps.config()[key]),
     agentMaxAgeHours: () => {
       const n = Number.parseInt(deps.config().HADES_ARGOS_AGENT_MAX_AGE_H ?? "", 10);
       // o padrão (24) vem do catálogo; sem a chave ou com valor inválido, nada é cortado

@@ -51,7 +51,7 @@ e o `watch` relê o `config.env` a cada ciclo.
 | `health` | `/health/ready` ≠ 200 em 2 checagens, serviço habilitado e ativo (Hades pausado não avisa) | HTTP local |
 | `pr` | review novo (ou comentário a tratar) nas minhas PRs | `hades pr-loop-state --json` |
 | `ci` | CI vermelho nas minhas PRs | `hades pr-loop-state --json` |
-| `agent` | `STALLED`, `QUESTION`, `DONE`, `BUDGET`, `CTX-OVER`, `DISMISSED` (informativo, como o `DONE`), `DISMISS-READY`, `DISMISS-HELD` | `hades watch` com `HADES_WATCH_STATE` próprio |
+| `agent` | `STALLED`, `QUESTION`, `DONE`, `BUDGET`, `CTX-OVER`, `MODEL-MISMATCH`, `DISMISSED` (informativo, como o `DONE`), `DISMISS-READY`, `DISMISS-HELD` | `hades watch` com `HADES_WATCH_STATE` próprio |
 | `snapshot` | snapshot pre-update falhou | `update.sh` chama `notify.sh send` |
 | `doctor` | item em erro do `doctor.sh --quick --json` | doctor |
 | `chat` | primeira mensagem **remota** de uma sessão da página Claude (hora e "sessão remota", nunca o texto). Só avisa com `HADES_NOTIFY=1` | o servidor do painel (`src/panel/`) chama `hades notify send` |

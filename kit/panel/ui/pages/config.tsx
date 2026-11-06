@@ -209,6 +209,16 @@ function CfgIndex({ groups }) {
   </>;
 }
 
+// Padrão herdado do ~/.claude/settings.json (só leitura): quem sobe sem --model/--effort roda nele.
+function InheritedDefault() {
+  const [v, setV] = useState(null);
+  useEffect(() => { getJSON('/api/config/inherited').then(setV).catch(() => setV({ ok: false, reason: 'sem resposta do painel' })); }, []);
+  if (!v) return null;
+  const text = !v.ok ? `não consegui ler o settings.json (${v.reason})`
+    : `${v.model || 'sem model'}${v.effort ? ` · esforço ${v.effort}` : ''} — herdam: ${v.heirs.join(', ')}`;
+  return <p data-testid="config-inherited" className="mb-2 max-w-[70ch] t-body text-muted-foreground"><span className="t-label text-foreground">Padrão herdado do settings.json: </span>{text}. A Hades só mostra; quem muda é você.</p>;
+}
+
 function CfgRow({ it, value, saved, onChange, first, pinned }) {
   const unsaved = value !== saved;
   const altered = value !== it.default;
@@ -389,6 +399,7 @@ function Config({ d }) {
                 description={x.g === 'Memória' && d ? `Memória do Hades agora (slice): ${d.slice.max ? `${mb(d.slice.used)} de ${mb(d.slice.max)}` : `slice parado (teto ${d.config?.HADES_SLICE_MAX ?? '—'})`}. Máquina: ${gb(d.host.memTotal)} no total, ${gb(d.host.memAvailable)} livres.` : null} />
             <CardContent className="-mt-4">
               {x.g === 'Notificações' ? <NotifyTools /> : null}
+              {x.g === 'Modelos por papel' ? <InheritedDefault /> : null}
               <ul>
                 {x.list.map((it, ri) => <CfgRow key={it.key} first={gi === 0 && ri === 0} it={it} value={val(it)} saved={it.value} onChange={setOne(it.key)} pinned={pinned.includes(it.key)} />)}
               </ul>

@@ -13,6 +13,8 @@ import { readText } from "../lib/fs.ts";
 import { type JournalEvent, parseEvent, parseSince, readTailText } from "../lib/journal.ts";
 import { parseSection } from "../lib/moirai.ts";
 import { agentRoleOf, contextOfDir } from "../lib/guard-hook.ts";
+import { home } from "../lib/paths.ts";
+import { agentModelMismatch } from "../lib/usage-model.ts";
 import { exec } from "./exec.ts";
 import type { Herdr } from "./herdr.ts";
 import { LIMIT_DEFAULT, LIMIT_MAX } from "./journal.ts";
@@ -88,6 +90,8 @@ export interface GraphDeps {
   ctxCap?(role: string): number;
   /** contexto atual (tokens) da sessão mais recente da worktree (padrão: `contextOfDir`) */
   contextOf?(worktree: string): number;
+  /** modelo configurado (HADES_MODEL_<PAPEL>) do papel; ausente = o nó não é marcado por modelo diferente do configurado */
+  modelOf?(role: string): string | undefined;
 }
 
 interface AgentRecord {
@@ -247,6 +251,14 @@ export function createGraph(deps: GraphDeps): Graph {
     return used > cap ? { usedK: Math.floor(used / 1000), capK: Math.floor(cap / 1000) } : undefined;
   }
 
+  /** `{real, configured}` quando a sessão do agente vivo roda num modelo diferente do configurado para o papel (escalada da Hades não conta). */
+  function modelMismatchOf(a: AgentRecord): Dict | undefined {
+    const tree = text(a.data.worktree);
+    if (!deps.modelOf || tree === "" || REGISTRY_DONE.has(text(a.data.state))) return undefined;
+    const found = agentModelMismatch(tree, a.data, deps.modelOf(agentRoleOf(a.data)), home());
+    return found ? { real: found.real, configured: found.configured } : undefined;
+  }
+
   /** Arquivos do agente que existem (brief, report, questions, handoff; caminhos relativos à worktree) e quantas perguntas do `questions.md` seguem abertas. */
   function reportInfo(a: AgentRecord): { paths: AgentNodeFiles; openQuestions: number } {
     const tree = text(a.data.worktree);
@@ -291,7 +303,7 @@ export function createGraph(deps: GraphDeps): Graph {
     const { paths, openQuestions } = reportInfo(a);
     const extra = definedOnly({
       costUsd: costOf(a, ctx.budget), estimateUsd: estimateOf(a), card: text(a.data.card) || undefined, files: paths.length > 0 ? paths : undefined,
-      openQuestions: openQuestions > 0 ? openQuestions : undefined, ctxOver: ctxOverOf(a),
+      openQuestions: openQuestions > 0 ? openQuestions : undefined, ctxOver: ctxOverOf(a), modelMismatch: modelMismatchOf(a),
       closedOnDone: a.data.closedOnDone === true ? true : undefined,
       gate: gateStateOf(a, tail, ctx.gates), pr: pr ?? undefined, ci: pr === null ? undefined : ciOfAgentPr(a, pr),
     });

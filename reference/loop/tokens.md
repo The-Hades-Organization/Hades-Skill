@@ -11,6 +11,11 @@ output, não o componente dominante. O que corta é **contexto curto** e **menos
    implementação e consolidação Sonnet medium; revisão Opus medium; subagentes de review por mapa. Escalada (conflito
    não trivial, quebra de contrato, gate falhando depois de N ondas) abre sessão de escalada com o modelo de escalada —
    **nunca `/model`**, que grava o modelo como padrão global de todas as sessões da máquina.
+   **Padrão herdado.** Quem sobe sem `--model`/`--effort` (sessões interativas, agentes sem flags) roda no `model` e
+   `effortLevel` do `~/.claude/settings.json`, e os subagentes herdam o modelo da sessão pai. Configurações → Modelos por
+   papel mostra esse padrão numa linha (só leitura) e o `hades doctor` (`settings-padrao`) avisa quando ele é caro:
+   `effortLevel` `xhigh`/`max`, `model` com `[1m]` (os tetos viram só aviso), chave do `modelSettings` que não casa com
+   o modelo em uso, ou padrão acima de todos os papéis. A Hades só avisa; o `settings.json` é do dono.
 2. **Sessão por fase.** Spec, implementação e cada rodada de review começam limpas (`hades agent phase`, que manda
    `/clear` pelo herdr); a continuidade é o `handoff.md` e o estado do loop, não o histórico.
 3. **Teto de contexto por papel**, aplicado pelo `hades guard` (PostToolUse) em toda sessão. Agente orquestrado:
@@ -43,6 +48,8 @@ output, não o componente dominante. O que corta é **contexto curto** e **menos
   `| tail -N` (corta saída), `sleep` curto esperando processo subir, `Monitor` nem nada em segundo plano. Medido em
   2026-10-26 (3 dias): a regex antiga marcava US$ 42, a definição acima, US$ 4.
 - O `hades watch` avisa `CTX-OVER` (agente que passou do teto do papel e seguiu trabalhando; o orquestrador estaciona com `hades agent park`) e `PARKED`; o painel mostra agente com contexto médio acima de 200 mil em destaque.
+- O `hades watch` avisa `MODEL-MISMATCH <agente> <real> <configurado>` no primeiro turno da sessão que rodou fora do `HADES_MODEL_<PAPEL>` (uma vez por sessão).
+- **Modelo real × configurado.** `hades usage` e a página Consumo leem o `message.model` das transcrições de cada agente registrado e comparam com o `HADES_MODEL_<PAPEL>` do papel (apelido de família, como `sonnet`, vale como a versão mais nova da tabela de preço). A coluna "modelo" mostra o real; a divergência vem destacada com o custo que representou: custo real menos o custo dos mesmos tokens no modelo configurado (escrita de cache contada como a de 5 min). Só a sessão principal entra; subagente tem modelo próprio. O esforço entra só quando a transcrição o registra (`effort`); não observável não é divergência, e a divergência de esforço não leva custo. **Exceção:** sessão aberta depois do `escalatedAt` que `hades agent escalate` grava no registro não conta. Papel sem modelo configurado, ou com modelo fora da tabela de preço, não é comparado. Tabela única de preço e de ordem de custo: `src/lib/price.ts`.
 - Consumo (`hades usage` e a página) destaca as sessões cujo contexto máximo passou do teto do papel (`ctxMax` > `ctxCap`; igual ao teto não conta). Subagente não entra: o teto é da sessão principal.
 - Meta da mudança de 2026-10-23: custo por entrega concluída ~45% menor que a linha de base, sem aumentar as rodadas de
   review por PR. Julgue por entrega, não por requisição.

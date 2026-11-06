@@ -18,6 +18,7 @@ import { chaves, gravarAmostra, linhaAtual, medidas, renova, type Chaves } from 
 import { calibra, JANELAS, pctDeTokens, ROTULO, textoPct, type Amostra, type Atual, type Calibracao, type Estimativa, type Janela } from "../lib/limites.ts";
 import { home } from "../lib/paths.ts";
 import { pyDumps } from "../lib/pyjson.ts";
+import { roleModelDefaults } from "../lib/agent-registry.ts";
 import { configValue } from "../lib/work.ts";
 import {
   baselineOf, buildReport, byRoles, CACHE_VERSION, fixed, gitKind, parseFileFull, plain, readFileOr, transcriptsIn, withBaseline,
@@ -178,6 +179,14 @@ function overCapLines(over: Dict[] | undefined): string[] {
   return lines;
 }
 
+/** `  DIVERGE de <configurado>: +US$ N` e, quando o esforço também difere, `esforço <real> ≠ <configurado>`. */
+function divergenceText(d: Dict | undefined): string {
+  if (!d) return "";
+  const effort = d.effort as Dict | undefined;
+  const model = (d.models as Dict[]).length ? `  DIVERGE de ${String(d.configured)}: +US$ ${fixed(plain(d.extraCost), 2)}` : "";
+  return `${model}${effort ? `  esforço ${String(effort.real)} ≠ ${String(effort.configured)}` : ""}`;
+}
+
 /** Reaproveitadas × novas (auto-dismiss): turnos e custo por unidade; relatório sem agente não leva o bloco. */
 function reuseLines(reuse: { reused: Dict; fresh: Dict } | undefined): string[] {
   if (reuse === undefined) return [];
@@ -206,7 +215,7 @@ function printable(report: Report, limits: Limits | undefined): string[] {
   if (agents.length) {
     lines.push("", "agentes:");
     for (const a of agents.slice(0, 12)) {
-      lines.push(`  ${pad(String(a.name), 22)}${pad(String(a.role), 24)}US$ ${pad(fixed(value(a.cost), 0), 6, true)}  ctx médio ${pad(fixed(Number(a.ctxAvg) / 1000, 0), 4, true)}k  polling US$ ${fixed(value(a.poll_cost), 0)}${a.overCap === true ? "  acima do teto" : ""}${a.pct5h === undefined ? "" : `  5h ${pctText(a.pct5h, a.pct5hPartial)}  semana ${pctText(a.pctWeek, a.pctWeekPartial)}`}`);
+      lines.push(`  ${pad(String(a.name), 22)}${pad(String(a.role), 24)}${pad(String(a.model ?? ""), 12)}US$ ${pad(fixed(value(a.cost), 0), 6, true)}  ctx médio ${pad(fixed(Number(a.ctxAvg) / 1000, 0), 4, true)}k  polling US$ ${fixed(value(a.poll_cost), 0)}${a.overCap === true ? "  acima do teto" : ""}${divergenceText(a.divergence as Dict | undefined)}${a.pct5h === undefined ? "" : `  5h ${pctText(a.pct5h, a.pct5hPartial)}  semana ${pctText(a.pctWeek, a.pctWeekPartial)}`}`);
     }
   }
   lines.push(...reuseLines(report.reuse as { reused: Dict; fresh: Dict } | undefined));
@@ -305,7 +314,7 @@ export function usageCommand(args: string[]): number {
   const loadSince = oldest && oldest.at.slice(0, 10) < since ? oldest.at.slice(0, 10) : since;
   const { rows, reqs } = collectRows(join(home(), ".claude", "projects"), since, loadSince, outDir, Date.parse(`${loadSince}T00:00:00Z`));
   const { limits, pctOf } = buildLimits(measured.amostras, measured.atual, reqs, k);
-  const roles = byRoles(rows, registry(), gitKind);
+  const roles = byRoles(rows, registry(), gitKind, roleModelDefaults);
   const capOf: CapOf = (role) => ctxCapOf(role, (key) => configValue(key, "") || undefined);
   const report = buildReport(rows, roles, days, since, `${now.toISOString().slice(0, 19)}+00:00`, pctOf, capOf);
   report.limits = limitsJson(limits);

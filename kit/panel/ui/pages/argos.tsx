@@ -1175,7 +1175,7 @@ function Argos() {
       const op = M.history.opHide(cur.doc, ids);
       if (!op) return;
       commitOp(op);
-      toast({ kind: 'info', title: op.ids.length === 1 ? 'Nó oculto do canvas' : `${op.ids.length} nós ocultos do canvas`, desc: 'Ctrl+Z desfaz; "Ocultos do canvas", em Filtros, reexibe.' });
+      toast({ kind: 'info', title: op.ids.length === 1 ? 'Nó recolhido para a bandeja' : `${op.ids.length} nós recolhidos para a bandeja`, desc: 'Está na bandeja, embaixo do canvas. Ctrl+Z desfaz.' });
     } catch (e) { if (!e || typeof e.code !== 'string') throw e; opFailed(e.code); }
   };
   const unhideNodes = (ids) => {
@@ -1954,7 +1954,9 @@ function Argos() {
   </Empty> : !viewDoc ? <StageSkeleton inner />
     : <P.CanvasPane doc={viewDoc} selection={engineSelection} onSelectionChange={onSelectionChange} onOp={onOp} graphById={graphById} types={types} now={now}
       onContext={openMenu} onReady={onCanvasReady} onLinkState={onLinkState} nodeShape={nodeShape}
-      snap={engineSnap} dock={engineDock} dockState={dockState} onDockState={setDock} fullDetail={fullDetail} />;
+      snap={engineSnap} dock={engineDock} dockState={dockState} onDockState={setDock} fullDetail={fullDetail}
+      trayItems={hiddenItems} onUnhide={unhideNodes}
+      onNodeCommand={(id, cmd) => { host.current.selectIds([id]); commands.get(cmd)?.run(ctxFor(null)); }} />;
   const layersOn = !!viewDoc && !canvasError;
   // vazio de verdade: nem agente nem nó do usuário à vista (a nota sozinha já é canvas, não vazio)
   const emptyStage = !hasNodes && !!viewDoc && viewDoc.nodes.length === 0 && !canvasError;

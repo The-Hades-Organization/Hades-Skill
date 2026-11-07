@@ -268,6 +268,9 @@ function makeArgosCanvas() {
   /** Opacidades da área (interior, faixa do título e destaque de quem vai receber o nó solto). */
   const AREA_FILL_ALPHA = 0.1;
   const AREA_HEADER_ALPHA = 0.3;
+  /** Parte da altura da faixa que o título ocupa, e recuo extra (em px de tela) entre a borda e o texto. */
+  const AREA_TITLE_FILL = 0.62;
+  const AREA_TITLE_INSET = 4;
   const AREA_DROP_ALPHA = 0.22;
   const isAreaNode = (n: CanvasNode): boolean => AREAS?.isAreaNode(n) === true;
 
@@ -929,10 +932,11 @@ function makeArgosCanvas() {
       ctx.textAlign = "start";
     }
 
-    /** Cor da área na paleta do tema (`chart-1`..`chart-5`); sem cor válida, o cinza neutro do tema. */
+    /** Cor da área: tinta fixa da paleta ampliada ou `chart-1`..`chart-5` do tema; sem cor válida, o cinza neutro do tema. */
     const areaInk = (n: CanvasNode): string => {
       const color = AREAS?.areaLook(n).color;
-      return color === undefined ? colors.muted : (palette[Number(color.slice("chart-".length)) - 1] ?? colors.muted);
+      if (color === undefined || AREAS === undefined) return colors.muted;
+      return AREAS.fixedInkOf(color) ?? palette[Number(color.slice("chart-".length)) - 1] ?? colors.muted;
     };
 
     /** Área: retângulo translúcido com borda tracejada e o título na faixa de cima; o interior não tem opacidade de nó. */
@@ -952,10 +956,16 @@ function makeArgosCanvas() {
       ctx.setLineDash([6 / cam.k, 4 / cam.k]);
       ctx.strokeRect(n.x, n.y, n.w, n.h);
       ctx.setLineDash([]);
-      const title = C.shortLabel(labelOf(n), (n.w - 2 * pad) * cam.k, fontScreen);
+      // com a faixa à mostra o título cabe nela com folga: em zoom baixo a fonte de tela passaria da altura da faixa e encostaria na borda
+      const band = Math.min(S.SELECTION_LIMITS.header, n.h);
+      const fit = full ? Math.min(fontScreen / cam.k, band * AREA_TITLE_FILL) * cam.k : fontScreen;
+      const inset = pad + AREA_TITLE_INSET / cam.k;
+      const title = C.shortLabel(labelOf(n), (n.w - 2 * inset) * cam.k, fit);
       if (!title) return;
+      ctx.font = `${fit / cam.k}px ${fontFamily}`;
       ctx.fillStyle = colors.fg;
-      ctx.fillText(title, n.x + pad, n.y + Math.min(S.SELECTION_LIMITS.header, n.h) / 2);
+      ctx.fillText(title, n.x + inset, n.y + band / 2 + 0.5 / cam.k);
+      ctx.font = `${fontScreen / cam.k}px ${fontFamily}`;
     }
 
     /** Bloco (rótulo curto, fonte fixa de tela) ou nó completo (cabeçalho, rótulo e tipo em escala de mundo). */

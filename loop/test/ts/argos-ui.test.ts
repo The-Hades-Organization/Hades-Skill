@@ -316,6 +316,17 @@ describe("canvas: onde ficam os controles", () => {
     expect(ui("pages/argos.tsx")).toContain("history={{ canUndo, canRedo, onUndo: () => stepHistory('undo'), onRedo: () => stepHistory('redo') }}");
   });
 
+  test("a moldura destacada desconta a largura do painel do nó, que a cobriria por cima", () => {
+    const parts = ui("argos/parts.tsx");
+    expect(parts).toContain("useSidePanelInset(sentinel)");
+    expect(parts).toContain("layoutDock(state, { w: visibleW, h: view.h })");
+  });
+
+  test("alvos de toque do cabeçalho vencem o piso global de 40 px do index.html (min-w importante, até lg)", () => {
+    expect(ui("argos/node-note.tsx")).toContain("max-lg:min-w-11!");
+    expect(ui("argos/parts.tsx")).toContain("max-lg:min-h-11!");
+  });
+
   test("a página passa nodeShape ao canvas, vindo da forma do tipo", () => {
     const page = ui("pages/argos.tsx");
     expect(page).toContain("nodeShape={nodeShape}");
@@ -2052,7 +2063,7 @@ describe("nota do canvas: node-note", () => {
     expect(page).toContain("const STORE_DETAIL = 'hades.argos.fullDetail'");
     expect(page).toContain("M.camera.fullDetailScale(readStored(STORE_DETAIL))");
     expect(page).toContain("<R.DetailSwitch value={fullDetail} choices={M.camera.FULL_DETAIL_CHOICES} onChange={setFullDetail} />");
-    expect(page).toContain("fullDetail={fullDetail} />");
+    expect(page).toContain("fullDetail={fullDetail}");
     expect(readFileSync(join(UI, "argos/parts.tsx"), "utf8")).toContain("fullDetail={fullDetail}");
     const engine = readFileSync(join(UI, "argos/canvas-engine.tsx"), "utf8");
     expect(engine).toContain("C.detailFor(k, opts.fullDetail ?? C.DETAIL_THRESHOLDS.full)");

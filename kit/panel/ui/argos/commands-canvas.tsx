@@ -57,7 +57,8 @@ interface CanvasDocPort {
 /** Perguntas ao dono. `null` (ou `false`) é ele cancelar. */
 interface CanvasDialogPort {
   askText(request: { title: string; initial?: string }): Promise<string | null>;
-  choose(request: { title: string; options: readonly { value: string; label: string }[] }): Promise<string | null>;
+  /** `swatch` (opcional): uma cor CSS mostrada ao lado do rótulo, para a escolha que é uma cor. */
+  choose(request: { title: string; options: readonly { value: string; label: string; swatch?: string }[] }): Promise<string | null>;
   confirm(request: { title: string; text: string }): Promise<boolean>;
 }
 
@@ -909,7 +910,7 @@ function makeArgosCanvasCommands() {
         run: guardedAsync(async () => {
           const [areaId] = pickedAreas();
           if (areaId === undefined) return;
-          const chosen = await dialogs.choose({ title: "Cor da área", options: A.AREA_COLORS.map((color, i) => ({ value: color, label: `Cor ${i + 1}` })) });
+          const chosen = await dialogs.choose({ title: "Cor da área", options: A.AREA_PALETTE.map((color) => ({ value: color, label: A.AREA_COLOR_LABELS[color], swatch: A.fixedInkOf(color) ?? `var(--${color})` })) });
           if (chosen === null) return;
           try {
             commitIf(A.recolorArea(docPort.doc(), areaId, chosen));

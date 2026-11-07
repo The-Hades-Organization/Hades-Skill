@@ -676,6 +676,20 @@ describe("esboço de unidade", () => {
     expect(findAll(Api.renderUnitSketch(model, deps(), input), (el) => el.type === "button")).toHaveLength(0);
   });
 
+  test("dado o grupo de ações da página, então o título do esboço o leva com o id do nó; sem ele, o título fica sozinho", () => {
+    const input = { id: "u7", type: "unit-sketch", w: 1, h: 1, selected: false, data: { kind: "skill", name: "x" }, live: undefined };
+    const NodeActions = (): null => null;
+    const host = globalThis as unknown as { ArgosParts?: unknown };
+    host.ArgosParts = { NodeActions };
+    try {
+      const actions = findAll(Api.renderUnitSketch(model, deps(), input), (el) => el.type === NodeActions);
+      expect(actions.map((el) => el.props.id)).toEqual(["u7"]);
+    } finally {
+      delete host.ArgosParts;
+    }
+    expect(findAll(Api.renderUnitSketch(model, deps(), input), (el) => typeof el.type === "function")).toHaveLength(0);
+  });
+
   test("dado esboço inválido, então o nó mostra o aviso com o código", () => {
     const tree = Api.renderUnitSketch(model, deps(), { id: "u1", type: "unit-sketch", w: 1, h: 1, selected: false, data: {}, live: undefined });
     expect(textOf(tree)).toContain("create_missing_field");

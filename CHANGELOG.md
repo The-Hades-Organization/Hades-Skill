@@ -4,6 +4,17 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.28.1 — 2026-11-07
+
+Correção (bug do dono, 07/11: "não deu pra remover do canvas o agente encerrado"; unidade canvas-remover).
+
+- Remover um terminal encerrado do canvas não volta mais quando outra aba ou o orquestrador grava o mesmo nó no meio:
+  `DocSaver.forget(ids)` faz a remoção do dono vencer no 409 e na mescla do stream (`rebaseDoc(..., dropped)`,
+  aditivo e idempotente). O toast de falha diz o código da gravação ou que outro escritor segurou o canvas.
+- Medido: com escritor concorrente, 64 de 400 remoções precisavam de 2+ tentativas e 3 esgotavam as 3 tentativas; a
+  mescla da 6.28.0 mantinha o nó que o servidor tinha mexido. Teste de regressão em
+  `loop/test/ts/canvas-remover-terminal.test.ts`.
+
 ## 6.28.0 — 2026-11-07
 
 Capacidade nova (Argos, unidade argos-interacao).

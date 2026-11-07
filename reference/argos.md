@@ -3251,7 +3251,10 @@ selecionado sozinho (`terminals.target()` da porta `api.terminals`, `CanvasTermi
 digitado; o nome vai como `confirm` à rota, que encerra o pane e só então o nó sai do documento (`opDelete`). A saída do nó
 passa por `NT.ensureNodeRemoved` (o inverso de `ensureNodeSaved`): grava, confere o documento do servidor e, se o nó ainda
 está lá (409), relê e reaplica, até 3 vezes; esgotadas, o toast "O processo foi encerrado, mas o nó não saiu do canvas"
-(código `terminal_node_not_removed` no console). Antes, um 409 depois do fechar deixava no canvas o nó de um processo morto.
+(código `terminal_node_not_removed` no console). `removeTermNodes` registra a remoção em `saver.forget(ids)`: a reconciliação do 409
+(`rebaseDoc(…, dropped)`) e o `absorb` não trazem o nó de volta quando outro escritor (outra aba, o orquestrador) mexeu nele
+(medido: sem isso, 64 de 400 remoções simuladas precisaram de 2+ tentativas e 3 bateram no teto); nó que já não existe conta
+como removido. Se ainda falhar, o toast traz o código da gravação recusada (`L.errorText`) ou diz que outro escritor segurou o canvas. Antes, um 409 depois do fechar deixava no canvas o nó de um processo morto.
 Desfazer devolve só o nó, sem o processo. Nó sem pane só sai do documento. **`Delete` num terminal com processo vivo fecha o
 processo** pelo mesmo diálogo (porta `terminals.closable(id)`, `clip:delete`): só tirar o nó deixava o pane vivo e órfão. Nó
 sem pane, ou com o processo já encerrado, só sai do documento, sem diálogo; seleção mista tira os demais nós e fecha cada

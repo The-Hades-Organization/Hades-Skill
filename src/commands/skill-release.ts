@@ -15,6 +15,7 @@ import { firstLine, isDir, isFile, listDir, readText } from "../lib/fs.ts";
 import { NOT_INSTALLED, PLUGIN_FILES } from "../lib/install-copy.ts";
 import { kitDir } from "../lib/kit.ts";
 import { EXIT, out } from "../lib/output.ts";
+import { reminderLine as uxAuditReminder } from "./ux-audit.ts";
 import { hadesHome, home, skillRoot } from "../lib/paths.ts";
 import { getField, isObject, loadProfile, readJson } from "../lib/profile.ts";
 import { REPO } from "../lib/version-check.ts";
@@ -593,6 +594,8 @@ function check(c: Context, forceRegression: boolean): boolean {
   if (bad) out("regressão: não rodou — as checagens acima já reprovaram");
   else if (!regression(c, forceRegression)) bad = true;
   out(bad ? "check: FALHOU" : "check: ok");
+  const uxReminder = bad ? undefined : uxAuditReminder();
+  if (uxReminder) out(uxReminder);
   return !bad;
 }
 

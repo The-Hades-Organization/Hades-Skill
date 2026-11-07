@@ -12,6 +12,7 @@ import type * as BandsModule from "../../../../src/lib/canvas-bands.ts";
 import type { CanvasDoc } from "../../../../src/lib/canvas-doc.ts";
 import type * as CreateModule from "../../../../src/lib/canvas-create.ts";
 import type * as DrawModule from "../../../../src/lib/canvas-draw.ts";
+import type * as DrawingModule from "../../../../src/lib/canvas-drawing.ts";
 import type * as NoteModule from "../../../../src/lib/canvas-note.ts";
 import type { NodeRenderInput, NodeTypeDef, NodeTypeRegistry } from "../../../../src/lib/canvas-types.ts";
 
@@ -21,6 +22,8 @@ interface UserModel {
   draw: typeof DrawModule;
   create: typeof CreateModule;
   bands: typeof BandsModule;
+  /** O desenho (nó `drawing`); sem ele o tipo não se registra. */
+  drawing?: typeof DrawingModule;
 }
 
 interface FetchInit {
@@ -54,6 +57,8 @@ interface UserTypesDeps {
   onTextChange?: (nodeId: string, data: { text: string; style: string }) => void;
   /** O host apaga o nó (texto esvaziado). */
   onRemove?: (nodeId: string) => void;
+  /** O host troca a cena do nó `drawing` por uma operação do desfazer (um passo por edição). Ausente, o desenho é só de leitura. */
+  onDrawingChange?: (nodeId: string, scene: DrawingModule.DrawingScene) => void;
   band?: BandSource;
   /** Tempo máximo de uma chamada à rota das notas. */
   timeoutMs?: number;
@@ -603,6 +608,250 @@ function makeArgosTypesUser() {
         h("button", { type: "button", className: BUTTON, onClick: () => go(props.model.bands.stepBand(status, current, "next")) }, "Próximo")));
   }
 
+  // ---- desenho (nó `drawing`: cena versionada, edição dentro do nó) ----
+
+  type DrawingModel = NonNullable<UserModel["drawing"]>;
+  type Scene = ReturnType<DrawingModel["readDrawingData"]>;
+  type SceneElement = Scene["elements"][number];
+  type DrawTool = "select" | "rect" | "ellipse" | "line" | "arrow" | "stroke" | "text";
+  const DRAW_TOOLS: readonly { id: DrawTool; label: string }[] = [
+    { id: "select", label: "Selecionar" }, { id: "rect", label: "Retângulo" }, { id: "ellipse", label: "Elipse" }, { id: "line", label: "Linha" },
+    { id: "arrow", label: "Seta" }, { id: "stroke", label: "Traço" }, { id: "text", label: "Texto" },
+  ];
+  const STROKE_MIN_STEP = 2;
+  const MIN_SHAPE = 4;
+  const SELECTION_PAD = 3;
+
+  const PNG_SCALE = 2;
+  const PNG_BACKGROUND = "#ffffff";
+  const PNG_LOAD_TIMEOUT_MS = 5000;
+
+  /** Rasteriza a cena (a mesma exportação em SVG da CLI) num PNG de fundo branco e o entrega como download. */
+  async function exportDrawingPng(dm: DrawingModel, scene: Scene, name: string): Promise<void> {
+    const svg = dm.drawingToSvg(scene, { background: PNG_BACKGROUND });
+    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+    try {
+      const image = new Image();
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("png_timeout")), PNG_LOAD_TIMEOUT_MS);
+        image.onload = () => { clearTimeout(timer); resolve(); };
+        image.onerror = () => { clearTimeout(timer); reject(new Error("png_decode")); };
+        image.src = url;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * PNG_SCALE));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * PNG_SCALE));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("png_context");
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("png_encode");
+      const link = document.createElement("a");
+      const pngUrl = URL.createObjectURL(blob);
+      link.href = pngUrl;
+      link.download = `${name}.png`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(pngUrl), 0);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  interface Pt { x: number; y: number }
+  type Draft = { tool: "rect" | "ellipse" | "line" | "arrow"; from: Pt; to: Pt; fromRef?: string } | { tool: "stroke"; points: [number, number][] };
+
+  /** O elemento (que não é conector) sob o ponto, o de cima primeiro: é a ponta presa de um conector novo. */
+  function anchorAt(dm: DrawingModel, scene: Scene, at: Pt): string | undefined {
+    for (const el of [...scene.elements].reverse()) {
+      if (el.type === "stroke" || dm.isConnector(el)) continue;
+      const box = dm.elementBox(scene, el);
+      if (at.x >= box.x && at.x <= box.x + box.w && at.y >= box.y && at.y <= box.y + box.h) return el.id;
+    }
+    return undefined;
+  }
+
+  /** Elemento sob o ponto para selecionar: o de cima; traço e conector contam pela caixa com folga. */
+  function hitElement(dm: DrawingModel, scene: Scene, at: Pt): string | undefined {
+    for (const el of [...scene.elements].reverse()) {
+      const box = dm.elementBox(scene, el);
+      const pad = dm.isConnector(el) || el.type === "stroke" ? 6 : 0;
+      if (at.x >= box.x - pad && at.x <= box.x + box.w + pad && at.y >= box.y - pad && at.y <= box.y + box.h + pad) return el.id;
+    }
+    return undefined;
+  }
+
+  /** Um elemento da cena como filho de `<svg>` (React, sem HTML cru). */
+  function drawingShape(dm: DrawingModel, scene: Scene, el: SceneElement, preview = false): Tree {
+    const stroke = el.stroke ?? "currentColor";
+    const width = "width" in el && el.width !== undefined ? el.width : 2;
+    const line = { stroke, strokeWidth: width, strokeLinecap: "round", strokeLinejoin: "round", opacity: preview ? 0.6 : 1 };
+    switch (el.type) {
+      case "stroke": return h("polyline", { key: el.id, points: el.points.map(([x, y]) => `${x},${y}`).join(" "), fill: "none", ...line });
+      case "rect": return h("rect", { key: el.id, x: el.x, y: el.y, width: el.w, height: el.h, fill: el.fill ?? "none", ...line });
+      case "ellipse": return h("ellipse", { key: el.id, cx: el.x + el.w / 2, cy: el.y + el.h / 2, rx: el.w / 2, ry: el.h / 2, fill: el.fill ?? "none", ...line });
+      case "line":
+      case "arrow": {
+        const [a, b] = dm.connectorEnds(scene, el);
+        const angle = Math.atan2(b.y - a.y, b.x - a.x);
+        const size = 10 + width * 2;
+        const wing = (turn: number): string => `${b.x - size * Math.cos(angle + turn)},${b.y - size * Math.sin(angle + turn)}`;
+        return h("g", { key: el.id },
+          h("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, ...line }),
+          el.type === "arrow" && (a.x !== b.x || a.y !== b.y) ? h("polyline", { points: `${wing(Math.PI / 7)} ${b.x},${b.y} ${wing(-Math.PI / 7)}`, fill: "none", ...line }) : null);
+      }
+      case "text": {
+        const size = el.size ?? 16;
+        return h("text", { key: el.id, x: el.x, y: el.y + size, fontSize: size, fill: stroke, fontFamily: "sans-serif", style: { whiteSpace: "pre" }, opacity: preview ? 0.6 : 1 },
+          ...el.text.split("\n").map((part, i) => h("tspan", { key: i, x: el.x, dy: i === 0 ? 0 : size * 1.25 }, part)));
+      }
+    }
+  }
+
+  function DrawingBody(props: { id: string; w: number; h: number; data: Readonly<Record<string, unknown>>; dm: DrawingModel; deps: UserTypesDeps }): Tree {
+    const { id, dm, deps } = props;
+    const [editing, setEditing] = React.useState(false);
+    const [tool, setTool] = React.useState<DrawTool>("select");
+    const [selected, setSelected] = React.useState<string | undefined>(undefined);
+    const [draft, setDraft] = React.useState<Draft | undefined>(undefined);
+    const [moving, setMoving] = React.useState<{ from: Pt; dx: number; dy: number } | undefined>(undefined);
+    const [pendingText, setPendingText] = React.useState<{ at: Pt; id?: string; text: string } | undefined>(undefined);
+    const [error, setError] = React.useState<string | null>(null);
+    const svgRef = React.useRef<SVGSVGElement | null>(null);
+    let scene: Scene | undefined;
+    try {
+      scene = dm.readDrawingData(props.data);
+    } catch (caught) {
+      if (!(caught instanceof dm.DrawingError)) throw caught;
+    }
+    if (!scene) return h("p", { role: "alert", className: "p-1 text-bad t-label" }, "Desenho inválido no documento.");
+    const base: Scene = scene;
+    const editable = deps.onDrawingChange !== undefined;
+    const apply = (next: () => Scene): boolean => {
+      try {
+        deps.onDrawingChange?.(id, next());
+        setError(null);
+        return true;
+      } catch (caught) {
+        if (!(caught instanceof dm.DrawingError)) throw caught;
+        setError(`${caught.message} (${caught.code})`);
+        return false;
+      }
+    };
+    const pointOf = (event: { clientX: number; clientY: number }): Pt => {
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (!rect || rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
+      return { x: ((event.clientX - rect.left) * props.w) / rect.width, y: ((event.clientY - rect.top) * props.h) / rect.height };
+    };
+    const leave = (): void => { setEditing(false); setDraft(undefined); setMoving(undefined); setPendingText(undefined); setSelected(undefined); setError(null); };
+    const endOf = (at: Pt, ref: string | undefined): Record<string, unknown> => (ref !== undefined ? { ref } : { x: at.x, y: at.y });
+
+    const onDown = (event: { clientX: number; clientY: number; button: number; pointerId: number; currentTarget: Element; stopPropagation(): void }): void => {
+      if (!editing || event.button !== 0) return;
+      event.stopPropagation();
+      const at = pointOf(event);
+      if (tool === "text") { setPendingText({ at, text: "" }); return; }
+      (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+      if (tool === "select") {
+        const hit = hitElement(dm, base, at);
+        setSelected(hit);
+        if (hit !== undefined) setMoving({ from: at, dx: 0, dy: 0 });
+      } else if (tool === "stroke") setDraft({ tool, points: [[at.x, at.y]] });
+      else setDraft({ tool, from: at, to: at, ...(tool === "line" || tool === "arrow" ? (() => { const ref = anchorAt(dm, base, at); return ref === undefined ? {} : { fromRef: ref }; })() : {}) });
+    };
+    const onMove = (event: { clientX: number; clientY: number }): void => {
+      if (!editing) return;
+      const at = pointOf(event);
+      if (moving) setMoving({ ...moving, dx: at.x - moving.from.x, dy: at.y - moving.from.y });
+      else if (draft?.tool === "stroke") {
+        const last = draft.points.at(-1) as [number, number];
+        if (draft.points.length < dm.DRAWING_LIMITS.strokePoints && Math.hypot(at.x - last[0], at.y - last[1]) >= STROKE_MIN_STEP) setDraft({ tool: "stroke", points: [...draft.points, [at.x, at.y]] });
+      } else if (draft) setDraft({ ...draft, to: at });
+    };
+    const onUp = (event: { clientX: number; clientY: number }): void => {
+      if (!editing) return;
+      const at = pointOf(event);
+      if (moving && selected !== undefined) {
+        const { dx, dy } = moving;
+        setMoving(undefined);
+        if (Math.abs(dx) + Math.abs(dy) >= 1) apply(() => dm.moveElement(base, selected, dx, dy));
+        return;
+      }
+      if (!draft) return;
+      setDraft(undefined);
+      if (draft.tool === "stroke") {
+        if (draft.points.length >= 2) apply(() => dm.addElement(base, { type: "stroke", points: draft.points }).scene);
+        return;
+      }
+      if (draft.tool === "line" || draft.tool === "arrow") {
+        const toRef = anchorAt(dm, base, at);
+        if (Math.hypot(at.x - draft.from.x, at.y - draft.from.y) < MIN_SHAPE) return;
+        apply(() => dm.addElement(base, { type: draft.tool, from: endOf(draft.from, draft.fromRef), to: endOf(at, toRef) }).scene);
+        return;
+      }
+      const box = { x: Math.min(draft.from.x, at.x), y: Math.min(draft.from.y, at.y), w: Math.abs(at.x - draft.from.x), h: Math.abs(at.y - draft.from.y) };
+      if (box.w < MIN_SHAPE || box.h < MIN_SHAPE) return;
+      apply(() => dm.addElement(base, { type: draft.tool, ...box }).scene);
+    };
+    const onKey = (event: { key: string; preventDefault(): void; stopPropagation(): void; target: unknown }): void => {
+      if (!editing) { if (event.key === "Enter" && editable) { event.preventDefault(); setEditing(true); } return; }
+      const inField = (event.target as { tagName?: string } | null)?.tagName === "INPUT";
+      if (event.key === "Escape") { event.stopPropagation(); if (pendingText) setPendingText(undefined); else if (draft || moving) { setDraft(undefined); setMoving(undefined); } else leave(); return; }
+      if (inField) return;
+      if ((event.key === "Delete" || event.key === "Backspace") && selected !== undefined) {
+        event.preventDefault();
+        const target = selected;
+        if (apply(() => dm.removeElement(base, target))) setSelected(undefined);
+      }
+    };
+    const commitText = (): void => {
+      if (!pendingText) return;
+      const { at, id: elementId, text } = pendingText;
+      setPendingText(undefined);
+      if (text.trim() === "") return;
+      apply(() => (elementId !== undefined ? dm.setElementText(base, elementId, text) : dm.addElement(base, { type: "text", x: at.x, y: at.y, text }).scene));
+    };
+    const onDouble = (event: { clientX: number; clientY: number; stopPropagation(): void }): void => {
+      if (!editing) { if (editable) setEditing(true); return; }
+      event.stopPropagation();
+      const hit = hitElement(dm, base, pointOf(event));
+      const el = base.elements.find((candidate) => candidate.id === hit);
+      if (el?.type === "text") setPendingText({ at: { x: el.x, y: el.y }, id: el.id, text: el.text });
+    };
+
+    const shown: Scene = (() => {
+      if (!moving || selected === undefined) return base;
+      try { return dm.moveElement(base, selected, moving.dx, moving.dy); } catch (caught) { if (caught instanceof dm.DrawingError) return base; throw caught; }
+    })();
+    const previewEl = ((): SceneElement | undefined => {
+      if (!draft) return undefined;
+      if (draft.tool === "stroke") return draft.points.length >= 2 ? { id: "preview", type: "stroke", points: draft.points } : undefined;
+      if (draft.tool === "line" || draft.tool === "arrow") return { id: "preview", type: draft.tool, from: { x: draft.from.x, y: draft.from.y }, to: { x: draft.to.x, y: draft.to.y } };
+      return { id: "preview", type: draft.tool, x: Math.min(draft.from.x, draft.to.x), y: Math.min(draft.from.y, draft.to.y), w: Math.abs(draft.to.x - draft.from.x), h: Math.abs(draft.to.y - draft.from.y) };
+    })();
+    const selBox = selected !== undefined && editing ? (() => { const el = shown.elements.find((c) => c.id === selected); return el ? dm.elementBox(shown, el) : undefined; })() : undefined;
+
+    return h("div", { className: "flex h-full flex-col", onKeyDown: onKey },
+      editing ? h("div", { className: "flex flex-wrap items-center gap-1 border-b border-border p-1", role: "toolbar", "aria-label": "Ferramentas do desenho" },
+        ...DRAW_TOOLS.map((entry) => h("button", { key: entry.id, type: "button", className: `${BUTTON} ${tool === entry.id ? "bg-accent" : ""}`, "aria-pressed": tool === entry.id ? "true" : "false",
+          onClick: () => { setTool(entry.id); setPendingText(undefined); } }, entry.label)),
+        h("button", { type: "button", className: BUTTON, disabled: selected === undefined, onClick: () => { if (selected !== undefined && apply(() => dm.removeElement(base, selected))) setSelected(undefined); } }, "Apagar"),
+        h("button", { type: "button", className: BUTTON, onClick: () => { exportDrawingPng(dm, base, base.title ?? id).catch(() => setError("Não deu para exportar o PNG.")); } }, "PNG"),
+        h("button", { type: "button", className: BUTTON, onClick: leave }, "Sair"),
+        pendingText ? h("input", { className: "h-7 min-w-24 flex-1 border border-border-strong bg-background px-1 t-label", autoFocus: true, value: pendingText.text, "aria-label": "Texto do desenho", maxLength: dm.DRAWING_LIMITS.textChars,
+          onChange: (event: { target: { value: string } }) => setPendingText({ ...pendingText, text: event.target.value }),
+          onKeyDown: (event: { key: string }) => { if (event.key === "Enter") commitText(); } }) : null)
+        : null,
+      h("svg", {
+        ref: svgRef, viewBox: `0 0 ${props.w} ${props.h}`, width: "100%", height: "100%", role: "img", tabIndex: 0, className: `block min-h-0 flex-1 text-foreground ${editing ? "cursor-crosshair touch-none" : ""}`,
+        "aria-label": editable && !editing ? `Desenho ${base.title ?? ""}: duplo clique ou Enter para editar` : `Desenho ${base.title ?? ""}`.trim(),
+        onPointerDown: onDown, onPointerMove: onMove, onPointerUp: onUp, onDoubleClick: onDouble,
+      },
+        ...shown.elements.map((el) => drawingShape(dm, shown, el)),
+        previewEl ? drawingShape(dm, shown, previewEl, true) : null,
+        selBox ? h("rect", { x: selBox.x - SELECTION_PAD, y: selBox.y - SELECTION_PAD, width: selBox.w + 2 * SELECTION_PAD, height: selBox.h + 2 * SELECTION_PAD, fill: "none", stroke: "currentColor", strokeDasharray: "4 3", pointerEvents: "none" }) : null),
+      error ? h("span", { role: "alert", className: "text-bad t-label" }, error) : null);
+  }
+
   // ---- registro ----
 
   /** Comandos de menu de nó que os tipos citam; o registro de comandos da página os define (surface `node-menu`). */
@@ -618,6 +867,7 @@ function makeArgosTypesUser() {
     { type: "draw-stroke", label: "Traço à mão", icon: "Pencil", size: { w: 120, h: 80 }, menu: [MENU.dock, MENU.undock, MENU.duplicate, MENU.remove] },
     { type: "unit-sketch", label: "Esboço de unidade", icon: "DraftingCompass", size: { w: 320, h: 220 }, menu: [MENU.dock, MENU.undock, MENU.copyCommands, MENU.duplicate, MENU.blur, MENU.remove] },
     { type: "area", label: "Área", icon: "SquareDashed", size: { w: 480, h: 320 }, menu: [MENU.areaRename, MENU.areaColor, MENU.duplicate, MENU.remove], surface: "canvas" },
+    { type: "drawing", label: "Desenho", icon: "PenTool", size: { w: 480, h: 320 }, menu: [MENU.dock, MENU.undock, MENU.duplicate, MENU.blur, MENU.remove] },
     { type: "band", label: "Banda", icon: "Users", size: { w: 260, h: 180 }, menu: [MENU.dock, MENU.undock, MENU.linkNote, MENU.remove] },
   ];
 
@@ -640,9 +890,10 @@ function makeArgosTypesUser() {
       "unit-sketch": (input) => renderUnitSketch(model, deps, input),
       // o desenho da área é do motor (canvas); isto só atende quem pede o conteúdo de um nó (acoplar), sem nada para mostrar
       area: () => h("div", { "aria-hidden": "true" }),
+      drawing: (input) => (model.drawing ? h(DrawingBody, { key: input.id, id: input.id, w: input.w, h: input.h, data: input.data, dm: model.drawing, deps }) : h("div", { "aria-hidden": "true" })),
       band: (input) => h(BandBody, { key: input.id, data: input.data, model, source: deps.band }),
     };
-    return ROWS.map((row) => ({
+    return ROWS.filter((row) => row.type !== "drawing" || model.drawing !== undefined).map((row) => ({
       type: row.type,
       label: row.label,
       icon: row.icon,
@@ -663,7 +914,7 @@ function makeArgosTypesUser() {
   return {
     registerUserTypes, userTypeDefs, createNoteClient, resolveModel,
     noteReducer, NOTE_INITIAL, renderNoteView, NoteBody, isDirty, NoteCardHost, noteStatus,
-    decideText, TextBody, drawPrimitives, renderDraw, unitSketchView, renderUnitSketch, bandView, BandBody,
+    decideText, TextBody, drawPrimitives, renderDraw, unitSketchView, renderUnitSketch, bandView, BandBody, DrawingBody,
     MENU, NOTE_MESSAGES,
   };
 }

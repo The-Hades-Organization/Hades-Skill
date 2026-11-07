@@ -130,6 +130,8 @@ registerTool({ id: 'note', label: 'Nota', icon: 'StickyNote', hint: 'arraste um 
 
 // ferramenta Área: o retângulo solto vira um nó `area` com os nós de centro dentro dele (pages/argos.tsx, toolRect.area)
 registerTool({ id: 'area', label: 'Área', icon: 'SquareDashed', hint: 'arraste um retângulo em volta dos nós', order: 30 });
+// ferramenta Desenho: o retângulo solto vira um nó `drawing` (pages/argos.tsx, toolRect.drawing)
+registerTool({ id: 'drawing', label: 'Desenho', icon: 'PenTool', hint: 'arraste um retângulo no canvas', order: 40 });
 
 window.ArgosCanvasToolbar = { CLICK_PX, TOOL_ERRORS, registerTool, listTools, dragRect, rectToWorld, CanvasToolbar, ToolDragLayer };
 })();

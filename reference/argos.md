@@ -1236,6 +1236,56 @@ sem área segue válido e um Hades antigo lê a área como nó de tipo desconhec
   `area_duplicate_member`, `area_unknown_area`, `area_unknown_node`, `area_nested`, `area_limit_exceeded` (200 áreas por documento).
 - CLI: `hades canvas area list` (somente leitura): por área `id`, título, cor e quantos membros, e abaixo cada membro.
 
+### Desenho (`canvas-drawing.ts`)
+
+O **desenho** é uma entidade do canvas: um nó do usuário de `type` `drawing` (retângulo com título; 480×320 de início) cujo `data`
+guarda a **cena versionada**. Os tipos soltos (`draw-rect`, `draw-ellipse`, `draw-arrow`, `draw-stroke`, `text`) seguem como estão;
+o desenho é outro conceito, e converter seleção solta em desenho não existe. O documento só cresce (`v` do canvas continua 1;
+um Hades antigo lê o nó como tipo desconhecido).
+
+```json
+{ "id": "d1", "type": "drawing", "x": 0, "y": 0, "w": 480, "h": 320,
+  "data": { "v": 1, "title": "Fluxo", "elements": [
+    { "id": "a", "type": "rect", "x": 0, "y": 0, "w": 80, "h": 40 },
+    { "id": "b", "type": "ellipse", "x": 200, "y": 0, "w": 60, "h": 40 },
+    { "id": "c", "type": "arrow", "from": { "ref": "a" }, "to": { "ref": "b" } },
+    { "id": "t", "type": "text", "x": 10, "y": 80, "text": "fila" } ] } }
+```
+
+- **Formato.** `data.v` é a versão da cena (`DRAWING_VERSION`, 1); versão desconhecida é `drawing_unsupported_version`, nunca é
+  lida como a atual. Elementos: `stroke` (`points: [[x, y], …]`), `rect`, `ellipse`, `line`, `arrow` e `text`; todos com `id`
+  (`e<n>` quando não é dado), `stroke` (cor), `width`; `fill` em rect/elipse; `size` no texto. Coordenadas **relativas ao nó**.
+  `readDrawingData` valida tudo e devolve uma cópia; campo desconhecido é recusado.
+- **Conectores.** `line` e `arrow` têm pontas `from`/`to`: um ponto livre `{ x, y }` ou um elemento preso `{ ref: <id> }`. Mover o
+  elemento leva a ponta presa (a ponta é resolvida pela caixa do elemento a cada leitura); remover o alvo solta a ponta no último
+  lugar em que ela estava, sem apagar o conector.
+- **Limites** (`DRAWING_LIMITS`, conferidos na rota e no modelo): 300 elementos, 500 pontos por traço e 6000 no total, texto de 1000
+  caracteres, título de 80, ids de 40, coordenada até 1 000 000, largura até 64, tamanho do texto de 8 a 200. Estouro é erro
+  (`drawing_limit_exceeded`), nunca truncamento.
+- **Edição no painel.** Duplo clique ou Enter no desenho entra; Esc sai. A barra traz Selecionar, Retângulo, Elipse, Linha, Seta,
+  Traço e Texto, mais Apagar, **PNG** e Sair. Seta ou linha que começa ou termina sobre uma forma prende nela. Duplo clique no texto
+  o edita; Delete apaga o selecionado. **Cada edição é um passo do desfazer** (`opSetDrawing` troca o `data` do nó, então o
+  Ctrl+Z do canvas cobre o desenho). Sem `onDrawingChange` do host o desenho é só leitura.
+- **Barra de ferramentas.** Botão **Desenho** (`registerTool` id `drawing`, ícone `PenTool`, ao lado de Área): arrastar um
+  retângulo cria o nó nesse tamanho (`toolRect.drawing` em `pages/argos.tsx`).
+- **Exportar.** `drawingToSvg(cena, { background? })` é função pura (também `hades canvas drawing export <d> --svg` e
+  `GET /api/canvas-drawings/<canvas>/<nó>/svg`); o botão **PNG** do painel rasteriza esse mesmo SVG (2×, fundo branco) e baixa o arquivo.
+- **Referência no compositor.** `@<id>` do desenho (menu "desenho") vira no texto enviado ao agente
+  `[desenho d1 "Fluxo": 1 rect, 1 ellipse, 1 arrow, 1 text; textos "fila"; ligações c: a → b]`; passando de
+  `COMPOSE_LIMITS.referenceChars` é `compose_reference_too_long`, e desenho corrompido cai na referência de nó genérico.
+- **Ligações e permissão.** `LinkEnd` ganhou `drawing`: terminal ↔ desenho é `drawing-access` e desenho ↔ desenho é
+  `drawing-chain`; nota ↔ desenho não conecta. Mesmas regras das notas: o agente **lê** os desenhos ligados a ele e a cadeia
+  (`readableDrawingsOf`, `canReadDrawing`) e **escreve só** no ligado direto (`directDrawingsOf`, `canWriteDrawing`); o dono lê e
+  edita todos. Conferido no servidor antes de ler a cena; desenho fora do escopo responde como inexistente (404).
+- **Rota** (`src/panel/canvas-drawings.ts`): `GET /api/canvas-drawings/<canvas>[/<nó>[/svg]][?as=<agente>]` (lista, leitura
+  estruturada `describeDrawing` — elementos com caixa, textos e ligações — e SVG) e `POST …/<nó>/edit` com
+  `{ rev, edits: [{ op: add|move|remove|text, … }], as? }`: até 100 edições e 256 KiB por chamada, revisão velha é 409, agente só no
+  painel local (403 remoto). As edições entram atomicamente (todas ou nenhuma). Erros com código estável: os `drawing_*` do modelo
+  (`DRAWING_ERRORS`) e os da rota (`drawing_invalid_body`, `drawing_body_too_large`, `drawing_not_found`,
+  `drawing_stale_revision`, `drawing_agent_local_only`, `drawing_unreadable`, `drawing_too_many_edits`).
+- **CLI**: `hades canvas drawing list|read <d> [--json]|add|move|remove|text|export <d> --svg` (detalhes em `reference/cli.md`);
+  recusas `canvas_drawing_no_access`, `canvas_drawing_write_direct_only` e `canvas_drawing_conflict`, saída 1.
+
 ### Alinhar e distribuir (`canvas-align.ts`)
 
 - `alignNodes(doc, ids, modo)`, modo em `ALIGN_MODES` (`left`, `center`, `right`, `top`, `middle`, `bottom`): alinha à
@@ -3081,6 +3131,8 @@ popover em `kit/panel/ui/argos/canvas-links.tsx` (`window.ArgosLinks`).
 |---|---|---|
 | terminal ↔ nota | `note-access` | o agente do terminal lê e escreve a nota pela CLI do painel |
 | nota ↔ nota | `chain` | nota encadeada: quem lê a nota de entrada percorre a cadeia |
+| terminal ↔ desenho | `drawing-access` | o agente do terminal lê e edita o desenho pela CLI do painel (`hades canvas drawing`) |
+| desenho ↔ desenho | `drawing-chain` | desenho encadeado: a leitura segue a cadeia (nota ↔ desenho não conecta) |
 | terminal ↔ terminal | — | recusado (`links_no_reader`): nesta versão não há leitor dessa conexão |
 | outro tipo de nó | — | recusado (`links_no_reader`) |
 

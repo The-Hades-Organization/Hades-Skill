@@ -248,3 +248,39 @@ describe("compositor", () => {
     expect(Composer.noteTitle(node("n9", "note", {}))).toBe("n9");
   });
 });
+
+describe("desenho citado", () => {
+  const scene = {
+    v: 1,
+    title: "Fluxo",
+    elements: [
+      { id: "a", type: "rect", x: 0, y: 0, w: 80, h: 40 },
+      { id: "b", type: "ellipse", x: 200, y: 0, w: 60, h: 40 },
+      { id: "c", type: "arrow", from: { ref: "a" }, to: { ref: "b" } },
+      { id: "t", type: "text", x: 10, y: 80, text: "fila" },
+    ],
+  };
+  const withDrawing = { nodes: [node("d1", "drawing", scene), node("d2", "drawing", { v: 99, elements: [] })] };
+
+  test("dado `@d1`, então a mensagem leva título, contagem por tipo, textos e ligações do desenho", () => {
+    const out = composeMessage("veja @d1", withDrawing);
+    expect(out.text).toBe('veja [desenho d1 "Fluxo": 1 rect, 1 ellipse, 1 arrow, 1 text; textos "fila"; ligações c: a → b]');
+    expect(out.references).toEqual([{ id: "d1", kind: "drawing" }]);
+  });
+  test("dado desenho com versão desconhecida, então a referência cai no nó genérico em vez de falhar", () => {
+    expect(composeMessage("@d2", withDrawing).references).toEqual([{ id: "d2", kind: "node" }]);
+  });
+  test("dado desenho de texto longo demais, então falha com referenceTooLong", () => {
+    const long = { ...scene, elements: [0, 1, 2].map((i) => ({ id: `t${i}`, type: "text", x: 0, y: 0, text: "x".repeat(900) })) };
+    expect(codeOf(() => composeMessage("@d1", { nodes: [node("d1", "drawing", long)] }))).toBe(COMPOSE_ERRORS.referenceTooLong);
+  });
+  test("o compositor troca `@d1` pela leitura do desenho, como faz com nota", () => {
+    expect(Composer.composerMessage({ text: "olhe @d1", pastes: {} }, withDrawing)).toContain("[desenho d1 \"Fluxo\":");
+  });
+  test("o menu de menção lista desenhos depois das notas, com o título ou o id", () => {
+    const sources = { terminals: [], notes: [{ id: "n1", title: "Decisões" }], drawings: [{ id: "d1", title: "Fluxo" }], orchestrator: false };
+    expect(Composer.mentionOptions("flu", sources).map((o) => [o.kind, o.insert])).toEqual([["drawing", "@d1 "]]);
+    expect(Composer.drawingTitle(node("d9", "drawing", { v: 1, elements: [] }))).toBe("d9");
+    expect(Composer.drawingTitle(withDrawing.nodes[0] as CanvasNode)).toBe("Fluxo");
+  });
+});

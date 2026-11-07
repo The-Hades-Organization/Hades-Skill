@@ -2,6 +2,7 @@
 // a um nó, resolvida no texto que vai ser enviado. Puro, imutável e sem Node: o painel guarda o mapa de rascunhos onde
 // quiser e só chama estas funções. Não há operação sobre o documento, então nada entra na pilha de desfazer.
 import { type CanvasDoc, type CanvasNode } from "./canvas-doc.ts";
+import { DRAWING_TYPE, DrawingError, describeDrawing, readDrawingData, readDrawingTitle } from "./canvas-drawing.ts";
 
 export const COMPOSE_LIMITS = {
   /** Texto digitado, antes de resolver as referências. */
@@ -133,7 +134,7 @@ export function findReferences(text: string): Reference[] {
 
 export interface ResolvedReference {
   id: string;
-  kind: "note" | "node";
+  kind: "note" | "drawing" | "node";
 }
 
 export interface ComposedMessage {
@@ -148,7 +149,37 @@ const nodeLabel = (node: CanvasNode): string => {
   return typeof label === "string" && label.trim() !== "" ? ` "${label.trim()}"` : "";
 };
 
-const expand = (node: CanvasNode): { kind: "note" | "node"; text: string } => {
+/** Leitura em texto do desenho citado: título, quantos elementos de cada tipo, textos livres e ligações entre elementos. */
+function drawingText(node: CanvasNode): string | null {
+  let scene;
+  try {
+    scene = readDrawingData(node.data);
+  } catch (error) {
+    // desenho corrompido não derruba a mensagem: segue como nó genérico, que ao menos informa o id e o tipo
+    if (error instanceof DrawingError) return null;
+    throw error;
+  }
+  const described = describeDrawing(scene);
+  const counts = new Map<string, number>();
+  for (const el of described.elements) counts.set(el.type, (counts.get(el.type) ?? 0) + 1);
+  const kinds = [...counts].map(([type, n]) => `${n} ${type}`).join(", ") || "vazio";
+  const texts = described.texts.map((t) => JSON.stringify(t.text)).join(", ");
+  const links = described.links.map((l) => `${l.id}: ${l.from ?? "livre"} → ${l.to ?? "livre"}`).join("; ");
+  const title = described.title !== undefined ? ` "${described.title}"` : "";
+  const detail = [kinds, texts !== "" ? `textos ${texts}` : "", links !== "" ? `ligações ${links}` : ""].filter((part) => part !== "").join("; ");
+  return `[desenho ${node.id}${title}: ${detail}]`;
+}
+
+const expand = (node: CanvasNode): { kind: "note" | "drawing" | "node"; text: string } => {
+  if (node.type === DRAWING_TYPE) {
+    const text = drawingText(node);
+    if (text !== null) {
+      if (text.length > COMPOSE_LIMITS.referenceChars) {
+        return fail(COMPOSE_ERRORS.referenceTooLong, `o desenho ${node.id} passa de ${COMPOSE_LIMITS.referenceChars} caracteres`, [node.id]);
+      }
+      return { kind: "drawing", text };
+    }
+  }
   if (node.type !== NOTE_TYPE) return { kind: "node", text: `[nó ${node.id} (${node.type})${nodeLabel(node)}]` };
   const body = node.data.text;
   const content = typeof body === "string" ? body.trim() : "";
@@ -374,14 +405,14 @@ export function deletePill(draft: ComposerDraft, caret: number, direction: "back
 
 /**
  * O texto que vai ao terminal: cada pílula volta ao conteúdo colado, sem alteração, na posição dela; no texto digitado,
- * `@<id>` de uma nota do documento vira o texto da nota (a regra do `composeMessage`) e `@@` vira `@`. Menção a terminal,
+ * `@<id>` de uma nota (ou leitura de um desenho) do documento vira o texto da nota (a regra do `composeMessage`) e `@@` vira `@`. Menção a terminal,
  * `@orquestrador` e `@Nova nota` seguem como texto para o agente.
  */
 export function composerMessage(draft: ComposerDraft, doc: Pick<CanvasDoc, "nodes">): string {
   const source = checkText(draft.text);
   if (source.trim() === "") return fail(COMPOSE_ERRORS.emptyMessage, "a mensagem está vazia");
   const notes = new Map<string, CanvasNode>();
-  for (const node of doc.nodes) if (node.type === NOTE_TYPE) notes.set(node.id, node);
+  for (const node of doc.nodes) if (node.type === NOTE_TYPE || node.type === DRAWING_TYPE) notes.set(node.id, node);
   const typed = (segment: string): string => {
     const refs = findReferences(segment).filter((ref) => notes.has(ref.id));
     if (refs.length > COMPOSE_LIMITS.references) {
@@ -440,7 +471,7 @@ export function mentionAt(text: string, caret: number): MentionQuery | null {
   return null;
 }
 
-export const MENTION_KINDS = { terminal: "terminal", note: "note", file: "file", orchestrator: "orchestrator", newNote: "new-note" } as const;
+export const MENTION_KINDS = { terminal: "terminal", note: "note", drawing: "drawing", file: "file", orchestrator: "orchestrator", newNote: "new-note" } as const;
 export type MentionKind = (typeof MENTION_KINDS)[keyof typeof MENTION_KINDS];
 
 export interface MentionOption {
@@ -454,19 +485,22 @@ export interface MentionSources {
   /** Terminais ligados por aresta ao terminal do compositor. */
   terminals: readonly { id: string; label: string }[];
   notes: readonly { id: string; title: string }[];
+  /** Desenhos do documento (ausente = nenhum). */
+  drawings?: readonly { id: string; title: string }[];
   /** O terminal do compositor tem o papel de orquestrador ligado. */
   orchestrator: boolean;
 }
 
 const fold = (value: string): string => value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
-/** Opções do menu de menção para o texto digitado depois do `@`, na ordem: terminais, notas, Arquivo…, orquestrador, Nova nota. */
+/** Opções do menu de menção para o texto digitado depois do `@`, na ordem: terminais, notas, desenhos, Arquivo…, orquestrador, Nova nota. */
 export function mentionOptions(query: string, sources: MentionSources): MentionOption[] {
   const want = fold(query);
   const hit = (label: string): boolean => want === "" || fold(label).includes(want);
   const options: MentionOption[] = [];
   for (const t of sources.terminals) if (hit(t.label)) options.push({ kind: MENTION_KINDS.terminal, label: t.label, insert: `@${t.label} ` });
   for (const n of sources.notes) if (hit(n.title) || hit(n.id)) options.push({ kind: MENTION_KINDS.note, label: n.title, insert: `@${n.id} ` });
+  for (const d of sources.drawings ?? []) if (hit(d.title) || hit(d.id)) options.push({ kind: MENTION_KINDS.drawing, label: d.title, insert: `@${d.id} ` });
   if (hit("Arquivo")) options.push({ kind: MENTION_KINDS.file, label: "Arquivo…", insert: null });
   if (sources.orchestrator && hit("orquestrador")) options.push({ kind: MENTION_KINDS.orchestrator, label: "orquestrador", insert: "@orquestrador " });
   if (hit("Nova nota")) options.push({ kind: MENTION_KINDS.newNote, label: "Nova nota", insert: "@Nova nota " });
@@ -490,4 +524,9 @@ export function noteTitle(node: CanvasNode): string {
   const body = node.data.text;
   const first = typeof body === "string" ? (body.split("\n").find((line) => line.trim() !== "") ?? "") : "";
   return first.trim().replace(/^#+\s*/, "").slice(0, 80) || node.id;
+}
+
+/** Título de um desenho para o menu: o título fixado pelo dono, senão o id. */
+export function drawingTitle(node: CanvasNode): string {
+  return readDrawingTitle(node.data.title) ?? node.id;
 }

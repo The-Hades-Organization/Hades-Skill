@@ -6,13 +6,14 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import * as bands from "../../../src/lib/canvas-bands";
 import * as create from "../../../src/lib/canvas-create";
 import * as draw from "../../../src/lib/canvas-draw";
+import * as drawingLib from "../../../src/lib/canvas-drawing";
 import * as note from "../../../src/lib/canvas-note";
 import { type CanvasDoc, type CanvasNode, validateCanvasDoc } from "../../../src/lib/canvas-doc";
 import { createHistory, perform, undo } from "../../../src/lib/canvas-history";
 import { createNodeTypeRegistry, RegistryError } from "../../../src/lib/canvas-types";
 
 // Os tipos do .tsx não entram aqui (o tsconfig do projeto não tem jsx): este é o contorno do que o teste usa dele.
-type Model = { note: typeof note; draw: typeof draw; create: typeof create; bands: typeof bands };
+type Model = { note: typeof note; draw: typeof draw; create: typeof create; bands: typeof bands; drawing?: typeof drawingLib };
 type Tree = { type: unknown; props: Record<string, unknown>; children: unknown[] };
 type FakeResponse = { status: number; json(): Promise<unknown> };
 type FetchCall = { url: string; init: { method: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal } };
@@ -25,6 +26,7 @@ interface Deps {
   schedule?: (fn: () => void, ms: number) => () => void;
   copy?: (text: string) => void;
   onTextChange?: (id: string, data: { text: string; style: string }) => void;
+  onDrawingChange?: (id: string, scene: drawingLib.DrawingScene) => void;
   onRemove?: (id: string) => void;
   band?: { doc(): CanvasDoc | undefined; live(): bands.BandLive; focus(id: string): void };
   timeoutMs?: number;
@@ -735,5 +737,109 @@ describe("banda", () => {
   test("dado banda inválida no documento, então o nó mostra o aviso com o código", () => {
     const view = mount(Api.BandBody as (p: unknown) => unknown, { data: { group: "nada" }, model, source: source() });
     expect(textOf(view.tree)).toContain("org_unknown_group");
+  });
+});
+
+// ---------- desenho (nó `drawing`) ----------
+describe("desenho no motor", () => {
+  const drawingModel: Model & { drawing: typeof drawingLib } = { note, draw, create, bands, drawing: drawingLib };
+  const scene = { v: 1, title: "Fluxo", elements: [{ id: "a", type: "rect", x: 0, y: 0, w: 80, h: 40 }] };
+  const input = { id: "d1", type: "drawing", x: 0, y: 0, w: 480, h: 320, data: scene };
+  const defOf = (m: Model) => Api.userTypeDefs({ ...deps(), model: m }).find((d) => d.type === "drawing");
+  const mountDrawing = (data: unknown = scene) => {
+    const def = defOf(drawingModel);
+    const tree = (def as TypeDef).draw.render({ ...input, data }) as Tree;
+    return mount(tree.type as (p: unknown) => unknown, tree.props);
+  };
+  const svgOf = (tree: unknown): Tree => findAll(tree, (el) => el.type === "svg")[0] as Tree;
+  const toolbar = (tree: unknown): Tree[] => findAll(tree, (el) => el.props.role === "toolbar");
+  const key = (name: string, target: unknown = {}) => ({ key: name, preventDefault() {}, stopPropagation() {}, target });
+  const down = { clientX: 0, clientY: 0, button: 0, pointerId: 1, currentTarget: {}, stopPropagation() {} };
+  const withChange = (calls: { id: string; scene: drawingLib.DrawingScene }[]) => ({ ...deps(), model: drawingModel, onDrawingChange: (id: string, next: drawingLib.DrawingScene) => calls.push({ id, scene: next }) });
+  const mountEditable = (calls: { id: string; scene: drawingLib.DrawingScene }[]) => {
+    const def = Api.userTypeDefs(withChange(calls)).find((d) => d.type === "drawing") as TypeDef;
+    const tree = def.draw.render(input) as Tree;
+    return mount(tree.type as (p: unknown) => unknown, tree.props);
+  };
+  const enter = (view: ReturnType<typeof mountEditable>) => {
+    (view.tree.props.onKeyDown as (e: unknown) => void)(key("Enter"));
+    view.settle();
+  };
+
+  test("dado modelo sem `drawing`, então o tipo não é registrado; com modelo, entra depois da Área", () => {
+    expect(defOf(model)).toBeUndefined();
+    const types = Api.userTypeDefs({ ...deps(), model: drawingModel }).map((d) => d.type);
+    expect(types.indexOf("drawing")).toBeGreaterThan(types.indexOf("area"));
+  });
+
+  test("dado desenho fora de edição, então mostra as formas sem barra de ferramentas", () => {
+    const view = mountDrawing();
+    expect(toolbar(view.tree)).toHaveLength(0);
+    expect(findAll(view.tree, (el) => el.type === "rect")).not.toHaveLength(0);
+  });
+
+  test("dado dado inválido (versão desconhecida), então avisa em vez de desenhar", () => {
+    const view = mountDrawing({ v: 99, elements: [] });
+    expect(textOf(view.tree)).toContain("Desenho inválido");
+  });
+
+  test("dado host sem onDrawingChange, então Enter não abre a edição (somente leitura)", () => {
+    const view = mountDrawing();
+    (view.tree.props.onKeyDown as (e: unknown) => void)(key("Enter"));
+    view.settle();
+    expect(toolbar(view.tree)).toHaveLength(0);
+  });
+
+  test("dado Enter e depois Esc, então a barra aparece e some", () => {
+    const view = mountEditable([]);
+    enter(view);
+    expect(toolbar(view.tree)).toHaveLength(1);
+    (view.tree.props.onKeyDown as (e: unknown) => void)(key("Escape"));
+    view.settle();
+    expect(toolbar(view.tree)).toHaveLength(0);
+  });
+
+  test("dada a ferramenta Texto, então o texto digitado vira um elemento e sai um passo de edição", () => {
+    const calls: { id: string; scene: drawingLib.DrawingScene }[] = [];
+    const view = mountEditable(calls);
+    enter(view);
+    press(buttonWith(view.tree, "Texto"));
+    view.settle();
+    (svgOf(view.tree).props.onPointerDown as (e: unknown) => void)(down);
+    view.settle();
+    const field = findAll(view.tree, (el) => el.type === "input")[0] as Tree;
+    typeInto(field, "fila");
+    view.settle();
+    ((findAll(view.tree, (el) => el.type === "input")[0] as Tree).props.onKeyDown as (e: unknown) => void)({ key: "Enter" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.id).toBe("d1");
+    expect(calls[0]?.scene.elements.map((el) => el.type)).toEqual(["rect", "text"]);
+  });
+
+  test("dado texto só com espaço, então não grava elemento", () => {
+    const calls: { id: string; scene: drawingLib.DrawingScene }[] = [];
+    const view = mountEditable(calls);
+    enter(view);
+    press(buttonWith(view.tree, "Texto"));
+    view.settle();
+    (svgOf(view.tree).props.onPointerDown as (e: unknown) => void)(down);
+    view.settle();
+    typeInto(findAll(view.tree, (el) => el.type === "input")[0] as Tree, "   ");
+    view.settle();
+    ((findAll(view.tree, (el) => el.type === "input")[0] as Tree).props.onKeyDown as (e: unknown) => void)({ key: "Enter" });
+    expect(calls).toHaveLength(0);
+  });
+
+  test("dado elemento selecionado, então Apagar remove e Delete também", () => {
+    const calls: { id: string; scene: drawingLib.DrawingScene }[] = [];
+    const view = mountEditable(calls);
+    enter(view);
+    expect(buttonWith(view.tree, "Apagar").props.disabled).toBe(true);
+    (svgOf(view.tree).props.onPointerDown as (e: unknown) => void)(down);
+    view.settle();
+    expect(buttonWith(view.tree, "Apagar").props.disabled).toBe(false);
+    press(buttonWith(view.tree, "Apagar"));
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.scene.elements).toEqual([]);
   });
 });

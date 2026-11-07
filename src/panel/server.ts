@@ -21,6 +21,7 @@ import { createArgos } from "./argos.ts";
 import { createCanvasRoutes } from "./canvas.ts";
 import { createCanvasHub } from "./canvas-stream.ts";
 import { createCanvasContentRoutes } from "./canvas-content.ts";
+import { createCanvasDrawingsRoutes } from "./canvas-drawings.ts";
 import { createCanvasNotesRoutes } from "./canvas-notes.ts";
 import { DEFAULT_CANVAS_ID } from "../lib/canvas-store.ts";
 import { readCanvasDoc } from "../lib/canvas-doc.ts";
@@ -173,8 +174,8 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     plansDir: join(hadesHome(), "plans"),
   });
   // as notas leem o documento do canvas pela própria rota (mesma leitura, migração e validação), sem tocar no módulo dele
-  const canvasNotes = createCanvasNotesRoutes(env.dir, {
-    async loadDoc(canvasId) {
+  const canvasNotesDeps = {
+    async loadDoc(canvasId: string) {
       const res = canvasId === DEFAULT_CANVAS_ID ? canvas.get() : canvas.getMany(`/api/canvases/${canvasId}`);
       if (!res?.ok) return undefined;
       try {
@@ -184,6 +185,12 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
         return undefined;
       }
     },
+  };
+  const canvasNotes = createCanvasNotesRoutes(env.dir, canvasNotesDeps);
+  // os desenhos são nós do documento; a rota lê o documento pela mesma leitura das notas e grava pelo `patchNodeData` do canvas
+  const canvasDrawings = createCanvasDrawingsRoutes({
+    loadDoc: (canvasId) => canvasNotesDeps.loadDoc(canvasId),
+    patchNodeData: (canvasId, nodeId, rev, check, data) => canvas.patchNodeData(canvasId, nodeId, rev, check, data),
   });
   const canvasPortal = createCanvasPortalRoutes({
     hosts: () => {
@@ -378,6 +385,8 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     if (path === "/api/canvas-notes") return canvasNotes.list(query);
     const noteRead = canvasNotes.get(path);
     if (noteRead) return noteRead;
+    const drawingRead = canvasDrawings.get(path, query, { remote });
+    if (drawingRead) return drawingRead;
     const manyCanvases = canvas.getMany(path);
     if (manyCanvases) return manyCanvases;
     if (path === "/api/caronte" || path.startsWith("/api/caronte/plan/")) {
@@ -554,6 +563,8 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     // os POST das notas (bloquear, renomear, mover, imagem, apagar, apontar) leem o próprio corpo, com teto por ação
     const noteAction = canvasNotes.action(path, req, { remote });
     if (noteAction) return noteAction;
+    const drawingEdit = canvasDrawings.post(path, req, { remote });
+    if (drawingEdit) return drawingEdit;
     // os POST de /api/canvases/* (criar, renomear, apagar, importar) leem o próprio corpo, como o PUT
     const manyWrite = canvas.writeMany(method, path, queryOf(url), req, { remote });
     if (manyWrite) return manyWrite;

@@ -461,6 +461,8 @@ function Argos() {
     // texto dos nós do usuário: cada edição é um passo do desfazer (update) e o texto esvaziado apaga o nó (delete)
     const text = L.userTextHost({ note: M.note, history: M.history }, { doc: docNow, commit: call('commitOp'), fail: call('opFailed') });
     const userDeps = { fetch: tokenFetch, now: () => Date.now(), copy: call('copyText'), onTextChange: text.onTextChange, onRemove: text.onRemove,
+      // desenho: cada edição é um passo do desfazer (opSetDrawing); recusa do modelo vai ao aviso com o código
+      onDrawingChange: (id, scene) => { const d = docNow(); if (!d) return; let op; try { op = M.drawing.opSetDrawing(d, id, scene); } catch (e) { if (!e || typeof e.code !== 'string') throw e; call('opFailed')(e.code); return; } if (op) call('commitOp')(op); },
       band: { doc: () => docNow() ?? undefined, live: call('bandLive'), focus: call('select') } };
     const liveDeps = { fetch: tokenFetch, now: () => Date.now(), get portalPolicy() { return portalPolicy.current; }, onOpen: call('openAgentFile') };
     // nó `terminal` (criado pela ferramenta Terminal): desenho do node-terminal; o menu são os comandos T2 de commands-canvas.
@@ -1370,12 +1372,24 @@ function Argos() {
     await saver.flush();
     await reloadOrphans.current();
   });
+  // ferramenta Desenho: o retângulo solto vira um nó `drawing` vazio, pronto para entrar e desenhar (duplo clique ou Enter)
+  const placeDrawing = (screenRect, cam) => {
+    const doc = cstateRef.current?.doc;
+    const type = types.get(M.drawing.DRAWING_TYPE);
+    if (!doc || !type) { opFailed(M.history.HISTORY_ERRORS.invalidOp); return; }
+    const rect = window.ArgosCanvasToolbar.rectToWorld(cam, screenRect, { size: type.defaultSize, min: { w: 160, h: 100 } });
+    const id = M.clipboard.sequentialIds(doc, 'drawing')('node');
+    let made;
+    try { made = M.drawing.createDrawingNode(doc, { id, x: rect.x, y: rect.y, w: rect.w, h: rect.h }); } catch (e) { if (!e || typeof e.code !== 'string') throw e; opFailed(e.code); return; }
+    if (termCommit(() => made.op)) { host.current.selectIds([id]); apiRef.current?.revealNode(id, true); }
+  };
   // o que o retângulo solto faz, por ferramenta da barra (ArgosCanvasToolbar.registerTool): (retângulo da tela, câmera)
   const toolRect = {
     terminal: (rect, cam) => setTermDialog({ mode: 'create', tab: 'details',
       rect: window.ArgosCanvasToolbar.rectToWorld(cam, rect, { size: NT.TERMINAL_SIZE, min: NT.ttyMinNodeSize(null) }) }),
     note: (rect, cam) => placeNote(rect, cam),
     area: (rect, cam) => placeArea(rect, cam),
+    drawing: (rect, cam) => placeDrawing(rect, cam),
   };
   const onToolRect = (rect) => {
     const run = toolRect[termTool];

@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import { type CanvasDoc, type CanvasNode, readCanvasDoc } from "../lib/canvas-doc.ts";
 import { applyOp, type CanvasOp } from "../lib/canvas-history.ts";
 import { areaReport } from "../lib/canvas-areas.ts";
+import { canReadDrawing, canWriteDrawing, isDrawingNode, readableDrawingsOf, sceneOfNodeSafe } from "../lib/canvas-drawing.ts";
 import { LinkError } from "../lib/canvas-links.ts";
 import { directNotesOf, hasNoteAccess, noteChainFrom, NoteError, readableNotesOf } from "../lib/canvas-note.ts";
 import {
@@ -25,6 +26,17 @@ import { TERMINAL_NAME_MAX } from "../panel/argos-terminals.ts";
 import { exec } from "../panel/exec.ts";
 
 export const USAGE = `Uso: hades canvas <subcomando> [--canvas <id>]
+  drawing list                                desenhos que o seu terminal lê (diretos e encadeados)
+  drawing read <d> [--json]                   elementos, textos e ligações do desenho (d: id ou título)
+  drawing add <d> <rect|ellipse> --x n --y n --w n --h n [--fill c] [--stroke c] [--width n]
+  drawing add <d> <line|arrow> --from <elemento|x,y> --to <elemento|x,y> [--stroke c] [--width n]
+  drawing add <d> stroke --points x,y;x,y;… [--stroke c] [--width n]
+  drawing add <d> text --x n --y n --text t [--size n] [--stroke c]
+                                              (desenho ligado direto a você; --id escolhe o id do elemento)
+  drawing move <d> <elemento> <dx> <dy>       desloca (conector preso segue o elemento)
+  drawing remove <d> <elemento>               apaga (conector preso fica no lugar)
+  drawing text <d> <elemento> <texto>         troca o texto de um elemento de texto
+  drawing export <d> --svg                    imagem SVG do desenho na saída padrão
   area list                                   áreas do canvas e quem está em cada uma (somente leitura)
   note list                                   notas que o seu terminal lê (diretas e encadeadas)
   note read <nota> [--only]                   texto da nota e da cadeia dela (--only: só ela)
@@ -59,6 +71,9 @@ export const CANVAS_CLI_ERRORS = {
   joinPaneNotFound: "canvas_join_pane_not_found",
   joinBadPane: "canvas_join_bad_pane",
   noteFileExists: "canvas_note_file_exists",
+  drawingNoAccess: "canvas_drawing_no_access",
+  drawingWriteDirect: "canvas_drawing_write_direct_only",
+  drawingConflict: "canvas_drawing_conflict",
 } as const;
 export type CanvasCliErrorCode = (typeof CANVAS_CLI_ERRORS)[keyof typeof CANVAS_CLI_ERRORS];
 
@@ -76,6 +91,9 @@ const ERROR_TEXT: Readonly<Record<CanvasCliErrorCode, string>> = {
   [CANVAS_CLI_ERRORS.joinOutsideHerdr]: "este terminal não está dentro do herdr, e o canvas só mostra panes dele: abra o terminal (ou a sessão do Claude Code) num pane do herdr e rode de novo",
   [CANVAS_CLI_ERRORS.joinPaneNotFound]: "o herdr não tem esse pane",
   [CANVAS_CLI_ERRORS.joinBadPane]: "--pane inválido",
+  [CANVAS_CLI_ERRORS.drawingNoAccess]: "nenhuma conexão liga o seu terminal a esse desenho (nem pela cadeia)",
+  [CANVAS_CLI_ERRORS.drawingWriteDirect]: "só se edita o desenho ligado direto ao seu terminal (a cadeia só se lê)",
+  [CANVAS_CLI_ERRORS.drawingConflict]: "o desenho mudou enquanto você gravava: tente de novo",
   [CANVAS_CLI_ERRORS.noteFileExists]: "já existe um arquivo de nota com esse nome: escolha outro nome",
 };
 
@@ -134,8 +152,8 @@ interface Parsed {
   flags: Map<string, string[]>;
 }
 
-const VALUE_FLAGS = new Set(["canvas", "name", "role", "preset", "agent", "model", "effort", "cwd", "instructions", "note", "prompt", "pane", "to", "text", "title", "link-to", "new-note"]);
-const BOOL_FLAGS = new Set(["only", "append", "no-role", "no-instructions"]);
+const VALUE_FLAGS = new Set(["canvas", "name", "role", "preset", "agent", "model", "effort", "cwd", "instructions", "note", "prompt", "pane", "to", "text", "title", "link-to", "new-note", "x", "y", "w", "h", "from", "to", "points", "fill", "stroke", "width", "size", "id"]);
+const BOOL_FLAGS = new Set(["only", "append", "no-role", "no-instructions", "json", "svg"]);
 
 class UsageError extends Error {}
 
@@ -699,10 +717,152 @@ async function leave(deps: CanvasCliDeps, p: Parsed): Promise<number> {
   return EXIT.ok;
 }
 
+// ---- desenhos ----
+
+const drawingTitle = (doc: CanvasDoc, id: string): string => sceneOfNodeSafe(doc.nodes.find((n) => n.id === id))?.title ?? id;
+
+/** Os desenhos que o processo que chama alcança (diretos e cadeia), sem repetir. */
+function readableDrawings(at: Located): { id: string; via: string | null }[] {
+  const out: { id: string; via: string | null }[] = [];
+  for (const node of at.me) for (const entry of readableDrawingsOf(at.doc, node.id)) if (!out.some((seen) => seen.id === entry.id)) out.push(entry);
+  return out;
+}
+
+/** O desenho por id ou título; o que não existe e o que não se alcança respondem igual. */
+function drawingOrFail(at: Located, ref: string): CanvasNode {
+  const reachable = readableDrawings(at).flatMap((entry) => at.doc.nodes.filter((n) => n.id === entry.id && isDrawingNode(n)));
+  const hit = reachable.find((n) => n.id === ref) ?? reachable.find((n) => drawingTitle(at.doc, n.id).toLowerCase() === ref.toLowerCase());
+  return hit ?? failWith(CANVAS_CLI_ERRORS.drawingNoAccess, ref);
+}
+
+const reader = (at: Located, drawing: CanvasNode): CanvasNode => at.me.find((n) => canReadDrawing(at.doc, drawing.id, n.id)) ?? failWith(CANVAS_CLI_ERRORS.drawingNoAccess, drawing.id);
+
+async function drawingList(deps: CanvasCliDeps, at: Located): Promise<number> {
+  const found = readableDrawings(at);
+  if (found.length === 0) {
+    deps.out("nenhum desenho ligado ao seu terminal");
+    return EXIT.ok;
+  }
+  for (const entry of found) deps.out(`${entry.id}\t${drawingTitle(at.doc, entry.id)}\t${entry.via === null ? "direto" : `cadeia de ${drawingTitle(at.doc, entry.via)}`}`);
+  return EXIT.ok;
+}
+
+async function drawingRead(deps: CanvasCliDeps, at: Located, p: Parsed): Promise<number> {
+  const node = drawingOrFail(at, p.positional[2] ?? fail(new UsageError("drawing read <d> [--json]")));
+  const reply = await panelJson(deps, "GET", `/api/canvas-drawings/${encodeURIComponent(at.canvas)}/${encodeURIComponent(node.id)}?as=${encodeURIComponent(reader(at, node).id)}`);
+  if (reply.status !== STATUS.ok || !isDict(reply.body) || !isDict(reply.body.drawing)) return refused(reply);
+  const drawing = reply.body.drawing;
+  if (has(p, "json")) {
+    deps.out(JSON.stringify(drawing));
+    return EXIT.ok;
+  }
+  const elements = Array.isArray(drawing.elements) ? drawing.elements : [];
+  deps.out(`desenho ${node.id} "${drawingTitle(at.doc, node.id)}" v${String(drawing.v)}: ${elements.length} elemento(s)`);
+  for (const el of elements) {
+    if (!isDict(el)) continue;
+    const ends = el.from !== undefined ? ` ${JSON.stringify(el.from)} -> ${JSON.stringify(el.to)}` : "";
+    const label = typeof el.text === "string" ? ` ${JSON.stringify(el.text)}` : "";
+    deps.out(`${String(el.id)}\t${String(el.type)}\t(${String(el.x)},${String(el.y)} ${String(el.w)}x${String(el.h)})${ends}${label}`);
+  }
+  return EXIT.ok;
+}
+
+const numberFlag = (p: Parsed, key: string): number | undefined => {
+  const raw = flag(p, key);
+  if (raw === undefined) return undefined;
+  const value = Number(raw);
+  return raw.trim() !== "" && Number.isFinite(value) ? value : fail(new UsageError(`--${key} pede um número`));
+};
+const numberArg = (raw: string | undefined, what: string): number => {
+  const value = Number(raw);
+  return raw !== undefined && raw.trim() !== "" && Number.isFinite(value) ? value : fail(new UsageError(`${what} pede um número`));
+};
+const pairOf = (raw: string, what: string): { x: number; y: number } => {
+  const [x, y, ...rest] = raw.split(",");
+  return rest.length === 0 ? { x: numberArg(x, what), y: numberArg(y, what) } : fail(new UsageError(`${what}: use x,y`));
+};
+/** Ponta de conector: `x,y` (livre) ou o id de um elemento (preso). */
+const endOf = (raw: string | undefined, what: string): Dict => (raw === undefined ? fail(new UsageError(`--${what} é obrigatório`)) : raw.includes(",") ? pairOf(raw, `--${what}`) : { ref: raw });
+
+/** Só os campos dados entram: o que falta fica para a validação da cena (limites, tipos), que é a do servidor. */
+function elementFromFlags(kind: string, p: Parsed): Dict {
+  const out: Dict = { type: kind };
+  for (const key of ["x", "y", "w", "h", "width", "size"]) {
+    const value = numberFlag(p, key);
+    if (value !== undefined) out[key] = value;
+  }
+  for (const key of ["fill", "stroke", "text", "id"]) {
+    const value = flag(p, key);
+    if (value !== undefined) out[key] = value;
+  }
+  if (kind === "line" || kind === "arrow") {
+    out.from = endOf(flag(p, "from"), "from");
+    out.to = endOf(flag(p, "to"), "to");
+  }
+  if (kind === "stroke") {
+    const raw = flag(p, "points") ?? fail(new UsageError("--points x,y;x,y;… é obrigatório"));
+    out.points = raw.split(";").map((pair) => {
+      const { x, y } = pairOf(pair, "--points");
+      return [x, y];
+    });
+  }
+  return out;
+}
+
+/** Edita o desenho ligado direto: o servidor decide o acesso; com revisão velha, relê o documento e refaz (até `WRITE_ATTEMPTS`). */
+async function drawingEdit(deps: CanvasCliDeps, at: Located, ref: string, edits: Dict[]): Promise<number> {
+  const node = drawingOrFail(at, ref);
+  const writer = at.me.find((n) => canWriteDrawing(at.doc, node.id, { kind: "agent", id: n.id })) ?? failWith(CANVAS_CLI_ERRORS.drawingWriteDirect, ref);
+  let rev = at.doc.rev;
+  for (let attempt = 1; ; attempt++) {
+    const reply = await panelJson(deps, "POST", `/api/canvas-drawings/${encodeURIComponent(at.canvas)}/${encodeURIComponent(node.id)}/edit`, { rev, edits, as: { agent: writer.id } });
+    if (reply.status === STATUS.ok) {
+      deps.out(`desenho ${node.id} gravado (${edits.length} edição)`);
+      return EXIT.ok;
+    }
+    if (reply.status !== STATUS.conflict) return refused(reply);
+    if (attempt >= WRITE_ATTEMPTS) return failWith(CANVAS_CLI_ERRORS.drawingConflict, node.id);
+    rev = (await loadDoc(deps, at.canvas)).rev;
+  }
+}
+
+const drawingAdd = (deps: CanvasCliDeps, at: Located, p: Parsed): Promise<number> => {
+  const ref = p.positional[2] ?? fail(new UsageError("drawing add <d> <rect|ellipse|line|arrow|stroke|text> …"));
+  const kind = p.positional[3] ?? fail(new UsageError("drawing add <d> <rect|ellipse|line|arrow|stroke|text> …"));
+  return drawingEdit(deps, at, ref, [{ op: "add", element: elementFromFlags(kind, p) }]);
+};
+const drawingMove = (deps: CanvasCliDeps, at: Located, p: Parsed): Promise<number> => {
+  const [ref, id] = [p.positional[2], p.positional[3]];
+  if (ref === undefined || id === undefined) return fail(new UsageError("drawing move <d> <elemento> <dx> <dy>"));
+  return drawingEdit(deps, at, ref, [{ op: "move", id, dx: numberArg(p.positional[4], "dx"), dy: numberArg(p.positional[5], "dy") }]);
+};
+const drawingRemove = (deps: CanvasCliDeps, at: Located, p: Parsed): Promise<number> => {
+  const [ref, id] = [p.positional[2], p.positional[3]];
+  if (ref === undefined || id === undefined) return fail(new UsageError("drawing remove <d> <elemento>"));
+  return drawingEdit(deps, at, ref, [{ op: "remove", id }]);
+};
+const drawingText = (deps: CanvasCliDeps, at: Located, p: Parsed): Promise<number> => {
+  const [ref, id] = [p.positional[2], p.positional[3]];
+  if (ref === undefined || id === undefined || p.positional.length < 5) return fail(new UsageError("drawing text <d> <elemento> <texto>"));
+  return drawingEdit(deps, at, ref, [{ op: "text", id, text: p.positional.slice(4).join(" ") }]);
+};
+
+async function drawingExport(deps: CanvasCliDeps, at: Located, p: Parsed): Promise<number> {
+  if (!has(p, "svg")) return fail(new UsageError("drawing export <d> --svg"));
+  const node = drawingOrFail(at, p.positional[2] ?? fail(new UsageError("drawing export <d> --svg")));
+  const reply = await panelJson(deps, "GET", `/api/canvas-drawings/${encodeURIComponent(at.canvas)}/${encodeURIComponent(node.id)}/svg?as=${encodeURIComponent(reader(at, node).id)}`);
+  if (reply.status !== STATUS.ok || !isDict(reply.body) || typeof reply.body.svg !== "string") return refused(reply);
+  deps.out(reply.body.svg);
+  return EXIT.ok;
+}
+
 // ---- entrada ----
 
 type Handler = (deps: CanvasCliDeps, at: Located, p: Parsed) => Promise<number>;
 const NOTE_HANDLERS: Readonly<Record<string, Handler>> = { list: noteList, read: noteRead, write: noteWrite, new: noteNew };
+const DRAWING_HANDLERS: Readonly<Record<string, Handler>> = {
+  list: drawingList, read: drawingRead, add: drawingAdd, move: drawingMove, remove: drawingRemove, text: drawingText, export: drawingExport,
+};
 const AREA_HANDLERS: Readonly<Record<string, Handler>> = { list: areaList };
 const HANDLERS: Readonly<Record<string, Handler>> = { recruit, connect, reassign, dismiss, notify: notifyOwner };
 
@@ -721,6 +881,7 @@ export async function runCanvas(args: readonly string[], deps: CanvasCliDeps): P
   const [command, sub] = parsed.positional;
   const standalone = command !== undefined && Object.hasOwn(STANDALONE, command) ? STANDALONE[command] : undefined;
   const handler = standalone ? undefined : command === "note" ? (sub !== undefined && Object.hasOwn(NOTE_HANDLERS, sub) ? NOTE_HANDLERS[sub] : undefined)
+    : command === "drawing" ? (sub !== undefined && Object.hasOwn(DRAWING_HANDLERS, sub) ? DRAWING_HANDLERS[sub] : undefined)
     : command === "area" ? (sub !== undefined && Object.hasOwn(AREA_HANDLERS, sub) ? AREA_HANDLERS[sub] : undefined)
     : command !== undefined && Object.hasOwn(HANDLERS, command) ? HANDLERS[command] : undefined;
   if (!handler && !standalone) {

@@ -71,6 +71,7 @@ export const CANVAS_UI_MODULES = {
   // tipos de nó do usuário (types-user.tsx) e vivos (types-live.tsx)
   note: "canvas-note.ts",
   draw: "canvas-draw.ts",
+  drawing: "canvas-drawing.ts",
   create: "canvas-create.ts",
   bands: "canvas-bands.ts",
   portal: "canvas-portal.ts",

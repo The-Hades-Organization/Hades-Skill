@@ -197,6 +197,11 @@ export interface DocSaver {
    * não passa da revisão que a aba já tem. Sem edição na fila devolve `theirs` e só adota a revisão.
    */
   absorb(theirs: CanvasDoc): CanvasDoc | undefined;
+  /**
+   * O dono apagou estes nós de propósito: a reconciliação (409 ou `absorb`) não os traz de volta ainda que o servidor tenha
+   * mexido neles. O registro vale até um envio aceito sem eles; id que já não existe é ignorado (apagar duas vezes é sucesso).
+   */
+  forget(ids: readonly string[]): void;
   /** Envia já o que estiver na fila (e espera o envio em andamento). Nunca rejeita: a falha vira estado e nova tentativa. */
   flush(options?: { leaving?: boolean }): Promise<void>;
   /** Cancela o temporizador; o que estava na fila não é enviado. */
@@ -229,18 +234,21 @@ function mergeById<T extends Keyed>(base: readonly T[], mine: readonly T[], thei
   return out;
 }
 
+const NO_IDS: ReadonlySet<string> = new Set();
+
 /**
  * Reaplica a edição da aba (`mine`, feita sobre `base`) no documento do servidor (`theirs`), que andou. Item (nó, aresta, grupo,
  * oculto) que só um lado mexeu fica como esse lado deixou; mexido pelos dois, vence a aba (o dono acabou de fazer). Remoção pela
- * aba só vale se o servidor não mexeu no item. Sem `base`, nada do servidor se apaga: a aba vence nos ids em comum.
+ * aba só vale se o servidor não mexeu no item, salvo os ids de `dropped` (remoção que o dono pediu de propósito: nunca volta
+ * por o servidor ter mexido no nó antes). Sem `base`, nada do servidor se apaga: a aba vence nos ids em comum.
  * A revisão e os campos do documento (`v`) são os do servidor.
  */
-export function rebaseDoc(base: CanvasDoc | undefined, mine: CanvasDoc, theirs: CanvasDoc): CanvasDoc {
+export function rebaseDoc(base: CanvasDoc | undefined, mine: CanvasDoc, theirs: CanvasDoc, dropped: ReadonlySet<string> = NO_IDS): CanvasDoc {
   const from = base ?? { ...theirs, nodes: [], edges: [], groups: [], hidden: undefined };
   const ids = (list: readonly string[] | undefined): { id: string }[] => (list ?? []).map((id) => ({ id }));
   const hidden = mergeById(ids(from.hidden), ids(mine.hidden), ids(theirs.hidden)).map((item) => item.id);
   const { hidden: _drop, ...rest } = theirs;
-  const nodes = mergeById(from.nodes, mine.nodes, theirs.nodes);
+  const nodes = mergeById(from.nodes, mine.nodes, theirs.nodes).filter((item) => !dropped.has(item.id));
   const present = new Set(nodes.map((item) => item.id));
   return {
     ...rest,
@@ -263,6 +271,8 @@ export function createDocSaver(deps: SaverDeps): DocSaver {
   let timer: unknown;
   let running: Promise<void> | undefined;
   let disposed = false;
+  /** Nós que o dono apagou de propósito e que o servidor pode ainda ter (ver `DocSaver.forget`). */
+  const forgotten = new Set<string>();
 
   const clear = (): void => {
     if (timer === undefined) return;
@@ -300,14 +310,15 @@ export function createDocSaver(deps: SaverDeps): DocSaver {
             rev = reply.rev;
             base = { ...doc, rev };
             rebases = 0;
+            for (const id of [...forgotten]) if (!doc.nodes.some((node) => node.id === id)) forgotten.delete(id);
             deps.onStatus({ kind: "idle" });
           } else if (reply.kind === "stale" && deps.fetchServer && rebases < MAX_REBASES) {
             rebases += 1;
             try {
               const theirs = await deps.fetchServer();
-              const merged = rebaseDoc(base, doc, theirs);
+              const merged = rebaseDoc(base, doc, theirs, forgotten);
               // edição nova que chegou durante a conversa também é reconciliada (senão o próximo envio apagaria o que o servidor ganhou)
-              pending = pending === undefined ? merged : rebaseDoc(base, pending, theirs);
+              pending = pending === undefined ? merged : rebaseDoc(base, pending, theirs, forgotten);
               rev = theirs.rev;
               base = theirs;
               deps.onRebased?.(pending);
@@ -356,7 +367,7 @@ export function createDocSaver(deps: SaverDeps): DocSaver {
     },
     absorb(theirs) {
       if (disposed || running !== undefined || theirs.rev <= rev) return undefined;
-      const merged = pending === undefined ? theirs : rebaseDoc(base, pending, theirs);
+      const merged = pending === undefined ? theirs : rebaseDoc(base, pending, theirs, forgotten);
       rev = theirs.rev;
       base = theirs;
       rebases = 0;
@@ -366,6 +377,9 @@ export function createDocSaver(deps: SaverDeps): DocSaver {
         if (timer === undefined) arm(delayMs);
       }
       return merged;
+    },
+    forget(ids) {
+      for (const id of ids) forgotten.add(id);
     },
     flush(options) {
       clear();

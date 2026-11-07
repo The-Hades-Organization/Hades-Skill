@@ -1464,24 +1464,34 @@ function Argos() {
     if (ttyHost.focused() === id) ttyHost.focus(null);
     await removeTermNodes([id], 'O processo foi encerrado, mas o nó não saiu do canvas');
   };
-  // o processo já não existe: o nó sai do documento e só termina quando o servidor grava sem ele (um 409 não o devolve)
+  // o processo já não existe: o nó sai do documento e só termina quando o servidor grava sem ele (um 409 não o devolve).
+  // `saver.forget`: a remoção é do dono, então a reconciliação do 409 não traz o nó de volta só porque outro escritor
+  // (outra aba, o orquestrador) mexeu nele; nó que já não existe conta como removido.
   const removeTermNodes = async (ids, failTitle) => {
     const removed = await NT.ensureNodeRemoved({
       remove: () => {
         const doc = cstateRef.current?.doc;
         if (!doc) return false;
         const present = ids.filter((id) => doc.nodes.some((n) => n.id === id));
-        return present.length === 0 || termCommit((d) => M.history.opDelete(d, present));
+        if (present.length === 0) return true;
+        saver.forget(present);
+        return termCommit((d) => M.history.opDelete(d, present));
       },
       gone: (d) => !d.nodes.some((n) => ids.includes(n.id)),
       flush: () => saver.flush(), fetchDoc: () => getCanvas(canvasUrl(canvasIdRef.current)), reread: () => loadCanvas(),
     });
     if (!removed.ok) {
-      console.error('argos: nó do terminal encerrado não saiu', removed.code, removed.attempts);
-      toast({ kind: 'bad', title: failTitle, desc: 'Use "Remover do canvas" no nó para tentar de novo.' });
+      const save = saveStatusRef.current;
+      const saveCode = save.kind === 'error' ? save.code : undefined;
+      console.error('argos: nó do terminal encerrado não saiu', removed.code, removed.attempts, saveCode);
+      toast({ kind: 'bad', title: failTitle, desc: removeFailText(saveCode) });
     }
     return removed.ok;
   };
+  // o que houve e o que fazer: gravação recusada pelo servidor (código dele) ou o canvas segue com o nó depois das tentativas
+  const removeFailText = (saveCode) => (saveCode
+    ? `${L.errorText(saveCode, 'O servidor recusou a gravação do canvas.')} O nó segue no canvas: use "Remover do canvas" depois que gravar. (${saveCode})`
+    : 'O servidor ainda tinha o nó depois de 3 tentativas: outra aba ou um agente estava gravando o canvas. Espere um instante e use "Remover do canvas" no nó.');
   const termRemoveEnded = async (ids) => {
     if (ids.length === 0) return;
     ids.forEach((id) => { if (ttyHost.focused() === id) ttyHost.focus(null); });

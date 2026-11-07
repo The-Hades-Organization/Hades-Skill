@@ -59,6 +59,7 @@ export const CANVAS_UI_MODULES = {
   touch: "canvas-touch.ts",
   // comandos de organização (commands-canvas.tsx)
   groups: "canvas-groups.ts",
+  areas: "canvas-areas.ts",
   align: "canvas-align.ts",
   clipboard: "canvas-clipboard.ts",
   walk: "canvas-walk.ts",

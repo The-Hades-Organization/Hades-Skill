@@ -6,6 +6,7 @@
 import { join, resolve } from "node:path";
 import { type CanvasDoc, type CanvasNode, readCanvasDoc } from "../lib/canvas-doc.ts";
 import { applyOp, type CanvasOp } from "../lib/canvas-history.ts";
+import { areaReport } from "../lib/canvas-areas.ts";
 import { LinkError } from "../lib/canvas-links.ts";
 import { directNotesOf, hasNoteAccess, noteChainFrom, NoteError, readableNotesOf } from "../lib/canvas-note.ts";
 import {
@@ -24,6 +25,7 @@ import { TERMINAL_NAME_MAX } from "../panel/argos-terminals.ts";
 import { exec } from "../panel/exec.ts";
 
 export const USAGE = `Uso: hades canvas <subcomando> [--canvas <id>]
+  area list                                   áreas do canvas e quem está em cada uma (somente leitura)
   note list                                   notas que o seu terminal lê (diretas e encadeadas)
   note read <nota> [--only]                   texto da nota e da cadeia dela (--only: só ela)
   note write <nota> [--append] [texto]        grava a nota ligada direto a você (sem texto: entrada padrão)
@@ -313,6 +315,26 @@ async function noteList(deps: CanvasCliDeps, at: Located): Promise<number> {
     return EXIT.ok;
   }
   for (const entry of notes) deps.out(`${noteName(at.doc, entry.id)}\t${entry.via === null ? "direta" : `cadeia de ${noteName(at.doc, entry.via)}`}`);
+  return EXIT.ok;
+}
+
+/** Nome de um nó para listar: o `name` do dado (terminal, agente) ou o id. */
+const memberName = (doc: CanvasDoc, id: string): string => {
+  const node = doc.nodes.find((n) => n.id === id);
+  return node && isDict(node.data) && typeof node.data.name === "string" ? node.data.name : id;
+};
+
+/** `area list`: por área `id`, título, cor e quantos; abaixo, indentados, `nome`, `id` e tipo de cada membro. */
+async function areaList(deps: CanvasCliDeps, at: Located): Promise<number> {
+  const areas = areaReport(at.doc);
+  if (areas.length === 0) {
+    deps.out("nenhuma área no canvas");
+    return EXIT.ok;
+  }
+  for (const area of areas) {
+    deps.out(`${area.id}\t${area.title}\t${area.color}\t${area.members.length}`);
+    for (const member of area.members) deps.out(`  ${memberName(at.doc, member.id)}\t${member.id}\t${member.type}`);
+  }
   return EXIT.ok;
 }
 
@@ -681,6 +703,7 @@ async function leave(deps: CanvasCliDeps, p: Parsed): Promise<number> {
 
 type Handler = (deps: CanvasCliDeps, at: Located, p: Parsed) => Promise<number>;
 const NOTE_HANDLERS: Readonly<Record<string, Handler>> = { list: noteList, read: noteRead, write: noteWrite, new: noteNew };
+const AREA_HANDLERS: Readonly<Record<string, Handler>> = { list: areaList };
 const HANDLERS: Readonly<Record<string, Handler>> = { recruit, connect, reassign, dismiss, notify: notifyOwner };
 
 /** Comandos que valem para um pane que ainda não é nó: não procuram o chamador no canvas. */
@@ -698,6 +721,7 @@ export async function runCanvas(args: readonly string[], deps: CanvasCliDeps): P
   const [command, sub] = parsed.positional;
   const standalone = command !== undefined && Object.hasOwn(STANDALONE, command) ? STANDALONE[command] : undefined;
   const handler = standalone ? undefined : command === "note" ? (sub !== undefined && Object.hasOwn(NOTE_HANDLERS, sub) ? NOTE_HANDLERS[sub] : undefined)
+    : command === "area" ? (sub !== undefined && Object.hasOwn(AREA_HANDLERS, sub) ? AREA_HANDLERS[sub] : undefined)
     : command !== undefined && Object.hasOwn(HANDLERS, command) ? HANDLERS[command] : undefined;
   if (!handler && !standalone) {
     deps.err(USAGE);

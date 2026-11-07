@@ -163,7 +163,8 @@ function CanvasPane({ doc, selection, onSelectionChange, onOp, graphById, types,
   latest.current = { doc, onReady };
   const theme = useThemeTick();
   const selected = useMemo(() => new Set(selection), [selection]);
-  const describeNode = useCallback((n) => graphById.get(n.id)?.label || n.id, [graphById]);
+  // a área se chama pelo título (desenho e nome acessível); os demais, pelo rótulo do grafo ou o id
+  const describeNode = useCallback((n) => (M.areas.isAreaNode(n) ? M.areas.areaLook(n).title || 'Área' : graphById.get(n.id)?.label || n.id), [graphById]);
   const nodeColor = useCallback((n) => { const g = graphById.get(n.id); return g ? fillOf(g, now) : '#888'; }, [graphById, now, theme]);
   const isRich = useCallback((n) => types.get(n.type)?.draw.surface === 'html', [types]);
   const renderAt = useCallback((n, w, h) => types.get(n.type)?.draw.render({ id: n.id, type: n.type, w, h, selected: selected.has(n.id), data: n.data, live: graphById.get(n.id) }) ?? null,

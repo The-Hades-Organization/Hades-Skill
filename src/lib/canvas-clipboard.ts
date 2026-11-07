@@ -14,6 +14,7 @@ import {
 } from "./canvas-doc.ts";
 import { type AtomicOp, applyOp, type CanvasOp, opBatch, opCreate, opDelete } from "./canvas-history.ts";
 import { GRID_SIZE } from "./canvas-align.ts";
+import { pruneMembersOps, remapAreaData } from "./canvas-areas.ts";
 import { dissolveSmallGroups, GROUP_MIN_MEMBERS, ID_PATTERN, orgFail, ORG_ERRORS, OrgError, pickNodes } from "./canvas-groups.ts";
 
 /** O que a cópia guarda: cópias profundas, no formato do documento, e só com referências internas. */
@@ -133,6 +134,11 @@ export function pasteClip(doc: CanvasDoc, clip: Clip, newId: IdSource, offset: P
     renamed.set(node.id, copy.id);
     return copy;
   });
+  // depois do laço: `renamed` só está completo agora, e a área colada leva só os membros que vieram no mesmo clipe
+  clip.nodes.forEach((original, i) => {
+    const copy = nodes[i];
+    if (copy) copy.data = remapAreaData(original, renamed);
+  });
   const edges = clip.edges.map((edge) => {
     const from = renamed.get(edge.from);
     const to = renamed.get(edge.to);
@@ -170,7 +176,7 @@ export interface DeleteResult {
 
 /**
  * Exclui os nós do usuário de `ids`, com as conexões que os tocavam. O grupo que fica com menos de dois membros se desfaz
- * no mesmo passo. Nó travado pode ser excluído (travar impede mover, não apagar).
+ * no mesmo passo, e os nós excluídos saem da lista de membros de qualquer área (a área em si não leva os nós junto). Nó travado pode ser excluído (travar impede mover, não apagar).
  */
 export function deleteNodes(doc: CanvasDoc, ids: readonly string[]): DeleteResult {
   const picked = pickNodes(doc, ids);
@@ -181,5 +187,7 @@ export function deleteNodes(doc: CanvasDoc, ids: readonly string[]): DeleteResul
   const gone = new Set(doomed);
   const touched = new Set(doc.groups.filter((group) => group.members.some((member) => gone.has(member))).map((group) => group.id));
   const dissolved = dissolveSmallGroups(applyOp(doc, removal), touched);
-  return { op: dissolved.length === 0 ? removal : opBatch([removal, ...dissolved]), skipped };
+  const pruned = pruneMembersOps(doc, gone);
+  const extra = [...dissolved, ...pruned];
+  return { op: extra.length === 0 ? removal : opBatch([removal, ...extra]), skipped };
 }

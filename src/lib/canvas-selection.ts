@@ -56,7 +56,15 @@ export interface HitOptions {
   resizable: (node: CanvasNode) => boolean;
   /** Nós cujas bordas esquerda, direita e de baixo e os cantos de baixo redimensionam, selecionados ou não (livres). */
   edgeResizable?: (node: CanvasNode) => boolean;
+  /**
+   * Nós ocos (a área): só o cabeçalho e as bordas de redimensionar acertam; o interior deixa o clique, o retângulo de
+   * seleção e o arrasto do fundo passarem. O cabeçalho oco tem pelo menos `hollowHeaderPx` de tela.
+   */
+  hollow?: (node: CanvasNode) => boolean;
 }
+
+/** Altura mínima, em pixels de tela, do cabeçalho que acerta num nó oco (não some com o zoom afastado). */
+export const HOLLOW_HEADER_PX = 16;
 
 /** Lados sob `p` na borda de `node`: cantos de baixo (alça cheia) e faixas laterais e de baixo, abaixo do cabeçalho. */
 function edgeAt(node: CanvasNode, p: Vec, k: number): ResizeEdge | undefined {
@@ -74,6 +82,13 @@ function edgeAt(node: CanvasNode, p: Vec, k: number): ResizeEdge | undefined {
   return undefined;
 }
 
+/** Num nó oco, o ponto só vale no cabeçalho ou numa borda que redimensiona. */
+function hollowTouched(node: CanvasNode, p: Vec, opts: HitOptions): boolean {
+  const headerBand = Math.max(SELECTION_LIMITS.header, HOLLOW_HEADER_PX / opts.k);
+  if (p.y - node.y <= headerBand) return true;
+  return opts.edgeResizable?.(node) === true && edgeAt(node, p, opts.k) !== undefined;
+}
+
 /**
  * Nó sob o ponto de mundo `p`: vence o de maior `z` e, no empate, o que vem depois na lista (o desenhado por cima). Longe
  * (detalhe que não é o completo), o nó inteiro vale como cabeçalho: não há cabeçalho visível para mirar.
@@ -82,6 +97,7 @@ export function hitTest(nodes: readonly CanvasNode[], p: Vec, opts: HitOptions):
   let best: CanvasNode | undefined;
   for (const node of nodes) {
     if (p.x < node.x || p.x > node.x + node.w || p.y < node.y || p.y > node.y + node.h) continue;
+    if (opts.hollow?.(node) && !hollowTouched(node, p, opts)) continue;
     if (!best || node.z >= best.z) best = node;
   }
   if (!best) return undefined;
@@ -89,7 +105,8 @@ export function hitTest(nodes: readonly CanvasNode[], p: Vec, opts: HitOptions):
   if (opts.resizable(best) && p.x >= best.x + best.w - handle && p.y >= best.y + best.h - handle) return { id: best.id, region: "resize", edge: CORNER_SE };
   const edge = opts.edgeResizable?.(best) ? edgeAt(best, p, opts.k) : undefined;
   if (edge) return { id: best.id, region: "resize", edge };
-  if (opts.detail !== "full" || p.y - best.y <= SELECTION_LIMITS.header) return { id: best.id, region: "header" };
+  const headerBand = opts.hollow?.(best) ? Math.max(SELECTION_LIMITS.header, HOLLOW_HEADER_PX / opts.k) : SELECTION_LIMITS.header;
+  if (opts.detail !== "full" || p.y - best.y <= headerBand) return { id: best.id, region: "header" };
   return { id: best.id, region: "body" };
 }
 
@@ -120,9 +137,15 @@ export function keySelect(selection: Selection, id: string, additive: boolean): 
 /** Retângulo de dois cantos quaisquer. */
 export const rectFrom = (a: Vec, b: Vec): Rect => ({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) });
 
-/** Retângulo de seleção: os nós que ele toca, na ordem do documento; com Shift, somados à seleção de partida. */
-export function marqueeSelect(nodes: readonly CanvasNode[], rect: Rect, base: Selection, additive: boolean): Selection {
-  const hit = nodes.filter((node) => intersects(node, rect)).map((node) => node.id);
+const contains = (outer: Rect, inner: Rect): boolean =>
+  inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.w <= outer.x + outer.w && inner.y + inner.h <= outer.y + outer.h;
+
+/**
+ * Retângulo de seleção: os nós que ele toca, na ordem do documento; com Shift, somados à seleção de partida. Um nó oco
+ * (`hollow`) só entra se o retângulo o contém inteiro: riscar sobre a área não a leva junto.
+ */
+export function marqueeSelect(nodes: readonly CanvasNode[], rect: Rect, base: Selection, additive: boolean, hollow?: (node: CanvasNode) => boolean): Selection {
+  const hit = nodes.filter((node) => (hollow?.(node) ? contains(rect, node) : intersects(node, rect))).map((node) => node.id);
   if (!additive) return hit;
   const seen = new Set(base);
   return [...base, ...hit.filter((id) => !seen.has(id))];

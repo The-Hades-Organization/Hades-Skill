@@ -4,6 +4,31 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.23.0 — 2026-11-07
+
+Capacidade nova (issue #80): áreas coloridas no canvas do Argos para agrupar agentes por frente de trabalho, com encaixe
+por arraste.
+
+### Áreas do canvas (#80)
+
+- Tipo de nó do usuário `area`: retângulo com título e cor da paleta `chart-1`..`chart-5`, desenhado atrás de tudo
+  (`z = -layer`), que move e redimensiona pelas bordas como os outros. O interior é oco: só o cabeçalho e as bordas
+  pegam clique; o resto passa para os nós e para o fundo, e a seleção por retângulo só pega a área inteira.
+- Encaixe: soltar um nó com o centro dentro da área o encaixa; soltar fora o retira. Durante o arraste, a área que vai
+  receber o nó se destaca. Mover a área leva os membros; apagar a área não apaga os nós. Mover e encaixar é um passo
+  só de desfazer (`settleMove`).
+- Pertença gravada em `data.members` da área (aditivo, sem subir `v` do documento). Um nó fica em no máximo uma área;
+  apagar nó poda a lista e colar remapeia os ids.
+- Comandos `area:create` (em volta da seleção), `area:dock`, `area:undock`, `area:rename`, `area:color`, também no
+  menu do nó; leitura para agentes: `hades canvas area list`.
+- Grupos e áreas são independentes: o grupo continua sendo a caixa que envolve os membros; a área é retângulo fixo.
+
+### Armadilhas
+
+- Redimensionar a área e mover grupo por comando não mudam a pertença (documentado em `reference/argos.md` §Áreas).
+- O `PUT /api/canvas` não valida o `data` da área; o desenho tolera valor fora da paleta (área neutra), para documento
+  editado à mão nunca quebrar o quadro.
+
 ## 6.22.0 — 2026-11-07
 
 Correção (issue #76): sair do canvas do Argos e voltar (trocar de aba, clicar na barra lateral do painel) levava a

@@ -407,7 +407,7 @@ describe("montagem do canvas na página", () => {
     const { reg, parts, report } = mount(await loadModel());
     expect(report.refused).toEqual([]);
     for (const id of ["group:create", "align:left", "clip:duplicate", "blur:toggle", "batch:resume"]) expect(reg.commands.get(id)).toBeDefined();
-    expect(Object.values(parts.typesUser.MENU).sort()).toEqual([...MENU_IDS].sort());
+    expect(Object.values(parts.typesUser.MENU).sort()).toEqual([...MENU_IDS, "area:color", "area:dock", "area:rename", "area:undock"].sort());
     for (const id of MENU_IDS) expect(reg.commands.get(id)?.surfaces).toEqual(["node-menu"]);
     for (const type of [...USER_TYPES, ...LIVE_TYPES]) expect(reg.types.get(type)?.live).toBe(false);
     const text = reg.types.get("text");
@@ -1634,7 +1634,7 @@ describe("peças ligadas na página", () => {
     expect(engine).toContain("g.snapKey = e.ctrlKey || e.metaKey;");
     expect(engine).toContain("if (!snap || !(g.snapKey || snap.enabled())) return undefined;");
     expect(engine).toContain("opts.dock.dock(g.anchor, g.edge);");
-    expect(engine).toContain("emitOp(snapOf(g)?.op ?? S.moveOp(doc, g.ids, g.anchor, g.dx, g.dy));");
+    expect(engine).toContain("settleAndEmit(snapOf(g)?.op ?? S.moveOp(doc, g.ids, g.anchor, g.dx, g.dy), g.ids);");
     expect(engine).toContain('if (hit?.region !== "header") return;');
     expect(engine).toContain('listen(host, "dblclick", onDoubleClick);');
   });

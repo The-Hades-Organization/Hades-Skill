@@ -1197,6 +1197,42 @@ Usa o campo `groups` do documento (`{ id, label, members }`), sem campo novo.
   de dois membros (o grupo pequeno que a operação não tocou fica). É o que `deleteNodes` usa.
 - Apoio: `groupIndex(doc)` (nó → grupo), `pickNodes(doc, ids)`.
 
+### Áreas (`canvas-areas.ts`)
+
+Retângulos coloridos que agrupam nós **por encaixe** (um quadro de squad, uma frente de trabalho). A área é um nó do usuário
+de `type` `area`, desenhado no canvas, atrás de tudo (`z = -CANVAS_LIMITS.layer`, então o acerto do clique escolhe sempre o
+nó de cima). A pertença vive no `data` da própria área, então **o formato do documento só cresce** (`v` continua 1; documento
+sem área segue válido e um Hades antigo lê a área como nó de tipo desconhecido):
+
+```json
+{ "id": "area-1", "type": "area", "x": 0, "y": 0, "w": 480, "h": 320, "z": -1000,
+  "data": { "title": "Squad", "color": "chart-2", "members": ["a", "b"] } }
+```
+
+- `data`: `title` (1 a 200 caracteres, sem controle), `color` da paleta fechada `chart-1`…`chart-5` (tokens `--chart-N`, valem
+  nos dois temas) e `members` (ids, sem repetir; ausente é nenhum). Campo desconhecido é recusado (`readAreaData`); `areaLook`
+  é a leitura tolerante do desenho (documento editado à mão nunca quebra o quadro; sem cor válida a área sai neutra).
+- Um nó fica em **uma área só**; área dentro de área não existe (`checkAreas`). Redimensionar a área **não** muda a pertença;
+  só soltar um nó (arrasto) ou um comando muda.
+- **Encaixe**: ao soltar um arrasto, cada nó cujo **centro** cai dentro de uma área entra nela, e o que cai fora da área em que
+  estava sai (`dropOps`); com áreas sobrepostas vale a menor. Durante o arrasto a área que receberia o nó ganha destaque
+  (`dropTargets`). Arrastar a **área** leva os membros (`withAreaMembers`) e a pertença não muda.
+- **Um passo no desfazer**: o movimento mais o encaixe/retirada que ele provoca saem num lote só (`settleMove`); criar a área
+  com membros, apagar nós (a lista de membros é podada no mesmo passo) e colar também. Mover um grupo **por comando** (e não
+  por arrasto) não reconcilia a pertença das áreas.
+- **Área oca**: só o cabeçalho (pelo menos 16 px de tela, `HOLLOW_HEADER_PX`) e as bordas redimensionam/movem; o interior deixa o
+  clique, o retângulo de seleção e o arrasto do fundo passarem (`HitOptions.hollow`). O retângulo de seleção só leva a área se
+  a contém inteira.
+- **Apagar** a área não apaga os nós; apagar um nó o tira da lista. **Colar** uma área remapeia os membros copiados junto para
+  os ids novos e solta os demais (`remapAreaData`).
+- **Convivência com grupos**: independentes. O nó pode estar num grupo e numa área ao mesmo tempo; um não altera o outro.
+- Comandos (catálogo O8, paleta Ctrl+K e menu do nó/da área): `area:create` (em volta da seleção, ou no centro da vista),
+  `area:dock` (escolhe a área), `area:undock` (o nó vai para a direita da área), `area:rename`, `area:color`. São o equivalente
+  de teclado do arrastar. Erros do modelo (`AreaError.code`, estáveis, só ganham valores): `area_invalid_data`,
+  `area_invalid_title`, `area_invalid_color`, `area_invalid_id`, `area_invalid_frame`, `area_duplicate_id`,
+  `area_duplicate_member`, `area_unknown_area`, `area_unknown_node`, `area_nested`, `area_limit_exceeded` (200 áreas por documento).
+- CLI: `hades canvas area list` (somente leitura): por área `id`, título, cor e quantos membros, e abaixo cada membro.
+
 ### Alinhar e distribuir (`canvas-align.ts`)
 
 - `alignNodes(doc, ids, modo)`, modo em `ALIGN_MODES` (`left`, `center`, `right`, `top`, `middle`, `bottom`): alinha à

@@ -7,6 +7,7 @@
  * fornece. Toda mudança no documento chega a `api.doc.commit` como `CanvasOp`, um passo só no desfazer. */
 import type { ActionContext, ActionNode, ActionRequest } from "../../../../src/lib/canvas-actions.ts";
 import type * as AlignModule from "../../../../src/lib/canvas-align.ts";
+import type * as AreasModule from "../../../../src/lib/canvas-areas.ts";
 import type * as BatchModule from "../../../../src/lib/canvas-batch.ts";
 import type * as BlurModule from "../../../../src/lib/canvas-blur.ts";
 import type * as ClipboardModule from "../../../../src/lib/canvas-clipboard.ts";
@@ -272,6 +273,7 @@ interface OptionalModels {
   savedFilters: typeof SavedFiltersModule;
   create: typeof CreateModule;
   doc: typeof DocModule;
+  areas: typeof AreasModule;
 }
 
 const GROUP_ORGANIZE = "Organização";
@@ -292,6 +294,7 @@ const GROUP_ID_PREFIX = "grp";
 const PASTE_ID_PREFIX = "col";
 const DUPLICATE_ID_PREFIX = "dup";
 const SKETCH_ID_PREFIX = "esb";
+const AREA_ID_PREFIX = "area";
 /** Código do 409 de `PUT /api/canvases/_filters` (src/panel/canvas.ts): outra aba gravou o conjunto antes. */
 const SAVED_FILTERS_STALE_CODE = "saved_filters_stale_revision";
 /** Valor da opção "Nenhum" ao marcar o padrão: id de filtro começa por letra ou número, então nunca colide. */
@@ -302,6 +305,7 @@ const ROUND_CHOICE = "";
 const SKETCH_FRAME = { w: 320, h: 220 } as const;
 /** Números de salto dos terminais visíveis: Alt+1 a Alt+9. */
 const TTY_JUMP_KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
+const GROUP_AREAS = "Áreas";
 const GROUP_TERMINAL = "Terminais";
 const GROUP_LINKS = "Conexões";
 const UNIT_KIND_LABELS: Readonly<Record<CreateModule.UnitKind, string>> = { project: "Unidade de projeto", skill: "Unidade de skill" };
@@ -814,6 +818,94 @@ function makeArgosCanvasCommands() {
           docPort.commit(M.history.opCreate(doc, [node]));
           docPort.select([id]);
           docPort.reveal(id);
+        }),
+      });
+    }
+
+    // ---- áreas: criar, encaixar, retirar, renomear e recolorir (o equivalente de menu e teclado do arrastar) ----
+    {
+      const A = readOptionalModel("areas");
+      const isArea = (id: string): boolean => {
+        const node = docPort.doc().nodes.find((candidate) => candidate.id === id);
+        return node !== undefined && A.isAreaNode(node);
+      };
+      const loose = (): string[] => selectedIds().filter((id) => !isArea(id));
+      const pickedAreas = (): string[] => selectedIds().filter(isArea);
+      const areaOptions = (): { value: string; label: string }[] => A.areaReport(docPort.doc()).map((area) => ({ value: area.id, label: area.title }));
+      add("O8", {
+        id: "area:create", label: "Nova área", hint: "em volta da seleção, ou no centro da vista", group: GROUP_AREAS, surfaces: SURFACES_CANVAS,
+        run: guarded(() => {
+          const doc = docPort.doc();
+          const members = loose();
+          const id = M.clipboard.sequentialIds(doc, AREA_ID_PREFIX)("node");
+          const around = doc.nodes.filter((node) => members.includes(node.id));
+          let frame: { x: number; y: number; w?: number; h?: number };
+          if (around.length > 0) {
+            const pad = A.AREA_LIMITS.padding;
+            const left = Math.min(...around.map((node) => node.x)) - pad;
+            const top = Math.min(...around.map((node) => node.y)) - pad - A.AREA_HEADER;
+            const right = Math.max(...around.map((node) => node.x + node.w)) + pad;
+            const bottom = Math.max(...around.map((node) => node.y + node.h)) + pad;
+            frame = { x: left, y: top, w: Math.max(A.AREA_LIMITS.minWidth, right - left), h: Math.max(A.AREA_LIMITS.minHeight, bottom - top) };
+          } else {
+            const center = api.sketch?.at() ?? { x: 0, y: 0 };
+            frame = { x: Math.round(center.x - A.AREA_LIMITS.width / 2), y: Math.round(center.y - A.AREA_LIMITS.height / 2) };
+          }
+          const { op } = A.createAreaNode(doc, { id, ...frame, members });
+          docPort.commit(op);
+          docPort.select([id]);
+          docPort.reveal(id);
+        }),
+      });
+      add("O8", {
+        id: "area:dock", label: "Encaixar em uma área…", hint: "o nó selecionado entra na área escolhida", group: GROUP_AREAS, surfaces: SURFACES_ALL,
+        when: () => loose().length > 0 && A.areaReport(docPort.doc()).length > 0,
+        run: guardedAsync(async () => {
+          const chosen = await dialogs.choose({ title: "Encaixar em qual área?", options: areaOptions() });
+          if (chosen === null) return;
+          // o documento pode ter mudado enquanto o dono escolhia: o modelo confere a área e os nós de novo
+          try {
+            commitIf(A.dockNodes(docPort.doc(), loose(), chosen));
+          } catch (error) {
+            report(error);
+          }
+        }),
+      });
+      add("O8", {
+        id: "area:undock", label: "Retirar da área", hint: "o nó sai da área e fica ao lado dela", group: GROUP_AREAS, surfaces: SURFACES_ALL,
+        when: () => {
+          const index = A.areaIndex(docPort.doc());
+          return selectedIds().some((id) => index.has(id));
+        },
+        run: guarded(() => void commitIf(A.undockNodes(docPort.doc(), loose()))),
+      });
+      add("O8", {
+        id: "area:rename", label: "Renomear a área", group: GROUP_AREAS, surfaces: SURFACES_ALL, when: () => pickedAreas().length === 1,
+        run: guardedAsync(async () => {
+          const [areaId] = pickedAreas();
+          const area = A.areaReport(docPort.doc()).find((candidate) => candidate.id === areaId);
+          if (area === undefined) return;
+          const title = await dialogs.askText({ title: "Título da área", initial: area.title });
+          if (title === null) return;
+          try {
+            commitIf(A.renameArea(docPort.doc(), area.id, title));
+          } catch (error) {
+            report(error);
+          }
+        }),
+      });
+      add("O8", {
+        id: "area:color", label: "Cor da área…", hint: "uma das cores do painel", group: GROUP_AREAS, surfaces: SURFACES_ALL, when: () => pickedAreas().length === 1,
+        run: guardedAsync(async () => {
+          const [areaId] = pickedAreas();
+          if (areaId === undefined) return;
+          const chosen = await dialogs.choose({ title: "Cor da área", options: A.AREA_COLORS.map((color, i) => ({ value: color, label: `Cor ${i + 1}` })) });
+          if (chosen === null) return;
+          try {
+            commitIf(A.recolorArea(docPort.doc(), areaId, chosen));
+          } catch (error) {
+            report(error);
+          }
         }),
       });
     }

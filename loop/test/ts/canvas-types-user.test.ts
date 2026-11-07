@@ -174,7 +174,7 @@ afterAll(() => {
 
 // ---------- registro ----------
 describe("registro dos tipos do usuário", () => {
-  const EXPECTED = ["note", "text", "draw-rect", "draw-ellipse", "draw-arrow", "draw-stroke", "unit-sketch", "band"];
+  const EXPECTED = ["note", "text", "draw-rect", "draw-ellipse", "draw-arrow", "draw-stroke", "unit-sketch", "area", "band"];
 
   test("dado o registro vazio, então registra os tipos do usuário como HTML, não vivos e sem ação de servidor", () => {
     const registry = createNodeTypeRegistry();
@@ -182,7 +182,7 @@ describe("registro dos tipos do usuário", () => {
     expect(defs.map((d) => d.type)).toEqual(EXPECTED);
     for (const def of defs) {
       expect(def.live).toBe(false);
-      expect(def.draw.surface).toBe("html");
+      expect(def.draw.surface).toBe(def.type === "area" ? "canvas" : "html");
       expect(def.actions).toEqual([]);
       expect(registry.has(def.type)).toBe(true);
     }

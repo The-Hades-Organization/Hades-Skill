@@ -606,18 +606,19 @@ function makeArgosTypesUser() {
   // ---- registro ----
 
   /** Comandos de menu de nó que os tipos citam; o registro de comandos da página os define (surface `node-menu`). */
-  const MENU = { edit: "user:edit", duplicate: "user:duplicate", blur: "user:blur", remove: "user:remove", copyCommands: "user:copy-commands", linkNote: "user:link-note" } as const;
+  const MENU = { dock: "area:dock", undock: "area:undock", areaRename: "area:rename", areaColor: "area:color", edit: "user:edit", duplicate: "user:duplicate", blur: "user:blur", remove: "user:remove", copyCommands: "user:copy-commands", linkNote: "user:link-note" } as const;
 
   /** Um tipo por linha: ícone, tamanho padrão (note 280×200 como `createNoteNode`) e menu. Ação de servidor: nenhuma. */
-  const ROWS: readonly { type: string; label: string; icon: string; size: { w: number; h: number }; menu: readonly string[] }[] = [
-    { type: "note", label: "Nota", icon: "StickyNote", size: { w: 280, h: 200 }, menu: [MENU.duplicate, MENU.blur, MENU.remove] },
-    { type: "text", label: "Texto", icon: "Type", size: { w: 160, h: 36 }, menu: [MENU.edit, MENU.duplicate, MENU.blur, MENU.remove] },
-    { type: "draw-rect", label: "Retângulo", icon: "Square", size: { w: 160, h: 100 }, menu: [MENU.duplicate, MENU.remove] },
-    { type: "draw-ellipse", label: "Elipse", icon: "Circle", size: { w: 160, h: 100 }, menu: [MENU.duplicate, MENU.remove] },
-    { type: "draw-arrow", label: "Seta", icon: "MoveUpRight", size: { w: 120, h: 80 }, menu: [MENU.duplicate, MENU.remove] },
-    { type: "draw-stroke", label: "Traço à mão", icon: "Pencil", size: { w: 120, h: 80 }, menu: [MENU.duplicate, MENU.remove] },
-    { type: "unit-sketch", label: "Esboço de unidade", icon: "DraftingCompass", size: { w: 320, h: 220 }, menu: [MENU.copyCommands, MENU.duplicate, MENU.blur, MENU.remove] },
-    { type: "band", label: "Banda", icon: "Users", size: { w: 260, h: 180 }, menu: [MENU.linkNote, MENU.remove] },
+  const ROWS: readonly { type: string; label: string; icon: string; size: { w: number; h: number }; menu: readonly string[]; surface?: "canvas" }[] = [
+    { type: "note", label: "Nota", icon: "StickyNote", size: { w: 280, h: 200 }, menu: [MENU.dock, MENU.undock, MENU.duplicate, MENU.blur, MENU.remove] },
+    { type: "text", label: "Texto", icon: "Type", size: { w: 160, h: 36 }, menu: [MENU.dock, MENU.undock, MENU.edit, MENU.duplicate, MENU.blur, MENU.remove] },
+    { type: "draw-rect", label: "Retângulo", icon: "Square", size: { w: 160, h: 100 }, menu: [MENU.dock, MENU.undock, MENU.duplicate, MENU.remove] },
+    { type: "draw-ellipse", label: "Elipse", icon: "Circle", size: { w: 160, h: 100 }, menu: [MENU.dock, MENU.undock, MENU.duplicate, MENU.remove] },
+    { type: "draw-arrow", label: "Seta", icon: "MoveUpRight", size: { w: 120, h: 80 }, menu: [MENU.dock, MENU.undock, MENU.duplicate, MENU.remove] },
+    { type: "draw-stroke", label: "Traço à mão", icon: "Pencil", size: { w: 120, h: 80 }, menu: [MENU.dock, MENU.undock, MENU.duplicate, MENU.remove] },
+    { type: "unit-sketch", label: "Esboço de unidade", icon: "DraftingCompass", size: { w: 320, h: 220 }, menu: [MENU.dock, MENU.undock, MENU.copyCommands, MENU.duplicate, MENU.blur, MENU.remove] },
+    { type: "area", label: "Área", icon: "SquareDashed", size: { w: 480, h: 320 }, menu: [MENU.areaRename, MENU.areaColor, MENU.duplicate, MENU.remove], surface: "canvas" },
+    { type: "band", label: "Banda", icon: "Users", size: { w: 260, h: 180 }, menu: [MENU.dock, MENU.undock, MENU.linkNote, MENU.remove] },
   ];
 
   /** As declarações, prontas para `registry.register`. Todas HTML sobre o canvas e `live: false` (nós do usuário). */
@@ -637,6 +638,8 @@ function makeArgosTypesUser() {
       },
       text: (input) => h(TextBody, { key: input.id, id: input.id, data: { ...input.data }, model, deps }),
       "unit-sketch": (input) => renderUnitSketch(model, deps, input),
+      // o desenho da área é do motor (canvas); isto só atende quem pede o conteúdo de um nó (acoplar), sem nada para mostrar
+      area: () => h("div", { "aria-hidden": "true" }),
       band: (input) => h(BandBody, { key: input.id, data: input.data, model, source: deps.band }),
     };
     return ROWS.map((row) => ({
@@ -644,7 +647,8 @@ function makeArgosTypesUser() {
       label: row.label,
       icon: row.icon,
       defaultSize: { ...row.size },
-      draw: { surface: "html", render: renderers[row.type] ?? ((input: NodeRenderInput) => renderDraw(model, input)) },
+      // a área é desenhada no canvas (atrás dos nós): uma camada HTML retangular por cima engoliria o clique deles
+      draw: { surface: row.surface ?? "html", render: renderers[row.type] ?? ((input: NodeRenderInput) => renderDraw(model, input)) },
       menu: [...row.menu],
       actions: [],
       live: false,

@@ -5,7 +5,7 @@ import { type CanvasDoc, type CanvasNode, validateCanvasDoc } from "../../../src
 import { applyOp, createHistory, perform, redo, undo } from "../../../src/lib/canvas-history";
 import {
   AREA_ERRORS, AREA_LIMITS, AREA_Z, AreaError, areaAtPoint, areaIndex, areaLook, areaMembers, areaReport, checkAreas, createAreaNode, dockNodes,
-  dropOps, readAreaData, recolorArea, renameArea, settleMove, undockNodes, withAreaMembers,
+  dropOps, nodesCenteredIn, readAreaData, recolorArea, renameArea, settleMove, undockNodes, withAreaMembers,
 } from "../../../src/lib/canvas-areas";
 import { copyNodes, deleteNodes, pasteClip, sequentialIds } from "../../../src/lib/canvas-clipboard";
 import { opMoveMany } from "../../../src/lib/canvas-history";
@@ -212,5 +212,26 @@ describe("canvas-areas: apagar e colar", () => {
   test("areaIndex ignora membro que não existe mais", () => {
     const doc = docOf(area("ar", {}, { title: "A", color: "chart-1", members: ["fantasma", "a"] }), node("a"));
     expect([...areaIndex(doc)]).toEqual([["a", "ar"]]);
+  });
+});
+
+describe("área desenhada pela barra", () => {
+  test("dado um retângulo, nodesCenteredIn devolve os nós de centro dentro dele, borda inclusa, sem áreas", () => {
+    const doc = docOf(
+      area("ar1", { x: 0, y: 0, w: 300, h: 300 }),
+      node("dentro", { x: 10, y: 10 }),
+      node("borda", { x: 150, y: 170 }),
+      node("meio-fora", { x: 220, y: 0 }),
+      node("fora", { x: 500, y: 500 }),
+    );
+    expect(nodesCenteredIn(doc, { x: 0, y: 0, w: 200, h: 200 })).toEqual(["dentro", "borda"]);
+  });
+
+  test("dado um retângulo vazio, nodesCenteredIn devolve lista vazia e a área nasce sem membros", () => {
+    const doc = docOf(node("n1", { x: 900, y: 900 }));
+    const members = nodesCenteredIn(doc, { x: 0, y: 0, w: 200, h: 200 });
+    expect(members).toEqual([]);
+    const { op } = createAreaNode(doc, { id: "ar1", x: 0, y: 0, w: 200, h: 200, members });
+    expect(membersOf(applyOp(doc, op), "ar1")).toEqual([]);
   });
 });

@@ -4,6 +4,8 @@ Você escreve ou corrige as specs do item do brief. A spec vem antes do código 
 implementação: precisão aqui economiza retrabalho caro depois. Não carregue a skill inteira; abra os references do loop
 só no trecho que precisar.
 
+**Bash e rtk.** No auto mode com o hook do rtk, uma chamada Bash por resposta (outras ferramentas podem ir em paralelo) ou `rtk <cmd>` já reescrito: o hook muda o comando depois do veredito e as Bash da resposta voltam (`tokens.md` §Reescrita do rtk).
+
 ## Fluxo
 1. Leia o brief, o `handoff.md` se existir (primeira linha `STATUS: ACTIVE`) e as regras de spec do projeto:
    `hades project ref spec` (guia de spec, formato, gerador de ID, templates) e `rules.docs` do perfil. Sem

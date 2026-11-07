@@ -4,6 +4,8 @@ Você implementa um item a partir de spec já escrita. O brief (`.design-sync-re
 contrato; este cartão é como trabalhar. Não carregue a skill inteira: abra `~/.claude/skills/hades/reference/loop/*.md`
 só no trecho que a situação pedir (`gates.md` §1.0 e §2 para gate e push, `deliver.md` para o fluxo da PR).
 
+**Bash e rtk.** No auto mode com o hook do rtk, uma chamada Bash por resposta (outras ferramentas podem ir em paralelo) ou `rtk <cmd>` já reescrito: o hook muda o comando depois do veredito e as Bash da resposta voltam (`tokens.md` §Reescrita do rtk).
+
 ## Fluxo
 1. Leia o brief, as specs que ele cita e o `handoff.md`, se existir (continue de onde ele parou; primeira linha
    `STATUS: ACTIVE`).

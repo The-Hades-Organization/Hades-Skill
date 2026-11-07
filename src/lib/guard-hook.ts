@@ -545,9 +545,8 @@ function preTool(d: HookInput, cfg: Cfg, rules: GuardRules, env: HookEnv): strin
 
 // ------------------------------------------------------------------ PostToolUse: teto de contexto
 
-/** Tokens de contexto da última resposta do assistente (fora de sidechain) nos últimos 600 KB do transcript. */
-export function contextTokens(path: string): number {
-  let text: string;
+/** Últimos CONTEXT_TAIL_BYTES do transcript ("" se não lê). */
+function transcriptTail(path: string): string {
   try {
     const fd = openSync(path, "r");
     try {
@@ -555,13 +554,21 @@ export function contextTokens(path: string): number {
       const start = Math.max(0, size - CONTEXT_TAIL_BYTES);
       const buf = Buffer.alloc(size - start);
       readSync(fd, buf, 0, buf.length, start);
-      text = buf.toString("utf8");
+      return buf.toString("utf8");
     } finally {
       closeSync(fd);
     }
   } catch {
-    return 0;
+    return "";
   }
+}
+
+/** Tokens de contexto da última resposta do assistente (fora de sidechain) nos últimos 600 KB do transcript. */
+export function contextTokens(path: string): number {
+  return contextTokensOf(transcriptTail(path));
+}
+
+function contextTokensOf(text: string): number {
   const lines = text.split(/\r?\n/);
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const line = lines[i] as string;
@@ -603,14 +610,56 @@ function compactSuggestion(file: string, ctx: number, cap: number, role: string,
   return additionalContext("PostToolUse", head + tail);
 }
 
+/**
+ * Reescrita do rtk no auto mode: o hook do rtk muda o comando Bash depois do veredito do classificador, que devolve "no verdict"
+ * para a chamada (e para as outras Bash da mesma resposta). Essa chamada nunca executa: o PreToolUse dela dispara, o PostToolUse
+ * não, então o resultado negado só existe como `tool_result` com `is_error` no transcript. Lido aqui, na próxima chamada que
+ * conclui; a orientação sai uma vez por sessão.
+ */
+// duas redações do classificador: "a hook changed this call's input" (a própria chamada) e "was changed by a hook" (outra Bash da resposta)
+const REWRITE_DENIED = /gave no verdict for \w+: .*(?:a hook changed|changed by a hook)/s;
+const REWRITE_HINT =
+  "HADES: o auto mode recusou Bash porque o hook do rtk reescreveu o comando depois do veredito (cada chamada volta e é reenviada: um turno a mais com o contexto inteiro). " +
+  "Faça uma chamada Bash por resposta (outras ferramentas podem ir em paralelo) ou chame `rtk <cmd>` já reescrito. Detalhe: reference/loop/tokens.md (reescrita do rtk).";
+
+function hasRewriteDenial(text: string): boolean {
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.includes("gave no verdict")) continue;
+    let entry: unknown;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const content = ((entry as Dict | null)?.message as Dict | undefined)?.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content as Dict[]) {
+      if (block?.type === "tool_result" && block.is_error === true && typeof block.content === "string" && REWRITE_DENIED.test(block.content)) return true;
+    }
+  }
+  return false;
+}
+
+function rtkRewriteHint(file: string, tail: string): string {
+  if (!tail.includes("gave no verdict")) return "";
+  const state = loadState(file);
+  if (state.rtkRewriteHinted === true || !hasRewriteDenial(tail)) return "";
+  state.rtkRewriteHinted = true;
+  saveState(file, state);
+  return additionalContext("PostToolUse", REWRITE_HINT);
+}
+
 function postTool(d: HookInput, cfg: Cfg, env: HookEnv): string {
   const transcript = typeof d.transcript_path === "string" ? d.transcript_path : "";
   if ((cfg.HADES_CTX_GUARD ?? "1") !== "1" || !transcript) return "";
-  const ctx = contextTokens(transcript);
+  const tail = transcriptTail(transcript);
+  const ctx = contextTokensOf(tail);
   const cwd = (d.cwd as string | undefined) || env.cwd();
   const { role, agent, recruit } = roleOf(cwd, env);
   const cap = ctxCapOf(role, (key) => cfg[key], recruit);
   const file = stateFile(env.home(), (d.session_id as string | undefined) || "x");
+  const rewrite = rtkRewriteHint(file, tail);
+  if (rewrite) return rewrite;
   if (ctx < cap) return compactSuggestion(file, ctx, cap, role, agent !== undefined, compactAtOf((key) => cfg[key], cap));
   const state = loadState(file);
   const rewarn = intOf(cfg, "HADES_CTX_REWARN", "50000");

@@ -290,7 +290,7 @@ function Usage() {
       <Leitura label="Contexto médio dos agentes" value={agCtx} format={ktok} unit="por turno" detail={`agentes = ${Math.round(100 * agCost / d.total.cost)}% do custo · referência ${ktok(CTX_LIMIT)}: acima disso cada turno relê demais`}>
         <Medidor value={agCtx} mark={CTX_LIMIT} warn={agCtx > CTX_LIMIT} label={`contexto médio de ${ktok(agCtx)} por turno, referência de ${ktok(CTX_LIMIT)}`} />
       </Leitura>
-      <Leitura label="Reescrita depois de pausa" value={d.total.rewriteCost} format={usd} detail={`em ${d.days} dias · contexto regravado após 1 h parado; referência US$ 20 na janela`}>
+      <Leitura label="Reescrita depois de pausa" value={d.total.rewriteCost} format={usd} detail={`em ${d.days} dias · contexto regravado após 1 h parado (não é a reescrita de comando do rtk: ver loop/tokens.md); referência US$ 20 na janela`}>
         <Medidor value={d.total.rewriteCost} mark={REWRITE_LIMIT} warn={d.total.rewriteCost > REWRITE_LIMIT} label={`${usd(d.total.rewriteCost)} em reescrita, referência de ${usd(REWRITE_LIMIT)}`} />
       </Leitura>
     </Regua>

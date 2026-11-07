@@ -4,6 +4,31 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.19.0 — 2026-11-07
+
+Custo dos agentes no auto mode com o hook do rtk (issue #60): quando várias Bash vão na mesma resposta, o hook do rtk
+reescreve o comando depois do veredito do classificador e todas voltam negadas, cada uma custando um turno a mais com o
+contexto inteiro. Medido nas transcrições: 63 recusas em duas redações.
+
+### Guard orienta uma Bash por resposta (#60)
+
+- `src/lib/guard-hook.ts`: no PostToolUse, o guard lê o fim do transcript; achando um `tool_result` negado com "gave no
+  verdict … changed by a hook" (ou "another call in this response was changed by a hook"), injeta uma orientação curta
+  (uma Bash por resposta, ou `rtk <cmd>` já reescrito), **uma vez por sessão**. A orientação vence os avisos de contexto
+  sem consumir o estado deles.
+- Cartões `reference/loop/roles/*.md` ganham a linha "Bash e rtk"; `reference/loop/tokens.md` ganha a seção
+  "Reescrita do rtk no auto mode".
+- Página Consumo: o texto separa a coluna "Reescrita depois de pausa" (cache regravado após mais de 1 h parado) da
+  reescrita do rtk.
+- Teste novo `guard-rtk-reescrita` (8 casos: primeira e segunda da sessão, outra sessão, sem o texto, sem `is_error`,
+  "no verdict" sem hook, as duas redações).
+
+### Armadilhas
+
+- A chamada negada **não dispara nenhum hook** (nem PreToolUse completo nem PostToolUse): o resultado existe só no
+  transcript. Por isso o guard o lê de lá, na próxima chamada que conclui.
+- O `hades usage` não mede esse custo: a coluna "reescrita" é outra coisa. O custo do rtk aparece só como turnos extras.
+
 ## 6.18.0 — 2026-11-06
 
 Custo dos agentes, última onda: o `SKILL.md`, carregado inteiro em cada `/hades`, cai de 51,4 KB para 19,3 KB (issue

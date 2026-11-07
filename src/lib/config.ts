@@ -1,5 +1,7 @@
 // Configuração da instância: env.sh (atribuições simples), config.tsv (catálogo) e config.env (valores do dono).
 // Mesma precedência do kit/config.sh: variável já exportada > config.env > padrão do plugin > padrão do kit.
+import { accessSync, constants, statSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { readText } from "./fs.ts";
 
@@ -104,4 +106,29 @@ export function unitPrefix(dir: string): string {
   let id = process.env.HADES_ID ?? instanceId(dir);
   if (!INSTANCE_ID.test(id)) id = id.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 24);
   return id ? `hds_${id}` : "hds";
+}
+
+export const HERDR_BIN_DEFAULT = "herdr";
+const HERDR_BIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+/**
+ * Binário do herdr que o painel chama (HADES_HERDR_BIN): vazio vale `herdr` do PATH; caminho absoluto (ou `~/`) tem de ser
+ * um arquivo executável; nome simples é resolvido pelo PATH na hora de rodar. Qualquer outra forma (relativo, com espaço ou
+ * `..`) é recusada na subida, com a mensagem do que corrigir.
+ */
+export function resolveHerdrBin(raw: string | undefined, home: string = process.env.HOME || homedir()): string {
+  const value = (raw ?? "").trim();
+  if (value === "") return HERDR_BIN_DEFAULT;
+  const path = value === "~" || value.startsWith("~/") ? join(home, value.slice(1)) : value;
+  if (!path.startsWith("/")) {
+    if (HERDR_BIN_NAME.test(path)) return path;
+    throw new Error(`HADES_HERDR_BIN inválido (${value}): use um caminho absoluto ou um nome simples como herdr`);
+  }
+  try {
+    if (!statSync(path).isFile()) throw new Error("não é um arquivo");
+    accessSync(path, constants.X_OK);
+  } catch (error) {
+    throw new Error(`HADES_HERDR_BIN (${value}) não é um executável: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return path;
 }

@@ -108,6 +108,7 @@ const STORE_DETAIL = 'hades.argos.fullDetail';
 // panes do herdr dos nós de agente: a visão geral relida a cada TTY_TARGETS_MS, só com nó de agente no canvas
 const HERDR_OVERVIEW_URL = '/api/herdr';
 const HERDR_INPUT_URL = '/api/herdr/input';
+const HERDR_SIZE_URL = '/api/herdr/size';
 const TTY_TARGETS_MS = 15000;
 const HERDR_TIMEOUT_MS = 8000;
 // seletor do terminal com o teclado (node-tty.js): com o foco dentro, só os comandos tty:* passam pela página
@@ -132,6 +133,15 @@ const withTimeout = (signal) => AbortSignal.any([signal, AbortSignal.timeout(CAN
 // entrada do terminal do nó: rejeita com o código (ou a mensagem) do servidor, para o nó mostrar o motivo
 async function sendHerdrInput(body) {
   const r = await tokenFetch(HERDR_INPUT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    signal: AbortSignal.timeout(HERDR_TIMEOUT_MS) });
+  if (r.ok) return;
+  const d = await r.json().catch(() => null);
+  throw codedError(d && typeof d.error === 'string' ? d.error : `o painel respondeu ${r.status}`, codeOf(d, r.status));
+}
+
+// grade do terminal do nó (ou a liberação): rejeita com o código do servidor; `herdr-unsupported` é o herdr sem pane.set_size
+async function sendHerdrSize(body) {
+  const r = await tokenFetch(HERDR_SIZE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     signal: AbortSignal.timeout(HERDR_TIMEOUT_MS) });
   if (r.ok) return;
   const d = await r.json().catch(() => null);
@@ -384,6 +394,7 @@ function Argos() {
   const ttyHost = useMemo(() => NT.createTtyHost({
     openStream: (url) => openSse(url),
     sendInput: sendHerdrInput,
+    sendSize: sendHerdrSize,
     setTimer: (run, ms) => setTimeout(run, ms),
     clearTimer: (h) => clearTimeout(h),
     nodeRect: (id) => cstateRef.current?.doc.nodes.find((n) => n.id === id),
@@ -1222,6 +1233,12 @@ function Argos() {
     const n = id ? docNode(id) : null;
     const frame = id ? ttyHost.frameOf(id) : null;
     if (!n || !frame) return false;
+    // herdr com pane.set_size: o zoom muda a fonte e o herdr refaz a grade; o nó não muda de tamanho
+    const fontZoom = ttyHost.stepTextZoom(id, kind, NT.TEXT_ZOOM_LIMITS);
+    if (fontZoom !== null) {
+      toast({ kind: 'info', title: `Texto do terminal em ${Math.round(fontZoom * 100)}%` });
+      return true;
+    }
     const next = NT.ttyZoomSize({ w: n.w, h: n.h }, frame, kind);
     if (next.w === n.w && next.h === n.h) return true;
     try { commitOp(M.history.opResize(cstateRef.current.doc, id, { x: n.x, y: n.y, w: next.w, h: next.h })); }

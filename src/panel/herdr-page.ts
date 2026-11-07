@@ -5,7 +5,6 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join, normalize, sep } from "node:path";
 import { AGENT_KINDS } from "../lib/argos-roles.ts";
 import { readText } from "../lib/fs.ts";
-import { which } from "../lib/proc.ts";
 import { exec } from "./exec.ts";
 import type { PanelEnv } from "./env.ts";
 import { createHerdrSocket, type Herdr, HerdrSocketError, type HerdrSocket } from "./herdr.ts";
@@ -90,6 +89,48 @@ export function scrollbackLinesOf(raw: string | undefined): number {
 /** Exigir o nome do alvo em `confirm` (HADES_CONFIRM_TYPED): só o "0" gravado desliga; chave ausente ou lixo fecha. */
 export const typedConfirmRequired = (values: Record<string, string>): boolean => values.HADES_CONFIRM_TYPED !== "0";
 
+// tamanho fixo do pane (`pane.set_size` do fork do herdr; reference/argos.md §Tamanho do terminal do nó): os limites são os dele
+export const SIZE_LIMITS = { colsMin: 4, colsMax: 1000, rowsMin: 2, rowsMax: 500 } as const;
+/** Códigos estáveis da rota `/api/herdr/size`: só ganham valores. */
+export const SIZE_ERRORS = { unsupported: "herdr-unsupported", rateLimited: "size-rate-limited", invalid: "size-invalid" } as const;
+/** Pedidos de tamanho por pane numa janela: o nó manda com debounce, a rota se defende de quem não manda. */
+export const SIZE_RATE_MAX = 20;
+export const SIZE_RATE_WINDOW_MS = 10_000;
+/** O herdr sem o método responde `invalid_request` (0.8.2: "unknown variant `pane.set_size`"); a negativa vale por este tempo. */
+const UNSUPPORTED_TTL_MS = 5 * 60_000;
+const SET_SIZE_METHOD = "pane.set_size";
+
+/** Falha da rota de tamanho com código estável (o status HTTP acompanha, mas quem consome ramifica pelo código). */
+export class SizeError extends Error {
+  readonly code: string;
+  readonly status: number;
+  readonly retryAfterS?: number;
+  constructor(code: string, status: number, message: string, retryAfterS?: number) {
+    super(message);
+    this.code = code;
+    this.status = status;
+    this.retryAfterS = retryAfterS;
+  }
+}
+
+const inRange = (n: unknown, min: number, max: number): n is number => typeof n === "number" && Number.isInteger(n) && n >= min && n <= max;
+
+/** Corpo do `pane.set_size` validado: `cols`×`rows` dentro dos limites, ou `release: true` (sozinho). */
+export function sizeParams(pane: string, body: Dict): Dict {
+  if (body.release !== undefined) {
+    if (body.release !== true || body.cols !== undefined || body.rows !== undefined) throw new SizeError(SIZE_ERRORS.invalid, 400, "release é true e não leva cols nem rows");
+    return { pane_id: pane, release: true };
+  }
+  if (!inRange(body.cols, SIZE_LIMITS.colsMin, SIZE_LIMITS.colsMax)) throw new SizeError(SIZE_ERRORS.invalid, 400, `cols fora de ${SIZE_LIMITS.colsMin} a ${SIZE_LIMITS.colsMax}`);
+  if (!inRange(body.rows, SIZE_LIMITS.rowsMin, SIZE_LIMITS.rowsMax)) throw new SizeError(SIZE_ERRORS.invalid, 400, `rows fora de ${SIZE_LIMITS.rowsMin} a ${SIZE_LIMITS.rowsMax}`);
+  return { pane_id: pane, cols: body.cols, rows: body.rows };
+}
+
+/** A recusa é "método desconhecido": o herdr do sistema (0.8.2) não tem `pane.set_size`. */
+export function isUnsupportedMethod(error: HerdrSocketError): boolean {
+  return error.code === "unknown_method" || (error.code === "invalid_request" && error.message.includes(`\`${SET_SIZE_METHOD}\``) && error.message.includes("unknown variant"));
+}
+
 export interface HerdrPage {
   overview(session?: string): Promise<Dict>;
   read(session: string | undefined, pane: string | undefined, lines: string | undefined): Promise<Dict>;
@@ -101,6 +142,8 @@ export interface HerdrPage {
   admin(body: Dict, remote: boolean): Promise<Dict>;
   /** Entrada direta (`POST /api/herdr/input`): texto e/ou teclas pelo `pane.send_input`; devolve o alvo validado. */
   input(body: Dict, remote: boolean): Promise<{ session: string; pane: string }>;
+  /** Tamanho fixo do pane (`POST /api/herdr/size`): fixa `cols`×`rows` ou libera; `SizeError` com código estável. */
+  size(body: Dict, remote: boolean, now?: number): Promise<{ session: string; pane: string; info: Dict }>;
   /** Socket da API da sessão, pela listagem atual; undefined se a sessão não existe ou não está rodando. */
   socketOf(session: string): Promise<string | undefined>;
 }
@@ -318,7 +361,7 @@ export function createHerdrPage(env: PanelEnv, herdr: Herdr, socket: HerdrSocket
   }
 
   async function overview(requested?: string): Promise<Dict> {
-    if (!which("herdr")) return { available: false, reason: "binário herdr ausente", sessions: [], tree: [] };
+    if (!herdr.installed()) return { available: false, reason: "binário herdr ausente", sessions: [], tree: [] };
     const all = await sessions();
     const names = all.map((s) => String(s.name));
     const session = requested && names.includes(requested) ? requested : names.includes("default") ? "default" : (names[0] ?? null);
@@ -517,5 +560,49 @@ export function createHerdrPage(env: PanelEnv, herdr: Herdr, socket: HerdrSocket
     return { session, pane: id };
   }
 
-  return { overview, read, scrollback, act, sessionAct, admin, input, socketOf };
+  // pedidos recentes por pane (janela deslizante) e sockets cujo herdr não tem o método (detectado uma vez, com validade)
+  const sizeHits = new Map<string, number[]>();
+  const sizeUnsupported = new Map<string, number>();
+
+  function sizeRateCheck(key: string, nowMs: number): void {
+    const recent = (sizeHits.get(key) ?? []).filter((t) => nowMs - t < SIZE_RATE_WINDOW_MS);
+    if (recent.length >= SIZE_RATE_MAX) {
+      sizeHits.set(key, recent);
+      const wait = Math.ceil((SIZE_RATE_WINDOW_MS - (nowMs - (recent[0] as number))) / 1000);
+      throw new SizeError(SIZE_ERRORS.rateLimited, 429, "pedidos de tamanho demais: espere um instante", Math.max(1, wait));
+    }
+    recent.push(nowMs);
+    sizeHits.set(key, recent);
+  }
+
+  async function size(body: Dict, remote: boolean, nowMs: number = Date.now()): Promise<{ session: string; pane: string; info: Dict }> {
+    const session = await sessionOf(textOf(body.session) || undefined);
+    const { id } = await paneOf(session, body.pane);
+    const params = sizeParams(id, body);
+    const path = await socketOf(session);
+    if (!path) throw new BadRequest("servidor herdr desta sessão fora do ar");
+    const until = sizeUnsupported.get(path);
+    if (until !== undefined && nowMs < until) throw new SizeError(SIZE_ERRORS.unsupported, 501, "este herdr não sabe fixar o tamanho do pane");
+    sizeRateCheck(`${session}\0${id}`, nowMs);
+    const what = params.release === true ? "size-release" : "size";
+    let info: Dict;
+    try {
+      const result = await socket.request(path, SET_SIZE_METHOD, params, ACT_TIMEOUT_MS);
+      info = ((result.pane as Dict | undefined) ?? result) as Dict;
+    } catch (error) {
+      if (!(error instanceof HerdrSocketError)) throw error;
+      if (isUnsupportedMethod(error)) {
+        sizeUnsupported.set(path, nowMs + UNSUPPORTED_TTL_MS);
+        throw new SizeError(SIZE_ERRORS.unsupported, 501, "este herdr não sabe fixar o tamanho do pane");
+      }
+      record(session, what, id, remote, false);
+      throw new BadRequest(error.message || "o herdr recusou");
+    }
+    sizeUnsupported.delete(path);
+    record(session, what, id, remote, true);
+    herdr.forget(`${session}\0snap`);
+    return { session, pane: id, info };
+  }
+
+  return { overview, read, scrollback, act, sessionAct, admin, input, size, socketOf };
 }

@@ -2073,11 +2073,11 @@ describe("nota do canvas: node-note", () => {
     expect(note).toContain("ReactDOM.createPortal(h(\"div\", { ref: menuRef, role: \"menu\"");
     expect(note).toContain("className: \"fixed z-[60]");
     const engine = readFileSync(join(UI, "argos/canvas-engine.tsx"), "utf8");
-    expect(engine).toContain('const RESIZE_CURSOR = "nwse-resize"');
+    expect(engine).toContain("S.resizeCursor(resizeEdge)");
     expect(engine).toContain("trackResizeHover(e)");
     // a alça fica sob o conteúdo do nó rico: o arrasto nela é do canvas, o resto do clique segue com o nó
-    expect(engine).toContain("if (overRich && !(e.button === 0 && onResizeHandle(e))) return;");
-    expect(readFileSync(join(UI, "index.html"), "utf8")).toContain(".canvas-resize-cursor, .canvas-resize-cursor * { cursor: nwse-resize !important; }");
+    expect(engine).toContain("if (overRich && !(e.button === 0 && resizeHitAt(e))) return;");
+    expect(readFileSync(join(UI, "index.html"), "utf8")).toContain(".canvas-resize-cursor, .canvas-resize-cursor * { cursor: var(--canvas-resize-cursor, nwse-resize) !important; }");
   });
 
   test("HTML cru do texto sai escapado e não vira elemento", () => {

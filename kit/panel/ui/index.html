@@ -153,7 +153,7 @@ body { margin: 0; font-family: 'Figtree', ui-sans-serif, system-ui, sans-serif; 
 /* o pulso é só de quem pede você (atenção): quem prefere menos movimento recebe o olho parado */
 @media (prefers-reduced-motion: no-preference) { .pulso { animation: pulso 2.4s ease-in-out infinite; } }
 /* alça de redimensionar do canvas: vence o cursor do nó rico (texto da nota, terminal) enquanto o mouse está nela */
-.canvas-resize-cursor, .canvas-resize-cursor * { cursor: nwse-resize !important; }
+.canvas-resize-cursor, .canvas-resize-cursor * { cursor: var(--canvas-resize-cursor, nwse-resize) !important; }
 @keyframes pulso { 50% { opacity: .35 } }
 /* o rio do trilho: linha fina com uma correnteza descendo; o óbolo (página ativa) desliza nele; o ponto vivo desce até
    o item onde a atividade começou (--desde = distância do topo do rio) */

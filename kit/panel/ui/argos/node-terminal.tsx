@@ -313,6 +313,10 @@ function ttyScaleOf(w, h, frame) {
 }
 
 const TEXT_ZOOM_STEP = 1.2;
+/** Limites do zoom da fonte (com o herdr dimensionando o pane): abaixo disso o texto não se lê, acima a grade fica minúscula. */
+const TEXT_ZOOM_LIMITS = Object.freeze({ min: 0.5, max: 3 });
+// código estável da rota /api/herdr/size quando o herdr não tem pane.set_size (herdr-page.ts SIZE_ERRORS.unsupported)
+const SIZE_UNSUPPORTED = 'herdr-unsupported';
 /** Os três passos do zoom do texto: aumentar, diminuir e voltar a 100% (a célula na escala natural). */
 const TEXT_ZOOM_KINDS = Object.freeze(['in', 'out', 'reset']);
 
@@ -392,7 +396,8 @@ const validFrame = (d) => typeof d.pane === 'string' && typeof d.ansi === 'strin
 /**
  * Host dos terminais da página. deps: `openStream(url)` (um EventSource), `sendInput(body)` (POST /api/herdr/input; rejeita
  * com a mensagem do servidor), `setTimer`/`clearTimer`, `nodeRect(id)` ({ x, y } do nó no documento) e `liveState(id)` (o
- * estado do agente no grafo, usado quando o fluxo ainda não disse o do pane). Avisa os ouvintes com o pane que mudou, ou '*'.
+ * estado do agente no grafo, usado quando o fluxo ainda não disse o do pane). `sendSize(body)` (POST /api/herdr/size; opcional,
+ * rejeita com `code`; `herdr-unsupported` desliga o pedido de tamanho para sempre: o nó volta a escalar o quadro). Avisa os ouvintes com o pane que mudou, ou '*'.
  */
 function createTtyHost(deps) {
   let targets = new Map();
@@ -404,6 +409,10 @@ function createTtyHost(deps) {
   const seen = new Map();
   const inputErrors = new Map();
   const queues = new Map();
+  // grade pedida por nó ({ session, pane, cols, rows }) e zoom do texto por nó; `sizeSupport`: 'unknown' até o primeiro pedido
+  const wanted = new Map();
+  const textZooms = new Map();
+  let sizeSupport = typeof deps.sendSize === 'function' ? 'unknown' : 'no';
   const listeners = new Set();
   let focused = null;
   let alt = false;
@@ -447,6 +456,7 @@ function createTtyHost(deps) {
     const own = { es, panes: new Set(panes) };
     stream = own;
     const alive = () => stream === own && !destroyed;
+    es.addEventListener('open', () => { if (alive()) resendSizes(); });
     const on = (type, fn) => es.addEventListener(type, (m) => {
       if (!alive()) return;
       const d = parseData(m && m.data);
@@ -523,6 +533,28 @@ function createTtyHost(deps) {
     syncTimer = deps.setTimer(sync, TTY_SUBSCRIBE_DEBOUNCE_MS);
   };
 
+  /** Envia um pedido de tamanho (ou a liberação); o herdr sem o método desliga o recurso, o resto só é registrado. */
+  async function sendSize(target, grid) {
+    if (sizeSupport === 'no' || destroyed) return;
+    try {
+      await deps.sendSize({ session: target.session, pane: target.pane, ...grid });
+      if (sizeSupport === 'unknown') { sizeSupport = 'yes'; emit('*'); }
+    } catch (e) {
+      if (e && e.code === SIZE_UNSUPPORTED) {
+        sizeSupport = 'no';
+        wanted.clear();
+        textZooms.clear();
+        emit('*');
+        return;
+      }
+      console.warn('argos: pedido de tamanho do terminal recusado', target.pane, e && e.code);
+    }
+  }
+  /** A fixação do herdr vive na memória dele: ao (re)conectar o fluxo, os tamanhos pedidos são pedidos de novo. */
+  function resendSizes() {
+    for (const w of wanted.values()) void sendSize(w, { cols: w.cols, rows: w.rows });
+  }
+
   async function drain(pane) {
     const q = queues.get(pane);
     if (!q || q.busy || q.items.length === 0 || destroyed) return;
@@ -549,6 +581,14 @@ function createTtyHost(deps) {
     setTargets(next) {
       const same = next.size === targets.size && [...next].every(([id, t]) => { const o = targets.get(id); return o && o.session === t.session && o.pane === t.pane; });
       if (same) return;
+      // nó que saiu do canvas (ou trocou de pane) libera a grade fixada: a fixação só vale enquanto o nó existe
+      for (const [id, w] of [...wanted]) {
+        const t = next.get(id);
+        if (t && t.pane === w.pane && t.session === w.session) continue;
+        wanted.delete(id);
+        textZooms.delete(id);
+        void sendSize(w, { release: true });
+      }
       targets = next;
       for (const id of targets.keys()) markSeen(id);
       emit('*');
@@ -612,6 +652,28 @@ function createTtyHost(deps) {
       return jumpNumbers(rects);
     },
     jumpTarget(n) { for (const [id, k] of host.jumpNumbers()) if (k === n) return id; return null; },
+    /** O herdr aceita `pane.set_size`: `true` confirmado, `false` sem suporte, `null` ainda não sabemos. */
+    sizeSupported: () => (sizeSupport === 'yes' ? true : sizeSupport === 'no' ? false : null),
+    /** Pede a grade do nó ao herdr (só com o pane no fluxo); a resposta confirma ou desliga o recurso. */
+    setSize(id, grid) {
+      const t = targets.get(id);
+      if (!t || sizeSupport === 'no' || host.modeOf(id) !== 'stream') return;
+      wanted.set(id, { session: t.session, pane: t.pane, cols: grid.cols, rows: grid.rows });
+      void sendSize(t, { cols: grid.cols, rows: grid.rows });
+    },
+    /** Há pedido de tamanho possível para o nó: o nó calcula e pede a grade (senão ele escala o quadro). */
+    canResize: (id) => sizeSupport !== 'no' && targets.has(id) && host.modeOf(id) === 'stream',
+    /** Zoom do texto do nó (fonte); 1 sem suporte, onde o zoom é o tamanho do nó. */
+    textZoomOf: (id) => (sizeSupport === 'yes' ? textZooms.get(id) || 1 : 1),
+    /** Passo do zoom do texto (`in`, `out`, `reset`) do nó; devolve o fator novo, ou `null` sem suporte ao tamanho. */
+    stepTextZoom(id, kind, limits) {
+      if (sizeSupport !== 'yes' || !targets.has(id)) return null;
+      const now = textZooms.get(id) || 1;
+      const next = kind === 'reset' ? 1 : Math.min(limits.max, Math.max(limits.min, Math.round((kind === 'in' ? now * TEXT_ZOOM_STEP : now / TEXT_ZOOM_STEP) * 100) / 100));
+      if (next === 1) textZooms.delete(id); else textZooms.set(id, next);
+      emit('*');
+      return next;
+    },
     zoom: () => zoom,
     setZoom(k) {
       // só o cruzamento de faixas de 5% redesenha os nós (a câmera muda a cada quadro de um gesto)
@@ -637,6 +699,8 @@ function createTtyHost(deps) {
       syncTimer = retryTimer = null;
       listeners.clear();
       queues.clear();
+      wanted.clear();
+      textZooms.clear();
     },
   };
   return host;
@@ -672,7 +736,8 @@ function ttyBody({ host, input, target, grow, remove }) {
   const min = ttyMinNodeSize(frame);
   const small = input.w < min.w || input.h < min.h;
   const headerOnly = !small && frame ? ttyHeaderOnly(host.zoom(), ttyScaleOf(input.w, input.h, frame)) : false;
-  const tty = { focused, headerOnly, onFocus: () => host.focus(input.id), onBlur: () => host.focus(null), onInput: (x) => host.input(input.id, x) };
+  // com suporte do herdr, o nó dimensiona o pane pela área e o zoom do texto é a fonte; sem ele, escala o quadro como antes
+  const tty = { focused, headerOnly, textZoom: host.textZoomOf(input.id), onResize: host.canResize(input.id) ? (grid) => host.setSize(input.id, grid) : undefined, onFocus: () => host.focus(input.id), onBlur: () => host.focus(null), onInput: (x) => host.input(input.id, x) };
   const Tty = ttyApi().NodeTty;
   if (small) return <div className="grid content-center justify-items-start gap-2 p-2">
     <span className="t-meta text-muted-foreground">Nó pequeno para o terminal ({min.w}×{min.h} no mínimo).</span>
@@ -1031,7 +1096,7 @@ function createCanvasWatch({ now, busy, reload, onStale, log }) {
 window.ArgosNodeTerminal = {
   NodeTerminal, usePaneOutput, KEYS,
   AgentTtyNode, createTtyHost, filterTtyInput, ttyTargetsOf, ttyTargetOf, ttyAttention, seenAfter, nextAttentionId, jumpNumbers,
-  ttyMinNodeSize, ttyScaleOf, ttyZoomSize, TEXT_ZOOM_KINDS, ttyHeaderOnly, frameFromRead, withSession, takeInputBatch, ttyKeyInput, ttyLetsCommand, TTY_BLOCKED_KEYS, TTY_HEADER_PX,
+  ttyMinNodeSize, ttyScaleOf, ttyZoomSize, TEXT_ZOOM_KINDS, TEXT_ZOOM_LIMITS, ttyHeaderOnly, frameFromRead, withSession, takeInputBatch, ttyKeyInput, ttyLetsCommand, TTY_BLOCKED_KEYS, TTY_HEADER_PX,
   // terminal criado no canvas
   TERMINAL_TYPE, TERMINAL_SIZE, AGENT_NODE_SIZE, TERMINAL_MENU, TERMINAL_ICONS, TERMINAL_THEMES, TERMINAL_THEME_LABELS, TERMINAL_FONTS, TERMINAL_FONT_LABELS,
   TERMINAL_NAME_MAX, TerminalNode, terminalModelLabel, readTerminalData, isLiveTerminalData, terminalThemeStyle, ttyTargetsOfDoc, linkCountOf, newTerminalNode, herdrRefOf, terminalTypeDef,

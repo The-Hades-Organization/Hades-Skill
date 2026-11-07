@@ -1,10 +1,11 @@
 /* Terminal do nó de agente no canvas (#/argos), a parte que desenha e coleta: o quadro ANSI que o herdr entrega
  * (`{ pane, revision, cols, rows, ansi }`) é escrito como tela inteira numa instância do xterm (HadesCore.createXterm, de
  * term.tsx: só leitura, sem scrollback, o histórico é a janela do /api/herdr/scrollback), escalado para caber no nó; com o foco, as teclas e a colagem viram `{ text?, keys? }` para `onInput`. Não abre conexão nem monta no
- * nó: quem o usa entrega o quadro e leva a entrada ao herdr. A grade é a do quadro: o componente nunca pede resize.
- * Limite do herdr 0.8.2: não há API que fixe cols×rows de um pane (`pane.resize` só move a divisória entre panes), então o
- * tamanho do nó só muda a escala do quadro (`fitScale`); sobra ou corte vêm da proporção do nó, não de uma medida errada. Um cliente
- * anexado ditaria o tamanho da sessão inteira (vence o último a mexer): reference/argos.md §Tamanho do terminal do nó.
+ * nó: quem o usa entrega o quadro e leva a entrada (e o pedido de tamanho) ao herdr.
+ * Com `onResize` (herdr do fork, com `pane.set_size`) o nó calcula cols×rows pela área e pela célula real do xterm e pede essa
+ * grade com debounce; com a grade aplicada o quadro vai em escala 1. Sem `onResize` (herdr 0.8.2, ou nó em miniatura), o tamanho
+ * do nó só muda a escala do quadro (`fitScale`). O cursor é o do quadro (`frame.cursor`); sem ele, a estimativa pelo texto.
+ * Um cliente anexado ditaria o tamanho da sessão inteira, e o `set_size` o vence: reference/argos.md §Tamanho do terminal do nó.
  * A área é medida por `clientWidth/clientHeight` (tamanho de layout, em unidades do mundo): `getBoundingClientRect` inclui o
  * zoom do canvas, que a camada HTML já aplica, e a escala saía multiplicada por ele.
  * Teclas de TTY_GLOBAL_KEYS não são consumidas (sobem ao canvas). Ouvinte de documento só existe enquanto `focused`.
@@ -29,6 +30,10 @@ const LINE_RATIO = 1.17;
 const FIT_MIN = 0.2;
 const FIT_MAX = 2;
 const MAX_COLS = 1000;
+// limites da grade que o herdr aceita em pane.set_size (herdr-page.ts SIZE_LIMITS): o nó nunca pede fora deles
+const SIZE_LIMITS = Object.freeze({ minCols: 4, maxCols: 1000, minRows: 2, maxRows: 500 });
+// o pedido de tamanho espera o nó parar de mexer (arrastar a borda, zoom do texto) antes de ir ao herdr
+const RESIZE_DEBOUNCE_MS = 150;
 // mesmo teto de texto que o servidor aceita num envio (herdr-page.ts MAX_TEXT): colar mais seria recusado lá
 const PASTE_MAX_CHARS = 20_000;
 
@@ -177,9 +182,53 @@ function minSize(frame) {
   return { w: Math.ceil(cols * CELL_W + 2 * PAD), h: Math.ceil(HEADER_H + rows * CELL_H + 2 * PAD) };
 }
 
+/** Célula do terminal na escala 1 com o zoom do texto `zoom` (a medida real do xterm vence quando ele a dá). */
+function cellSize(zoom, measured) {
+  const ok = (n) => typeof n === 'number' && Number.isFinite(n) && n > 0;
+  if (measured && ok(measured.w) && ok(measured.h)) return { w: measured.w, h: measured.h };
+  const z = validScale(zoom) || 1;
+  return { w: CELL_W * z, h: CELL_H * z };
+}
+
+/** Célula medida pelo xterm (`dimensions.css.cell`, px de CSS, sem o zoom do canvas); `null` até ele desenhar a primeira vez. */
+function measureCell(term) {
+  // API interna do xterm: sem outra forma de ler a métrica real da fonte; ausente, cellSize cai na estimativa
+  const cell = term && term._core && term._core._renderService && term._core._renderService.dimensions
+    && term._core._renderService.dimensions.css && term._core._renderService.dimensions.css.cell;
+  return cell && cell.width > 0 && cell.height > 0 ? { w: cell.width, h: cell.height } : null;
+}
+
+/** Grade (cols × rows) que cabe numa área de desenho `{ w, h }` com a célula `cell`, nos limites do herdr; `null` se a área não mede. */
+function gridFor(area, cell) {
+  if (!area || !cell || !(area.w > 0) || !(area.h > 0) || !(cell.w > 0) || !(cell.h > 0)) return null;
+  const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+  return {
+    cols: clamp(Math.floor(area.w / cell.w), SIZE_LIMITS.minCols, SIZE_LIMITS.maxCols),
+    rows: clamp(Math.floor(area.h / cell.h), SIZE_LIMITS.minRows, SIZE_LIMITS.maxRows),
+  };
+}
+
+/** Debounce do pedido de tamanho: só o último `push` dentro de `ms` chega a `send`; `cancel` solta o pedido pendente (desmontagem). */
+function resizeDebounce(send, ms = RESIZE_DEBOUNCE_MS, timers = { set: (fn, t) => setTimeout(fn, t), clear: (h) => clearTimeout(h) }) {
+  let pending = null;
+  return {
+    push(grid) {
+      if (pending !== null) timers.clear(pending);
+      pending = timers.set(() => { pending = null; send(grid); }, ms);
+    },
+    cancel() {
+      if (pending !== null) timers.clear(pending);
+      pending = null;
+    },
+  };
+}
+
+/** O quadro já tem a grade pedida: dali em diante ele vai em escala 1 (a escala só cobre a espera e o herdr sem suporte). */
+const sizeApplied = (frame, want) => !!want && !!frame && frame.cols === want.cols && frame.rows === want.rows;
+
 /** Escala que faz a grade do quadro caber numa caixa `{ w, h }` (a área do desenho, sem o cabeçalho), entre FIT_MIN e FIT_MAX. */
-function fitScale(area, frame) {
-  const s = Math.min(area.w / (frame.cols * CELL_W), area.h / (frame.rows * CELL_H));
+function fitScale(area, frame, cell = { w: CELL_W, h: CELL_H }) {
+  const s = Math.min(area.w / (frame.cols * cell.w), area.h / (frame.rows * cell.h));
   return Number.isFinite(s) ? Math.min(FIT_MAX, Math.max(FIT_MIN, s)) : 1;
 }
 
@@ -282,18 +331,20 @@ function screenRows(rows, ansi) {
   return rowsToShow(rows, String(ansi).split(/\r?\n/));
 }
 
-/* frame = { pane, revision, cols, rows, ansi }. `scale` fixa a escala (1 = tamanho natural); sem ela o quadro se ajusta ao
+/* frame = { pane, revision, cols, rows, ansi, cursor? }. `onResize({ cols, rows })` pede ao herdr a grade que cabe no nó (debounce); `textZoom` é o zoom da fonte. `scale` fixa a escala (1 = tamanho natural); sem ela o quadro se ajusta ao
  * espaço do nó. `focused` é do dono: o clique dentro chama onFocus, o clique fora (enquanto focado) chama onBlur. */
-function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, headerOnly = false }) {
+function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, headerOnly = false, textZoom = 1, onResize }) {
   const root = useRef(null);
   const area = useRef(null);
   const xt = useRef(null);
   const host = useRef(null);
   const entry = useRef(null);
   const live = useRef(null);
+  const zoomRef = useRef(1);
   const pressing = useRef(null);
   const textIn = useRef(null);
   const [fit, setFit] = useState(null);
+  const [measured, setMeasured] = useState(null);
   const [notice, setNotice] = useState('');
   const [scrolling, setScrolling] = useState(scrollLive());
   const scroll = useRef(scrollLive());
@@ -301,12 +352,14 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   const touchY = useRef(null);
   const loadingHistory = useRef(false);
   const fixed = validScale(scale);
+  const zoom = validScale(textZoom) || 1;
+  zoomRef.current = zoom;
   const problem = frameProblem(frame);
   const history = scrolling.lines === null ? null : scrolling;
   const setScroll = (next) => { scroll.current = next; setScrolling(next); };
   const backToLive = () => { wheelRest.current = 0; setScroll(scrollLive()); };
 
-  live.current = { onInput, setNotice, focused, onWheel: null, ownsWheel: ownsWheel({ headerOnly, problem }), paint: () => {} };
+  live.current = { onResize, onInput, setNotice, focused, onWheel: null, ownsWheel: ownsWheel({ headerOnly, problem }), paint: () => {} };
   // a composição precisa de um campo de texto: com o foco do teclado no nó, ele vai para o `textarea` escondido
   if (textIn.current === null) {
     textIn.current = createTextInput({
@@ -353,6 +406,19 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
     };
   }, [fixed, headerOnly]);
 
+  // com quem leva o pedido ao herdr (onResize), a grade vem da área e da célula real; sem ele, o quadro só se escala
+  const cell = cellSize(zoom, measured);
+  const resizing = typeof onResize === 'function' && fixed === null && !headerOnly;
+  const want = resizing && fit ? gridFor(fit, cell) : null;
+  const wantCols = want ? want.cols : 0;
+  const wantRows = want ? want.rows : 0;
+  useEffect(() => {
+    if (!wantCols || !wantRows) return undefined;
+    const debounce = resizeDebounce((grid) => { if (live.current.onResize) live.current.onResize(grid); });
+    debounce.push({ cols: wantCols, rows: wantRows });
+    return debounce.cancel;
+  }, [wantCols, wantRows]);
+
   let shownAnsi = '';
   let drawError = problem;
   if (!problem && !headerOnly) {
@@ -373,17 +439,32 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
     const make = async () => {
       try { await document.fonts?.load('13px "Geist Mono"'); } catch (e) { /* fonte do sistema serve */ }
       if (dead || !host.current) return;
-      const made = HadesCore.createXterm(host.current, { fontSize: FONT_PX, scrollback: 0, readOnly: true, lineHeight: CELL_H / (FONT_PX * LINE_RATIO) });
+      const made = HadesCore.createXterm(host.current, { fontSize: FONT_PX * zoomRef.current, scrollback: 0, readOnly: true, lineHeight: CELL_H / (FONT_PX * LINE_RATIO) });
       // o xterm só desenha: nenhuma tecla é dele, todas sobem ao nó (que as traduz) e ao canvas
       made.term.attachCustomKeyEventHandler(() => false);
       muteXtermWheel(made.term);
+      // a métrica só existe depois do primeiro desenho: sem remedir, a grade fica na estimativa e sobra faixa à direita e embaixo
+      made.term.onRender(() => live.current.measure());
       xt.current = made;
       setTermFocus(made.term, live.current.focused);
       live.current.paint();
+      live.current.measure();
     };
     void make();
     return () => { dead = true; if (xt.current) xt.current.dispose(); xt.current = null; };
   }, [drawing]);
+  // a métrica da fonte vem do xterm depois que ele desenha; o zoom do texto muda a fonte e a mede de novo
+  live.current.measure = () => {
+    const next = measureCell(xt.current && xt.current.term);
+    setMeasured((prev) => (prev && next && prev.w === next.w && prev.h === next.h ? prev : next));
+  };
+  useEffect(() => {
+    const made = xt.current;
+    if (!made || zoom === made.term.options.fontSize / FONT_PX) return undefined;
+    made.term.options.fontSize = FONT_PX * zoom;
+    const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => live.current.measure()) : null;
+    return () => { if (raf !== null) cancelAnimationFrame(raf); };
+  }, [zoom, drawing]);
   // cada quadro novo é uma tela inteira: sem acumular linhas que o herdr já apagou
   live.current.paint = () => {
     const made = xt.current;
@@ -515,7 +596,8 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   };
 
   const label = problem ? 'Terminal' : `Terminal ${frame.pane}`;
-  const factor = fixed !== null ? fixed : fit && !problem ? fitScale(fit, { cols: frame.cols, rows: shownRows }) : 1;
+  const applied = !problem && sizeApplied(frame, want);
+  const factor = fixed !== null ? fixed : applied ? 1 : fit && !problem ? fitScale(fit, { cols: frame.cols, rows: shownRows }, cell) : 1;
   const message = notice || drawError;
   return <div ref={root} role="region" aria-label={label} tabIndex={0} data-tty-wheel={ownsWheel({ headerOnly, problem }) ? '' : undefined} data-tty-focused={focused ? 'true' : 'false'}
     onKeyDown={onKeyDown} onPaste={onPaste} onCopy={onCopy} onPointerDown={onPointerDown} onPointerMove={onTouchMove} onPointerUp={endTouch} onPointerCancel={endTouch}
@@ -532,7 +614,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
     {headerOnly ? null : <div ref={area} className="relative min-h-0 flex-1 overflow-hidden" style={{ padding: PAD }}>
       {/* texto com mais linhas que o quadro anuncia (pane que acabou de crescer) não perde as de baixo: o xterm mostra todas */}
       {drawing ? <div ref={host} data-tty-grid data-tty-engine="xterm" data-tty-cols={cols} data-tty-rows={shownRows} className="relative select-text"
-        style={{ width: cols * CELL_W, height: shownRows * CELL_H, transform: `scale(${factor})`, transformOrigin: '0 0', overflow: 'hidden' }} /> : null}
+        style={{ width: cols * cell.w, height: shownRows * cell.h, transform: `scale(${factor})`, transformOrigin: '0 0', overflow: 'hidden' }} /> : null}
       {message ? <span role="status" className="absolute right-2 bottom-2 left-2 t-meta text-term-warn">{message}</span> : null}
       {history ? <button type="button" data-tty-to-end className="absolute right-2 bottom-2 cursor-pointer border border-border bg-term px-2 py-0.5 t-meta text-term-foreground outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
         aria-label="Ir ao fim do terminal" onClick={backToLive}>↓ ir ao fim</button> : null}
@@ -540,5 +622,5 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   </div>;
 }
 
-window.ArgosNodeTty = { NodeTty, muteXtermWheel, frameCursor, setTermFocus, TTY_GLOBAL_KEYS, TTY_CANVAS_KEYS, minSize, translateKey, clipboardIntent, clipboardAction, selectedText, wheelIntent, touchWheel, historyLinesOf, historyWindow, clampOffset, wheelStep, scrollLive, wheelScroll, historyLoaded, ownsWheel, screenLinePx, createTextInput, isCompositionKey, fitScale, areaBox, fitForNode, gridBox, SCALE_LIMITS, rowsToShow, cursorOf, screenOf, screenRows, ttyDrawing, oversize, selectionOf };
+window.ArgosNodeTty = { NodeTty, muteXtermWheel, frameCursor, setTermFocus, TTY_GLOBAL_KEYS, TTY_CANVAS_KEYS, minSize, translateKey, clipboardIntent, clipboardAction, selectedText, wheelIntent, touchWheel, historyLinesOf, historyWindow, clampOffset, wheelStep, scrollLive, wheelScroll, historyLoaded, ownsWheel, screenLinePx, createTextInput, isCompositionKey, fitScale, gridFor, cellSize, measureCell, sizeApplied, resizeDebounce, SIZE_LIMITS, RESIZE_DEBOUNCE_MS, areaBox, fitForNode, gridBox, SCALE_LIMITS, rowsToShow, cursorOf, screenOf, screenRows, ttyDrawing, oversize, selectionOf };
 })();

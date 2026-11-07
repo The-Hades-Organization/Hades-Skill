@@ -419,7 +419,10 @@ o painel cria, renomeia e fecha a estrutura do herdr, não só observa), não s�
 - **Terminal ao vivo (nó de agente do Argos):** `GET /api/herdr/stream?session=&panes=` (SSE com `frame`, `status`,
   `exited`, `error`; uma assinatura do herdr por sessão, ~10 quadros/s por pane no máximo) e `POST /api/herdr/input`
   `{ session, pane, text?, keys? }` (`pane.send_input`; teclas de hoje mais Backspace, Shift+Tab e Ctrl+A..Ctrl+Z).
-  Detalhe e armadilhas em `reference/argos.md` §Fluxo do terminal (servidor).
+  Detalhe e armadilhas em `reference/argos.md` §Fluxo do terminal (servidor). O `frame` leva `cursor` quando o herdr o entrega.
+  **`POST /api/herdr/size`** `{ session?, pane, cols, rows } | { session?, pane, release: true }` (`pane.set_size` do fork do
+  herdr, binário em `HADES_HERDR_BIN`): mesma autenticação, token e Origin do `/api/herdr/input`; `400 size-invalid` (cols 4..1000,
+  rows 2..500), `429 size-rate-limited` (`Retry-After`), `501 herdr-unsupported` (herdr sem o método: o nó volta a escalar o quadro).
   **Tamanho e rolagem do nó:** o nó só escala o quadro (o tamanho do herdr é da sessão inteira e vence o último a mexer, então o
   painel não dita cols×rows); a roda e o arrasto de dedo rolam o histórico, Ctrl/Alt+roda é do canvas (`reference/argos.md` §Tamanho
   do terminal do nó e §Rolagem do terminal do nó).

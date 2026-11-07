@@ -4,6 +4,45 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.20.0 — 2026-11-07
+
+Terminais do Argos com tamanho real (issue #56): o nó dimensiona o PTY do pane do herdr em vez de só escalar a fonte,
+e o cursor desenhado é o do herdr, não o estimado. Exige o fork do herdr com `pane.set_size` e o cursor no `pane.read`,
+publicado em [The-Hades-Organization/herdr](https://github.com/The-Hades-Organization/herdr) (base v0.9.5, branch
+`hades/pane-set-size`). Com o herdr do sistema, tudo degrada para o comportamento anterior.
+
+### Resize real e cursor real (#56)
+
+- `HADES_HERDR_BIN`: caminho do binário do herdr usado pelo painel (o fork). Rota `POST /api/herdr/size` chama o
+  `pane.set_size` (fixa ou libera); o herdr sem o método responde e o nó segue com o tamanho do layout.
+- `kit/panel/ui/argos/node-tty.tsx`: o nó calcula cols × rows pelo tamanho dele e pela métrica real da célula do xterm
+  e pede o resize com debounce; o zoom do texto muda só a fonte. O cursor real substitui o `guessCursor` quando o herdr
+  o entrega.
+- `src/panel/herdr-stream.ts`: com o tamanho fixado, o quadro do fluxo usa o tamanho do PTY e não o retângulo do layout,
+  até ser liberado (`pane_updated` com `size_pinned` e a rota de tamanho avisam o fluxo).
+- **Bordas:** o terminal redimensiona pela borda esquerda, direita e de baixo e pelos dois cantos de baixo, sem
+  precisar selecionar; o topo (e os cantos de cima) continua sendo a alça de mover. A borda esquerda move `x` junto,
+  a direita fica parada. O cursor do mouse segue a borda. Os outros tipos de nó mantêm a alça do canto inferior direito.
+- **Nome no herdr:** o fork só aceita nome de agente em `[a-z][a-z0-9_-]{0,31}`. O `herdr agent start` recebe o nome
+  derivado do nome do painel (`src/lib/herdr-agent-name.ts`: minúsculas, sem acento, `-` no lugar do resto, começa por
+  letra, até 32, `-2`/`-3` na colisão); o canvas segue mostrando o nome do painel. O registro guarda `herdrName`;
+  registro antigo deriva na hora.
+
+### Correções do teste do dono
+
+- O debounce do resize chamava `setTimeout` sem o `this` da janela (o Firefox recusava).
+- A célula do xterm era medida antes do primeiro desenho e sobrava uma faixa preta; agora é remedida a cada desenho.
+- O fluxo anunciava cols/rows do tile do layout em vez do PTY fixado.
+
+### Armadilhas
+
+- No fork, a fixação vive só em memória: não sobrevive a restart do servidor do herdr. Resize só de layout não emite
+  `pane.updated`.
+- O tamanho do herdr é um só por sessão (spike na 0.8.2): vários clientes anexados não dão vários tamanhos, por isso o
+  fork.
+- `.canvas-resize-cursor` forçava `nwse-resize`; agora lê `--canvas-resize-cursor`.
+- A colisão de nome no herdr só considera os terminais registrados no canvas, não outros agentes da sessão.
+
 ## 6.19.0 — 2026-11-07
 
 Custo dos agentes no auto mode com o hook do rtk (issue #60): quando várias Bash vão na mesma resposta, o hook do rtk

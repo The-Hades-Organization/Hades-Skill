@@ -1,5 +1,6 @@
 // Servidor do painel (Bun.serve): escuta só em 127.0.0.1, confere o Host (DNS rebinding) e o Origin, e toda ação exige o
 // token da sessão (embutido na página servida) em POST JSON.
+import { effectiveConfig, resolveHerdrBin } from "../lib/config.ts";
 import { inheritedView } from "../lib/settings-default.ts";
 import { createHash, randomBytes } from "node:crypto";
 import { readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
@@ -13,7 +14,7 @@ import { createGateWatch, workRoot } from "./gatewatch.ts";
 import { createGitHub } from "./github.ts";
 import { createWidget } from "./widget.ts";
 import { createHerdr, createHerdrSocket } from "./herdr.ts";
-import { createHerdrPage } from "./herdr-page.ts";
+import { createHerdrPage, SizeError } from "./herdr-page.ts";
 import { createHerdrStream } from "./herdr-stream.ts";
 import { exec } from "./exec.ts";
 import { createArgos } from "./argos.ts";
@@ -117,7 +118,9 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
   const auth: Auth = createAuth(env);
   const token = randomBytes(24).toString("base64url");
   const jobs = createJobs(env);
-  const herdr = createHerdr();
+  // binário do herdr: lido uma vez, e o painel não sobe com um caminho que não executa
+  const herdrBin = resolveHerdrBin(effectiveConfig(dir).get("HADES_HERDR_BIN"));
+  const herdr = createHerdr({ bin: herdrBin });
   const herdrSocket = createHerdrSocket();
   const herdrPage = createHerdrPage(env, herdr, herdrSocket);
   const herdrStream = createHerdrStream({ socket: herdrSocket, socketOf: herdrPage.socketOf });
@@ -150,7 +153,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     // o amostrador lê WORK_ROOT/<owner__repo>/locks: o pai da pasta de locks do env.sh
     root: env.locks ? dirname(dirname(env.locks)) : workRoot(process.env, home()),
   });
-  const orchestration = createOrchestration(env, () => core.configValues(env));
+  const orchestration = createOrchestration(env, () => core.configValues(env), herdrBin);
   const thanatos = createThanatosRoutes(env);
   const widget = createWidget({
     env, auth, config: () => core.configValues(env), panelPort: port, orchestration: () => orchestration.snapshot(),
@@ -661,6 +664,19 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
       const target = await herdrPage.input(body, remote);
       herdrStream.nudge(target.session, target.pane);
       return send(200, { ok: true });
+    }
+    if (path === "/api/herdr/size") {
+      try {
+        const done = await herdrPage.size(body, remote);
+        herdrStream.sized(done.session, done.pane, { cols: done.info.cols, rows: done.info.rows, pinned: done.info.size_pinned === true });
+        herdrStream.nudge(done.session, done.pane);
+        return send(200, { ok: true, session: done.session, pane: done.pane, cols: done.info.cols ?? null, rows: done.info.rows ?? null, sizePinned: done.info.size_pinned ?? null });
+      } catch (error) {
+        if (!(error instanceof SizeError)) throw error;
+        const refusal = send(error.status, { error: error.message, code: error.code });
+        if (error.retryAfterS !== undefined) refusal.headers.set("Retry-After", String(error.retryAfterS));
+        return refusal;
+      }
     }
     if (path === "/api/herdr/admin") return send(200, await herdrPage.admin(body, remote));
     if (path === "/api/herdr/session") return send(200, await herdrPage.sessionAct(body, remote));

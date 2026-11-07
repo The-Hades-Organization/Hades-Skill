@@ -1,13 +1,38 @@
 // herdr (multiplexador de agentes): as mesmas leituras do hades agent (herdr_agent, pane_from, agent_active).
 import { isObject, type Json, type JsonObject } from "./profile.ts";
+import { herdrBinFor } from "./config.ts";
+import { findStateDir } from "./kit.ts";
 import { run, which, type RunResult } from "./proc.ts";
 
 export const HERDR_CALL_TIMEOUT_MS = 60_000;
 /** Folga do processo sobre o `--timeout` do herdr agent wait: o herdr é quem devolve o veredito. */
 const WAIT_GRACE_MS = 15_000;
 
+const BIN_INVALID_STATUS = 127;
+
+/**
+ * Binário do herdr: o mesmo do painel (HADES_HERDR_BIN da configuração efetiva; vazio segue o PATH). Valor inválido
+ * vira `error` em vez de cair no PATH em silêncio.
+ */
+export function herdrBin(): { bin: string; error?: string } {
+  try {
+    return { bin: herdrBinFor(findStateDir()) };
+  } catch (error) {
+    return { bin: "herdr", error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/** O binário do herdr existe (o configurado, ou o do PATH)? */
+export function herdrAvailable(): boolean {
+  const { bin, error } = herdrBin();
+  if (error !== undefined) return false;
+  return bin.startsWith("/") || which(bin) !== undefined; // caminho absoluto já foi conferido como executável pela resolução
+}
+
 export function herdr(args: string[], options: { cwd?: string; timeoutMs?: number; showStderr?: boolean } = {}): RunResult {
-  const result = run("herdr", args, { cwd: options.cwd, timeoutMs: options.timeoutMs ?? HERDR_CALL_TIMEOUT_MS });
+  const { bin, error } = herdrBin();
+  if (error !== undefined) return { status: BIN_INVALID_STATUS, stdout: "", stderr: error, timedOut: false };
+  const result = run(bin, args, { cwd: options.cwd, timeoutMs: options.timeoutMs ?? HERDR_CALL_TIMEOUT_MS });
   if (options.showStderr && result.stderr) process.stderr.write(result.stderr);
   return result;
 }
@@ -27,9 +52,24 @@ const SERVER_PROBE_TIMEOUT_MS = 5000;
 const SERVER_DOWN_PATTERN = /no herdr server is running|connection refused|(?:socket|\.sock)\b.*(?:no such file|not found|does not exist)/i;
 export const herdrServerDown = (stderr: string): boolean => SERVER_DOWN_PATTERN.test(stderr);
 
+/** O cliente é mais velho (ou mais novo) que o servidor: "client protocol 20 is older than server protocol 22". */
+const PROTOCOL_MISMATCH_PATTERN = /protocol_mismatch|client protocol \d+ is (?:older|newer) than server protocol/i;
+export const herdrProtocolMismatch = (output: string): boolean => PROTOCOL_MISMATCH_PATTERN.test(output);
+
+export type HerdrServerState = "ok" | "down" | "incompatible";
+
+/** Estado do servidor: respondendo, fora do ar, ou cliente de protocolo incompatível (o servidor pode estar no ar). */
+export function herdrServerState(): { state: HerdrServerState; bin: string; detail: string } {
+  const { bin } = herdrBin();
+  const probe = herdr(["api", "snapshot"], { timeoutMs: SERVER_PROBE_TIMEOUT_MS });
+  const detail = `${probe.stderr}\n${probe.stdout}`.trim();
+  if (probe.status === 0) return { state: "ok", bin, detail };
+  return { state: herdrProtocolMismatch(detail) ? "incompatible" : "down", bin, detail };
+}
+
 /** O servidor do herdr responde no socket? (`api snapshot` é só leitura.) */
 export function herdrServerResponds(): boolean {
-  return herdr(["api", "snapshot"], { timeoutMs: SERVER_PROBE_TIMEOUT_MS }).status === 0;
+  return herdrServerState().state === "ok";
 }
 
 function parse(text: string): Json | undefined {
@@ -70,7 +110,7 @@ export function paneInCwd(text: string, cwd: string): string {
 
 /** Agentes do `herdr agent list`; vazio se o herdr falta, falha ou devolve lixo. */
 export function listAgents(): JsonObject[] {
-  if (!which("herdr")) return [];
+  if (!herdrAvailable()) return [];
   const doc = parse(herdr(["agent", "list"]).stdout);
   const result = isObject(doc) ? doc.result : undefined;
   const agents = isObject(result) ? result.agents : undefined;
@@ -83,7 +123,7 @@ export function findAgent(name: string): JsonObject | undefined {
 
 /** Painéis do `herdr pane list`. */
 export function listPanes(): JsonObject[] {
-  if (!which("herdr")) return [];
+  if (!herdrAvailable()) return [];
   const doc = parse(herdr(["pane", "list"]).stdout);
   const result = isObject(doc) ? doc.result : undefined;
   const panes = isObject(result) ? result.panes : undefined;

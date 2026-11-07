@@ -76,7 +76,17 @@ export function effectiveConfig(dir: string, env: NodeJS.ProcessEnv = process.en
   return effective;
 }
 
-export const HEALTH_DEFAULT = "/health/ready";
+/**
+ * Herdr que painel e CLI chamam: HADES_HERDR_BIN da configuração efetiva de `dir` (ambiente > config.env > padrão do
+ * catálogo). Sem `dir` ou sem a chave, vale o `herdr` do PATH. A variável do ambiente vale mesmo sem catálogo na pasta.
+ */
+export function herdrBinFor(dir: string | undefined): string {
+  const fromEnv = process.env.HADES_HERDR_BIN;
+  if (fromEnv !== undefined || dir === undefined) return resolveHerdrBin(fromEnv);
+  return resolveHerdrBin(effectiveConfig(dir).get("HADES_HERDR_BIN"));
+}
+
+export const HEALTH_DEFAULT ="/health/ready";
 const HEALTH_PATH = /^\/[\w./~%?=&-]{0,200}$/;
 const HEALTH_SERVICE = /^[\w.-]{1,60}$/;
 

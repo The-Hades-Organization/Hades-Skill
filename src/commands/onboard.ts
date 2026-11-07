@@ -9,6 +9,7 @@ import { readText } from "../lib/fs.ts";
 import { coletaLigada } from "../lib/limites-aviso.ts";
 import { lerAmostras } from "../lib/limites-io.ts";
 import { devtunnelLoggedIn, ghToken, lingering, unitIs } from "../lib/checks.ts";
+import { herdrAvailable } from "../lib/herdr.ts";
 import { readCatalog, unitPrefix } from "../lib/config.ts";
 import { type BuiltFeature, NOT_VERIFIED, Onboard, type StepResult, onboardLine, onboardProgress, renderText } from "../lib/onboard.ts";
 import { EXIT, out, warn } from "../lib/output.ts";
@@ -89,6 +90,11 @@ export function firewallCommand(): string {
   return `libere ${net} -> host no seu firewall (nft/iptables)`;
 }
 
+/** $D/plugins.disabled com algum nome: o plugin do projeto está desligado e o front dele não sobe. */
+function projectPluginDisabled(): boolean {
+  return (readText(join(stateDir(), "plugins.disabled")) ?? "").split("\n").some((line) => line.trim() !== "");
+}
+
 type Check = (quick: boolean, hu: string) => string;
 
 const CHECKS: Record<string, Check> = {
@@ -101,6 +107,7 @@ const CHECKS: Record<string, Check> = {
   chat: () => (env("HADES_CHAT", "1") === "1" ? done : "na opcional, desligada (Configurações → Sessão Claude)"),
   remote_key: () => (fileHasContent(join(stateDir(), "panel", "remote.key")) ? done : pending),
   front_tunnel: (_quick, hu) => {
+    if (projectPluginDisabled()) return "na plugin do projeto desligado: não há front para publicar";
     if (env("HADES_RUN_TUNNEL", "0") !== "1") return "pendente HADES_RUN_TUNNEL desligado (padrão): ligue em Configurações → Subida";
     return unitIs(`${hu}-devtunnel`, "active") ? done : pending;
   },
@@ -128,7 +135,7 @@ const CHECKS: Record<string, Check> = {
     return ghToken() !== "" ? done : pending;
   },
   clickup: () => (fileHasContent(join(home(), ".claude", "clickup", "config.json")) ? done : pending),
-  herdr: () => (which("herdr") ? done : pending),
+  herdr: () => (herdrAvailable() ? done : pending),
   limites: () => {
     const medidas = lerAmostras().length;
     return coletaLigada(readText(claudeSettingsPath()), medidas) ? done : pending;

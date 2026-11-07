@@ -4,6 +4,19 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.27.1 — 2026-11-07
+
+Correção (pedido do dono, 07/11): três avisos falsos do `doctor` medidos na máquina do dono.
+
+- `herdr-servidor`: o doctor dizia "painel no ar sem servidor herdr" com o servidor no ar. Causa: sob o `env.sh` o PATH
+  começa pela pasta do node (`/usr/bin`), e o CLI chamava o herdr 0.8.2 do sistema (protocolo 20) contra o servidor
+  0.9.5 (protocolo 22), recebendo `protocol_mismatch`. `herdr()` passa a usar o binário do painel (`HADES_HERDR_BIN`,
+  vazio segue o PATH; valor inválido falha alto) e o doctor distingue servidor fora do ar de cliente incompatível.
+- `node_modules`: com o plugin do projeto desligado (`plugins.disabled`) ou sem `node-modules.sh` no `$D`, o item sai
+  "não se aplica"; a sugestão só nomeia script que existe.
+- Onboarding: o passo `front-tunnel` vira `na` com o plugin do projeto desligado (não há front para publicar).
+- Falta: `wait.ts`, `watch.ts`, `agent.ts`, `agent-registry.ts` e `panel/term.ts` ainda chamam `herdr` do PATH direto.
+
 ## 6.27.0 — 2026-11-07
 
 Capacidade nova (issue #81, etapa 2): guia de escrita da Hades e um checador dos padrões de texto de IA.

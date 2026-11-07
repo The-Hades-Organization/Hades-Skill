@@ -49,7 +49,7 @@ export interface CanvasLayout {
 interface Box { x: number; y: number; w: number; h: number }
 
 /** Índice espacial por grade para achar sobreposição sem varrer todos os nós a cada candidato. */
-class Occupancy {
+export class Occupancy {
   private readonly cells = new Map<string, Box[]>();
   private readonly large: Box[] = [];
   minX = Infinity;

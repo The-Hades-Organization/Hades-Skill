@@ -46,14 +46,40 @@ interface CanvasMenuProps<Ctx> {
   onClose(): void;
   /** Falha ao montar o menu ou ao rodar um comando; sem isso a falha só vai ao console. */
   onError?(message: string): void;
+  /** Menu do vazio enxuto: só estes comandos (já agrupados para a tela) e, no fim, "Mais N comandos…" que abre a paleta. Sem isso, todos. */
+  essentials?: readonly CanvasEssential[];
 }
 
-const MENU_WIDTH_PX = 264;
+/** Um comando que fica no menu enxuto do vazio e o grupo com que aparece nele. */
+interface CanvasEssential {
+  id: string;
+  group: string;
+}
+
+const MENU_WIDTH_PX = 300;
 const ROW_PX = 32;
 const GROUP_PX = 24;
 const PADDING_PX = 8;
 const EDGE_PX = 8;
+const REASON_PX = 14;
 const ACTION_GROUP = "Agente";
+const MORE_GROUP = "Mais";
+const PALETTE_COMMAND = "palette";
+/** O que o dono mais faz com o clique no vazio: criar aqui, arrumar, enquadrar, voltar ao que pede ele. O resto está na paleta. */
+const CANVAS_ESSENTIALS: readonly CanvasEssential[] = [
+  { id: "unit:sketch", group: "Criar aqui" },
+  { id: "term:tool", group: "Criar aqui" },
+  { id: "area:create", group: "Criar aqui" },
+  { id: "tidy:arrange", group: "Arrumar" },
+  { id: "layout:toggle", group: "Arrumar" },
+  { id: "fit", group: "Ver" },
+  { id: "view:list", group: "Ver" },
+  { id: "view:save", group: "Ver" },
+  { id: "owner:next", group: "Ir para" },
+  { id: "search:clear", group: "Limpar" },
+  { id: "filters:clear", group: "Limpar" },
+  { id: "help", group: "Ajuda" },
+];
 const EMPTY_LABEL = "Nenhuma ação aqui";
 const ITEM_ID_PREFIX = "argos-menu-item-";
 
@@ -94,7 +120,8 @@ function placeMenu(at: { x: number; y: number }, view: Viewport, size: Viewport)
 function menuSize(items: readonly MenuItem[], view: Viewport): Viewport {
   const groups = new Set(items.map((i) => i.group)).size;
   const rows = Math.max(1, items.length);
-  return { w: MENU_WIDTH_PX, h: Math.min(rows * ROW_PX + groups * GROUP_PX + 2 * PADDING_PX, view.h - 2 * EDGE_PX) };
+  const reasons = items.filter((i) => i.disabled && i.reason).length;
+  return { w: MENU_WIDTH_PX, h: Math.min(rows * ROW_PX + reasons * REASON_PX + groups * GROUP_PX + 2 * PADDING_PX, view.h - 2 * EDGE_PX) };
 }
 
 function makeArgosCanvasMenu() {
@@ -128,6 +155,22 @@ function makeArgosCanvasMenu() {
     const actions = A.actionsFor(target.node, deps.actionCtx ?? {}).map(fromAction);
     const commands = target.nodeType ? deps.registry.nodeMenu(target.nodeType, deps.commandCtx).map(fromCommand) : [];
     return [...actions, ...commands];
+  }
+
+  /**
+   * Menu enxuto do vazio: os comandos de `essentials` que valem agora (na ordem da lista, no grupo dela) e, se a paleta existe,
+   * o item "Mais N comandos…" com o que ficou de fora. Um comando fora da lista só some daqui: continua na paleta.
+   */
+  function curateCanvasItems<Ctx>(items: readonly MenuItem[], essentials: readonly CanvasEssential[], registry: CommandRegistry<Ctx>): MenuItem[] {
+    const byId = new Map(items.map((i) => [i.id, i]));
+    const kept = essentials.flatMap(({ id, group }) => {
+      const item = byId.get(`command:${id}`);
+      return item ? [{ ...item, group }] : [];
+    });
+    if (!registry.get(PALETTE_COMMAND)) return kept;
+    const hidden = items.length - kept.length;
+    const more: MenuItem = { id: `command:${PALETTE_COMMAND}`, kind: "command", label: hidden > 0 ? `Mais ${hidden} comandos…` : "Buscar um comando…", hint: "a paleta tem todos os comandos", group: MORE_GROUP, shortcut: "Ctrl+K", disabled: false, dangerous: false };
+    return [...kept, more];
   }
 
   function safeItems<Ctx>(target: MenuTarget, deps: { registry: CommandRegistry<Ctx>; commandCtx: Ctx; actionCtx?: ActionContext }): { items: MenuItem[]; error?: string } {
@@ -173,7 +216,10 @@ function makeArgosCanvasMenu() {
         className: `${ROW} ${active ? "bg-accent" : ""} ${item.disabled ? "opacity-50 cursor-default" : ""} ${item.dangerous ? "text-bad" : ""}`,
         onPointerMove: () => ui.onActive(index), onClick: () => ui.onPick(item),
       },
-      h("span", { className: "flex-1 truncate" }, item.label),
+      // o motivo de um item que não vale agora fica à vista (não só no title): o dono vê o que falta para valer
+      h("span", { className: "flex min-w-0 flex-1 flex-col py-1" },
+        h("span", { className: "truncate" }, item.label),
+        item.disabled && item.reason ? h("span", { className: "t-meta truncate text-muted-foreground" }, item.reason) : null),
       item.shortcut ? h("span", { className: "t-meta text-muted-foreground" }, item.shortcut) : null));
     });
     if (ui.items.length === 0) rows.push(h("div", { key: "empty", role: "menuitem", "aria-disabled": true, className: `${ROW} cursor-default opacity-50` }, EMPTY_LABEL));
@@ -186,7 +232,9 @@ function makeArgosCanvasMenu() {
   function CanvasMenu<Ctx>(props: CanvasMenuProps<Ctx>): ReactNode {
     const { target, registry, commandCtx, onClose } = props;
     // o menu do tipo cita comando que não existe: o menu abre só com o que dá (as ações do agente) e o erro é avisado
-    const { items, error } = safeItems(target, { registry, commandCtx, ...(props.actionCtx ? { actionCtx: props.actionCtx } : {}) });
+    const safe = safeItems(target, { registry, commandCtx, ...(props.actionCtx ? { actionCtx: props.actionCtx } : {}) });
+    const error = safe.error;
+    const items = target.kind === "canvas" && props.essentials ? curateCanvasItems(safe.items, props.essentials, registry) : safe.items;
     React.useEffect(() => {
       if (error !== undefined) (props.onError ?? console.warn)(error);
     }, [error]);
@@ -246,9 +294,9 @@ function makeArgosCanvasMenu() {
     });
   }
 
-  return { CanvasMenu, menuItems, safeItems, menuKey, placeMenu, menuSize, renderMenu, firstEnabled, EMPTY_LABEL, ACTION_GROUP };
+  return { CanvasMenu, menuItems, safeItems, curateCanvasItems, CANVAS_ESSENTIALS, menuKey, placeMenu, menuSize, renderMenu, firstEnabled, EMPTY_LABEL, ACTION_GROUP };
 }
 
 type ArgosCanvasMenuApi = ReturnType<typeof makeArgosCanvasMenu>;
 (globalThis as unknown as { ArgosCanvasMenu: ArgosCanvasMenuApi }).ArgosCanvasMenu = makeArgosCanvasMenu();
-export type { ArgosCanvasMenuApi, CanvasMenuProps, MenuItem, MenuMove, MenuTarget };
+export type { ArgosCanvasMenuApi, CanvasEssential, CanvasMenuProps, MenuItem, MenuMove, MenuTarget };

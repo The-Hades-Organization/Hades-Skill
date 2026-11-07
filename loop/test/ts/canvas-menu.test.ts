@@ -20,6 +20,8 @@ interface MenuApi {
   placeMenu(at: { x: number; y: number }, view: { w: number; h: number }, size: { w: number; h: number }): { x: number; y: number };
   menuSize(items: readonly Item[], view: { w: number; h: number }): { w: number; h: number };
   firstEnabled(items: readonly Item[]): number;
+  curateCanvasItems(items: readonly Item[], essentials: readonly { id: string; group: string }[], registry: unknown): Item[];
+  CANVAS_ESSENTIALS: readonly { id: string; group: string }[];
   EMPTY_LABEL: string;
 }
 interface El { type: unknown; props: Record<string, unknown>; children: unknown[] }
@@ -195,6 +197,55 @@ describe("canvas-menu: itens", () => {
   });
 });
 
+describe("canvas-menu: menu enxuto do vazio", () => {
+  const essentials = [{ id: "only-canvas", group: "Criar aqui" }, { id: "focus", group: "Ver" }, { id: "ausente", group: "Ver" }];
+  const all = (reg = registry()) => Menu.menuItems({ kind: "canvas" }, { registry: reg, commandCtx: ctxOf() });
+  const withPalette = () => {
+    const r = registry();
+    r.register(cmd("palette", { surfaces: [], shortcut: "mod+p" }));
+    return r;
+  };
+
+  test("dado a lista de essenciais, então o menu leva só eles, na ordem da lista e no grupo dela", () => {
+    const reg = withPalette();
+    const items = Menu.curateCanvasItems(all(reg), essentials, reg);
+    expect(items.slice(0, 2).map((i) => [i.id, i.group])).toEqual([["command:only-canvas", "Criar aqui"], ["command:focus", "Ver"]]);
+  });
+
+  test("dado comando essencial que não existe ou não vale agora, então ele não aparece", () => {
+    const reg = withPalette();
+    const ids = Menu.curateCanvasItems(all(reg), [...essentials, { id: "when-allowed", group: "Ver" }], reg).map((i) => i.id);
+    expect(ids).not.toContain("command:ausente");
+    expect(Menu.curateCanvasItems(Menu.menuItems({ kind: "canvas" }, { registry: reg, commandCtx: ctxOf({ allow: false }) }), [{ id: "when-allowed", group: "Ver" }], reg).map((i) => i.id)).toEqual(["command:palette"]);
+  });
+
+  test("dado comandos fora da lista, então o último item diz quantos ficaram na paleta e abre a paleta", () => {
+    const reg = withPalette();
+    const items = Menu.curateCanvasItems(all(reg), essentials, reg);
+    const more = items[items.length - 1] as Item;
+    expect([more.id, more.label, more.group, more.shortcut]).toEqual(["command:palette", "Mais 1 comandos…", "Mais", "Ctrl+K"]);
+  });
+
+  test("dado registro sem paleta, então não há item Mais (nada para abrir)", () => {
+    const items = Menu.curateCanvasItems(all(), essentials, registry());
+    expect(items.map((i) => i.id)).toEqual(["command:only-canvas", "command:focus"]);
+  });
+
+  test("dado a lista real, então todo id dela é de comando que a página registra para o menu do vazio", () => {
+    const ids = Menu.CANVAS_ESSENTIALS.map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toContain("tidy:arrange");
+  });
+});
+
+describe("canvas-menu: motivo do item desabilitado", () => {
+  test("dado item que não vale agora, então o motivo aparece como texto da linha, não só no title", () => {
+    const items = Menu.menuItems({ kind: "node", node: agent() }, { registry: registry(), commandCtx: ctxOf() });
+    const approve = items.find((i) => i.id === "action:approve_permission") as Item;
+    expect(Menu.menuSize([approve], VIEW).h).toBeGreaterThan(Menu.menuSize([{ ...approve, reason: undefined } as Item], VIEW).h);
+  });
+});
+
 describe("canvas-menu: teclado", () => {
   const item = (id: string, disabled = false): Item => ({ id, kind: "action", label: id, hint: "", group: "g", disabled, dangerous: false });
   const list = [item("a", true), item("b"), item("c")];
@@ -284,6 +335,17 @@ describe("canvas-menu: componente", () => {
     return { m: mount(Menu.CanvasMenu, props), seen, ctx };
   }
   const nodeTarget: Target = { kind: "node", node: agent(), nodeType: agentType(["focus"]) };
+
+  test("dado o menu aberto com essentials, então só os essenciais aparecem e o item Mais roda a paleta", () => {
+    const reg = registry();
+    reg.register(cmd("palette", { surfaces: [], shortcut: "mod+p" }));
+    const ctx = ctxOf();
+    const { m } = open({ kind: "canvas" }, { commandCtx: ctx, essentials: [{ id: "focus", group: "Ver" }] }, reg);
+    press(m.tree, "End");
+    m.settle();
+    press(m.tree, "Enter");
+    expect(ctx.ran).toEqual(["palette"]);
+  });
 
   test("dado nó, então o menu tem papel, nome acessível, item ativo e cabeçalhos por grupo", () => {
     const { m } = open(nodeTarget);

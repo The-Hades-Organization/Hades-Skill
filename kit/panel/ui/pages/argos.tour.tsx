@@ -15,7 +15,7 @@ HadesCore.registerTour('argos', {
     {
       id: 'argos-estado',
       title: 'O estado',
-      body: 'A ilha de cima à esquerda resume o que o grafo mostra: quantos agentes, o que pede você (permissão pendente, parados) e a contagem de nós. No celular ela traz o botão que abre a navegação.',
+      body: 'A ilha de cima à esquerda diz o que está acontecendo, em chips: quantos esperam por você (laranja), quantos estão parados (vermelho) e quantos trabalham (verde). Toque num chip para filtrar e ir ao primeiro. No celular ela traz o botão que abre a navegação.',
       ref: 'argos.md › A página',
       side: 'bottom',
     },
@@ -48,6 +48,14 @@ HadesCore.registerTour('argos', {
       ref: 'argos.md › Desfazer e refazer',
       fallback: 'O grupo da câmera aparece quando o canvas está carregado e os controles à vista. Shift+F mostra os controles.',
       side: 'left',
+    },
+    {
+      id: 'argos-organizar',
+      title: 'Organizar o canvas',
+      body: 'Shift+O arruma tudo por equipes: cada orquestrador com as notas em cima e os recrutas embaixo, sem nada sobreposto, e a câmera enquadra o resultado. Um Ctrl+Z desfaz o arranjo inteiro. O botão direito no fundo do canvas abre um menu curto com o que mais se faz ali (criar aqui, arrumar, enquadrar) e "Mais comandos…" para a paleta.',
+      ref: 'argos.md › Layout',
+      fallback: 'Organizar e o menu do fundo valem com o canvas carregado: Shift+O, ou Ctrl+K e "Organizar".',
+      side: 'bottom',
     },
     {
       id: 'argos-minimapa',

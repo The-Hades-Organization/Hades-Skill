@@ -1,5 +1,5 @@
 // Notificações do Hades: desktop (notify-send; osascript no macOS) e celular (ntfy). Estado em $D (o install.sh nunca toca): ntfy.topic
-// (600, o tópico é o segredo do canal do celular) e notify/ (history.jsonl, dedupe.json, heartbeat.json, agents/).
+// (600, o tópico é o segredo do canal do celular) e notify/ (history.jsonl, dedupe.json, pr-marks.json, heartbeat.json, agents/).
 // Configurações: HADES_NOTIFY* do config.tsv; variável exportada no shell vence o config.env.
 import { createHash, randomBytes } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
@@ -44,15 +44,16 @@ export const EVENTS: Record<string, string> = {
 /** Nome que a tela mostra para cada tipo (o título da notificação é o curto, de EVENTS). */
 export const EVENT_LABELS: Record<string, string> = {
   gate: "Gate, build ou teste falhou",
-  pr: "Review novo nas PRs",
-  ci: "CI vermelho nas PRs",
+  pr: "Review novo",
+  ci: "CI vermelho",
   test: "Notificação de teste (botão de testar o envio)",
 };
 /** Eventos com interruptor HADES_NOTIFY_EV_*: o de teste ignora os switches de propósito (botão de testar o envio). */
 export const SWITCHABLE_EVENTS = Object.keys(EVENTS).filter((event) => event !== "test");
-// O CI nasceu dentro do `pr`: o padrão `pr` do tipo dele segue o canal do review, então quem já desligou
-// HADES_NOTIFY_EV_PR continua sem aviso de CI (o config.env nunca guarda valor igual ao padrão).
+// O CI nasceu dentro do `pr` e o padrão dele era seguir o canal do review. Hoje cada tipo tem o interruptor próprio (padrão
+// both), mas o valor `pr` já gravado por quem instalou continua aceito e segue o canal do review: o contrato só cresce.
 const FOLLOWS_PR = "pr";
+export const WHY_REPEATED = "repetido na janela";
 const evKey = (event: string): string => `HADES_NOTIFY_EV_${event.toUpperCase()}`;
 
 export interface DedupeEntry {
@@ -82,17 +83,22 @@ export class NotifyContext {
   readonly topicFile: string;
   readonly history: string;
   readonly dedupe: string;
+  readonly marks: string;
   readonly beat: string;
   readonly lockFile: string;
   readonly hu: string;
   readonly unit: string;
+  /** Relógio em ms desde a época; o teste injeta o dele para avançar além da janela do dedupe. */
+  readonly now: () => number;
 
-  constructor(dir: string) {
+  constructor(dir: string, now: () => number = Date.now) {
     this.dir = dir;
+    this.now = now;
     this.state = join(dir, "notify");
     this.topicFile = join(dir, "ntfy.topic");
     this.history = join(this.state, "history.jsonl");
     this.dedupe = join(this.state, "dedupe.json");
+    this.marks = join(this.state, "pr-marks.json");
     this.beat = join(this.state, "heartbeat.json");
     this.lockFile = join(this.state, ".lock");
     this.hu = unitPrefix(dir);
@@ -125,7 +131,7 @@ export class NotifyContext {
     return exported !== undefined && exported !== (effectiveConfig(this.dir, {}).get(key) ?? "");
   }
 
-  quietNow(now: Date = new Date()): boolean {
+  quietNow(now: Date = new Date(this.now())): boolean {
     const m = /^(\d\d):(\d\d)-(\d\d):(\d\d)$/.exec(this.cfg("HADES_NOTIFY_QUIET"));
     if (!m) return false;
     const from = Number(m[1]) * 60 + Number(m[2]);
@@ -277,8 +283,8 @@ export interface NotifyOptions {
 }
 
 const isSeverity = (value: string): value is Severity => value in SEVERITIES;
-const hhmm = (): string => {
-  const now = new Date();
+const hhmm = (nowMs: number): string => {
+  const now = new Date(nowMs);
   return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 };
 
@@ -298,7 +304,7 @@ export async function notify(ctx: NotifyContext, event: string, severity: string
   const wait = ctx.cint("HADES_NOTIFY_LOCK_WAIT_S", DEFAULT_LOCK_WAIT_S);
   // A rede fica fora do lock: reserva o dedupe, solta, envia e volta ao lock só para gravar o histórico.
   const reserved = await lockedOrBusy(ctx, async () => {
-    const now = Date.now() / 1000;
+    const now = ctx.now() / 1000;
     const stored = jload<Record<string, DedupeEntry>>(ctx.dedupe, {});
     const dedupe = Object.fromEntries(Object.entries(stored).filter(([, v]) => now - (v.ts ?? 0) < DEDUPE_TTL_S));
     const old = dedupe[key];
@@ -308,13 +314,14 @@ export async function notify(ctx: NotifyContext, event: string, severity: string
     return now;
   }, wait);
   if (reserved === BUSY) return { sent: false, why: "lock do notify ocupado" };
-  if (reserved === undefined) return { sent: false, why: "repetido na janela" };
+  if (reserved === undefined) return { sent: false, why: WHY_REPEATED };
   const channel = test ? "both" : ctx.eventChannels(event);
   const wantDesktop = channel === "both" || channel === "desktop";
   const wantPhone = channel === "both" || channel === "phone";
   const channels: Channels = {};
   const title = `Hades · ${EVENTS[event] ?? event}`;
-  const body = obj !== event ? `${obj}: ${text} (${hhmm()})` : `${text} (${hhmm()})`;
+  const clockText = hhmm(ctx.now());
+  const body = obj !== event ? `${obj}: ${text} (${clockText})` : `${text} (${clockText})`;
   if (wantDesktop) channels.desktop = ctx.cfg("HADES_NOTIFY_DESKTOP") === "1" ? sendDesktop(ctx, title, body, sev) : "desligado";
   if (wantPhone) {
     if (ctx.cfg("HADES_NOTIFY_NTFY") !== "1") channels.phone = "desligado";

@@ -4,6 +4,27 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.32.0 — 2026-11-07
+
+Correção com opção nova (#45, unidade notify-dedupe): CI vermelho e review novo avisam uma vez por evento, não uma vez
+por janela de tempo.
+
+- Identidade do aviso: CI = PR + head + conjunto de checks que falharam; review = PR + id do review (ou `submittedAt`) +
+  comentários top-level por id. Responder ou resolver thread não é review novo; rerun que falha nos mesmos checks não
+  repete; push novo que falha avisa.
+- As marcas ficam em `$D/notify/pr-marks.json` (`src/lib/notify-marks.ts`, decisão pura em `planPrNotices`). Não expiram
+  por `HADES_NOTIFY_DEDUPE_MIN` nem somem no `forget`. A de CI zera quando o head muda; a da PR some quando ela sai da
+  lista do coletor (fechou ou mergeou), com tolerância de 1 h para falha passageira da busca.
+- Interruptores "CI vermelho" e "Review novo" independentes: `HADES_NOTIFY_EV_CI` passa ao padrão `both`. O valor `pr`
+  já gravado segue aceito e segue o canal do review. Mudança de comportamento: quem só tinha desligado `EV_PR` passa a
+  receber CI vermelho (era o defeito: desligar o review calava o CI).
+- Lembrete opcional `HADES_NOTIFY_CI_REMIND_H` (padrão 0, desligado): "Lembrete: segue vermelho há N h (não é falha nova)".
+- `failing: []` (rerun pendente) deixou de contar como CI vermelho.
+- Teste de regressão com relógio injetado além da janela (`loop/test/ts/notify-dedupe.test.ts`); `NotifyContext` aceita
+  o relógio.
+- Fica de fora: dedupe entre instâncias do mesmo repositório (documentado em `reference/notify.md`); o seletor segmentado
+  do CI vermelho corta o último rótulo em 360 px (já cortava antes).
+
 ## 6.31.0 — 2026-11-07
 
 Capacidade nova (unidade erros-humanos): toda falha visível ao dono diz o que aconteceu, por quê, o que fazer e onde

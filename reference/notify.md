@@ -8,10 +8,10 @@ Notificações (`HADES_NOTIFY*`, `reference/config.md`). Nomes de unit, slice, p
 | Peça | O que é |
 |---|---|
 | `kit/notify.sh` | CLI: `send <evento> <info\|warn\|error> <texto> [--obj NOME] [--state S]`, `test`, `apply`, `topic [rotate]`, `status` |
-| `hades notify` | a CLI (o painel chama este caminho; `kit/notify.sh` é o shim); a lógica está em `src/commands/notify.ts`, `src/lib/notify.ts` (envio, dedupe, histórico) e `src/lib/notify-watch.ts` (o vigia) |
+| `hades notify` | a CLI (o painel chama este caminho; `kit/notify.sh` é o shim); a lógica está em `src/commands/notify.ts`, `src/lib/notify.ts` (envio, dedupe, histórico), `src/lib/notify-marks.ts` (identidade dos avisos de PR) e `src/lib/notify-watch.ts` (o vigia) |
 | unit `hds-notify` (no macOS, o serviço `com.hades.hds.notify` do launchd, `reference/adr/0001-gerenciador-de-servico.md`) | vigia persistente, fora do slice (liga com `HADES_NOTIFY=1`; o painel aplica ao salvar, na linha de comando rode `hades notify apply`). Sobe com o login; com a máquina, se o linger estiver ligado (Painel → início automático = `boot`) |
 | `$D/ntfy.topic` | tópico secreto do ntfy (600). Nunca no `config.env` nem no export de configurações |
-| `$D/notify/` | `history.jsonl` (50 últimas), `dedupe.json`, `heartbeat.json`, `agents/` (estado do `hades watch` do vigia) |
+| `$D/notify/` | `history.jsonl` (50 últimas), `dedupe.json`, `pr-marks.json` (o que já foi avisado de cada PR), `heartbeat.json`, `agents/` (estado do `hades watch` do vigia) |
 
 **Lock.** `dedupe.json` e `history.jsonl` mudam sob o `flock` de `$D/notify/.lock`, que nunca fica preso durante a rede:
 o `notify` reserva o dedupe sob o lock, solta, envia e volta ao lock só para gravar o histórico. Seções do mesmo
@@ -35,9 +35,12 @@ ciclo.
 
 ## Eventos
 
-Cada um tem `HADES_NOTIFY_EV_<X>` = `off | desktop | phone | both` (o `CI` aceita também `pr`, o padrão: segue o canal do review).
+Cada um tem `HADES_NOTIFY_EV_<X>` = `off | desktop | phone | both` (o `CI` aceita também `pr`: segue o canal do review).
 O que a tela desliga é exatamente o evento da tabela: falha de teste, build e gate saem todas como `gate`; CI vermelho sai
-como `ci` e review novo como `pr`. Quem já tinha `HADES_NOTIFY_EV_PR=off` continua sem aviso de CI (o `ci` padrão segue o `pr`).
+como `ci` ("CI vermelho") e review novo como `pr` ("Review novo"), e os dois interruptores são independentes: desligar um não
+cala o outro. O `ci` nasceu com o padrão `pr`, que o fazia seguir o review; o padrão agora é `both`. Quem **gravou** `HADES_NOTIFY_EV_CI=pr`
+continua seguindo o review (o valor segue aceito, contrato só cresce). Quem só tinha `HADES_NOTIFY_EV_PR=off`, sem valor próprio de CI,
+passa a receber o aviso de CI: para manter o silêncio, desligue o "CI vermelho" na tela.
 `test` é só a notificação do botão de testar o envio: ignora os interruptores e não aparece entre os tipos desligáveis.
 Todo emissor usa um evento desta tabela (um teste confere o código); evento fora dela valeria sempre `both`.
 Variável `HADES_NOTIFY_EV_*` exportada no ambiente do painel com valor diferente do `config.env` vence a configuração: a tela
@@ -49,8 +52,8 @@ e o `watch` relê o `config.env` a cada ciclo.
 | `gate` ("Gate, build ou teste falhou") | `done` com `rc≠0` (gate, build, test) no `gate-journal.tsv`, ou espera na fila ≥ `HADES_NOTIFY_GATE_WAIT_MIN`, ou gate rodando além do estouro (`HADES_GATE_OVERRUN_MIN`, `HADES_GATE_OVERRUN_FACTOR`) | `hades gate-lock` |
 | `restart` | unit `failed`, ou NRestarts subiu ≥ `HADES_NOTIFY_RESTARTS` em 10 min | `systemctl --user show` |
 | `health` | `/health/ready` ≠ 200 em 2 checagens, serviço habilitado e ativo (Hades pausado não avisa) | HTTP local |
-| `pr` | review novo (ou comentário a tratar) nas minhas PRs | `hades pr-loop-state --json` |
-| `ci` | CI vermelho nas minhas PRs | `hades pr-loop-state --json` |
+| `pr` | review novo (ou comentário a tratar) nas minhas PRs, uma vez por review ou comentário novo (§Identidade dos avisos de PR) | `hades pr-loop-state --json` |
+| `ci` | CI vermelho nas minhas PRs, uma vez por head e conjunto de checks que falharam; lembrete opcional (§Identidade dos avisos de PR) | `hades pr-loop-state --json` |
 | `agent` | `STALLED`, `QUESTION`, `DONE`, `BUDGET`, `CTX-OVER`, `MODEL-MISMATCH`, `DISMISSED` (informativo, como o `DONE`), `DISMISS-READY`, `DISMISS-HELD` | `hades watch` com `HADES_WATCH_STATE` próprio |
 | `snapshot` | snapshot pre-update falhou | `update.sh` chama `notify.sh send` |
 | `doctor` | item em erro do `doctor.sh --quick --json` | doctor |
@@ -60,11 +63,37 @@ e o `watch` relê o `config.env` a cada ciclo.
 ## Dedupe, silêncio e custo
 
 - Dedupe por evento + objeto: repete só se o estado mudou ou passou `HADES_NOTIFY_DEDUPE_MIN`. Problema que some zera a
-  marca: o próximo aviso sai na hora.
+  marca: o próximo aviso sai na hora. Vale para gate, serviços, doctor e agentes. **CI vermelho e review novo não usam a
+  janela**: a identidade do evento decide (seção abaixo).
 - `HADES_NOTIFY_QUIET=22:00-07:00`: o celular não recebe; o desktop sempre mostra. `notify.sh test` ignora silêncio e
   switches (respeita só os canais ligados).
 - Intervalos: `HADES_NOTIFY_EVERY` (locais, 30 s), `_PRS_EVERY` (GitHub, 300 s), `_AGENTS_EVERY` (120 s; o passo do `hades watch` que o vigia dispara, não o intervalo do vigia), `_DOCTOR_EVERY`.
   Evento `off` não gasta a checagem dele. O vigia relê o `config.env` a cada ciclo.
+
+## Identidade dos avisos de PR
+
+Estratégia de dedupe do `ci` e do `pr` (`src/lib/notify-marks.ts`, estado em `$D/notify/pr-marks.json`, por número de PR):
+
+| Evento | Identidade | Avisa quando |
+|---|---|---|
+| `ci` | PR + head + conjunto de checks que falharam (`checks.failing[].name`) | head novo que falha, ou check que ainda não tinha avisado nesse head |
+| `pr` | PR + `lastReviewAt` + id dos comentários top-level vivos | review mais novo que o avisado, ou comentário top-level com id novo |
+
+- A marca **não expira pela janela** do dedupe e **não passa pelo `forget`**. Rerun que fica pendente e falha de novo nos mesmos
+  checks do mesmo head não avisa (a marca guarda a união dos checks já avisados no head). Responder ou resolver thread muda a
+  contagem de threads vivas, não o review: não avisa. Resolver um comentário top-level também não (só id novo conta).
+- Expiração: a marca do CI some quando o head muda (ela é do head); a marca da PR some quando ela sai da lista do coletor
+  (fechou, mergeou) por mais de 1 h (tolerância para uma busca do GitHub que falha de passagem). A marca de review **não**
+  zera com push: o review é o mesmo depois do push, e zerar reavisaria. Diverge, só para review, de "expira quando o head muda".
+- A marca só é gravada se o aviso saiu ou já tinha saído na janela. Tipo desligado (`off`) ou lock ocupado não marca: ligar o
+  tipo depois ainda avisa o que está pendente.
+- `checks.failing` do coletor é uma lista de checks. Lista vazia é CI verde ou pendente, nunca "CI vermelho".
+- **Lembrete** (`HADES_NOTIFY_CI_REMIND_H`, padrão 0 = desligado): com N > 0, CI ainda vermelho no mesmo head depois de N horas
+  do último aviso manda "Lembrete: segue vermelho há X h (não é falha nova)" e repete a cada N horas, pelo tipo `ci`.
+- **Várias instâncias** (`hds_<id>-notify`): a fonte `prs` roda em todas, com o `cwd` da própria instância (`HADES_WT`); o
+  coletor lê o repositório desse clone. Instâncias de projetos diferentes olham repositórios diferentes e não se repetem. O dedupe
+  e as marcas são **por instância** (estado em `$D`, que o contrato proíbe compartilhar): duas instâncias apontando para o
+  **mesmo repositório** avisam em dobro. Para um aviso só, desligue o `ci` e o `pr` numa delas.
 
 ## Armadilhas
 

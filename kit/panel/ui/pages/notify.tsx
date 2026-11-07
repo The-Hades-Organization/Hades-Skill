@@ -1,6 +1,6 @@
 /* Página Notificações (#/notify): usa a base (ui/app.js) pelo HadesCore e se registra pelo registerPage dela. */
 (() => {
-const { useState, useEffect, useRef, useCallback, I, cn, getJSON, Button, Dot, Card, CardHeader, CardContent, Mono, Empty,
+const { useState, useEffect, useRef, useCallback, I, cn, getJSON, ErroExplicado, Button, Dot, Card, CardHeader, CardContent, Mono, Empty,
   LinhaDeEstado, Loading } = HadesCore;
 
 // ================================================================== notificações (notify.sh)
@@ -32,19 +32,14 @@ function Linha({ nome, kind, estado, children, ...rest }) {
 
 function Notify() {
   const [st, setSt] = useState(null);
-  const [err, setErr] = useState(false);
+  const [err, setErr] = useState(null);
   // o que já estava na lista ao abrir não anima; só o que chega depois entra (sem empurrar quem está lendo)
   const visto = useRef(null);
-  const load = useCallback(() => getJSON('/api/notify').then((r) => { setSt(r); setErr(false); }).catch(() => setErr(true)), []);
+  const load = useCallback(() => getJSON('/api/notify').then((r) => { setSt(r); setErr(null); }).catch((e) => setErr(e)), []);
   useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, [load]);
   const chave = (h) => `${h.ts}|${h.event}|${h.obj}`;
   useEffect(() => { if (st) visto.current = new Set([...(visto.current || []), ...st.history.map(chave)]); }, [st]);
-  if (!st) return err ? <Empty icon={I.CircleX} title="Não consegui ler o vigia.">
-    <span className="inline-flex flex-wrap items-center gap-3">
-      Sem resposta de /api/notify.
-      <Button size="xs" variant="outline" icon={I.RefreshCw} onClick={load}>Tentar de novo</Button>
-    </span>
-  </Empty> : <Loading />;
+  if (!st) return err ? <ErroExplicado error={err} title="Não consegui ler o vigia" onRetry={load} /> : <Loading />;
   const on = st.enabled && st.unitState === 'active';
   const fontes = Object.entries(st.sources || {}).filter(([, v]) => v.err);
   const unit = st.unit || 'hds-notify';

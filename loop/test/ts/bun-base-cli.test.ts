@@ -2,6 +2,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
+import { messageOfCliFailure } from "../../../src/lib/human-errors.ts";
 import { BUN, Rig, SKILL } from "./lib/rig";
 
 const r = new Rig().setup();
@@ -16,7 +17,8 @@ const depNeed = () => r.X(["bash", "-c", 'HADES_LIB_BUN_ONLY=1 source "$2"; dep_
 describe("bun-base-cli", () => {
   test("dep_need (bash) dá a mesma mensagem e o mesmo código da CLI", () => {
     const cli = r.X([BUN, CLI, "deps", "need", "herdr"], { merge: true, env: { PATH: OB } }), sh = depNeed();
-    expect(`${sh.out.replace(/\n$/, "")} ${sh.rc}`).toBe(`${cli.out.replace(/\n$/, "")} 69`);
+    // a CLI acrescenta o bloco Por quê/O que fazer (renderCli); o bash só tem a mensagem, então comparamos a mensagem
+    expect(`${sh.out.replace(/\n$/, "")} ${sh.rc}`).toBe(`${messageOfCliFailure(cli.out)} 69`);
   });
   test("hades_ts sem Bun (instance list): sai 69 com a instrução do registro", () => {
     const o = r.X(["bash", "-c", 'HADES_LIB_BUN_ONLY=1 source "$2"; hades_ts instance list', "_", SKILL, LIB], { merge: true, env: { PATH: NB, HADES_BUN: "" } });

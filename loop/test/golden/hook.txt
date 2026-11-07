@@ -1,20 +1,31 @@
-nx-test-cru	rc=2	gate-lock: test/lint/build fora da fila de gate. Embrulhe em ~/.claude/skills/hades/kit/ga
+nx-test-cru	rc=2	gate-lock: test/lint/build rodando fora da fila de gate.
+  Por quê:                Esses c
 nx-test-na-fila	rc=0	
 npm-lint-na-fila	rc=0	
-npm-build-cru	rc=2	gate-lock: test/lint/build fora da fila de gate. Embrulhe em ~/.claude/skills/hades/kit/ga
-jest-cru	rc=2	gate-lock: test/lint/build fora da fila de gate. Embrulhe em ~/.claude/skills/hades/kit/ga
-npm-test-fora-de-git	rc=2	gate-lock: test/lint/build fora da fila de gate. Embrulhe em ~/.claude/skills/hades/kit/ga
-nx-affected-sem-perfil	rc=2	gate-lock: test/lint/build fora da fila de gate. Embrulhe em ~/.claude/skills/hades/kit/ga
-nx-em-heredoc	rc=2	gate-lock: test/lint/build fora da fila de gate. Embrulhe em ~/.claude/skills/hades/kit/ga
-sleep-longo	rc=2	hades-guard: polling barrado (sleep de espera). Esperar por evento, sem gastar turno: rode
+npm-build-cru	rc=2	gate-lock: test/lint/build rodando fora da fila de gate.
+  Por quê:                Esses c
+jest-cru	rc=2	gate-lock: test/lint/build rodando fora da fila de gate.
+  Por quê:                Esses c
+npm-test-fora-de-git	rc=2	gate-lock: test/lint/build rodando fora da fila de gate.
+  Por quê:                Esses c
+nx-affected-sem-perfil	rc=2	gate-lock: test/lint/build rodando fora da fila de gate.
+  Por quê:                Esses c
+nx-em-heredoc	rc=2	gate-lock: test/lint/build rodando fora da fila de gate.
+  Por quê:                Esses c
+sleep-longo	rc=2	hades-guard: polling barrado (sleep de espera).
+  Por quê:                Cada checagem em
 sleep-longo-fundo	rc=0	
 sleep-curto	rc=0	
-laco-com-sleep	rc=2	hades-guard: polling barrado (laço com sleep). Esperar por evento, sem gastar turno: rode 
-tail-f	rc=2	hades-guard: polling barrado (tail -f). Esperar por evento, sem gastar turno: rode em segu
-ci-watch	rc=2	hades-guard: polling barrado (CI com --watch em primeiro plano). Esperar por evento, sem g
+laco-com-sleep	rc=2	hades-guard: polling barrado (laço com sleep).
+  Por quê:                Cada checagem em 
+tail-f	rc=2	hades-guard: polling barrado (tail -f).
+  Por quê:                Cada checagem em primeir
+ci-watch	rc=2	hades-guard: polling barrado (CI com --watch em primeiro plano).
+  Por quê:               
 sleep-em-heredoc	rc=0	
 checagem-1	rc=0	
-checagem-repetida	rc=2	hades-guard: a mesma checagem (ci:12) já rodou há 0 min — isso é polling. Esperar por even
+checagem-repetida	rc=2	hades-guard: a mesma checagem (ci:12) já rodou há 0 min — isso é polling.
+  Por quê:      
 checagem-outra-sessao	rc=0	
 ls	rc=0	
 ctx-orquestrador	rc=0	HADES: contexto do orquestrador em 260k, acima do teto (250k). Atualize o plan.md e o esta

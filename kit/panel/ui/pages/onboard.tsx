@@ -1,7 +1,7 @@
 /* Página Onboarding (#/onboard): usa a base (ui/app.js) pelo HadesCore e se registra pelo registerPage dela.
  * Cada feature é um fio medido: um nó por passo feito, na posição do passo; os passos em lista logo abaixo. */
 (() => {
-const { useState, useEffect, useCallback, I, cn, post, getJSON, Button, Card, CardHeader, CardContent, CopyButton, Empty,
+const { useState, useEffect, useCallback, I, cn, post, getJSON, ErroExplicado, errDesc, Button, Card, CardHeader, CardContent, CopyButton, Empty,
   Fio, LinhaDeEstado, useApp, Loading } = HadesCore;
 
 // ------------------------------------------------------------------ onboarding (onboard.sh, mesma fonte do comando e do doctor)
@@ -77,7 +77,7 @@ function Onboard({ go }) {
   const [st, setSt] = useState(null);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(null);
-  const load = useCallback(() => { setBusy('load'); return getJSON('/api/onboard').then((r) => { if (r.error) throw new Error(r.error); setSt(r); setErr(null); }).catch((e) => setErr(e.message)).finally(() => setBusy(null)); }, []);
+  const load = useCallback(() => { setBusy('load'); return getJSON('/api/onboard').then((r) => { if (r.error) throw Object.assign(new Error(r.error), { code: r.code, explain: r.explain }); setSt(r); setErr(null); }).catch((e) => setErr(e)).finally(() => setBusy(null)); }, []);
   useEffect(() => { load(); }, [load]);
   // o tour grava a escolha dele (HadesTour): recarrega o resumo "o que falta"
   useEffect(() => { const f = () => { load(); }; addEventListener('hades-onboard-changed', f); return () => removeEventListener('hades-onboard-changed', f); }, [load]);
@@ -88,12 +88,10 @@ function Onboard({ go }) {
       const r = await post('/api/onboard', body);
       if (r.job) toast({ kind: 'busy', title: 'Passo iniciado', desc: s.name });
       await load();
-    } catch (e) { toast({ kind: 'bad', title: 'Não deu para executar o passo', desc: e.message }); } finally { setBusy(null); }
+    } catch (e) { toast({ kind: 'bad', title: 'Não deu para executar o passo', desc: errDesc(e) }); } finally { setBusy(null); }
   }, [load, toast, confirm]);
   if (err && !st) return <div className="grid justify-items-start gap-3">
-    <Empty icon={I.CircleX} title="Não consegui ler o onboarding">
-      {err}
-    </Empty>
+    <ErroExplicado error={err} title="Não consegui ler o onboarding" />
     <Button variant="outline" size="sm" icon={I.RefreshCw} loading={busy === 'load'} onClick={load}>Tentar de novo</Button>
   </div>;
   if (!st) return <Loading />;

@@ -9,6 +9,10 @@ agente impl-t: worktree <T>/agents/impl-t · branch svc/feat/sem-card-x · card 
 rc=0
 $ hades agent new impl-u --role impl --branch svc/feat/y --card X-1
 hades: --card/--new-card: o perfil não usa card (card.provider none ou ausente)
+  Por quê:      O comando foi chamado sem algo que ele precisa (um nome, um número, uma opção) ou com algo que ele não conhece.
+  O que fazer:  Confira o uso do comando em `hades --help` e, para o pedido em linguagem comum, em `reference/pedidos.md`.
+  Saiba mais:   reference/pedidos.md §Pedidos típicos do dono
+  (código: cli_usage)
 rc=2
 svc_feat_sem-card-x
 - Modo `deliver` · card `—` · specs `—` · PR `—`

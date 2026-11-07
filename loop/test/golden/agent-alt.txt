@@ -13,10 +13,22 @@ agente alt-a: worktree <T>/agents/alt-a · branch feat/ZN-12-x · card ZN-12 · 
 rc=0
 $ hades agent new alt-b --role impl --card ZN-1
 hades: --branch <tipo>/ZN-NNN-<slug>
+  Por quê:      O comando foi chamado sem algo que ele precisa (um nome, um número, uma opção) ou com algo que ele não conhece.
+  O que fazer:  Confira o uso do comando em `hades --help` e, para o pedido em linguagem comum, em `reference/pedidos.md`.
+  Saiba mais:   reference/pedidos.md §Pedidos típicos do dono
+  (código: cli_usage)
 rc=2
 $ hades agent new alt-c --branch feat/x
 hades: card é pré-condição da branch: --card ZN-N ou --new-card "<título>" --tags a,b
+  Por quê:      O comando foi chamado sem algo que ele precisa (um nome, um número, uma opção) ou com algo que ele não conhece.
+  O que fazer:  Confira o uso do comando em `hades --help` e, para o pedido em linguagem comum, em `reference/pedidos.md`.
+  Saiba mais:   reference/pedidos.md §Pedidos típicos do dono
+  (código: cli_usage)
 rc=2
 $ hades agent new alt-d --branch feat/ZN-NOVO --new-card x --tags a
 hades: --new-card: o perfil não declara card.create (script do pacote que cria o card; card.provider: github)
+  Por quê:      O comando foi chamado sem algo que ele precisa (um nome, um número, uma opção) ou com algo que ele não conhece.
+  O que fazer:  Confira o uso do comando em `hades --help` e, para o pedido em linguagem comum, em `reference/pedidos.md`.
+  Saiba mais:   reference/pedidos.md §Pedidos típicos do dono
+  (código: cli_usage)
 rc=2

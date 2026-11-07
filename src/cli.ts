@@ -58,6 +58,7 @@ const commands: Record<string, () => Promise<Command>> = {
   canvas: async () => (await import("./commands/canvas.ts")).canvasCommand,
   minos: async () => (await import("./commands/minos.ts")).minosCommand,
   "write-check": async () => (await import("./commands/write-check.ts")).writeCheckCommand,
+  explain: async () => (await import("./commands/explain.ts")).explainCommand,
 };
 
 const HELP = `hades <subcomando> [argumentos]
@@ -109,6 +110,7 @@ const HELP = `hades <subcomando> [argumentos]
   stack-add propose|measure|save  propõe, mede e grava o pacote de stack de um repo (hades stack-add)
   project-init draft|save        rascunho e gravação do perfil de um repo (hades project-init)
   widget-apk [build|test|shots|list|new <id>|image|status]   APK do widget Android, num container Docker (kit/android/build.sh)
+  explain [<código>]             o que um erro quer dizer, por quê e o que fazer (hades explain, reference/erros.md)
   agent new|adopt|review|prompt|answer|phase|resume|park|escalate|status|list|done|plan-approve|plan-trim|start-cmd|decide|auto-start|skill-new|skill-clean …
                                  agentes do orquestrador (hades agent)`;
 
@@ -120,7 +122,11 @@ async function main(argv: string[]): Promise<number> {
   }
   const load = commands[name];
   if (!load) {
-    process.stderr.write(`hades: subcomando desconhecido: ${name}\n${HELP}\n`);
+    // o catálogo só carrega quando há erro a explicar: o caminho feliz da CLI não paga o parse dele
+    const { CLI_ERRORS, renderCli, suggestName } = await import("./lib/human-errors.ts");
+    const near = suggestName(name, Object.keys(commands));
+    const hint = near === undefined ? "" : ` Você quis dizer \`hades ${near}\`?`;
+    process.stderr.write(`${renderCli(`subcomando desconhecido: ${name}.${hint}`, CLI_ERRORS.unknownCommand)}\n`);
     return EXIT.usage;
   }
   return (await load())(args);
@@ -129,11 +135,15 @@ async function main(argv: string[]): Promise<number> {
 try {
   process.exitCode = await main(process.argv.slice(2));
 } catch (error) {
+  const { CLI_ERRORS, cliCodeOfExit, renderCli } = await import("./lib/human-errors.ts");
   if (error instanceof HadesError) {
-    process.stderr.write(`hades: ${error.message}\n`);
+    process.stderr.write(`${renderCli(error.message, error.errorCode ?? cliCodeOfExit(error.code))}\n`);
     process.exitCode = error.code;
   } else {
-    process.stderr.write(`hades: erro inesperado: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`);
+    // a pilha é de quem depura: sem HADES_DEBUG=1 a tela mostra só a explicação (nunca caminho nem trecho de código)
+    const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+    process.stderr.write(`${renderCli("erro inesperado", CLI_ERRORS.unexpected)}\n`);
+    if (process.env.HADES_DEBUG === "1") process.stderr.write(`${detail}\n`);
     process.exitCode = EXIT.fail;
   }
 }

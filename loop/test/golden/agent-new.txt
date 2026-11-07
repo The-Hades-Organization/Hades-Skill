@@ -1,17 +1,37 @@
 $ hades agent new impl-b --role impl --branch svc/feat/sem-card
 hades: card é pré-condição da branch: --card SOFTWARE-N ou --new-card "<título>" --tags a,b
+  Por quê:      O comando foi chamado sem algo que ele precisa (um nome, um número, uma opção) ou com algo que ele não conhece.
+  O que fazer:  Confira o uso do comando em `hades --help` e, para o pedido em linguagem comum, em `reference/pedidos.md`.
+  Saiba mais:   reference/pedidos.md §Pedidos típicos do dono
+  (código: cli_usage)
 rc=2
 $ hades agent new impl-b --branch svc/feat/SOFTWARE-9-x --card SOFTWARE-123
 hades: a branch tem de conter o card (SOFTWARE-123)
+  Por quê:      O comando foi chamado sem algo que ele precisa (um nome, um número, uma opção) ou com algo que ele não conhece.
+  O que fazer:  Confira o uso do comando em `hades --help` e, para o pedido em linguagem comum, em `reference/pedidos.md`.
+  Saiba mais:   reference/pedidos.md §Pedidos típicos do dono
+  (código: cli_usage)
 rc=2
 $ hades agent new Nome_Ruim --branch x
 hades: nome curto: minúsculas, números e hífen
+  Por quê:      O comando foi chamado sem algo que ele precisa (um nome, um número, uma opção) ou com algo que ele não conhece.
+  O que fazer:  Confira o uso do comando em `hades --help` e, para o pedido em linguagem comum, em `reference/pedidos.md`.
+  Saiba mais:   reference/pedidos.md §Pedidos típicos do dono
+  (código: cli_usage)
 rc=2
 $ hades agent new impl-c --for inbox
 hades: --for inbox pede --pr N
+  Por quê:      O comando foi chamado sem algo que ele precisa (um nome, um número, uma opção) ou com algo que ele não conhece.
+  O que fazer:  Confira o uso do comando em `hades --help` e, para o pedido em linguagem comum, em `reference/pedidos.md`.
+  Saiba mais:   reference/pedidos.md §Pedidos típicos do dono
+  (código: cli_usage)
 rc=2
 $ hades agent new impl-d --role impl --card SOFTWARE-1
 hades: --branch <module>/<prefix>/SOFTWARE-NNNN-<slug>
+  Por quê:      O comando foi chamado sem algo que ele precisa (um nome, um número, uma opção) ou com algo que ele não conhece.
+  O que fazer:  Confira o uso do comando em `hades --help` e, para o pedido em linguagem comum, em `reference/pedidos.md`.
+  Saiba mais:   reference/pedidos.md §Pedidos típicos do dono
+  (código: cli_usage)
 rc=2
 $ hades agent new impl-a --role impl --branch svc/feat/SOFTWARE-123-demo --card SOFTWARE-123 --specs UC-1,UC-2 --dry-run
   [dry-run] herdr worktree create --branch svc/feat/SOFTWARE-123-demo --base origin/develop --path <T>/agents/impl-a --label impl-a --no-focus

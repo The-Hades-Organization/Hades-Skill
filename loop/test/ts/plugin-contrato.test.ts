@@ -94,8 +94,8 @@ describe("plugin-contrato", () => {
     const rt = (c: string) => out().split("\n").map((l) => l.split(" ")).filter((x) => x[0] === c).map((x) => `${x[1]} ${x[2]}`)[0] ?? "";
     const first = (s: string) => s.split(" ")[0];
     test("rota do plugin no painel local responde", () => { expect(rt("local-get")).toBe("200 eco"); });
-    test("rota pelo acesso remoto sem a chave: 401", () => { expect(rt("remoto-sem-chave")).toBe("401 acesso"); });
-    test("rota pelo acesso remoto com cookie errado: 401", () => { expect(rt("remoto-cookie-errado")).toBe("401 acesso"); });
+    test("rota pelo acesso remoto sem a chave: 401", () => { expect(rt("remoto-sem-chave")).toBe("401 panel_remote_key"); });
+    test("rota pelo acesso remoto com cookie errado: 401", () => { expect(rt("remoto-cookie-errado")).toBe("401 panel_remote_key"); });
     test("rota pelo acesso remoto com a chave responde", () => { expect(rt("remoto-com-chave")).toBe("200 eco"); });
     test("rota local:true pelo acesso remoto: 403 plugin_local_only", () => { expect(rt("remoto-rota-local")).toBe("403 plugin_local_only"); });
     test("script do plugin pelo acesso remoto sem a chave: 401", () => { expect(first(rt("script-remoto-sem-chave"))).toBe("401"); });

@@ -2,7 +2,7 @@
  * Formulário longo: índice das seções fixo à esquerda, busca e filtros no topo, cada configuração uma linha (rótulo,
  * para que serve, chave e padrão), e a barra de salvar só quando há alteração. */
 (() => {
-const { useState, useEffect, useRef, useCallback, I, cn, gb, mb, post, getJSON, Button, Dot, Card, CardHeader,
+const { useState, useEffect, useRef, useCallback, I, cn, gb, mb, post, getJSON, ErroExplicado, Button, Dot, Card, CardHeader,
   CardContent, Switch, Input, Mono, Tip, Empty, Dialog, DialogHeader, DialogFooter, useApp, route, useActions,
   Segmented, Checkbox, CFG_APPLY, modelLabel, cfgNorm, slugify, Loading, Select } = HadesCore;
 
@@ -256,7 +256,7 @@ function Config({ d }) {
   const { toast } = useApp();
   const run = useActions();
   const [items, setItems] = useState(null);
-  const [loadErr, setLoadErr] = useState('');
+  const [loadErr, setLoadErr] = useState(null);
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState(false);
   const [pending, setPending] = useState([]);
@@ -270,8 +270,8 @@ function Config({ d }) {
   const fileIn = useRef(null);
   const [pinned, setPinned] = useState([]);
   useEffect(() => { getJSON('/api/notify').then((r) => setPinned((r.events || []).filter((e) => e.pinnedByEnv).map((e) => 'HADES_NOTIFY_EV_' + e.event.toUpperCase()))).catch(() => setPinned([])); }, []);
-  const load = useCallback(() => getJSON('/api/config').then((r) => { setItems(r.items); setPath(r.path); setLoadErr(''); })
-    .catch((e) => setLoadErr(e.message || 'o painel não respondeu')), []);
+  const load = useCallback(() => getJSON('/api/config').then((r) => { setItems(r.items); setPath(r.path); setLoadErr(null); })
+    .catch((e) => setLoadErr(e || new Error('o painel não respondeu'))), []);
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     const sp = new URLSearchParams();
@@ -285,10 +285,7 @@ function Config({ d }) {
     addEventListener('hashchange', f); addEventListener('keydown', k);
     return () => { removeEventListener('hashchange', f); removeEventListener('keydown', k); };
   }, []);
-  if (!items) return loadErr ? <Empty icon={I.TriangleAlert} title="Não consegui ler as configurações">
-    <span className="mr-2">{loadErr}</span>
-    <Button size="sm" variant="outline" icon={I.RotateCw} onClick={() => { setLoadErr(''); load(); }}>Tentar de novo</Button>
-  </Empty> : <Loading />;
+  if (!items) return loadErr ? <ErroExplicado error={loadErr} title="Não consegui ler as configurações" onRetry={() => { setLoadErr(null); load(); }} /> : <Loading />;
   const val = (it) => draft[it.key] ?? it.value;
   const dirty = Object.keys(draft).filter((k) => draft[k] !== items.find((it) => it.key === k)?.value);
   const needsApply = (it) => fix.includes(it.key) && pending.includes(it.apply) && it.apply !== 'next' && it.apply !== 'hooks';

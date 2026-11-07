@@ -1,6 +1,6 @@
 /* Página Qualidade (#/quality): usa a base (ui/app.js) pelo HadesCore e se registra pelo registerPage dela. */
 (() => {
-const { useState, useEffect, useCallback, I, cn, post, getJSON, Button, Card, CardHeader, CardContent, Switch, Input,
+const { useState, useEffect, useCallback, I, cn, post, getJSON, ErroExplicado, Button, Card, CardHeader, CardContent, Switch, Input,
   Progress, Mono, Tip, Empty, Dot, Menu, Choice, useWide, LinhaDeEstado, useApp, cfgNorm, Loading } = HadesCore;
 
 // ------------------------------------------------------------------ Qualidade (catálogo global de regras, reference/quality.md)
@@ -107,16 +107,14 @@ function Quality() {
   const { toast } = useApp();
   const wide = useWide(1024);
   const [x, setX] = useState(null);
-  const [err, setErr] = useState(false);
+  const [err, setErr] = useState(null);
   const [q, setQ] = useState('');
   const [grp, setGrp] = useState('');
   const [pk, setPk] = useState('');
   const [busy, setBusy] = useState('');
-  const load = useCallback(() => { setErr(false); getJSON('/api/quality').then(setX).catch(() => setErr(true)); }, []);
+  const load = useCallback(() => { setErr(null); getJSON('/api/quality').then(setX).catch((e) => setErr(e)); }, []);
   useEffect(() => { load(); }, [load]);
-  if (!x) return err ? <Empty icon={I.CircleX} title="Não foi possível ler o catálogo.">
-    <Button size="xs" variant="outline" icon={I.RefreshCw} onClick={load}>Tentar de novo</Button>
-  </Empty> : <Loading />;
+  if (!x) return err ? <ErroExplicado error={err} title="Não foi possível ler o catálogo" onRetry={load} /> : <Loading />;
   const act = async (key, body, ok) => {
     setBusy(key);
     try { setX(await post('/api/quality', body)); if (ok) toast({ kind: 'ok', title: ok }); }

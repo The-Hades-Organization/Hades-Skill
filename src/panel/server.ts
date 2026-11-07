@@ -37,6 +37,7 @@ import { loadWorkEnv } from "../lib/work.ts";
 import { registriesOf } from "./argos-graph.ts";
 import { createMoiraiRoutes, MoiraiError } from "./moirai.ts";
 import { ChatBusy, createChat, sendOptions } from "./chat.ts";
+import { PANEL_ERRORS } from "../lib/human-errors.ts";
 import { createJobs } from "./jobs.ts";
 import { createOrchestration } from "./orchestration.ts";
 import { createThanatosRoutes } from "./thanatos.ts";
@@ -347,7 +348,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
         const icon = staticFile(env.ui, "brand/hades.svg", () => true);
         if (icon) return send(200, icon.bytes, CTYPES[icon.ext] as string, NO_CACHE);
       }
-      return path === "/" || path === "/index.html" ? login() : send(401, { error: "acesso remoto exige a chave" });
+      return path === "/" || path === "/index.html" ? login() : send(401, { error: "acesso remoto exige a chave", code: PANEL_ERRORS.remoteKey });
     }
     // o token muda a cada start do painel: a aba aberta antes do restart relê daqui (sem CORS, só a própria origem lê)
     if (path === "/api/token") return send(200, { token });
@@ -420,7 +421,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
       if (path === "/api/thanatos") return send(200, thanatos.list());
       if (path.startsWith("/api/thanatos/")) {
         const found = thanatos.one(path.slice("/api/thanatos/".length));
-        return found ? send(200, found) : send(404, { error: "post-mortem não encontrado" });
+        return found ? send(200, found) : send(404, { error: "post-mortem não encontrado", code: PANEL_ERRORS.postMortemNotFound });
       }
       const routed = await getMisc(path, query, remote);
       if (routed) return routed;
@@ -433,7 +434,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
       if (path === "/api/docs") return send(200, core.docsIndex(env));
       if (path === "/api/doc") return send(200, core.docText(env, query.id ?? ""));
     } catch (error) {
-      if (error instanceof BadRequest) return send(400, { error: error.message });
+      if (error instanceof BadRequest) return send(400, { error: error.message, code: PANEL_ERRORS.badRequest });
       throw error;
     }
     if (path.startsWith("/ui/lib/")) return canvasModuleRoute(path.slice("/ui/lib/".length));
@@ -450,7 +451,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
       log("error", "módulos da UI não empacotaram", { reason: error instanceof Error ? error.message : String(error) });
       return send(500, { error: "falha interna", code: "ui_module_build_failed" });
     }
-    return js === undefined ? send(404, { error: "not found" }) : send(200, new TextEncoder().encode(js), CTYPES[".js"], NO_CACHE);
+    return js === undefined ? send(404, { error: "not found", code: PANEL_ERRORS.notFound }) : send(200, new TextEncoder().encode(js), CTYPES[".js"], NO_CACHE);
   }
 
   /** Rotas de leitura que consultam scripts e serviços da máquina; erro de entrada ou de arquivo vira 400 (o ValueError/OSError do original). */
@@ -518,7 +519,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
       const file = staticFile(env.ui, rel, (name, ext) => ext in CTYPES && name !== "index.html");
       if (file) return send(200, file.bytes, CTYPES[file.ext] as string, path.includes("/vendor/") ? VENDOR_CACHE : NO_CACHE);
     }
-    return send(404, { error: "not found" });
+    return send(404, { error: "not found", code: PANEL_ERRORS.notFound });
   }
 
   async function post(req: Request, url: URL, method: "POST" | "PUT"): Promise<Response> {
@@ -526,7 +527,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     const origin = req.headers.get("origin");
     const pub = auth.publicHost();
     const allowed = [`http://127.0.0.1:${port}`, `http://localhost:${port}`, ...(pub && remote ? [`https://${pub}`] : [])];
-    if (!auth.hostOk(req.headers, port) || (origin && !allowed.includes(origin))) return send(403, { error: "origem" });
+    if (!auth.hostOk(req.headers, port) || (origin && !allowed.includes(origin))) return send(403, { error: "origem", code: PANEL_ERRORS.origin });
     const refused = widgetScopeRefused(req);
     if (refused) return refused;
     const path = url.pathname;
@@ -549,16 +550,16 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
       await Bun.sleep(AUTH_DELAY_MS);
       return login("Chave incorreta.");
     }
-    if (!auth.authed(req.headers, port)) return send(401, { error: "acesso remoto exige a chave" });
+    if (!auth.authed(req.headers, port)) return send(401, { error: "acesso remoto exige a chave", code: PANEL_ERRORS.remoteKey });
     if (req.headers.get("x-panel-token") !== token || !(req.headers.get("content-type") ?? "").includes("application/json")) {
-      return send(403, { error: "token" });
+      return send(403, { error: "token", code: PANEL_ERRORS.token });
     }
     // PUT é só do documento do canvas (corpo próprio, com teto maior que o dos demais POST)
     if (method === "PUT") {
       const noteWrite = canvasNotes.write(path, req, { remote });
       if (noteWrite) return noteWrite;
       if (path === "/api/canvas") return canvas.put(req, { remote });
-      return (await canvas.writeMany(method, path, queryOf(url), req, { remote })) ?? send(404, { error: "not found" });
+      return (await canvas.writeMany(method, path, queryOf(url), req, { remote })) ?? send(404, { error: "not found", code: PANEL_ERRORS.notFound });
     }
     // os POST das notas (bloquear, renomear, mover, imagem, apagar, apontar) leem o próprio corpo, com teto por ação
     const noteAction = canvasNotes.action(path, req, { remote });
@@ -574,7 +575,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     // o anexo do chat também lê o próprio corpo (JSON com base64, teto de HADES_CHAT_ATTACH_MB)
     if (method === "POST" && path === "/api/claude/attach") return chat.attach(req, remote);
     const body = await readJsonBody(req);
-    if (body === undefined) return send(400, { error: "json" });
+    if (body === undefined) return send(400, { error: "json", code: PANEL_ERRORS.json });
     // confere só os cabeçalhos da URL do nó portal; a origem do painel, como o navegador do chamador a vê, vem do Host já validado pelo hostOk
     if (path === "/api/canvas/portal/check") {
       const host = req.headers.get("host");
@@ -600,7 +601,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     try {
       return await postRoute(path, body, remote);
     } catch (error) {
-      if (error instanceof BadRequest) return send(400, { error: error.message });
+      if (error instanceof BadRequest) return send(400, { error: error.message, code: PANEL_ERRORS.badRequest });
       throw error;
     }
   }
@@ -618,7 +619,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
       const { title, script, exclusive } = await buildAction(actionContext, body);
       if (exclusive) {
         const who = await envBusy();
-        if (who) return send(409, { error: `ambiente ocupado: ${who}` });
+        if (who) return send(409, { error: `ambiente ocupado: ${who}`, code: PANEL_ERRORS.envBusy });
       }
       return send(200, { job: await jobs.launch(pyStr(body.action), title, script, exclusive) });
     }
@@ -665,7 +666,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
         await (path.endsWith("/stop") ? chat.stop(sid) : chat.remove(sid));
         return send(200, { ok: true });
       } catch (error) {
-        if (error instanceof ChatBusy) return send(409, { error: error.message });
+        if (error instanceof ChatBusy) return send(409, { error: error.message, code: PANEL_ERRORS.chatBusy });
         throw error;
       }
     }
@@ -695,12 +696,12 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     if (path === "/api/config/preview") return send(200, core.configPreview(env, body, remote));
     if (path === "/api/plugins") return pluginsAct(body, remote);
     if (path.startsWith("/api/plugin/")) return pluginRoute("POST", path.slice("/api/plugin/".length), body, remote);
-    return send(404, { error: "not found" });
+    return send(404, { error: "not found", code: PANEL_ERRORS.notFound });
   }
 
   async function handle(req: Request, clientIp: string | undefined): Promise<Response> {
     const url = new URL(req.url);
-    const hostGate = (): Response | undefined => (auth.hostOk(req.headers, port) ? undefined : send(403, { error: "host" }));
+    const hostGate = (): Response | undefined => (auth.hostOk(req.headers, port) ? undefined : send(403, { error: "host", code: PANEL_ERRORS.host }));
     if (req.method === "GET") {
       // o /api/widget tem a autenticação própria (token do widget), antes da chave remota
       return hostGate() ?? (url.pathname === "/api/widget" ? widget.handle(req, clientIp) : await get(req, url));
@@ -711,8 +712,8 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
       // só o download do APK responde HEAD; o resto é 404
       const refused = hostGate() ?? widgetScopeRefused(req);
       if (refused) return refused;
-      if (!auth.authed(req.headers, port)) return send(401, { error: "acesso remoto exige a chave" });
-      return url.pathname === "/api/widget/apk/download" ? widget.apkDownload(true) : send(404, { error: "not found" });
+      if (!auth.authed(req.headers, port)) return send(401, { error: "acesso remoto exige a chave", code: PANEL_ERRORS.remoteKey });
+      return url.pathname === "/api/widget/apk/download" ? widget.apkDownload(true) : send(404, { error: "not found", code: PANEL_ERRORS.notFound });
     }
     return new Response("método não suportado", { status: 501 });
   }

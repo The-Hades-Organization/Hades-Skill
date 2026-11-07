@@ -192,7 +192,7 @@ describe("servidor", () => {
   // acmp: POST com o token da sessão de cada servidor (as recusas de entrada, sem lançar job)
   const acmp = (label: string, route: string, b: string) => test(`${label}: servidor igual ao gravado`, () => {
     const f = (port: string) => { const t = JSON.parse(curl(port, ["localhost:@P@/api/token"]).out).token; return curl(port, ["-w", " %{http_code}", "-X", "POST", "-H", `X-Panel-Token: ${t}`, "-H", "Content-Type: application/json", "-d", b, `localhost:@P@${route}`]).out; };
-    expect(f(pn)).toBe(g.get<string>(label));
+    g.confere(label, f(pn));
   }, 30_000);
   acmp("POST /api/action ação desconhecida", "/api/action", '{"action":"zzz"}');
   acmp("POST /api/action op fora da lista", "/api/action", '{"action":"pause","op":"x"}');

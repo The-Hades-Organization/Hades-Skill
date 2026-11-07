@@ -4,6 +4,23 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.31.0 — 2026-11-07
+
+Capacidade nova (unidade erros-humanos): toda falha visível ao dono diz o que aconteceu, por quê, o que fazer e onde
+ler mais, em português e sem pilha nem segredo.
+
+- Catálogo único `src/lib/human-errors-catalog.ts` (código → título, causa, ação, referência) e `src/lib/human-errors.ts`;
+  o código estável (`code`, `*_errors`) não muda. Código sem entrada mostra o código e aponta o `doctor`.
+- CLI: stderr com "Por quê", "O que fazer", "Saiba mais" e o código; `hades explain <código>` explica um erro.
+- Painel: as respostas de erro ganham o campo aditivo `explain`; recusas sem código passam a ter um (`panel_host`,
+  `panel_token`, `panel_remote_key`, `panel_bad_request`). O componente `ErroExplicado` quebra texto longo e esconde a
+  mensagem crua (`JSON.parse…`, `Failed to fetch`) em Cerberus, Docs, Configurações, Qualidade, Consumo, Notificações e
+  Onboarding, com botões de 44 px no celular.
+- Hook que barra comando diz o que fazer no lugar. Guia em `reference/erros.md`; pedido "por que falhou?" em
+  `reference/pedidos.md`.
+- Armadilha: o `check` mostra só as 40 primeiras linhas de falha (cerca de 8 testes); para ver todas, rodar a suíte do
+  núcleo inteira.
+
 ## 6.30.0 — 2026-11-07
 
 Capacidade nova (Argos, unidade argos-fluxo): o fluxo de uso do canvas ficou mais claro.

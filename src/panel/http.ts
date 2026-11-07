@@ -1,4 +1,5 @@
 // Respostas e leitura de requisição do painel. Cabeçalhos de segurança: sem cache e sem moldura.
+import { explain } from "../lib/human-errors.ts";
 import { pyJsonDumps } from "../lib/kit.ts";
 
 export const CTYPES: Record<string, string> = {
@@ -21,8 +22,18 @@ export type Body = Record<string, unknown> | unknown[] | Uint8Array | string;
 /** Erro de entrada do dono: vira 400 com a mensagem (o ValueError do original). */
 export class BadRequest extends Error {}
 
+/** Acrescenta `explain` ao corpo de erro que já leva `code` (reference/erros.md); o resto do corpo fica como está. */
+function withExplain(status: number, body: Body): Body {
+  if (status < 400 || body instanceof Uint8Array || typeof body === "string" || Array.isArray(body)) return body;
+  const code = body.code;
+  if (typeof code !== "string" || "explain" in body) return body;
+  const { title, cause, action, ref } = explain(code);
+  return { ...body, explain: { code, title, cause, action, ref } };
+}
+
 export function send(status: number, body: Body, contentType: string = JSON_TYPE, cache: string = NO_STORE): Response {
-  const payload = body instanceof Uint8Array || typeof body === "string" ? body : pyJsonDumps(body);
+  const shaped = withExplain(status, body);
+  const payload = shaped instanceof Uint8Array || typeof shaped === "string" ? shaped : pyJsonDumps(shaped);
   return new Response(payload, {
     status,
     headers: { "Content-Type": contentType, "Cache-Control": cache, "X-Frame-Options": "DENY" },

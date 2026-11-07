@@ -2,6 +2,7 @@
 // rodam o próprio `hades agent <sub>` (a mesma função de src/commands/agent-run.ts, num subprocesso: `die` e as esperas de
 // minutos não seguram o laço de eventos do painel); texto e teclas vão pela página Herdr. Sem trava no remoto: executa,
 // notifica e loga. O texto de prompt e de resposta nunca vai ao log nem ao notify.
+import { messageOfCliFailure } from "../lib/human-errors.ts";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ARGOS_ERRORS, ARGOS_SCHEMA_VERSION, ArgosError, type PendingPermission, isSimplePermissionTool } from "../lib/argos.ts";
@@ -169,7 +170,7 @@ export function createActions(deps: ActionDeps): Actions {
     const cwd = existsSync(target.worktree) ? target.worktree : deps.fallbackCwd;
     const r = await exec([cli.command, ...cli.args], { timeoutMs: timeoutMs(action), cwd, env: deps.env });
     if (r.timedOut) throw new ArgosError(504, ARGOS_ERRORS.actionTimeout, "o comando do agente não terminou a tempo");
-    if (r.status !== 0) throw new ArgosError(422, ARGOS_ERRORS.actionFailed, clip(lastLine(r.stderr) || lastLine(r.stdout) || "o comando do agente falhou", ERROR_MAX));
+    if (r.status !== 0) throw new ArgosError(422, ARGOS_ERRORS.actionFailed, clip(messageOfCliFailure(r.stderr) || lastLine(r.stdout) || "o comando do agente falhou", ERROR_MAX));
     return clip(r.stdout.trim(), OUTPUT_MAX);
   }
 

@@ -1,6 +1,6 @@
 /* Página Consumo (#/usage): usa a base (ui/app.js) pelo HadesCore e se registra pelo registerPage dela. */
 (() => {
-const { useState, useEffect, I, cn, dur, getJSON, Button, CARD_SCROLL, Card, CardHeader, CardContent, Mono, Tip, Empty,
+const { useState, useEffect, I, cn, dur, getJSON, ErroExplicado, Button, CARD_SCROLL, Card, CardHeader, CardContent, Mono, Tip, Empty,
   Table, Th, Td, Tr, Legend, Dot, Regua, Leitura, LinhaDeEstado, useActions, Loading, niceTicksCovering } = HadesCore;
 
 // ================================================================== consumo de tokens
@@ -234,20 +234,15 @@ function Acompanhamento({ d }) {
 function Usage() {
   const run = useActions();
   const [x, setX] = useState(null);
-  const [err, setErr] = useState(false);
+  const [err, setErr] = useState(null);
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let alive = true;
-    const f = () => getJSON('/api/usage').then((r) => { if (alive) { setX(r); setErr(false); } }).catch(() => alive && setErr(true));
+    const f = () => getJSON('/api/usage').then((r) => { if (alive) { setX(r); setErr(null); } }).catch((e) => alive && setErr(e));
     f(); const t = setInterval(f, 15000);
     return () => { alive = false; clearInterval(t); };
   }, [tick]);
-  if (!x) return err ? <Empty icon={I.CircleX} title="Consumo indisponível">
-    <span className="inline-flex flex-wrap items-center gap-3">
-      Sem resposta de /api/usage.
-      <Button size="xs" variant="outline" icon={I.RefreshCw} onClick={() => { setErr(false); setTick((n) => n + 1); }}>Tentar de novo</Button>
-    </span>
-  </Empty> : <Loading />;
+  if (!x) return err ? <ErroExplicado error={err} title="Consumo indisponível" onRetry={() => { setErr(null); setTick((n) => n + 1); }} /> : <Loading />;
   const d = x.data;
   if (!d) return <Empty icon={I.LoaderCircle} title="Calculando o consumo…">
     Leva alguns segundos.

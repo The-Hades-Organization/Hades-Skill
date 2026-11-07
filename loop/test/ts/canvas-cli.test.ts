@@ -168,7 +168,8 @@ async function rig(doc: CanvasDoc, managerText: () => string = () => MANAGER) {
   return { D, fake, deps, io, out, err, notified, panelCalls, run, current, noteText, writeNote, terminal };
 }
 
-const lastCode = (err: string[]): string | undefined => /\(([a-z_0-9]+)\)\s*$/.exec(err.at(-1) ?? "")?.[1];
+// o erro sai como bloco do catálogo: a primeira linha leva a mensagem e o código entre parênteses
+const lastCode = (err: string[]): string | undefined => /\(([a-z_0-9]+)\)\s*$/.exec((err.at(-1) ?? "").split("\n")[0] ?? "")?.[1];
 
 /** Orquestrador ligado à nota `briefing`, que liga em cadeia a `contexto`; `solta` não liga a ninguém; `comum` é terminal sem caixa. */
 const baseDoc = (): CanvasDoc => ({

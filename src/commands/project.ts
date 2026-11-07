@@ -1,5 +1,6 @@
 // `hades project`: o projeto ativo e o que o perfil declara (reference/projects.md).
-import { EXIT, out, warn } from "../lib/output.ts";
+import { CLI_ERRORS } from "../lib/human-errors.ts";
+import { EXIT, die, out, warn } from "../lib/output.ts";
 import { need } from "../lib/deps.ts";
 import { packOf, packsRoot, resolutionJson, resolveProject, type Resolution } from "../lib/project.ts";
 import {
@@ -67,8 +68,7 @@ function resolveCmd(args: string[]): number {
 function getCmd(args: string[]): number {
   const { rest, dir, broken } = takeDir(args);
   if (rest.length === 0 || broken) {
-    warn("hades: get <campo> [<padrão>] [--dir <d>]");
-    return EXIT.usage;
+    die("get <campo> [<padrão>] [--dir <d>]", EXIT.usage, CLI_ERRORS.projectFieldMissing);
   }
   const resolution = resolveProject(dir || process.cwd());
   const value = getField(loadProfile(resolution), rest[0] as string, rest[1]);
@@ -80,8 +80,7 @@ function getCmd(args: string[]): number {
 function refCmd(args: string[]): number {
   const { rest, dir } = takeDir(args);
   if (rest.length !== 1) {
-    warn("hades: ref <nome> [--dir <d>]");
-    return EXIT.usage;
+    die("ref <nome> [--dir <d>]", EXIT.usage, CLI_ERRORS.projectFieldMissing);
   }
   const path = refPath(resolveProject(dir || process.cwd()), rest[0] as string);
   if (path === undefined) return EXIT.fail;

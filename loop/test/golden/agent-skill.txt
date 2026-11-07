@@ -9,6 +9,10 @@ unidade demo: worktree <T>/home/.claude/hades/skill-dev/demo · branch skill/dem
 rc=0
 $ hades agent skill-new demo (de novo)
 hades: branch skill/demo já existe
+  Por quê:      O comando foi chamado sem algo que ele precisa (um nome, um número, uma opção) ou com algo que ele não conhece.
+  O que fazer:  Confira o uso do comando em `hades --help` e, para o pedido em linguagem comum, em `reference/pedidos.md`.
+  Saiba mais:   reference/pedidos.md §Pedidos típicos do dono
+  (código: cli_usage)
 rc=2
 $ hades agent skill-clean demo --dry-run
 == demo (branch skill/demo · worktree <T>/home/.claude/hades/skill-dev/demo)

@@ -1,9 +1,15 @@
-nx-test-cru-com-perfil-nx	rc=2	gate-lock: test/lint/build fora da fila de gate. Embrulhe em ~/.claude/skills/hades/kit/ga
-npm-build-cru-com-perfil-nx	rc=2	gate-lock: test/lint/build fora da fila de gate. Embrulhe em ~/.claude/skills/hades/kit/ga
+nx-test-cru-com-perfil-nx	rc=2	gate-lock: test/lint/build rodando fora da fila de gate.
+  Por quê:                Esses c
+npm-build-cru-com-perfil-nx	rc=2	gate-lock: test/lint/build rodando fora da fila de gate.
+  Por quê:                Esses c
 nx-na-fila-com-perfil-nx	rc=0	
 nx-test-cru-com-perfil-cargo	rc=0	
-cargo-build-cru-com-perfil-cargo	rc=2	gate-lock: test/lint/build fora da fila de gate. Embrulhe em ~/.claude/skills/hades/kit/ga
+cargo-build-cru-com-perfil-cargo	rc=2	gate-lock: test/lint/build rodando fora da fila de gate.
+  Por quê:                Esses c
 cargo-test-na-fila	rc=0	
-nx-test-cru-sem-perfil	rc=2	gate-lock: test/lint/build fora da fila de gate. Embrulhe em ~/.claude/skills/hades/kit/ga
-cargo-build-cru-sem-perfil	rc=2	gate-lock: test/lint/build fora da fila de gate. Embrulhe em ~/.claude/skills/hades/kit/ga
-cargo-fundo	rc=2	gate-lock: test/lint/build fora da fila de gate. Embrulhe em ~/.claude/skills/hades/kit/ga
+nx-test-cru-sem-perfil	rc=2	gate-lock: test/lint/build rodando fora da fila de gate.
+  Por quê:                Esses c
+cargo-build-cru-sem-perfil	rc=2	gate-lock: test/lint/build rodando fora da fila de gate.
+  Por quê:                Esses c
+cargo-fundo	rc=2	gate-lock: test/lint/build rodando fora da fila de gate.
+  Por quê:                Esses c

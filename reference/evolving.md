@@ -25,8 +25,8 @@ não para a skill — a skill não corrige PR nem serviço.
      (`env.template.sh` + `install.sh`) ou para variável de ambiente com default;
    - estado novo fica em `$D` e entra na lista do "NUNCA toca" do `install.sh`;
    - serviço novo: seguir `ref env-operations` §Serviço novo (os arquivos do ambiente que o pacote lista ali).
-3. **Documentar**: a referência do assunto em `reference/` (criar uma se for assunto novo), a tabela "Pedidos típicos"
-   e a fase certa do `SKILL.md`, e o `description` do frontmatter se o gatilho mudou (é o que faz a skill ser
+3. **Documentar**: a referência do assunto em `reference/` (criar uma se for assunto novo), a tabela de `reference/pedidos.md`
+   e a fase certa de `reference/env.md`, e o `description` do frontmatter se o gatilho mudou (é o que faz a skill ser
    escolhida).
    Regressão: `kit/gate/gate-lock.sh run test --label <agente> -- bun test loop/test/ts --parallel=8` (= `bun run test`; a suíte é só `bun test`, um
    arquivo por grupo em `loop/test/ts/`).

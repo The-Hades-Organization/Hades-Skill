@@ -7,8 +7,9 @@ Invoque a skill `hades` e execute o modo pedido em `$ARGUMENTS`.
 
 As regras, os invariantes e a precedencia vivem na skill — **este arquivo nao os repete**, para nao
 existir uma segunda fonte de verdade que divirja da primeira. Leia
-`~/.claude/skills/hades/SKILL.md` e o reference do modo (`~/.claude/skills/hades/reference/loop/<modo>.md`;
-agente orquestrado: o cartao `reference/loop/roles/<papel>.md`) antes de agir. A ferramenta e
+`~/.claude/skills/hades/SKILL.md` e o reference do modo (`~/.claude/skills/hades/reference/loop/<modo>.md`)
+antes de agir. **Com `--orchestrated` nao leia o `SKILL.md`**: o agente alocado le so o cartao
+`reference/loop/roles/<papel>.md` (mais o brief e os trechos de `reference/loop/` que o cartao indica). A ferramenta e
 local-only: skill, comando, coletor e `hades gate-lock` vivem em `~/.claude`, e nada dela entra no repo.
 
 ## Parsing
@@ -17,7 +18,7 @@ local-only: skill, comando, coletor e `hades gate-lock` vivem em `~/.claude`, e 
   `status` | `locks` | `answer` | `ready` | `watch` | `resume` | `orchestrate` | `consolidate` | `usage` | `env` | `project`.
   Ausente → antes de tudo, rode `hades onboard status --line --quick`: se imprimir uma linha, mostre-a ao dono como primeira linha da resposta (onboarding incompleto; não bloqueia nada) e siga. Depois rode **`inbox`**, e **`deliver` so se o inbox nao achou nada acionavel** neste tick.
   Se `$ARGUMENTS` traz um ID de spec ou caminho de arquivo sem nomear modo, o modo e `deliver`.
-- **`env <acao>`** — Parte I do `SKILL.md` (`up|update|pause|resume|status|panel|config|doctor|onboard`; `doctor [--quick|--json]` → `hades doctor`); `onboard` → pergunta com `AskUserQuestion` (multiSelect) quais features preparar (remoto, notificacoes, automatico, contas), grava com `hades onboard select|skip`, roda com o ok do dono só os passos da Hades (`hades onboard run <passo>`) e entrega os passos do dono com o comando pronto, prefixo `! ` nos interativos; detalhes em `reference/onboard.md`.   `hades instance` (do diretorio atual: a instancia do projeto ou, sem ela, a padrao); saida 1 → o ambiente nao foi instalado (Fase 1): avise e pare, sem instalar.
+- **`env <acao>`** — Parte I (`reference/env.md`; `up|update|pause|resume|status|panel|config|doctor|onboard`; `doctor [--quick|--json]` → `hades doctor`); `onboard` → pergunta com `AskUserQuestion` (multiSelect) quais features preparar (remoto, notificacoes, automatico, contas), grava com `hades onboard select|skip`, roda com o ok do dono só os passos da Hades (`hades onboard run <passo>`) e entrega os passos do dono com o comando pronto, prefixo `! ` nos interativos; detalhes em `reference/onboard.md`.   `hades instance` (do diretorio atual: a instancia do projeto ou, sem ela, a padrao); saida 1 → o ambiente nao foi instalado (Fase 1): avise e pare, sem instalar.
 - **`project init [--dry-run]`** — gera o perfil do repo atual (`reference/project-init.md`): `hades project-init draft <repo>` monta o rascunho com a evidencia de cada campo, pergunta ao dono (`AskUserQuestion`) o que ficou incerto e **so grava com o ok**, via `save --confirmed`; repo com perfil mostra o diff e pede ok (`--force`), nunca sobrescreve calado. Stack sem pacote: oferece `/hades stack add`. `--dry-run` nao grava nada. Nao exige perfil nem o ambiente (`$D`).
 - **`orchestrate [<objetivo>]`** — papel de orquestrador (`reference/loop/orchestrate.md`).
 - **`consolidate <PR>...`** — PR de consolidacao (`reference/loop/consolidate.md`).

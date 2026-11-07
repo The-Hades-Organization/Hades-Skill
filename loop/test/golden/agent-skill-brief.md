@@ -13,7 +13,7 @@ tomadas, sem citar que foram perguntas. Em paralelo com outras unidades: quais a
 
 ## Docs
 
-<!-- Referência do assunto em reference/, linha na tabela "Pedidos típicos" do SKILL.md, chaves em reference/config.md,
+<!-- Referência do assunto em reference/, linha na tabela de reference/pedidos.md, chaves em reference/config.md,
 página ou ação em reference/panel.md. Versão e CHANGELOG ficam com a consolidação. -->
 
 ## Prova

@@ -4,6 +4,33 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.18.0 — 2026-11-06
+
+Custo dos agentes, última onda: o `SKILL.md`, carregado inteiro em cada `/hades`, cai de 51,4 KB para 19,3 KB (issue
+#61). Movimento de texto, sem reescrita: toda linha do original está no `SKILL.md` novo ou num arquivo de `reference/`,
+aberto sob demanda. Medido antes: o primeiro turno de uma sessão aberta com `/hades` ficava em ≈ 96k tokens, contra
+≈ 74k–86k sem ele.
+
+### SKILL.md enxuto (#61)
+
+- A Parte I (ambiente local: regras duras, onde fica cada coisa, fases 0–8) vai para `reference/env.md`; no `SKILL.md`
+  ficam os 8 invariantes do ambiente, uma linha cada.
+- "Pedidos típicos do dono" vai inteira para `reference/pedidos.md`. **Armadilha:** quem evolui a skill acrescenta o
+  pedido lá (`evolving.md` e o template de brief já apontam), não no `SKILL.md`.
+- "Onde fica" e "Defaults" do loop vão para `reference/loop/onde-fica.md` e `reference/loop/defaults.md`; os predicados
+  da máquina de estados vão para `reference/loop/collector.md`.
+- O `SKILL.md` ganha um mapa de referências e fica com termos, tabela canônica do `/hades`, invariantes, máquina de
+  estados, precedência e escalonamento.
+- Teto: o teste `skill-teto` (20480 bytes) entra na regressão do `check`. Sobram ~1,1 KB; o que for novo vai para
+  `reference/`.
+- A página Documentação lista `pedidos.md` e `env.md` em "Visão geral".
+
+### Correção
+
+- `commands/hades.md` mandava ler o `SKILL.md` também no agente `--orchestrated`, que assim carregava a skill inteira
+  e depois o cartão. Agora o agente alocado lê só o cartão do papel, o brief e os trechos de `reference/loop/` que o
+  cartão indica.
+
 ## 6.17.0 — 2026-11-06
 
 Custo dos agentes, quarta onda: o orquestrador acompanha os agentes por evento e por status em vez de ler pane, e cada

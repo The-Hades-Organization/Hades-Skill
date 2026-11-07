@@ -1,7 +1,7 @@
 # `run-hades` — subir o Hades inteiro com um comando
 
 Ponto de entrada único, **idempotente** e **à prova de reboot**, pensado para o **dono** rodar direto no terminal (sem
-agente): depois de um reboot, ou para trocar o conjunto de PRs/branches. Orquestra todas as fases do `SKILL.md`
+agente): depois de um reboot, ou para trocar o conjunto de PRs/branches. Orquestra todas as fases de `reference/env.md`
 (Fase 1→7) chamando os scripts do kit, e embute as recuperações que um agente levaria tempo para redescobrir.
 
 Mora no ambiente do pacote do projeto (`<pacote>/env/run-hades.sh`; o `install.sh` o copia para `$D/run-hades.sh`, que é o que o alias chama). O alias e as variáveis por-máquina ficam no

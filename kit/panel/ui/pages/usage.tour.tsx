@@ -40,7 +40,7 @@ HadesCore.registerTour('usage', {
     {
       id: 'usage-leituras',
       title: 'As quatro leituras',
-      body: 'Custo por dia contra a linha de base; polling (turnos que só esperavam) contra o limite de 5%; contexto médio dos agentes contra 200k tokens por turno; e reescrita de cache depois de pausa. A barra é o valor, o traço é a referência, e passar dela troca o tom.',
+      body: 'Custo por dia contra a linha de base; polling (turnos que só esperavam) contra o limite de 5%; contexto médio dos agentes contra 200k tokens por turno; e reescrita de cache depois de pausa (não a reescrita de comando do rtk no auto mode: uma Bash por resposta, em loop/tokens.md). A barra é o valor, o traço é a referência, e passar dela troca o tom.',
       ref: 'loop/tokens.md',
       fallback: 'As leituras aparecem junto com o resumo, depois do primeiro cálculo.',
       side: 'bottom',

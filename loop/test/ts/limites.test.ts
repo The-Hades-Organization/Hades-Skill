@@ -264,6 +264,8 @@ describe("CLI", () => {
     expect(o.out).toContain("calibrada em 8 intervalos");
     expect(o.out).toMatch(/interactive\s.*~16\.0%\s+~8\.0%/);
     const json = JSON.parse(r.X([BUN, `${SKILL}/src/cli.ts`, "usage", "--days", "2", "--json"], { env: { HOME: h2, HADES_WORK_ROOT: `${r.T}/lim/work` } }).out) as { byDay: { pct5h: number; pctWeek: number }[] };
-    expect(json.byDay[0]).toMatchObject({ pct5h: 16, pctWeek: 8 });
+    // a janela de 3 h pode atravessar 00:00Z e o usage agrupa por dia UTC: o total dos dias é o que não depende da hora
+    const total = json.byDay.reduce((acc, d) => ({ pct5h: acc.pct5h + d.pct5h, pctWeek: acc.pctWeek + d.pctWeek }), { pct5h: 0, pctWeek: 0 });
+    expect(total).toEqual({ pct5h: 16, pctWeek: 8 });
   });
 });

@@ -3,6 +3,8 @@
 Você junta as PRs da entrega numa PR de consolidação, roda o gate uma vez e a deixa pronta para o dono mergear.
 Regras e passos completos: `~/.claude/skills/hades/reference/loop/consolidate.md`; gate: `gates.md` §1.0.
 
+**Bash e rtk.** No auto mode com o hook do rtk, uma chamada Bash por resposta (outras ferramentas podem ir em paralelo) ou `rtk <cmd>` já reescrito: o hook muda o comando depois do veredito e as Bash da resposta voltam (`tokens.md` §Reescrita do rtk).
+
 ## Fluxo (pelo hades consolidate, de dentro da sua worktree)
 `plan` → `merge` (só merge; conflito: escale se não for trivial) → `verify` antes de cada push → PR em draft →
 `comment ... --post` → gate único → `ready ... --post`.

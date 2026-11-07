@@ -38,6 +38,20 @@ output, não o componente dominante. O que corta é **contexto curto** e **menos
 7. **Estacionar antes de esperar longe** (resposta do dono, fila do gate além do limite): handoff + `PARKED`, para não
    pagar a reescrita do contexto inteiro quando o cache expira (> 1 h parado).
 
+## Reescrita do rtk no auto mode (uma Bash por resposta)
+
+No auto mode, o classificador do servidor revisa o comando Bash **antes** do hook PreToolUse do rtk (`rtk hook claude`), que o reescreve
+para `rtk <cmd>`. Comando mudado depois do veredito volta com "The server-side auto mode classifier gave no verdict for Bash: … changed by a
+hook …", e com mais de uma Bash na mesma resposta **todas** voltam e são reenviadas: um turno a mais, relendo o contexto inteiro.
+
+- **Evite:** uma chamada Bash por resposta (Read, Grep, Edit e as demais podem ir em paralelo), ou chame já `rtk <cmd>`: o hook não o altera e o
+  classificador o aceita na primeira vez. Encadear com `&&` numa só Bash também serve.
+- **Por onde chega:** a chamada negada nunca executa. O PreToolUse dela dispara (o diário mostra o mesmo comando em dois `tool_pre`
+  seguidos), o PostToolUse não, e o resultado existe só como `tool_result` com `is_error` no transcript. O guard lê o fim do transcript no PostToolUse
+  seguinte e injeta a orientação (`additionalContext`) **uma vez por sessão**, como a sugestão de `/compact`.
+- **Não é a coluna "Reescrita" do Consumo:** aquela é o contexto regravado após > 1 h parado (regra 7). O custo da reescrita do rtk
+  é turno repetido e aparece como mais turnos e polling/contexto; o `hades usage` não o separa.
+
 ## Medir
 
 - `hades usage [--days N]` (ou painel → **Consumo**): custo por papel, agente e dia; contexto médio e máximo;

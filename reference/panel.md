@@ -256,6 +256,7 @@ indisponível); sem prévia, porque a página sempre tem conteúdo vivo; os card
 ## Consumo
 
 Página **Consumo**: tokens por papel, agente e dia, e a linha de base; custo é equivalente em API (`reference/loop/tokens.md`).
+A leitura "Reescrita depois de pausa" é o cache regravado após > 1 h parado; a reescrita de comando do rtk no auto mode (uma Bash por resposta) é outra coisa, explicada na leitura, no tour e em `tokens.md` §Reescrita do rtk.
 
 Cartão **Janelas do plano** (sobre `GET /api/limits`, atualiza a cada 15 s): o % usado medido das janelas de 5 h e semanal, a
 hora de renovação (UTC) e há quanto tempo foi medido, âmbar a partir de 80%. Sem amostras mostra só o aviso de como ligar a

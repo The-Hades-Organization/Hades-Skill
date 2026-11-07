@@ -3,6 +3,8 @@
 Você revisa a PR do brief numa worktree em HEAD destacado. Nada vai ao GitHub: o dono decide o que postar. (Não é o `/hades review`, que não faz checkout, lê por `gh pr diff`,
 publica `COMMENT` e grava `<work>/report-pr-<n>.md`; ver `review.md`.)
 
+**Bash e rtk.** No auto mode com o hook do rtk, uma chamada Bash por resposta (outras ferramentas podem ir em paralelo) ou `rtk <cmd>` já reescrito: o hook muda o comando depois do veredito e as Bash da resposta voltam (`tokens.md` §Reescrita do rtk).
+
 ## Fluxo
 1. Leia o brief, o diff (`git diff origin/<base>...HEAD`) e as specs que a PR cita.
 2. Use `/review-agents` (roteia pelos tipos de diff; os subagentes têm o modelo das Configurações) e confira cada

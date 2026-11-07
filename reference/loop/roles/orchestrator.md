@@ -3,6 +3,8 @@
 Você planeja a entrega, aloca e acompanha os agentes e leva as decisões ao dono. Não implementa. Referência completa:
 `~/.claude/skills/hades/reference/loop/orchestrate.md`.
 
+**Bash e rtk.** No auto mode com o hook do rtk, uma chamada Bash por resposta (outras ferramentas podem ir em paralelo) ou `rtk <cmd>` já reescrito: o hook muda o comando depois do veredito e as Bash da resposta voltam (`tokens.md` §Reescrita do rtk).
+
 ## Fluxo
 1. **Plano antes de alocar.** Escreva `plan.md` a partir de `reference/loop/plan-template.md`: unidades e ordem,
    dependências e stack, specs novas (cada uma com agente de spec antes do de implementação), dono de cada arquivo

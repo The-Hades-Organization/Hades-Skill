@@ -9,6 +9,8 @@
  * A área é medida por `clientWidth/clientHeight` (tamanho de layout, em unidades do mundo): `getBoundingClientRect` inclui o
  * zoom do canvas, que a camada HTML já aplica, e a escala saía multiplicada por ele.
  * Teclas de TTY_GLOBAL_KEYS não são consumidas (sobem ao canvas). Ouvinte de documento só existe enquanto `focused`.
+ * Links: URL http(s) abre em nova aba (noopener) e caminho absoluto de arquivo pede ao dono (`onOpenPath`); o servidor decide a raiz.
+ * Busca: Ctrl+F no nó focado abre a barra (tela + scrollback); Esc fecha. A regra pura é de tty-extras.tsx (window.ArgosTtyExtras).
  * O xterm só existe com o nó legível (`headerOnly` falso); distante, fica o cabeçalho e o xterm é descartado.
  * Script clássico, carregado depois de ui/argos/node-terminal.js e de term.js. Expõe window.ArgosNodeTty. */
 (() => {
@@ -267,6 +269,37 @@ const NOTICE = {
 };
 
 const NO_HISTORY = 'Sem histórico para rolar';
+// a busca reaproveita o histórico carregado por este tempo (cada tecla da consulta refaria a leitura do scrollback)
+const SEARCH_HISTORY_TTL_MS = 3000;
+const EMPTY_SEARCH = Object.freeze({ query: '', matches: [], index: -1, truncated: false, merged: [] });
+/** Regra de links e busca (tty-extras.tsx, carregado antes); lida na hora de usar. */
+const extras = () => window.ArgosTtyExtras;
+/** O evento nasceu dentro da barra de busca do nó: o terminal não o trata (teclas, colagem, foco). */
+const inSearchBar = (e) => !!(e && e.target && typeof e.target.closest === 'function' && e.target.closest('[data-tty-search]'));
+
+/**
+ * Provedor de links do xterm: URL http(s) e caminho absoluto da linha; `open(link)` é a ação do clique. A linha vem do buffer do
+ * xterm (texto puro, sem ANSI); `y` é 1-based.
+ */
+function linkProviderOf(term, open) {
+  return {
+    provideLinks(y, done) {
+      const line = term.buffer.active.getLine(y - 1);
+      const found = line && extras() ? extras().linksOf(line.translateToString(true)) : [];
+      done(found.length === 0 ? undefined : found.map((l) => ({
+        range: { start: { x: l.start + 1, y }, end: { x: l.end, y } },
+        text: l.kind === 'url' ? l.url : l.path,
+        activate: () => open(l),
+      })));
+    },
+  };
+}
+
+/** Clique num link: URL abre em nova aba sem dar a janela ao destino; caminho vai ao dono, que pede ao servidor. */
+function activateLink(link, onOpenPath) {
+  if (link.kind === 'url') { window.open(link.url, '_blank', 'noopener,noreferrer'); return; }
+  if (extras().openablePath(link.path) && typeof onOpenPath === 'function') onOpenPath(link.path);
+}
 
 const FOCUS_RING = 'outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
 
@@ -333,7 +366,7 @@ function screenRows(rows, ansi) {
 
 /* frame = { pane, revision, cols, rows, ansi, cursor? }. `onResize({ cols, rows })` pede ao herdr a grade que cabe no nó (debounce); `textZoom` é o zoom da fonte. `scale` fixa a escala (1 = tamanho natural); sem ela o quadro se ajusta ao
  * espaço do nó. `focused` é do dono: o clique dentro chama onFocus, o clique fora (enquanto focado) chama onBlur. */
-function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, headerOnly = false, textZoom = 1, onResize }) {
+function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, headerOnly = false, textZoom = 1, onResize, onOpenPath }) {
   const root = useRef(null);
   const area = useRef(null);
   const xt = useRef(null);
@@ -351,6 +384,13 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   const wheelRest = useRef(0);
   const touchY = useRef(null);
   const loadingHistory = useRef(false);
+  // busca: null = fechada; o espelho em ref é o que os eventos assíncronos leem (o estado do render fica velho entre eles)
+  const [search, setSearch] = useState(null);
+  const searchRef = useRef(null);
+  const searchInput = useRef(null);
+  const searchSeq = useRef(0);
+  const searchHistory = useRef({ lines: null, at: 0, fresh: false });
+  const lit = useRef(false);
   const fixed = validScale(scale);
   const zoom = validScale(textZoom) || 1;
   zoomRef.current = zoom;
@@ -359,7 +399,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   const setScroll = (next) => { scroll.current = next; setScrolling(next); };
   const backToLive = () => { wheelRest.current = 0; setScroll(scrollLive()); };
 
-  live.current = { onResize, onInput, setNotice, focused, onWheel: null, ownsWheel: ownsWheel({ headerOnly, problem }), paint: () => {} };
+  live.current = { onResize, onInput, onOpenPath, setNotice, focused, frame, searchOpen: search !== null, onWheel: null, ownsWheel: ownsWheel({ headerOnly, problem }), paint: () => {} };
   // a composição precisa de um campo de texto: com o foco do teclado no nó, ele vai para o `textarea` escondido
   if (textIn.current === null) {
     textIn.current = createTextInput({
@@ -373,7 +413,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   const focusEntry = () => {
     const el = entry.current || root.current;
     if (!live.current.focused || !el || document.activeElement === el) return;
-    if (pressing.current || selection()) return;
+    if (pressing.current || selection() || live.current.searchOpen) return;
     el.focus({ preventScroll: true });
   };
   useEffect(() => { focusEntry(); }, [focused]);
@@ -443,6 +483,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
       // o xterm só desenha: nenhuma tecla é dele, todas sobem ao nó (que as traduz) e ao canvas
       made.term.attachCustomKeyEventHandler(() => false);
       muteXtermWheel(made.term);
+      if (extras()) made.term.registerLinkProvider(linkProviderOf(made.term, (link) => activateLink(link, live.current.onOpenPath)));
       // a métrica só existe depois do primeiro desenho: sem remedir, a grade fica na estimativa e sobra faixa à direita e embaixo
       made.term.onRender(() => live.current.measure());
       xt.current = made;
@@ -470,7 +511,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
     const made = xt.current;
     if (!made || screen === null) return;
     if (made.term.cols !== cols || made.term.rows !== shownRows) made.term.resize(cols, shownRows);
-    made.term.write(screen);
+    made.term.write(screen, () => live.current.highlight());
   };
   useEffect(() => { live.current.paint(); }, [screen, cols, shownRows]);
   useEffect(() => { if (xt.current) setTermFocus(xt.current.term, focused); }, [focused]);
@@ -494,13 +535,16 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
-  const loadHistory = () => {
-    if (loadingHistory.current || problem) return Promise.resolve();
-    loadingHistory.current = true;
+  const fetchHistoryBody = () => {
     const session = frame.session ? `&session=${encodeURIComponent(frame.session)}` : '';
     const url = `${HISTORY_URL}?pane=${encodeURIComponent(frame.pane)}&lines=${HISTORY_LINES}${session}`;
     return fetch(url, { cache: 'no-store' })
-      .then((r) => r.json().then((body) => { if (!r.ok) throw new Error(body && body.error ? String(body.error) : `http_${r.status}`); return body; }))
+      .then((r) => r.json().then((body) => { if (!r.ok) throw new Error(body && body.error ? String(body.error) : `http_${r.status}`); return body; }));
+  };
+  const loadHistory = () => {
+    if (loadingHistory.current || problem) return Promise.resolve();
+    loadingHistory.current = true;
+    return fetchHistoryBody()
       .then((body) => {
         const next = historyLoaded(scroll.current, historyLinesOf(body.ansi), frame.rows);
         // tela alternativa (less, vim): o herdr só guarda a tela visível, não há o que rolar
@@ -518,6 +562,94 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
     setScroll(wheelScroll(scroll.current, turn.lines, frame.rows));
     if (wasLive && scroll.current.pending > 0) void loadHistory();
   };
+  // ---- busca (Ctrl+F): tela e scrollback, próximo/anterior com volta, destaque pela seleção do xterm ----
+  const searchHistoryLines = async () => {
+    const cache = searchHistory.current;
+    if (cache.fresh && Date.now() - cache.at < SEARCH_HISTORY_TTL_MS) return cache.lines;
+    try {
+      const lines = historyLinesOf((await fetchHistoryBody()).ansi);
+      searchHistory.current = { lines, at: Date.now(), fresh: true };
+      return lines;
+    } catch (err) {
+      live.current.setNotice(`Histórico indisponível, buscando só na tela: ${err instanceof Error ? err.message : 'erro'}`);
+      searchHistory.current = { lines: null, at: Date.now(), fresh: true };
+      return null;
+    }
+  };
+  // leva a janela até o achado: no fim do histórico é a tela ao vivo, acima dele a janela do histórico que o contém
+  const reveal = (state) => {
+    const match = state.matches[state.index];
+    const rows = live.current.frame.rows;
+    const off = extras().offsetFor(match.line, state.merged.length, rows);
+    if (off === 0) backToLive(); else setScroll({ lines: state.merged, offset: off, pending: 0 });
+  };
+  // `dir`: 0 = consulta nova (vai ao achado mais recente), 1 = próximo, -1 = anterior (os dois dão a volta nas pontas)
+  const runSearch = async (query, dir) => {
+    const X = extras();
+    const q = X.normalizeQuery(query);
+    const seq = ++searchSeq.current;
+    const history = q === '' || problem ? null : await searchHistoryLines();
+    if (seq !== searchSeq.current || searchRef.current === null) return;
+    const f = live.current.frame;
+    const merged = X.searchLines(history, String(f.ansi).split(/\r?\n/), f.rows);
+    const { matches, truncated } = X.findMatches(merged, q);
+    const index = matches.length === 0 ? -1 : dir === 0 ? matches.length - 1 : X.stepMatch(matches.length, searchRef.current.index, dir);
+    const next = { query: q, matches, index, truncated, merged };
+    searchRef.current = next;
+    setSearch(next);
+    if (index >= 0) reveal(next);
+  };
+  const openSearch = () => {
+    if (searchRef.current === null) searchRef.current = EMPTY_SEARCH;
+    live.current.searchOpen = true;
+    setSearch(searchRef.current);
+    setNotice('');
+    requestAnimationFrame(() => { if (searchInput.current) { searchInput.current.focus({ preventScroll: true }); searchInput.current.select(); } });
+  };
+  const closeSearch = () => {
+    searchSeq.current += 1;
+    searchRef.current = null;
+    searchHistory.current = { lines: null, at: 0, fresh: false };
+    live.current.searchOpen = false;
+    setSearch(null);
+    if (xt.current && lit.current) { xt.current.term.clearSelection(); lit.current = false; }
+    focusEntry();
+  };
+  const onSearchQuery = (value) => {
+    const q = extras().normalizeQuery(value);
+    searchRef.current = { ...(searchRef.current || EMPTY_SEARCH), query: q };
+    setSearch(searchRef.current);
+    void runSearch(q, 0);
+  };
+  const onSearchKey = (e) => {
+    // as teclas globais do Argos seguem subindo mesmo com o foco na barra
+    if (isGlobalKey(e)) return;
+    e.stopPropagation();
+    if (isCompositionKey(e)) return;
+    const intent = extras().searchKeyIntent(e);
+    if (intent === 'close') { e.preventDefault(); closeSearch(); return; }
+    if (intent === 'next' || intent === 'prev') { e.preventDefault(); if (searchRef.current) void runSearch(searchRef.current.query, intent === 'next' ? 1 : -1); return; }
+    if (extras().isSearchChord(e)) { e.preventDefault(); if (searchInput.current) searchInput.current.select(); }
+  };
+  const step = (dir) => { if (searchRef.current) void runSearch(searchRef.current.query, dir); };
+  // posição do achado atual na janela que está na tela; o histórico mostrado tem de ser o da busca (senão a linha não é a mesma)
+  const found = search && search.index >= 0 && !problem ? search.matches[search.index] : null;
+  const foundAt = !found ? null
+    : history ? (history.lines === search.merged ? extras().matchInWindow(found, history.lines.length, frame.rows, history.offset) : null)
+    : extras().matchInWindow(found, search.merged.length, frame.rows, 0);
+  live.current.foundAt = foundAt;
+  live.current.highlight = () => {
+    const made = xt.current;
+    if (!made) return;
+    const at = live.current.foundAt;
+    if (at) { made.term.select(at.col, at.row, Math.min(at.len, Math.max(1, made.term.cols - at.col))); lit.current = true; }
+    else if (lit.current) { made.term.clearSelection(); lit.current = false; }
+  };
+  const foundKey = foundAt ? `${foundAt.row}:${foundAt.col}:${foundAt.len}` : '';
+  useEffect(() => { live.current.highlight(); }, [foundKey, drawing]);
+  // o dono do campo da busca: o nó deixa de ser legível (distante, quadro com problema) e a barra sai junto
+  useEffect(() => { if ((headerOnly || problem) && searchRef.current !== null) closeSearch(); }, [headerOnly, !!problem]);
+
   const copySelection = (text) => {
     const done = () => setNotice('');
     const failed = () => setNotice('Não foi possível copiar');
@@ -525,7 +657,13 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
     navigator.clipboard.writeText(text).then(done, failed);
   };
   const onKeyDown = (e) => {
-    if (!focused) return;
+    if (!focused || inSearchBar(e)) return;
+    if (!headerOnly && !problem && extras() && !textIn.current.busy() && extras().isSearchChord(e)) {
+      e.preventDefault();
+      e.stopPropagation();
+      openSearch();
+      return;
+    }
     if (clipboardAction(e) === 'paste') {
       e.preventDefault();
       e.stopPropagation();
@@ -558,13 +696,14 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   };
   // copiar pelo menu do navegador: o texto vem da grade, não do campo escondido
   const onCopy = (e) => {
+    if (inSearchBar(e)) return;
     const selected = selection();
     if (!selected || !e.clipboardData) return;
     e.preventDefault();
     e.clipboardData.setData('text/plain', selected);
   };
   const onPaste = (e) => {
-    if (!focused) return;
+    if (!focused || inSearchBar(e)) return;
     const text = e.clipboardData ? e.clipboardData.getData('text/plain') : '';
     if (!text) return;
     if (text.length <= PASTE_MAX_CHARS) { send(e, { text }); return; }
@@ -583,7 +722,8 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   const onPointerDown = (e) => {
     if (e && e.pointerType === 'touch') touchY.current = e.clientY;
     if (!focused && onFocus) onFocus();
-    if (pressing.current) return;
+    // clique na barra de busca é do campo dela: o foco do terminal não o toma de volta
+    if (pressing.current || inSearchBar(e)) return;
     const release = () => {
       document.removeEventListener('pointerup', release, true);
       document.removeEventListener('pointercancel', release, true);
@@ -615,6 +755,15 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
       {/* texto com mais linhas que o quadro anuncia (pane que acabou de crescer) não perde as de baixo: o xterm mostra todas */}
       {drawing ? <div ref={host} data-tty-grid data-tty-engine="xterm" data-tty-cols={cols} data-tty-rows={shownRows} className="relative select-text"
         style={{ width: cols * cell.w, height: shownRows * cell.h, transform: `scale(${factor})`, transformOrigin: '0 0', overflow: 'hidden' }} /> : null}
+      {search ? <div data-tty-search role="search" className="absolute top-1 right-3 z-10 flex items-center gap-1 border border-border bg-term px-1 py-0.5">
+        <input ref={searchInput} data-tty-search-input type="text" aria-label="Buscar no terminal" placeholder="Buscar" spellCheck={false} autoComplete="off" maxLength={extras().QUERY_MAX}
+          value={search.query} onChange={(e) => onSearchQuery(e.target.value)} onKeyDown={onSearchKey}
+          className="w-40 min-w-0 border-0 bg-transparent p-0 t-data text-term-foreground outline-none placeholder:text-term-muted" />
+        <span role="status" aria-live="polite" data-tty-search-count className="min-w-12 shrink-0 text-right t-meta text-term-muted">{extras().searchCount(search.query, search.matches.length, search.index, search.truncated)}</span>
+        <button type="button" data-tty-search-prev aria-label="Resultado anterior" onClick={() => step(-1)} className={cn('cursor-pointer px-1 t-meta text-term-foreground hover:bg-accent', FOCUS_RING)}>↑</button>
+        <button type="button" data-tty-search-next aria-label="Próximo resultado" onClick={() => step(1)} className={cn('cursor-pointer px-1 t-meta text-term-foreground hover:bg-accent', FOCUS_RING)}>↓</button>
+        <button type="button" data-tty-search-close aria-label="Fechar a busca" onClick={closeSearch} className={cn('cursor-pointer px-1 t-meta text-term-foreground hover:bg-accent', FOCUS_RING)}>✕</button>
+      </div> : null}
       {message ? <span role="status" className="absolute right-2 bottom-2 left-2 t-meta text-term-warn">{message}</span> : null}
       {history ? <button type="button" data-tty-to-end className="absolute right-2 bottom-2 cursor-pointer border border-border bg-term px-2 py-0.5 t-meta text-term-foreground outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
         aria-label="Ir ao fim do terminal" onClick={backToLive}>↓ ir ao fim</button> : null}
@@ -622,5 +771,5 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   </div>;
 }
 
-window.ArgosNodeTty = { NodeTty, muteXtermWheel, frameCursor, setTermFocus, TTY_GLOBAL_KEYS, TTY_CANVAS_KEYS, minSize, translateKey, clipboardIntent, clipboardAction, selectedText, wheelIntent, touchWheel, historyLinesOf, historyWindow, clampOffset, wheelStep, scrollLive, wheelScroll, historyLoaded, ownsWheel, screenLinePx, createTextInput, isCompositionKey, fitScale, gridFor, cellSize, measureCell, sizeApplied, resizeDebounce, SIZE_LIMITS, RESIZE_DEBOUNCE_MS, areaBox, fitForNode, gridBox, SCALE_LIMITS, rowsToShow, cursorOf, screenOf, screenRows, ttyDrawing, oversize, selectionOf };
+window.ArgosNodeTty = { NodeTty, muteXtermWheel, frameCursor, setTermFocus, TTY_GLOBAL_KEYS, TTY_CANVAS_KEYS, minSize, translateKey, clipboardIntent, clipboardAction, selectedText, wheelIntent, touchWheel, historyLinesOf, historyWindow, clampOffset, wheelStep, scrollLive, wheelScroll, historyLoaded, ownsWheel, screenLinePx, createTextInput, isCompositionKey, fitScale, gridFor, cellSize, measureCell, sizeApplied, resizeDebounce, SIZE_LIMITS, RESIZE_DEBOUNCE_MS, areaBox, fitForNode, gridBox, SCALE_LIMITS, rowsToShow, cursorOf, screenOf, screenRows, ttyDrawing, oversize, selectionOf, linkProviderOf, activateLink, inSearchBar };
 })();

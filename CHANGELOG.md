@@ -4,6 +4,34 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.21.0 — 2026-11-07
+
+Terminal do nó do Argos com links clicáveis e busca (issue #73). O mouse no programa fica para depois: precisa de
+mudança no fork do herdr (contrato abaixo).
+
+### Links e busca (#73)
+
+- **Links:** URL `http(s)` da tela abre em nova aba (`noopener,noreferrer`). Caminho absoluto de arquivo `.md`,
+  `.markdown` ou `.txt` vira nota ao lado do nó, pelo mesmo `POST /api/canvas-notes/link` de soltar arquivo: o servidor
+  decide a raiz e recusa `..`, fora da raiz e link simbólico para fora. Caminho relativo não abre.
+- **Busca:** Ctrl+F no nó focado abre uma barra que procura na tela e no scrollback (`/api/herdr/scrollback`), com
+  contagem, próximo/anterior (Enter e Shift+Enter, com volta) e destaque. Esc fecha e devolve o foco ao terminal. A barra
+  não deixa tecla nem colagem irem ao pane e não bloqueia as teclas globais do Argos.
+- Regra pura em `kit/panel/ui/argos/tty-extras.tsx` (detecção de link, busca sem regex), sem dependência nova; teste
+  `argos-tty-extras` (18 casos).
+
+### Mouse: contrato pendente no fork
+
+O fork do herdr não expõe o modo de mouse do pane, e `send_text`/`send_input` entregam o texto como colagem entre
+colchetes, então bytes SGR não chegam ao programa como mouse. Proposta em `reference/argos.md`: `pane.read` ganha
+`mouse {reporting, protocol, encoding}` (aditivo) e um método `pane.send_mouse` que o herdr codifica no formato do
+programa, com erro `mouse_not_enabled`.
+
+### Armadilhas
+
+- Com o nó focado, Ctrl+F abre a busca e não chega ao shell (no readline, ele avança o cursor uma letra).
+- `rtk-worktree: doctor` estourou os 30 s em dois `check` seguidos sob carga e passou sozinho: teste instável, aberto.
+
 ## 6.20.0 — 2026-11-07
 
 Terminais do Argos com tamanho real (issue #56): o nó dimensiona o PTY do pane do herdr em vez de só escalar a fonte,

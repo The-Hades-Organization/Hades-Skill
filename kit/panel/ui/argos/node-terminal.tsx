@@ -663,6 +663,8 @@ function createTtyHost(deps) {
     },
     /** Há pedido de tamanho possível para o nó: o nó calcula e pede a grade (senão ele escala o quadro). */
     canResize: (id) => sizeSupport !== 'no' && targets.has(id) && host.modeOf(id) === 'stream',
+    /** Abre no painel o arquivo que um link do terminal do nó nomeou; a decisão de raiz é do servidor (a página liga `deps.openPath`). */
+    openPath(id, path) { if (typeof deps.openPath === 'function') deps.openPath(id, path); },
     /** Zoom do texto do nó (fonte); 1 sem suporte, onde o zoom é o tamanho do nó. */
     textZoomOf: (id) => (sizeSupport === 'yes' ? textZooms.get(id) || 1 : 1),
     /** Passo do zoom do texto (`in`, `out`, `reset`) do nó; devolve o fator novo, ou `null` sem suporte ao tamanho. */
@@ -737,7 +739,7 @@ function ttyBody({ host, input, target, grow, remove }) {
   const small = input.w < min.w || input.h < min.h;
   const headerOnly = !small && frame ? ttyHeaderOnly(host.zoom(), ttyScaleOf(input.w, input.h, frame)) : false;
   // com suporte do herdr, o nó dimensiona o pane pela área e o zoom do texto é a fonte; sem ele, escala o quadro como antes
-  const tty = { focused, headerOnly, textZoom: host.textZoomOf(input.id), onResize: host.canResize(input.id) ? (grid) => host.setSize(input.id, grid) : undefined, onFocus: () => host.focus(input.id), onBlur: () => host.focus(null), onInput: (x) => host.input(input.id, x) };
+  const tty = { focused, headerOnly, textZoom: host.textZoomOf(input.id), onResize: host.canResize(input.id) ? (grid) => host.setSize(input.id, grid) : undefined, onFocus: () => host.focus(input.id), onBlur: () => host.focus(null), onInput: (x) => host.input(input.id, x), onOpenPath: (path) => host.openPath(input.id, path) };
   const Tty = ttyApi().NodeTty;
   if (small) return <div className="grid content-center justify-items-start gap-2 p-2">
     <span className="t-meta text-muted-foreground">Nó pequeno para o terminal ({min.w}×{min.h} no mínimo).</span>

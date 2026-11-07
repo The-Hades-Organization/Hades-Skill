@@ -395,6 +395,7 @@ function Argos() {
     openStream: (url) => openSse(url),
     sendInput: sendHerdrInput,
     sendSize: sendHerdrSize,
+    openPath: (id, path) => host.current.openTerminalFile(id, path),
     setTimer: (run, ms) => setTimeout(run, ms),
     clearTimer: (h) => clearTimeout(h),
     nodeRect: (id) => cstateRef.current?.doc.nodes.find((n) => n.id === id),
@@ -1614,6 +1615,11 @@ function Argos() {
     select, commitOp, opFailed, copyText, ask: askOwner,
     hideTargets: (id) => HID.hideTargets(engineSelection, id), hideNodes, unhideNodes,
     openTerminal: (spec) => { void HadesCore.TermOpen.openAndGo(spec, { toast, go }); },
+    // link de caminho no terminal do nó: vira nota ao lado do nó pelo mesmo caminho do soltar; a raiz permitida é o servidor quem decide
+    openTerminalFile: (id, path) => {
+      const n = cstateRef.current?.doc.nodes.find((x) => x.id === id);
+      termRun(() => linkDroppedNotes([path], n ? { x: n.x + n.w + DROP_STEP, y: n.y } : { x: 0, y: 0 }));
+    },
     hiddenIds: () => cstateRef.current?.doc.hidden ?? NO_NODES, openHiddenList: () => { setHiddenWanted(true); setFiltersOpen(true); },
     notify: ({ level, text }) => toast({ kind: NOTE_LEVEL_TOAST[level] || 'info', title: text }),
     filteredIds: () => shown.nodes.map((n) => n.id),

@@ -2604,6 +2604,26 @@ sessão (`POST /api/term/open`, `kind: shell` com `cwd`, ou `herdr-client` com `
 `term_disabled` e o aviso diz como ligar; pasta fora das raízes volta `term_forbidden_cwd` (a decisão é do servidor, esconder o
 botão não é controle). Prova: `argos-abrir-terminal.test.ts`.
 
+### Links, busca e mouse do terminal do nó
+
+Regra pura em `kit/panel/ui/argos/tty-extras.tsx` (`window.ArgosTtyExtras`), ligada pelo `node-tty.tsx`; sem dependência nova
+(sem addon do xterm).
+
+- **Links.** URL (`TermLogic.findLinks`) abre em nova aba (`window.open`, `noopener`). Caminho absoluto vira nota ao lado do nó:
+  `host.openPath` → `openTerminalFile` da página → `linkDroppedNotes` (mesmo `POST /api/canvas-notes/link` do soltar). O servidor
+  decide a raiz; só `.md`, `.markdown` e `.txt` viram nota. Caminho relativo não abre. Nada disso é controle de acesso do cliente.
+- **Busca.** `Ctrl+F` no nó focado abre a barra; `Esc` fecha, `Enter`/`Shift+Enter` vão ao próximo/anterior (com volta), com
+  contagem. O texto procurado é o scrollback (`/api/herdr/scrollback`) com as últimas `rows` linhas trocadas pela tela atual, sem
+  regex. O resultado vale para o instante da busca (`Enter` refaz). O destaque usa a seleção do xterm, reaplicada a cada quadro. A
+  barra não vaza tecla, colagem nem foco para o pane.
+- **Mouse: não implementado.** O fork do herdr não expõe o modo de mouse do pane na API e `pane.send_text`/`send_input` entregam
+  colagem entre colchetes, não bytes de mouse. Contrato pedido ao fork: (a) `pane.read` (source `visible`) ganha
+  `mouse: { reporting, protocol: none|x10|normal|button|any, encoding: default|utf8|sgr }` (aditivo; ausente = sem mouse);
+  (b) `pane.send_mouse { pane_id, kind: down|up|drag|wheel, button, col, row, mods }`, codificado no encoding que o programa
+  pediu; erro `mouse_not_enabled` com o modo desligado, `unknown_method` no 0.8.2 (o cliente degrada).
+
+Prova: `loop/test/ts/argos-tty-extras.test.ts`.
+
 ## Fluxo do terminal (servidor)
 
 O nó de agente mostra o pane do herdr ao vivo. O servidor (`src/panel/herdr-stream.ts`) manda quadros prontos do herdr;

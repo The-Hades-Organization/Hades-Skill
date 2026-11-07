@@ -4,6 +4,22 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.28.0 — 2026-11-07
+
+Capacidade nova (Argos, unidade argos-interacao).
+
+- O canvas se atualiza sozinho quando o documento muda no servidor (CLI, outra aba, agentes): o stream existente
+  (`/api/canvas/stream`) ganhou religação com recuo (`src/lib/canvas-live.ts`) e mescla por nó (`DocSaver.absorb`
+  sobre `rebaseDoc`). Edição local em curso é preservada; o aviso e o botão "Recarregar" saíram.
+- Medido: 43 ms entre duas abas, religação em 1,3 s, nenhum timer com a aba escondida. WebSocket e CRDT foram
+  avaliados e descartados (o stream já bastava).
+- `Ctrl+A` seleciona os nós visíveis (não vale em campo nem no terminal); Shift sobre o fundo mostra o cursor em cruz
+  do retângulo de seleção.
+- Celular (360 px): sem rolagem horizontal; ficam abaixo de 44 px os botões do cabeçalho da nota e o trilho lateral,
+  e o botão "Legenda" fica sob a barra de zoom (arquivos de outras unidades, a corrigir nelas).
+- Armadilha: a suíte paralela do `check` estoura 30 s em `caronte unpack` e `painel-herdr-admin` com a máquina
+  carregada; isolados passam.
+
 ## 6.27.1 — 2026-11-07
 
 Correção (pedido do dono, 07/11): três avisos falsos do `doctor` medidos na máquina do dono.

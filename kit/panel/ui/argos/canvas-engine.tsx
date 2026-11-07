@@ -1232,7 +1232,7 @@ function makeArgosCanvas() {
       const grabbing = gesture.kind === "pan" && gesture.grab;
       const resizeEdge = gesture.kind === "resize" ? gesture.edge : gesture.kind === "none" ? overResize : undefined;
       const resizing = resizeEdge !== undefined;
-      host.style.cursor = grabbing ? "grabbing" : spaceHeld ? "grab" : linking ? "crosshair" : resizeEdge ? S.resizeCursor(resizeEdge) : "";
+      host.style.cursor = grabbing ? "grabbing" : spaceHeld ? "grab" : linking || marqueeHint ? "crosshair" : resizeEdge ? S.resizeCursor(resizeEdge) : "";
       // o nó rico (nota, terminal) cobre a alça e tem cursor próprio (texto): a classe o vence enquanto vale
       // a classe vence o cursor do conteúdo rico; o formato da seta (borda ou canto) vai na variável que o CSS lê
       if (resizeEdge) host.style.setProperty("--canvas-resize-cursor", S.resizeCursor(resizeEdge));
@@ -1240,6 +1240,8 @@ function makeArgosCanvas() {
     };
     /** Lados sob o mouse parado sobre a alça ou a borda de redimensionar (sem botão apertado). */
     let overResize: SelectionModule.ResizeEdge | undefined;
+    /** Shift apertado com o mouse sobre o fundo: o próximo arrasto é o retângulo de seleção (cursor em cruz). */
+    let marqueeHint = false;
     // a borda do terminal vale sem selecionar: a faixa é fina e fica abaixo do cabeçalho, que segue sendo a alça de mover
     const EDGE_NODE_TYPE = "terminal";
     const resizeOptions = (): SelectionModule.HitOptions => ({
@@ -1255,9 +1257,14 @@ function makeArgosCanvas() {
       return hit?.region === "resize" ? hit : undefined;
     };
     const trackResizeHover = (e: PointerEvent): void => {
-      const over = e.pointerType === "mouse" && gesture.kind === "none" ? resizeHitAt(e)?.edge : undefined;
-      if (over?.left === overResize?.left && over?.right === overResize?.right && over?.bottom === overResize?.bottom && (over === undefined) === (overResize === undefined)) return;
+      const idle = e.pointerType === "mouse" && gesture.kind === "none";
+      const over = idle ? resizeHitAt(e)?.edge : undefined;
+      // Shift sobre o fundo arma o retângulo de seleção: a cruz avisa antes de arrastar (sem Shift o fundo é pan)
+      const marquee = idle && e.shiftKey && S.hitTest(doc.nodes, C.screenToWorld(cam, screenPoint(e)), plainHitOptions()) === undefined;
+      const sameEdge = over?.left === overResize?.left && over?.right === overResize?.right && over?.bottom === overResize?.bottom && (over === undefined) === (overResize === undefined);
+      if (sameEdge && marquee === marqueeHint) return;
       overResize = over;
+      marqueeHint = marquee;
       applyCursor();
     };
     const cancelGesture = (): void => {
@@ -1729,6 +1736,10 @@ function makeArgosCanvas() {
     }
 
     function onKeyUp(e: KeyboardEvent): void {
+      if (e.key === "Shift" && marqueeHint) {
+        marqueeHint = false;
+        applyCursor();
+      }
       if (e.key !== " " || !spaceHeld) return;
       const used = spaceUsed;
       releaseSpace();
@@ -1803,7 +1814,7 @@ function makeArgosCanvas() {
     listen(host, "pointermove", onPointerMove);
     listen(host, "pointerup", onPointerUp);
     listen(host, "pointercancel", onPointerUp);
-    listen(host, "pointerleave", () => { if (overResize) { overResize = undefined; applyCursor(); } });
+    listen(host, "pointerleave", () => { if (overResize || marqueeHint) { overResize = undefined; marqueeHint = false; applyCursor(); } });
     listen(host, "wheel", onWheel, { passive: false });
     listen(host, "keydown", onKeyDown);
     listen(host, "keyup", onKeyUp);

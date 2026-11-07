@@ -486,8 +486,7 @@ function Argos() {
   }, []);
   const { types, commands, userText } = registries;
   useMemo(() => CC.registerCameraCommands(commands), [commands]);
-  // quando a tela relê o documento que mudou por fora (aviso do servidor, conferência de POLL_MS, volta da aba, gravador ocioso)
-  const [externalStale, setExternalStale] = useState(false);
+  // quando a tela relê o documento que mudou por fora (aviso do servidor, conferência de reserva, volta da aba, gravador ocioso)
   const reloadRef = useRef(async () => true);
   // por que o documento vai ser gravado (user, undo, graph) e se o dono apagou de propósito; o gravador leva ao servidor e zera
   // (a causa e a confirmação ficam até o servidor aceitar: o reenvio depois de um 409 leva os mesmos cabeçalhos)
@@ -495,7 +494,12 @@ function Argos() {
   const graphSizeRef = useRef(null);
   const busyStateRef = useRef(() => null);
   const watch = useMemo(() => NT.createCanvasWatch({
-    now: () => Date.now(), busy: () => busyStateRef.current(), reload: () => reloadRef.current(), onStale: setExternalStale,
+    now: () => Date.now(),
+    // edição só agendada ('fila') não segura a releitura: `mergeExternal` reaplica a edição sobre a revisão nova (DocSaver.absorb)
+    busy: () => { const state = busyStateRef.current(); return state === 'fila' ? null : state; },
+    reload: () => reloadRef.current(),
+    // sem aviso nem botão: a releitura é automática; ficar atrás do servidor por tempo demais só vai ao console
+    onStale: (behind) => { if (behind) console.debug('canvas: a tela está atrás do servidor há mais de 10 s'); },
     log: (reason) => console.debug('canvas: releitura pulada', reason),
   }), []);
   const saver = useMemo(() => M.store.createDocSaver({ put: (doc, options) => { const sent = saveMeta.peek(); return putCanvas(canvasUrl(canvasIdRef.current), doc, options, { ...sent, graphSize: graphSizeRef.current }).then((reply) => {
@@ -631,7 +635,20 @@ function Argos() {
       return false;
     }
   }, [saver, watch, reconcile, scheduleSave]);
-  reloadRef.current = loadCanvas;
+  // o servidor andou por fora e a tela tem edição ainda não enviada: reaplica a edição sobre o documento novo (mescla por nó) e mostra
+  // o resultado, com a pilha de desfazer intacta (ela refaz por id e descarta passo de nó que sumiu). `false`: o gravador não estava
+  // livre (envio em andamento, que reconcilia pelo 409) ou a revisão já era conhecida; o gravador ocioso chama a releitura de novo.
+  const mergeExternal = useCallback(async () => {
+    if (!cstateRef.current) return loadCanvas();
+    const theirs = await getCanvas(canvasUrl(canvasIdRef.current));
+    const merged = saver.absorb(theirs);
+    if (merged === undefined || !cstateRef.current) { console.debug('canvas: mescla adiada, gravador ocupado ou revisão já conhecida'); return false; }
+    const next = { ...cstateRef.current, doc: merged };
+    cstateRef.current = next; setCstate(next);
+    watch.loaded(theirs.rev);
+    return true;
+  }, [saver, watch, loadCanvas]);
+  reloadRef.current = () => (busyState() === 'fila' ? mergeExternal() : loadCanvas());
   staleRef.current = () => {
     toast({ kind: 'warn', title: 'Canvas atualizado', desc: 'Outra aba gravou antes: mostrando a versão dela.' });
     loadCanvas();
@@ -723,8 +740,8 @@ function Argos() {
   }, []);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), CLOCK_MS); return () => clearInterval(t); }, []);
   // documento gravado por fora da página (a CLI `hades canvas` do orquestrador recruta, liga e dispensa; um agente; outra aba): o
-  // servidor empurra `{ id, rev }` pelo stream e a tela relê na hora; a conferência de POLL_MS e a volta da aba são a reserva
-  // (stream caído, painel reiniciado). Quem decide reler ou pular, e por quê, é NT.createCanvasWatch.
+  // servidor empurra `{ id, rev }` pelo stream e a tela se atualiza na hora, sem botão. O transporte (religação com recuo,
+  // conferência de reserva, zero timer com a aba escondida) é de M.live; quem decide reler, mesclar ou pular é NT.createCanvasWatch.
   useEffect(() => {
     let alive = true;
     const swallow = (what) => (e) => console.warn(`canvas: ${what} falhou`, e && e.name);
@@ -734,33 +751,19 @@ function Argos() {
       const row = list && Array.isArray(list.canvases) ? list.canvases.find((c) => c && c.id === canvasIdRef.current) : null;
       if (alive && row) await watch.observe({ serverRev: row.rev, hidden: document.hidden });
     };
-    const t = setInterval(() => { check().catch(swallow('conferência da revisão')); }, POLL_MS);
-    const visible = () => { if (!document.hidden) check().catch(swallow('conferência ao voltar à aba')); };
-    document.addEventListener('visibilitychange', visible);
-    let stream = null;
-    try {
-      stream = openSse(CANVAS_STREAM_URL);
-      stream.addEventListener('canvas', (ev) => {
-        let d = null;
-        try { d = JSON.parse(ev.data); } catch (e) { console.warn('canvas: aviso do servidor ilegível', e && e.name); }
-        if (alive && d && d.id === canvasIdRef.current) watch.observe({ serverRev: d.rev, hidden: document.hidden }).catch(swallow('releitura pelo aviso'));
-      });
+    const link = M.live.createLiveLink({
+      open: () => openSse(CANVAS_STREAM_URL),
+      hidden: () => document.hidden,
+      onVisibility: (fn) => { document.addEventListener('visibilitychange', fn); return () => document.removeEventListener('visibilitychange', fn); },
+      setTimer: (run, ms) => setTimeout(run, ms), clearTimer: (h) => clearTimeout(h), random: Math.random,
+      onCanvas: (n) => { if (alive && n.id === canvasIdRef.current) watch.observe({ serverRev: n.rev, hidden: document.hidden }).catch(swallow('releitura pelo aviso')); },
       // registro de terminais (argos/terminals.json) mudou: vive fora do documento, então o grafo se relê
-      stream.addEventListener('registry', () => { if (alive) { reloadGraph.current(); reloadOrphans.current().catch(swallow('leitura dos órfãos')); } });
-      // (re)ligou: confere o que passou enquanto o stream estava fora
-      stream.addEventListener('open', () => { check().catch(swallow('conferência ao ligar o stream')); });
-    } catch (e) {
-      console.warn('canvas: stream indisponível, fica o polling', e && e.name);
-    }
-    return () => { alive = false; clearInterval(t); document.removeEventListener('visibilitychange', visible); if (stream) stream.close(); };
+      onRegistry: () => { if (alive) { reloadGraph.current(); reloadOrphans.current().catch(swallow('leitura dos órfãos')); } },
+      check, log: (message) => console.debug('canvas:', message),
+    });
+    link.start();
+    return () => { alive = false; link.stop(); };
   }, [watch]);
-  // "o canvas mudou por fora": grava o que está na fila e relê; com o gravador em erro a releitura jogaria a edição fora, então só avisa
-  const swallowReload = (e) => console.error('canvas: recarregar falhou', e && e.name);
-  const reloadExternal = async () => {
-    await saver.flush();
-    if (saveStatusRef.current.kind === 'error') { toast({ kind: 'warn', title: 'Canvas sem gravar', desc: 'Há edição sua que não foi gravada: resolva o erro de gravação antes de recarregar.' }); return; }
-    await loadCanvas();
-  };
 
   // panes do herdr dos nós de agente: a visão geral só é lida com nó de agente no canvas
   const hasAgentNode = !!cstate && cstate.doc.nodes.some((n) => n.type === 'agent');
@@ -2005,12 +2008,6 @@ function Argos() {
         <I.CircleAlert className="size-3.5 shrink-0" aria-hidden="true" />
         <span>{deadIds.length === 1 ? '1 terminal encerrado no canvas' : `${deadIds.length} terminais encerrados no canvas`}{deadHidden > 0 ? ` (${deadHidden} oculto${deadHidden === 1 ? '' : 's'})` : ''}: {deadIds.map((id) => nodeLabel(id) || id).join(', ')}</span>
         <button type="button" onClick={() => termRun(() => termRemoveEnded(deadIds))} className="cursor-pointer underline underline-offset-3 hover:no-underline max-md:min-h-11">Remover do canvas</button>
-      </p> : null}
-      {externalStale ? <p className="pointer-events-auto flex w-fit items-center gap-2 border border-border-strong bg-background px-2 py-1 t-meta text-muted-foreground" role="status">
-        <I.RefreshCw className="size-3.5 shrink-0" aria-hidden="true" />
-        <span>O canvas mudou por fora.</span>
-        <button type="button" onClick={() => { reloadExternal().catch(swallowReload); }}
-          className="cursor-pointer underline underline-offset-3 hover:no-underline max-md:min-h-11">Recarregar</button>
       </p> : null}
       {saveStatus.kind === 'error' ? (() => {
         const badge = L.saveBadgeOf(saveStatus.code, saveFails);

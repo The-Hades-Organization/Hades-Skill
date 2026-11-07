@@ -89,6 +89,8 @@ export const CANVAS_UI_MODULES = {
   links: "canvas-links.ts",
   // orquestrador e recrutas: arestas terminal → agente alocado pela CLI (orchestrationEdges)
   recruit: "canvas-recruit.ts",
+  // ligação ao vivo com o servidor: religação com recuo e conferência de reserva (pages/argos.tsx)
+  live: "canvas-live.ts",
 } as const;
 
 /** Nome pedido em `/ui/lib/<nome>` → pacote. Qualquer outro nome responde 404. */

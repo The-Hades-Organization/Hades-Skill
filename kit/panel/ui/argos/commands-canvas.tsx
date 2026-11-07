@@ -384,6 +384,10 @@ function makeArgosCanvasCommands() {
       return [...new Set(docPort.selection())].filter((id) => present.has(id));
     };
     const hasSelection = (min: number) => (): boolean => selectedIds().length >= min;
+    const visibleIds = (): string[] => {
+      const hidden = new Set(docPort.doc().hidden ?? []);
+      return docPort.doc().nodes.filter((node) => !hidden.has(node.id)).map((node) => node.id);
+    };
     const primary = (): string | undefined => {
       const ids = selectedIds();
       return ids.length === 1 ? ids[0] : undefined;
@@ -498,6 +502,12 @@ function makeArgosCanvasCommands() {
     // ---- O5 copiar, colar, duplicar, excluir ----
     let clip: ClipboardModule.Clip | undefined;
     let pastes = 0;
+    // terminal ou campo em foco fica com o Ctrl+A dele (`inEditable: false`); no canvas seleciona o que está à vista
+    add("O5", {
+      id: "select:all", label: "Selecionar tudo", hint: "todos os nós visíveis", group: GROUP_ORGANIZE, shortcut: "mod+a", surfaces: SURFACES_CANVAS,
+      inEditable: false, when: () => visibleIds().length > 0,
+      run: guarded(() => docPort.select(visibleIds())),
+    });
     add("O5", {
       id: "clip:copy", label: "Copiar", hint: "só nós do usuário", group: GROUP_ORGANIZE, shortcut: "mod+c", surfaces: SURFACES_ALL,
       inEditable: false, when: hasSelection(1),

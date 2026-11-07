@@ -765,24 +765,26 @@ function AgentTtyNode({ input, host, fallback, agentView, grow }) {
   const focused = host.focused() === input.id;
   const status = host.statusOf(input.id);
   const attention = host.attentionOf(input.id);
+  const NodeActions = window.ArgosParts?.NodeActions;
   const jump = host.alt() ? host.jumpNumbers().get(input.id) : undefined;
   const inputError = host.inputErrorOf(input.id);
   const word = window.CanvasModel.argos.stateLook(status).word;
   const pick = (id) => { if (focused) host.focus(null); setView(id); };
   const body = view !== 'terminal' ? agentView(view, input) : ttyBody({ host, input, target, grow });
   return <div className="flex h-full min-h-0 flex-col bg-card" data-agent-tty={input.id}>
-    <div className="flex shrink-0 items-center gap-1.5 border-b px-2 t-meta" style={{ height: TTY_HEADER_PX }}>
+    <div className="flex shrink-0 items-center gap-1.5 border-b px-2 t-meta max-lg:h-11!" style={{ height: TTY_HEADER_PX }}>
       {jump ? <kbd aria-label={`Alt+${jump} foca este terminal`} className="inline-flex h-5 min-w-5 items-center justify-center border border-border-strong bg-muted px-1 font-mono t-micro text-foreground">{jump}</kbd> : null}
       <span className="min-w-0 flex-1 truncate t-body-strong" title={node.label}>{node.label}</span>
       <span className="shrink-0 text-muted-foreground">{word}</span>
       {attention ? <span role="img" aria-label="pede atenção" title="pede atenção" className="size-2 shrink-0 rounded-full bg-bad" /> : null}
       <span role="group" aria-label="Vista do nó" className="flex shrink-0 items-center">
         {VIEWS.map(([id, label, Icon]) => <button key={id} type="button" aria-pressed={view === id} aria-label={label} title={label} onClick={() => pick(id)}
-          className={cn('inline-flex size-6 items-center justify-center outline-none hover:bg-accent/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+          className={cn('inline-flex size-6 items-center justify-center outline-none max-lg:size-11 hover:bg-accent/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
             view === id ? 'text-foreground' : 'text-muted-foreground')}>
           <Icon aria-hidden="true" className="size-3.5" />
         </button>)}
       </span>
+      {NodeActions ? <NodeActions id={input.id} /> : null}
     </div>
     {inputError ? <span role="status" className="shrink-0 truncate px-2 t-meta text-bad">O herdr não aceitou: {inputError}</span> : null}
     <div className="flex min-h-0 flex-1 flex-col">{body}</div>
@@ -986,11 +988,12 @@ function TerminalNode({ input, host, deps }) {
   const modelLabel = terminalModelLabel(d);
   const links = deps.linksOf(input.id);
   const attention = target ? host.attentionOf(input.id) : false;
+  const NodeActions = window.ArgosParts?.NodeActions;
   const jump = target && host.alt() ? host.jumpNumbers().get(input.id) : undefined;
   const inputError = target ? host.inputErrorOf(input.id) : null;
   const word = window.CanvasModel.argos.stateLook(target ? host.statusOf(input.id) : 'unknown').word;
   return <div className="flex h-full min-h-0 flex-col bg-card" data-terminal-node={input.id} style={terminalThemeStyle(input.data, dark)}>
-    <div className="flex shrink-0 items-center gap-1.5 border-b px-2 t-meta" style={{ height: TTY_HEADER_PX, boxShadow: d.color ? `inset 0 3px 0 ${d.color}` : undefined }}>
+    <div className="flex shrink-0 items-center gap-1.5 border-b px-2 t-meta max-lg:h-11!" style={{ height: TTY_HEADER_PX, boxShadow: d.color ? `inset 0 3px 0 ${d.color}` : undefined }}>
       {jump ? <kbd aria-label={`Alt+${jump} foca este terminal`} className="inline-flex h-5 min-w-5 items-center justify-center border border-border-strong bg-muted px-1 font-mono t-micro text-foreground">{jump}</kbd> : null}
       <Icon aria-hidden="true" className="size-3.5 shrink-0" style={d.color ? { color: d.color } : undefined} />
       <span className="min-w-0 flex-1 truncate t-body-strong" title={name}>{name}</span>
@@ -999,11 +1002,12 @@ function TerminalNode({ input, host, deps }) {
       {d.role ? <span title={`Papel: ${role ? role.name : d.role}`} className="max-w-28 shrink-0 truncate t-micro text-muted-foreground">{role ? role.name : d.role}</span> : null}
       <span title={modelLabel.title} data-terminal-model className="max-w-32 shrink-0 truncate t-micro text-muted-foreground">{modelLabel.text}</span>
       {links ? <button type="button" aria-label={`${links} ${links === 1 ? 'conexão' : 'conexões'}`} title="Conexões" onClick={() => deps.onConnections(input.id)}
-        className="inline-flex h-5 shrink-0 items-center gap-0.5 px-1 text-muted-foreground outline-none hover:bg-accent/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
+        className="inline-flex h-5 shrink-0 items-center justify-center gap-0.5 px-1 text-muted-foreground outline-none max-lg:h-11 max-lg:min-w-11! hover:bg-accent/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
         <I.Cable aria-hidden="true" className="size-3" />{links}
       </button> : null}
       <span className="shrink-0 text-muted-foreground">{target ? word : 'sem pane'}</span>
       {attention ? <span role="img" aria-label="pede atenção" title="pede atenção" className="size-2 shrink-0 rounded-full bg-bad" /> : null}
+      {NodeActions ? <NodeActions id={input.id} /> : null}
     </div>
     {inputError ? <span role="status" className="shrink-0 truncate px-2 t-meta text-bad">O herdr não aceitou: {inputError}</span> : null}
     <div className="flex min-h-0 flex-1 flex-col">

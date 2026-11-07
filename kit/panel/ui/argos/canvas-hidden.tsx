@@ -1,6 +1,7 @@
-/* Ocultos do canvas do Argos (reference/argos.md §Ocultar e podar o canvas): os comandos "Ocultar do canvas" (Shift+H, paleta e
- * menu do nó), "Reexibir todos os ocultos" e "Lista de ocultos…", e o botão "Ocultos (N)" da barra com a lista para reexibir
- * um, vários ou todos. Script clássico: registra window.ArgosCanvasHidden. Depende só de React. Só exibe e encaminha: quem
+/* Bandeja do canvas do Argos (reference/argos.md §Ocultar e podar o canvas): o nó "recolhido" sai do desenho e espera na
+ * bandeja. Os comandos "Recolher para a bandeja" (Shift+H, paleta e menu do nó), "Voltar todos ao canvas" e "Abrir a
+ * bandeja…"; a bandeja sobre o canvas (pílula embaixo, chips para devolver um ou todos) e a lista do popover Filtros.
+ * Script clássico: registra window.ArgosCanvasHidden. Depende só de React. Só exibe e encaminha: quem
  * monta a operação do desfazer (opHide/opUnhide de src/lib/canvas-history.ts) e a aplica é a página, pela porta recebida.
  * Diálogo: foco na primeira linha ao abrir, Esc e clique fora fecham e devolvem o foco ao botão. */
 
@@ -66,7 +67,7 @@ const HIDE_COMMAND = "canvas:hide";
 const HIDE_SHORTCUT = "shift+h";
 const HIDDEN_GROUP = "Canvas";
 const LIST_WIDTH_PX = 320;
-const EMPTY_LABEL = "Nenhum nó oculto";
+const EMPTY_LABEL = "Nenhum nó na bandeja";
 
 const nodesText = (n: number): string => `${n} ${n === 1 ? "nó" : "nós"}`;
 
@@ -84,9 +85,9 @@ function hiddenCommandDefs(port: HiddenPort): HiddenCommandDef[] {
       id: HIDE_COMMAND,
       label: (ctx) => {
         const n = targetsOf(ctx).length;
-        return n > 1 ? `Ocultar ${nodesText(n)} do canvas` : "Ocultar do canvas";
+        return n > 1 ? `Recolher ${nodesText(n)} para a bandeja` : "Recolher para a bandeja";
       },
-      hint: "sai do desenho; registro e worktree ficam",
+      hint: "sai do desenho e espera na bandeja; registro e worktree ficam",
       group: HIDDEN_GROUP,
       shortcut: HIDE_SHORTCUT,
       surfaces: ["palette", "node-menu"],
@@ -98,7 +99,7 @@ function hiddenCommandDefs(port: HiddenPort): HiddenCommandDef[] {
     },
     {
       id: "canvas:unhide-all",
-      label: "Reexibir todos os ocultos",
+      label: "Voltar todos da bandeja ao canvas",
       hint: "voltam ao desenho onde estavam",
       group: HIDDEN_GROUP,
       surfaces: ["palette", "canvas-menu"],
@@ -107,8 +108,8 @@ function hiddenCommandDefs(port: HiddenPort): HiddenCommandDef[] {
     },
     {
       id: "canvas:hidden-list",
-      label: "Lista de ocultos…",
-      hint: "reexibir um, vários ou todos",
+      label: "Abrir a bandeja…",
+      hint: "devolver um, vários ou todos ao canvas",
       group: HIDDEN_GROUP,
       surfaces: ["palette", "canvas-menu"],
       when: () => port.count() > 0,
@@ -156,7 +157,7 @@ function renderRow(ui: HiddenUi, item: HiddenItem, index: number): ReactNode {
       h("span", { className: "flex min-w-0 flex-col" },
         h("span", { className: "truncate text-foreground" }, item.label),
         item.kind ? h("span", { className: "truncate t-meta text-muted-foreground" }, item.kind) : null)),
-    h("button", { type: "button", onClick: () => ui.onUnhide([item.id]), "aria-label": `Reexibir ${item.label}`, className: `${BUTTON} shrink-0 text-muted-foreground` }, "Reexibir"));
+    h("button", { type: "button", onClick: () => ui.onUnhide([item.id]), "aria-label": `Voltar ao canvas: ${item.label}`, className: `${BUTTON} shrink-0 text-muted-foreground` }, "Voltar"));
 }
 
 /** Árvore do botão e da lista: pura, sem hooks, para o teste ler sem DOM. */
@@ -167,23 +168,23 @@ function renderHiddenMenu(ui: HiddenUi): ReactNode {
   if (ui.inline && total === 0) return null;
   const trigger = h("button", {
     type: "button", ref: ui.setButton, onClick: ui.onToggleOpen, "aria-expanded": ui.open, "aria-haspopup": "dialog",
-    disabled: total === 0 && !ui.open, title: total === 0 ? EMPTY_LABEL : "Nós que você tirou do canvas (Shift+H oculta)", className: `${TRIGGER} disabled:cursor-default disabled:opacity-50`,
-  }, `Ocultos do canvas (${total})`);
+    disabled: total === 0 && !ui.open, title: total === 0 ? EMPTY_LABEL : "Nós recolhidos do canvas (Shift+H recolhe)", className: `${TRIGGER} disabled:cursor-default disabled:opacity-50`,
+  }, `Bandeja do canvas (${total})`);
   if (!ui.open) return h("div", { className: "relative" }, trigger);
   return h("div", { className: "relative" }, trigger,
     h("div", {
-      ref: ui.setRoot, role: "dialog", "aria-label": "Nós ocultos", tabIndex: -1, onKeyDown: ui.onKeyDown, ...SHIELD,
+      ref: ui.setRoot, role: "dialog", "aria-label": "Nós na bandeja", tabIndex: -1, onKeyDown: ui.onKeyDown, ...SHIELD,
       className: ui.inline
         ? "mt-1 flex max-h-64 flex-col overflow-y-auto border border-border-strong bg-background t-body outline-none"
         : "absolute left-0 top-full z-30 mt-1 flex max-h-96 flex-col overflow-y-auto border border-border-strong bg-background t-body outline-none",
       style: ui.inline ? undefined : { width: LIST_WIDTH_PX, maxWidth: "calc(100vw - 2rem)" },
     },
     h("div", { className: "sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b border-border bg-background px-3 py-1" },
-      h("span", { className: "t-meta-em tabular-nums text-muted-foreground" }, total > 0 ? `${nodesText(total)} ${total === 1 ? "oculto" : "ocultos"}` : "Ocultos do canvas"),
+      h("span", { className: "t-meta-em tabular-nums text-muted-foreground" }, total > 0 ? `${nodesText(total)} na bandeja` : "Bandeja do canvas"),
       h("div", { className: "flex gap-1" },
         h("button", { type: "button", disabled: picked.length === 0, onClick: () => ui.onUnhide(picked), className: `${BUTTON} text-foreground` },
-          picked.length > 0 ? `Reexibir ${picked.length}` : "Reexibir marcados"),
-        h("button", { type: "button", disabled: total === 0, onClick: () => ui.onUnhide(ui.items.map((item) => item.id)), className: `${BUTTON} text-foreground` }, "Reexibir todos"))),
+          picked.length > 0 ? `Voltar ${picked.length}` : "Voltar marcados"),
+        h("button", { type: "button", disabled: total === 0, onClick: () => ui.onUnhide(ui.items.map((item) => item.id)), className: `${BUTTON} text-foreground` }, "Voltar todos"))),
     total === 0
       ? h("p", { className: "px-3 py-2 t-meta text-muted-foreground" }, EMPTY_LABEL)
       : h("ul", { role: "list", className: "flex flex-col" }, ...ui.items.map((item, index) => renderRow(ui, item, index)))));
@@ -252,10 +253,97 @@ function HiddenMenu(props: HiddenMenuProps): ReactNode {
   });
 }
 
+// ---- a bandeja sobre o canvas ----
+
+interface HiddenTrayProps {
+  items: readonly HiddenItem[];
+  /** Devolve os ids ao canvas, num passo só do desfazer. */
+  onUnhide(ids: readonly string[]): void;
+}
+
+interface TrayUi {
+  h: ReactApi["createElement"];
+  items: readonly HiddenItem[];
+  open: boolean;
+  setButton?(el: unknown): void;
+  setFirst?(el: unknown): void;
+  onToggleOpen(): void;
+  onUnhide(ids: readonly string[]): void;
+  onKeyDown(event: KeyEvent): void;
+}
+
+const TRAY_ID = "argos-bandeja";
+const TRAY_CHIP_LABEL_PX = 176;
+
+/** Árvore da bandeja: pura, sem hooks. Sem nada recolhido, não existe (o canvas não ganha uma pílula vazia). */
+function renderHiddenTray(ui: TrayUi): ReactNode {
+  const { h } = ui;
+  const total = ui.items.length;
+  if (total === 0) return null;
+  const pill = h("button", {
+    type: "button", ref: ui.setButton, onClick: ui.onToggleOpen, "aria-expanded": ui.open, "aria-controls": TRAY_ID,
+    title: ui.open ? "Fechar a bandeja" : "Nós recolhidos: clique para devolver ao canvas",
+    className: `inline-flex min-h-8 cursor-pointer items-center gap-2 border border-border-strong bg-background/95 px-3 t-control tabular-nums shadow-sm transition-colors hover:bg-accent/60 max-md:min-h-11 ${FOCUS_RING}`,
+  }, h("span", { "aria-hidden": "true" }, ui.open ? "▾" : "▴"), `Bandeja · ${total}`);
+  const panel = ui.open ? h("div", {
+    id: TRAY_ID, role: "region", "aria-label": "Bandeja de nós recolhidos", onKeyDown: ui.onKeyDown,
+    className: "flex max-h-52 w-[36rem] max-w-[calc(100vw-2rem)] flex-col overflow-y-auto border border-border-strong bg-background/95 t-body shadow-sm",
+  },
+  h("div", { className: "sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-background px-3 py-1" },
+    h("span", { className: "t-meta-em text-muted-foreground" }, "Clique para voltar ao canvas"),
+    h("button", { type: "button", onClick: () => ui.onUnhide(ui.items.map((item) => item.id)), className: `${BUTTON} text-foreground` }, "Voltar todos")),
+  h("ul", { role: "list", className: "flex flex-wrap gap-1.5 p-2" },
+    ...ui.items.map((item, index) => h("li", { key: item.id, "data-tray-item": item.id },
+      h("button", {
+        type: "button", ref: index === 0 ? ui.setFirst : undefined, onClick: () => ui.onUnhide([item.id]),
+        title: `Voltar ao canvas: ${item.label}`, "aria-label": `Voltar ao canvas: ${item.label}`,
+        className: `inline-flex min-h-8 cursor-pointer items-center gap-2 border border-border bg-card px-2 t-control transition-colors hover:bg-accent/60 max-md:min-h-11 ${FOCUS_RING}`,
+      },
+      h("span", { className: "truncate text-foreground", style: { maxWidth: TRAY_CHIP_LABEL_PX } }, item.label),
+      item.kind ? h("span", { className: "t-meta text-muted-foreground" }, item.kind) : null))))) : null;
+  return h("div", { className: "pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center px-2" },
+    h("div", { className: "pointer-events-auto flex flex-col items-center gap-1", ...SHIELD }, panel, pill));
+}
+
+function HiddenTray(props: HiddenTrayProps): ReactNode {
+  const [open, setOpen] = React.useState(false);
+  const button = React.useRef<FocusTarget | null>(null);
+  const first = React.useRef<FocusTarget | null>(null);
+  const total = props.items.length;
+
+  // a bandeja esvaziada fecha sozinha: a próxima a ser recolhida nasce recolhida
+  React.useEffect(() => {
+    if (total === 0) setOpen(false);
+  }, [total]);
+  React.useEffect(() => {
+    if (open) first.current?.focus();
+  }, [open]);
+
+  return renderHiddenTray({
+    h: React.createElement, items: props.items, open,
+    setButton: (el) => { button.current = el as FocusTarget | null; },
+    setFirst: (el) => { first.current = el as FocusTarget | null; },
+    onToggleOpen: () => setOpen((cur) => !cur),
+    onUnhide: (ids) => {
+      if (ids.length === 0) return;
+      props.onUnhide(ids);
+      // o chip clicado some com o foco nele: o foco volta para a pílula
+      button.current?.focus();
+    },
+    onKeyDown: (event) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      event.preventDefault();
+      setOpen(false);
+      button.current?.focus();
+    },
+  });
+}
+
 function makeArgosCanvasHidden() {
-  return { HIDE_COMMAND, HIDE_SHORTCUT, EMPTY_LABEL, hideTargets, hiddenCommandDefs, keepChecked, renderHiddenMenu, HiddenMenu };
+  return { HIDE_COMMAND, HIDE_SHORTCUT, EMPTY_LABEL, TRAY_ID, hideTargets, hiddenCommandDefs, keepChecked, renderHiddenMenu, HiddenMenu, renderHiddenTray, HiddenTray };
 }
 
 type ArgosCanvasHiddenApi = ReturnType<typeof makeArgosCanvasHidden>;
 (globalThis as unknown as { ArgosCanvasHidden: ArgosCanvasHiddenApi }).ArgosCanvasHidden = makeArgosCanvasHidden();
-export type { ArgosCanvasHiddenApi, HiddenCommandCtx, HiddenCommandDef, HiddenItem, HiddenMenuProps, HiddenPort };
+export type { ArgosCanvasHiddenApi, HiddenCommandCtx, HiddenCommandDef, HiddenItem, HiddenMenuProps, HiddenPort, HiddenTrayProps };

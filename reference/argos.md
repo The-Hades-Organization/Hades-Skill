@@ -1220,8 +1220,10 @@ sem área segue válido e um Hades antigo lê a área como nó de tipo desconhec
   "data": { "title": "Squad", "color": "chart-2", "members": ["a", "b"] } }
 ```
 
-- `data`: `title` (1 a 200 caracteres, sem controle), `color` da paleta fechada `chart-1`…`chart-5` (tokens `--chart-N`, valem
-  nos dois temas) e `members` (ids, sem repetir; ausente é nenhum). Campo desconhecido é recusado (`readAreaData`); `areaLook`
+- `data`: `title` (1 a 200 caracteres, sem controle), `color` da paleta fechada: `chart-1`…`chart-5` (tokens `--chart-N`, valem
+  nos dois temas) mais oito tintas fixas (`rose`, `orange`, `amber`, `lime`, `teal`, `sky`, `violet`, `slate`, em `AREA_INKS`;
+  `AREA_PALETTE` é a lista completa, na ordem do seletor, que mostra uma amostra de cor por opção; a cor padrão de uma área
+  nova cicla só nas cinco do tema). O título cabe na faixa mesmo em zoom baixo e tem recuo da borda e `members` (ids, sem repetir; ausente é nenhum). Campo desconhecido é recusado (`readAreaData`); `areaLook`
   é a leitura tolerante do desenho (documento editado à mão nunca quebra o quadro; sem cor válida a área sai neutra).
 - Um nó fica em **uma área só**; área dentro de área não existe (`checkAreas`). Redimensionar a área **não** muda a pertença;
   só soltar um nó (arrasto) ou um comando muda.
@@ -1513,6 +1515,18 @@ não há o que mudar) e desfazer volta exatamente ao anterior.
   largura guardada não muda); `canvas` é o que sobra para a câmera; `elevated` é 80% da área do canvas, centralizado.
 - `parseDock(raw, doc)`: valida estado guardado (`org_invalid_mode` para formato errado, e os erros acima para nó,
   largura ou borda inválidos). Nó em `elevated` e em `columns` ao mesmo tempo fica só elevado.
+
+- **Cabeçalho do nó e "Voltar ao canvas".** Subir um nó para primeiro plano é **Destacar** (`dock:elevate`, `E`), e baixá-lo é
+  **Voltar ao canvas**, um botão na moldura destacada (a moldura leva `data-docked` e borda própria; o nome vem do rótulo do
+  grafo ou do `data` do nó). O grupo `NodeActions` (`parts.tsx`, `window.ArgosParts.NodeActions`) fica no fim do cabeçalho do
+  terminal, do agente, da nota e do esboço de unidade: Destacar, Recolher e "⋯" (o menu do nó; a nota usa o "⋯" dela e o
+  cadeado de conteúdo travado passa para o grupo). O botão não decide nada: dispara o evento `argos-node-command` que sobe até
+  o `CanvasPane` e a página roda o comando de sempre sobre esse nó. Dentro de moldura acoplada o grupo some. Desenho, texto e
+  formas não têm cabeçalho: ficam com o menu do nó e os atalhos. A ordem de empilhamento segue a do documento (`z`).
+- **Celular e tablet.** Até `lg` (1023 px) os alvos do cabeçalho do nó e da moldura têm 44 px (`max-lg:`, com `!` onde o piso
+  global `button { min-width: 40px }` do `index.html`, fora de `@layer`, venceria o utilitário). No canvas o conteúdo do nó
+  escala com o zoom (44 px a 100% medem 26 px a 60%): o caminho de toque é Destacar, que abre a moldura em 1:1. A moldura
+  desconta a largura do painel do nó (`useSidePanelInset`), senão o painel a cobriria e esconderia o "Voltar ao canvas".
 
 Provas: `loop/test/ts/canvas-bands.test.ts`, `canvas-blur.test.ts`, `canvas-dock.test.ts`.
 
@@ -3567,12 +3581,18 @@ O canvas tira da vista o que o dono não usa sem apagar nada: registro, worktree
 - **Por que apareciam centenas.** O preset de abertura (`active`) já tirava encerrados e arquivados, mas bastava sair dele
   ("Todos", "Concluídos", o "Ver os concluídos e arquivados" do estado vazio) para os arquivados voltarem todos, e o preset
   ficava no endereço (`preset=all`). Agora os arquivados saem de qualquer preset até o dono pedir.
-- **Ocultar em lote.** "Ocultar do canvas" (`canvas:hide`, `Shift+H`; paleta e menu do nó de qualquer tipo) tira o nó do
-  desenho. Com seleção múltipla, o alvo é a seleção inteira quando ela contém o nó do menu (senão só o nó). O nó segue no
+- **Um vocabulário só.** O que sai do desenho se chama **recolher**, o lugar onde espera é a **bandeja** e o que traz de
+  volta é **Voltar ao canvas**. "Ocultar", "ocultos" e "Reexibir" eram o mesmo gesto com três nomes. ("Trazer para o canvas" do banner de terminais vivos
+  fora do canvas é outra coisa: cria nós, não devolve os recolhidos.) O campo do
+  documento continua `hidden` e os comandos `canvas:hide`/`canvas:unhide-all` mantêm o id (aditivo, documento antigo vale).
+- **Recolher em lote.** "Recolher para a bandeja" (`canvas:hide`, `Shift+H`; paleta, menu do nó de qualquer tipo e o botão
+  Recolher do cabeçalho do nó) tira o nó do desenho. Com seleção múltipla, o alvo é a seleção inteira quando ela contém o nó do menu (senão só o nó). O nó segue no
   documento com a posição; o grafo não o devolve ao atualizar. É um passo do desfazer (`Ctrl+Z` volta exatamente ao anterior).
-- **Lista de ocultos.** O botão "Ocultos do canvas (N)" da barra (e "Lista de ocultos…" na paleta e no menu do fundo) abre a lista: uma
-  linha por oculto, com caixa para marcar; "Reexibir" na linha, "Reexibir N" para os marcados e "Reexibir todos" (também
-  `canvas:unhide-all` na paleta). Cada reexibição é um passo do desfazer. Foco na primeira linha ao abrir, Esc e clique fora
+- **Bandeja.** Com algo recolhido, uma pílula "Bandeja · N" aparece embaixo do canvas (`HiddenTray`, `renderHiddenTray`,
+  `TRAY_ID`); clicar a abre com um chip por nó e "Voltar" em cada um, e a bandeja esvaziada fecha sozinha. Sem nada
+  recolhido ela não existe. "Abrir a bandeja…" (paleta e menu do fundo) e o botão da barra de filtros abrem a lista
+  completa: uma linha por nó, com caixa para marcar; "Voltar" na linha, "Voltar N" para os marcados e "Voltar todos da
+  bandeja ao canvas" (`canvas:unhide-all`). Cada reexibição é um passo do desfazer. Foco na primeira linha ao abrir, Esc e clique fora
   fecham e devolvem o foco ao botão.
 - **Mostrar arquivados.** Botão da barra (`aria-pressed`), desligado por padrão. Desligado, o agente arquivado sai de qualquer
   preset, inclusive "Todos" e "Concluídos", e o PR ou gate ligado só a agentes que saíram por isso (ou por estarem ocultos)
@@ -3598,7 +3618,7 @@ O canvas tira da vista o que o dono não usa sem apagar nada: registro, worktree
   outro. `opHide(doc, ids)` ignora id repetido ou já oculto e recusa id sem nó (`history_missing_target`); `opUnhide(doc, ids)`
   e `opUnhideAll(doc)`; os três dão `undefined` quando nada muda.
 - **Módulo da tela** (`kit/panel/ui/argos/canvas-hidden.tsx`, `window.ArgosCanvasHidden`): `hiddenCommandDefs(port)`,
-  `hideTargets(selection, nodeId)`, `HiddenMenu` e a árvore pura `renderHiddenMenu`. Só exibe e encaminha; a página monta e
+  `hideTargets(selection, nodeId)`, `HiddenMenu`, `HiddenTray` e as árvores puras `renderHiddenMenu` e `renderHiddenTray`. Só exibe e encaminha; a página monta e
   aplica a operação.
 
 Prova: `loop/test/ts/canvas-doc.test.ts`, `canvas-history.test.ts`, `canvas-filters.test.ts`, `canvas-hidden.test.ts` e o

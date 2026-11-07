@@ -358,7 +358,7 @@ function makeArgosTypesUser() {
     return "";
   }
 
-  function NoteCardHost(props: { name: string; agent?: string; client: NoteClient; model: UserModel; deps: UserTypesDeps }): Tree {
+  function NoteCardHost(props: { id: string; name: string; agent?: string; client: NoteClient; model: UserModel; deps: UserTypesDeps }): Tree {
     const { name, client, deps } = props;
     const [state, setState] = React.useState<NoteState>(NOTE_INITIAL);
     const latest = React.useRef<NoteState>(NOTE_INITIAL);
@@ -405,7 +405,7 @@ function makeArgosTypesUser() {
     const card = nodeNote();
     if (!card) return h(NoteBody, { name, agent: props.agent, client, model: props.model, now: deps.now });
     return h(card.NoteCard, {
-      name, agent: props.agent, model: props.model.note, marked: deps.marked, actions: client, schedule: deps.schedule ?? defaultSchedule, messageOf,
+      nodeId: props.id, name, agent: props.agent, model: props.model.note, marked: deps.marked, actions: client, schedule: deps.schedule ?? defaultSchedule, messageOf,
       editor: {
         phase: state.phase, draft: state.draft, rev: state.rev, dirty: isDirty(state), status: noteStatus(state), error: state.code !== null && state.phase !== "conflict",
         onEdit: (draft: string) => dispatch({ type: "edit", draft }), onSave: () => send(latest.current.rev), refresh, conflict,
@@ -553,11 +553,18 @@ function makeArgosTypesUser() {
     }
   }
 
+  /** O grupo de ações do cabeçalho (parts.tsx); fora da página (testes, nó solto) não há, e o cabeçalho segue sem ele. */
+  const nodeActionsOf = (): ((props: { id: string }) => Tree) | undefined =>
+    (globalThis as unknown as { ArgosParts?: { NodeActions?: (props: { id: string }) => Tree } }).ArgosParts?.NodeActions;
+
   function renderUnitSketch(model: UserModel, deps: UserTypesDeps, input: NodeRenderInput): Tree {
+    const nodeActions = nodeActionsOf();
     const view = unitSketchView(model, input);
     if (!view.ok) return h("p", { role: "alert", className: "p-2 text-bad t-label" }, `Esboço inválido: ${view.message} (${view.code})`);
     return h("div", { className: "flex h-full flex-col gap-2 p-2" },
-      h("span", { className: "t-label font-semibold" }, view.title),
+      h("span", { className: "-mt-1 -mr-1 flex items-center gap-1" },
+        h("span", { className: "min-w-0 flex-1 truncate t-label font-semibold", title: view.title }, view.title),
+        nodeActions ? h(nodeActions, { id: input.id }) : null),
       h("pre", { className: "min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all bg-muted p-1 font-mono t-label", tabIndex: 0, "aria-label": "Comandos do esboço" }, view.text),
       deps.copy ? h("button", { type: "button", className: BUTTON, onClick: () => deps.copy?.(view.text) }, "Copiar comandos") : null,
       h("span", { className: "t-label text-muted-foreground" }, "Nada é executado: cole no terminal e rode você."));
@@ -884,7 +891,7 @@ function makeArgosTypesUser() {
           if (!(error instanceof model.note.NoteError)) throw error;
         }
         if (!data) return h("p", { role: "alert", className: "p-2 text-bad t-label" }, "Nota inválida no documento.");
-        return h(NoteCardHost, { key: input.id, name: data.note, agent: data.agent, client, model, deps: { ...deps, marked: deps.marked ?? (globalThis as unknown as { marked?: unknown }).marked } });
+        return h(NoteCardHost, { key: input.id, id: input.id, name: data.note, agent: data.agent, client, model, deps: { ...deps, marked: deps.marked ?? (globalThis as unknown as { marked?: unknown }).marked } });
       },
       text: (input) => h(TextBody, { key: input.id, id: input.id, data: { ...input.data }, model, deps }),
       "unit-sketch": (input) => renderUnitSketch(model, deps, input),

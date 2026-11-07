@@ -4,7 +4,7 @@ import { describe, expect, test } from "bun:test";
 import { type CanvasDoc, type CanvasNode, validateCanvasDoc } from "../../../src/lib/canvas-doc";
 import { applyOp, createHistory, perform, redo, undo } from "../../../src/lib/canvas-history";
 import {
-  AREA_ERRORS, AREA_LIMITS, AREA_Z, AreaError, areaAtPoint, areaIndex, areaLook, areaMembers, areaReport, checkAreas, createAreaNode, dockNodes,
+  AREA_COLORS, AREA_COLOR_LABELS, AREA_ERRORS, AREA_INKS, AREA_LIMITS, AREA_PALETTE, AREA_Z, AreaError, fixedInkOf, areaAtPoint, areaIndex, areaLook, areaMembers, areaReport, checkAreas, createAreaNode, dockNodes,
   dropOps, nodesCenteredIn, readAreaData, recolorArea, renameArea, settleMove, undockNodes, withAreaMembers,
 } from "../../../src/lib/canvas-areas";
 import { copyNodes, deleteNodes, pasteClip, sequentialIds } from "../../../src/lib/canvas-clipboard";
@@ -79,6 +79,29 @@ describe("canvas-areas: formato e criação", () => {
     expect(code(() => renameArea(doc, "ar", ""))).toBe(AREA_ERRORS.invalidTitle);
     expect(code(() => recolorArea(doc, "ar", "azul"))).toBe(AREA_ERRORS.invalidColor);
     expect(code(() => renameArea(doc, "nada", "x"))).toBe(AREA_ERRORS.unknownArea);
+  });
+
+  test("a paleta ampliada aceita as cores novas e mantém as cinco antigas", () => {
+    const doc = docOf(area("ar"));
+    for (const color of AREA_PALETTE) expect(readAreaData({ title: "x", color }).color).toBe(color);
+    for (const color of AREA_COLORS) expect(AREA_PALETTE).toContain(color);
+    expect(at(applyOp(doc, recolorArea(doc, "ar", "teal")!), "ar").data.color).toBe("teal");
+    expect(code(() => readAreaData({ title: "x", color: "teal2" }))).toBe(AREA_ERRORS.invalidColor);
+  });
+
+  test("toda cor da paleta tem nome legível e só as de tinta fixa têm tinta", () => {
+    for (const color of AREA_PALETTE) expect(AREA_COLOR_LABELS[color]).not.toBe("");
+    for (const color of AREA_COLORS) expect(fixedInkOf(color)).toBeUndefined();
+    for (const [name, ink] of Object.entries(AREA_INKS)) expect(fixedInkOf(name as keyof typeof AREA_INKS)).toBe(ink);
+  });
+
+  test("a cor padrão da área nova segue o ciclo do tema, sem passar para as cores novas", () => {
+    let doc = docOf();
+    for (let i = 0; i < AREA_COLORS.length + 1; i++) {
+      const { op, node: made } = createAreaNode(doc, { id: `n${i}`, x: i * 600, y: 0 });
+      doc = applyOp(doc, op);
+      expect(made.data.color).toBe(AREA_COLORS[i % AREA_COLORS.length]);
+    }
   });
 
   test("areaLook não quebra com data fora do formato", () => {

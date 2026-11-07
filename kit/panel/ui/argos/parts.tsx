@@ -116,35 +116,63 @@ const useThemeTick = () => {
 
 // nós elevados e acoplados (canvas-dock): painel central e colunas fixas sobre o canvas, com o desenho do tipo no tamanho
 // do quadro; o estado é da página e as posições saem de layoutDock a cada mudança de tela
+// largura que o painel do nó (canvas-focus) tira da direita do palco: ele é uma sobreposição, e a moldura centrada na tela
+// inteira passaria por baixo dele, escondendo o "Voltar ao canvas". Na folha do celular (colada embaixo) não há recuo lateral.
+const PANEL_SELECTOR = '[role="complementary"][aria-label="Painel do nó"]';
+const sidePanelInset = (stage) => {
+  const panel = stage.querySelector(PANEL_SELECTOR);
+  if (!panel || panel.offsetWidth >= stage.clientWidth) return 0;
+  return Math.max(0, stage.clientWidth - panel.offsetLeft);
+};
+const useSidePanelInset = (sentinel) => {
+  const [inset, setInset] = useState(0);
+  useEffect(() => {
+    // o palco é o contêiner que a página divide entre o canvas (com a moldura) e o painel: o avô da sentinela
+    const stage = sentinel.current?.parentElement?.parentElement;
+    if (!stage) return undefined;
+    const read = () => setInset(sidePanelInset(stage));
+    const ro = new ResizeObserver(read);
+    const watch = () => { ro.disconnect(); ro.observe(stage); const panel = stage.querySelector(PANEL_SELECTOR); if (panel) ro.observe(panel); read(); };
+    const mo = new MutationObserver(watch);
+    mo.observe(stage, { childList: true });
+    watch();
+    return () => { mo.disconnect(); ro.disconnect(); };
+  }, [sentinel]);
+  return inset;
+};
 function DockLayer({ api, state, onState, doc, renderAt, describe }) {
   const M = window.CanvasModel;
   const [view, setView] = useState(null);
+  const sentinel = useRef(null);
+  const inset = useSidePanelInset(sentinel);
   useEffect(() => {
     if (!api) return undefined;
     const read = () => { const v = api.viewport(); setView((cur) => (cur && cur.w === v.w && cur.h === v.h ? cur : { w: v.w, h: v.h })); };
     read();
     return api.onFrame(read);
   }, [api]);
-  if (!view || view.w <= 0 || view.h <= 0 || (state.elevated === null && state.columns.length === 0)) return null;
-  const layout = M.dock.layoutDock(state, view);
+  const visibleW = view ? view.w - inset : 0;
+  if (!view || visibleW <= 0 || view.h <= 0 || (state.elevated === null && state.columns.length === 0)) return <span ref={sentinel} hidden />;
+  const layout = M.dock.layoutDock(state, { w: visibleW, h: view.h });
   const byId = new Map(doc.nodes.map((n) => [n.id, n]));
   const panel = (id, frame, action) => {
     const node = byId.get(id);
     if (!node) return null;
     const name = describe(node);
     const bodyH = Math.max(0, frame.h - DOCK_HEADER_PX);
-    return <section key={id} aria-label={name} className="elev-float absolute z-20 flex flex-col bg-card"
+    return <section key={id} aria-label={name} data-docked={action.mode} className="elev-float absolute z-20 flex flex-col border border-border-strong bg-card"
       style={{ left: frame.x, top: frame.y, width: frame.w, height: frame.h }}>
-      <header className="flex shrink-0 items-center gap-2 border-b px-2 t-meta" style={{ height: DOCK_HEADER_PX }}>
-        <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
-        <Button size="sm" variant="ghost" onClick={() => onState(action.next())}>{action.label}</Button>
+      <header className="flex shrink-0 items-center gap-2 border-b px-2 t-meta max-lg:h-11!" style={{ height: DOCK_HEADER_PX }}>
+        <span className="min-w-0 flex-1 truncate font-medium" title={name}>{name}</span>
+        <Button size="sm" variant="outline" className="max-lg:min-h-11!" icon={I.Minimize2} title={action.hint} onClick={() => onState(action.next())}>Voltar ao canvas</Button>
       </header>
       <div className="min-h-0 flex-1 overflow-auto">{renderAt(node, frame.w, bodyH)}</div>
     </section>;
   };
   return <>
-    {layout.columns.map((c) => panel(c.id, c.frame, { label: 'Soltar', next: () => M.dock.undock(state, c.id) }))}
-    {layout.elevated ? panel(layout.elevated.id, layout.elevated.frame, { label: 'Baixar', next: () => M.dock.release(state) }) : null}
+    <span ref={sentinel} hidden />
+    {layout.columns.map((c) => panel(c.id, c.frame, { mode: 'column', hint: 'Solta o nó da coluna e o devolve ao canvas', next: () => M.dock.undock(state, c.id) }))}
+    {layout.elevated ? panel(layout.elevated.id, layout.elevated.frame, { mode: 'elevated', hint: 'Baixa o nó destacado e o devolve ao canvas', next: () => M.dock.release(state) }) : null}
   </>;
 }
 const DOCK_HEADER_PX = 32;
@@ -154,7 +182,48 @@ const LONGPRESS_TICK_MS = 100;
 // o motor (ui/argos/canvas-engine.js) com o desenho dos tipos do registro e o menu de botão direito (câmera e histórico são de canvas-controls.js)
 // `onLinkState(from | undefined)`: a conexão armada no motor (origem) ou desarmada; o motor guarda a função da montagem,
 // então ela tem de ter identidade fixa
-function CanvasPane({ doc, selection, onSelectionChange, onOp, graphById, types, now, onContext, onReady, nodeShape, snap, dock, dockState, onDockState, onLinkState, fullDetail }) {
+// nome de um nó do usuário (terminal, nota, desenho) que o grafo não conhece: o que o `data` guarda como nome, título ou arquivo
+const ownName = (n) => {
+  const d = n.data || {};
+  for (const key of ['name', 'note', 'title', 'file']) if (typeof d[key] === 'string' && d[key].trim()) return d[key].trim();
+  return '';
+};
+
+// ------------------------------------------------------------------ ações no cabeçalho do nó
+// Um grupo só, o mesmo em terminal, nota, tty e desenho: Destacar (sobe o nó para uma moldura em primeiro plano), Recolher
+// (leva à bandeja) e "⋯" (o menu do nó). O botão não decide nada: avisa o canvas por um evento que sobe até o CanvasPane, que
+// repassa à página; a página roda o comando de sempre (`dock:elevate`, `canvas:hide`) sobre esse nó. Dentro de uma moldura
+// acoplada (DockLayer, `data-docked`) o grupo some: a moldura tem o "Voltar ao canvas" dela.
+const NODE_COMMAND_EVENT = 'argos-node-command';
+const NODE_MENU_COMMAND = 'menu';
+const NODE_ACTION_BTN = 'inline-flex size-6 shrink-0 cursor-pointer items-center justify-center text-muted-foreground outline-none hover:bg-accent/60 hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-lg:size-11';
+const NODE_ACTIONS = [
+  { command: 'dock:elevate', icon: 'Maximize2', label: 'Destacar', hint: 'Destacar: abre o nó em primeiro plano (E)' },
+  { command: 'canvas:hide', icon: 'ArrowDownToLine', label: 'Recolher', hint: 'Recolher para a bandeja (Shift+H)' },
+  { command: NODE_MENU_COMMAND, icon: 'Ellipsis', label: 'Mais ações', hint: 'Mais ações do nó' },
+];
+function NodeActions({ id, locked = false, more = true }) {
+  const ref = useRef(null);
+  const [docked, setDocked] = useState(false);
+  useEffect(() => { setDocked(Boolean(ref.current?.closest('[data-docked]'))); }, []);
+  const fire = (e, command) => {
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    ref.current?.dispatchEvent(new CustomEvent(NODE_COMMAND_EVENT, { bubbles: true, detail: { id, command, x: r.left, y: r.bottom } }));
+  };
+  // o ponteiro no cabeçalho é do canvas (arrastar o nó): nos botões ele fica só neles
+  const keepPointer = (e) => e.stopPropagation();
+  return <span ref={ref} className="contents">
+    {docked ? null : <span role="group" aria-label="Ações do nó" className="flex shrink-0 items-center" onPointerDown={keepPointer} onDoubleClick={keepPointer}>
+      {locked ? <span role="img" aria-label="conteúdo travado" title="Conteúdo travado" className="inline-flex size-6 items-center justify-center text-muted-foreground"><I.Lock aria-hidden="true" className="size-3" /></span> : null}
+      {NODE_ACTIONS.filter((a) => more || a.command !== NODE_MENU_COMMAND).map((a) => { const Icon = I[a.icon]; return <button key={a.command} type="button" aria-label={a.label} title={a.hint} onClick={(e) => fire(e, a.command)} className={NODE_ACTION_BTN}>
+        <Icon aria-hidden="true" className="size-3.5" />
+      </button>; })}
+    </span>}
+  </span>;
+}
+
+function CanvasPane({ doc, selection, onSelectionChange, onOp, graphById, types, now, onContext, onReady, nodeShape, snap, dock, dockState, onDockState, onLinkState, fullDetail, trayItems, onUnhide, onNodeCommand }) {
   const Engine = window.ArgosCanvas.CanvasView;
   const M = window.CanvasModel;
   const wrap = useRef(null);
@@ -164,7 +233,7 @@ function CanvasPane({ doc, selection, onSelectionChange, onOp, graphById, types,
   const theme = useThemeTick();
   const selected = useMemo(() => new Set(selection), [selection]);
   // a área se chama pelo título (desenho e nome acessível); os demais, pelo rótulo do grafo ou o id
-  const describeNode = useCallback((n) => (M.areas.isAreaNode(n) ? M.areas.areaLook(n).title || 'Área' : graphById.get(n.id)?.label || n.id), [graphById]);
+  const describeNode = useCallback((n) => (M.areas.isAreaNode(n) ? M.areas.areaLook(n).title || 'Área' : graphById.get(n.id)?.label || ownName(n) || n.id), [graphById]);
   const nodeColor = useCallback((n) => { const g = graphById.get(n.id); return g ? fillOf(g, now) : '#888'; }, [graphById, now, theme]);
   const isRich = useCallback((n) => types.get(n.type)?.draw.surface === 'html', [types]);
   const renderAt = useCallback((n, w, h) => types.get(n.type)?.draw.render({ id: n.id, type: n.type, w, h, selected: selected.has(n.id), data: n.data, live: graphById.get(n.id) }) ?? null,
@@ -237,7 +306,19 @@ function CanvasPane({ doc, selection, onSelectionChange, onOp, graphById, types,
     if (touch.current && touch.current.fingers.size > 0) return;
     menuAtClient(e.clientX, e.clientY);
   };
+  // os botões do cabeçalho dos nós avisam por evento; aqui vira o menu do nó ou o comando da página
+  useEffect(() => {
+    const el = wrap.current;
+    if (!el) return undefined;
+    const onCommand = (e) => {
+      const { id, command, x, y } = e.detail;
+      if (command === NODE_MENU_COMMAND) menuAt(id, x, y); else onNodeCommand?.(id, command);
+    };
+    el.addEventListener(NODE_COMMAND_EVENT, onCommand);
+    return () => el.removeEventListener(NODE_COMMAND_EVENT, onCommand);
+  }, [menuAt, onNodeCommand]);
   const Legend = window.ArgosLegend?.CanvasLegend;
+  const Tray = window.ArgosCanvasHidden?.HiddenTray;
   return <div ref={wrap} onContextMenu={contextMenu} onPointerDown={touchDown} onPointerMove={touchMove} onPointerUp={touchUp} onPointerCancel={touchUp}
     className="relative h-full min-h-64 bg-background">
     <Engine doc={doc} selection={selection} onSelectionChange={onSelectionChange} onOp={onOp} onNodeMenu={nodeMenu} describeNode={describeNode} nodeColor={nodeColor}
@@ -245,6 +326,7 @@ function CanvasPane({ doc, selection, onSelectionChange, onOp, graphById, types,
       label="Canvas dos agentes: arraste o fundo para mover, role para ampliar" />
     {dockState && onDockState ? <DockLayer api={engineApi} state={dockState} onState={onDockState} doc={doc} renderAt={renderAt} describe={describeNode} /> : null}
     {Legend ? <Legend /> : null}
+    {Tray && trayItems && onUnhide ? <Tray items={trayItems} onUnhide={onUnhide} /> : null}
   </div>;
 }
 
@@ -575,6 +657,29 @@ function ActionDialog({ node, action, detail, onClose, onRun }) {
 // Um diálogo para as três perguntas da porta `dialogs` (texto, escolha, confirmação) e a do lote (confirmação com o que se
 // digita). `ask` = { kind: 'text'|'choose'|'confirm', title, text?, initial?, options?, phrase?, answer(valor) }; fechar sem
 // escolher responde null (texto e escolha) ou false (confirmação). Sem `ask`, nada aberto.
+// Escolha em que cada opção é uma cor: grade de botões de rádio com a amostra ao lado do nome (setas movem a escolha).
+function SwatchChoice({ title, options, value, onChange }) {
+  const move = (e, i) => {
+    const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = options[(i + step + options.length) % options.length];
+    onChange(next.value);
+    document.getElementById('argos-swatch-' + next.value)?.focus();
+  };
+  return <div role="radiogroup" aria-label={title} className="grid grid-cols-2 gap-1.5">
+    {options.map((o, i) => {
+      const on = o.value === value;
+      return <button type="button" role="radio" aria-checked={on} key={o.value} id={'argos-swatch-' + o.value} tabIndex={on ? 0 : -1} autoFocus={on}
+        onClick={() => onChange(o.value)} onKeyDown={(e) => move(e, i)}
+        className={cn('flex items-center gap-2 rounded-md border px-2.5 py-2 text-left t-body', TOUCH_MIN, on ? 'border-foreground bg-accent/40' : 'border-border hover:bg-accent/20')}>
+        <span aria-hidden="true" className="size-4 shrink-0 rounded-sm border border-foreground/20" style={{ background: o.swatch }} />
+        <span className="truncate">{o.label}</span>
+      </button>;
+    })}
+  </div>;
+}
+
 function AskDialog({ ask, onDone }) {
   const [value, setValue] = useState('');
   useEffect(() => { setValue(ask?.kind === 'choose' ? ask.options?.[0]?.value ?? '' : ask?.initial ?? ''); }, [ask]);
@@ -591,6 +696,7 @@ function AskDialog({ ask, onDone }) {
     <form onSubmit={submit} className="grid gap-4">
       <DialogHeader icon={ask.kind === 'confirm' ? I.CircleAlert : I.Pencil} tone={ask.phrase ? 'danger' : undefined} title={ask.title} description={ask.text || undefined} />
       {ask.kind === 'text' ? <Input autoFocus value={value} onInput={(e) => setValue(e.target.value)} aria-label={ask.title} />
+        : ask.kind === 'choose' && (ask.options || []).some((o) => o.swatch) ? <SwatchChoice title={ask.title} options={ask.options} value={value} onChange={setValue} />
         : ask.kind === 'choose' ? <Select autoFocus size="sm" label={ask.title} value={value} onChange={setValue}
           items={(ask.options || []).map((o) => ({ value: o.value, label: o.label }))} />
         : ask.phrase ? <label className="grid gap-1.5 t-body"><span>Digite {ask.phrase} para confirmar</span>
@@ -660,5 +766,5 @@ function HelpDialog({ open, onClose, rows }) {
   </Dialog>;
 }
 
-window.ArgosParts = { AskDialog, CanvasPane, CanvasLayers, ListPanel, makeNodeRender, NodeList, SidePanel, ActionBar, ActionDialog, Palette, HelpDialog, FileSheet, Estado, agoMs, Forma, Icon, TONE_ICON, TONE_TEXT };
+window.ArgosParts = { AskDialog, NodeActions, CanvasPane, CanvasLayers, ListPanel, makeNodeRender, NodeList, SidePanel, ActionBar, ActionDialog, Palette, HelpDialog, FileSheet, Estado, agoMs, Forma, Icon, TONE_ICON, TONE_TEXT };
 })();

@@ -11,9 +11,48 @@ export const AREA_TYPE = "area";
 /** Atrás de tudo: a área nunca cobre um nó, e o acerto do clique escolhe sempre o nó de cima. */
 export const AREA_Z = -CANVAS_LIMITS.layer;
 
-/** Paleta fechada: os tokens `--chart-N` do painel, que já existem nos dois temas. */
+/** As cores que seguem o tema: os tokens `--chart-N` do painel. Também é o ciclo da cor padrão de cada área nova. */
 export const AREA_COLORS = ["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"] as const;
-export type AreaColor = (typeof AREA_COLORS)[number];
+
+/**
+ * Cores de tinta fixa, ampliando a paleta sem tirar nenhuma das anteriores (documento antigo segue válido). Luminosidade
+ * média e croma moderado: leem bem sobre o fundo claro e o escuro, e o texto da área segue na cor do tema.
+ */
+export const AREA_INKS = {
+  rose: "oklch(0.68 0.16 10)",
+  orange: "oklch(0.72 0.15 55)",
+  amber: "oklch(0.78 0.14 85)",
+  lime: "oklch(0.74 0.16 130)",
+  teal: "oklch(0.7 0.11 185)",
+  sky: "oklch(0.7 0.12 235)",
+  violet: "oklch(0.64 0.16 295)",
+  slate: "oklch(0.62 0.03 255)",
+} as const;
+export type AreaInkName = keyof typeof AREA_INKS;
+
+/** Paleta completa aceita no `data.color`, na ordem em que o seletor a mostra. */
+export const AREA_PALETTE = [...AREA_COLORS, ...(Object.keys(AREA_INKS) as AreaInkName[])] as const;
+export type AreaColor = (typeof AREA_PALETTE)[number];
+
+/** Nome legível de cada cor, para o seletor e para a mensagem de erro. */
+export const AREA_COLOR_LABELS: Readonly<Record<AreaColor, string>> = {
+  "chart-1": "Tema 1",
+  "chart-2": "Tema 2",
+  "chart-3": "Tema 3",
+  "chart-4": "Tema 4",
+  "chart-5": "Tema 5",
+  rose: "Rosa",
+  orange: "Laranja",
+  amber: "Âmbar",
+  lime: "Lima",
+  teal: "Verde-água",
+  sky: "Céu",
+  violet: "Violeta",
+  slate: "Ardósia",
+};
+
+/** A tinta fixa da cor, ou `undefined` quando ela segue o tema (`chart-N`). */
+export const fixedInkOf = (color: AreaColor): string | undefined => (color in AREA_INKS ? AREA_INKS[color as AreaInkName] : undefined);
 
 export const AREA_LIMITS = {
   /** Áreas por documento. */
@@ -76,7 +115,7 @@ type Dict = Record<string, unknown>;
 const isDict = (value: unknown): value is Dict => typeof value === "object" && value !== null && !Array.isArray(value);
 
 export const isAreaNode = (node: Pick<CanvasNode, "type">): boolean => node.type === AREA_TYPE;
-export const isAreaColor = (value: unknown): value is AreaColor => typeof value === "string" && (AREA_COLORS as readonly string[]).includes(value);
+export const isAreaColor = (value: unknown): value is AreaColor => typeof value === "string" && (AREA_PALETTE as readonly string[]).includes(value);
 
 /** O título aparado, de 1 a `labelChars` caracteres e sem caractere de controle. */
 export function cleanTitle(raw: unknown): string {
@@ -93,7 +132,7 @@ export function readAreaData(raw: unknown): AreaData {
   if (!isDict(raw)) return fail(AREA_ERRORS.invalidData, "o data da área deve ser um objeto");
   const unknown = Object.keys(raw).find((key) => !DATA_KEYS.includes(key));
   if (unknown !== undefined) return fail(AREA_ERRORS.invalidData, `campo desconhecido no data da área: ${unknown}`);
-  if (!isAreaColor(raw.color)) return fail(AREA_ERRORS.invalidColor, `a cor da área deve ser uma de ${AREA_COLORS.join(", ")}`);
+  if (!isAreaColor(raw.color)) return fail(AREA_ERRORS.invalidColor, `a cor da área deve ser uma de ${AREA_PALETTE.join(", ")}`);
   const members = raw.members ?? [];
   if (!Array.isArray(members) || members.length > CANVAS_LIMITS.groupMembers) return fail(AREA_ERRORS.invalidData, "members da área deve ser uma lista pequena");
   const seen = new Set<string>();
@@ -389,7 +428,7 @@ export function createAreaNode(doc: CanvasDoc, request: NewArea): { op: CanvasOp
     return fail(AREA_ERRORS.invalidFrame, "posição ou tamanho da área fora do intervalo");
   }
   const color = request.color ?? nextAreaColor(doc);
-  if (!isAreaColor(color)) return fail(AREA_ERRORS.invalidColor, `a cor da área deve ser uma de ${AREA_COLORS.join(", ")}`);
+  if (!isAreaColor(color)) return fail(AREA_ERRORS.invalidColor, `a cor da área deve ser uma de ${AREA_PALETTE.join(", ")}`);
   const members = dockableOrFail(doc, request.members ?? []).map((node) => node.id);
   const title = cleanTitle(request.title ?? `Área ${areaNodes(doc).length + 1}`);
   const node: CanvasNode = {
@@ -413,7 +452,7 @@ export function renameArea(doc: CanvasDoc, areaId: string, title: string): Canva
 /** Troca a cor (da paleta fechada); igual à de agora devolve `undefined`. Erros: `area_unknown_area`, `area_invalid_color`. */
 export function recolorArea(doc: CanvasDoc, areaId: string, color: string): CanvasOp | undefined {
   const { node, data } = areaOrFail(doc, areaId);
-  if (!isAreaColor(color)) return fail(AREA_ERRORS.invalidColor, `a cor da área deve ser uma de ${AREA_COLORS.join(", ")}`);
+  if (!isAreaColor(color)) return fail(AREA_ERRORS.invalidColor, `a cor da área deve ser uma de ${AREA_PALETTE.join(", ")}`);
   return color === data.color ? undefined : opUpdate(doc, node.id, areaDataOf({ ...data, color }));
 }
 

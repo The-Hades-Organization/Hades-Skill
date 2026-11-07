@@ -4,6 +4,20 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.29.0 — 2026-11-07
+
+Capacidade nova (Argos, unidade argos-camadas): o "subir/baixar" vira um modelo só, com três estados.
+
+- **No canvas**, **Em destaque** (antes elevar/acoplar) e **Na bandeja** (antes ocultar), com os verbos Destacar,
+  Recolher e Voltar ao canvas. A bandeja fica sobre o canvas (pílula "Bandeja · N", chips por nó, "Voltar todos").
+- O cabeçalho do terminal, do agente, da nota e do esboço de unidade ganhou Destacar, Recolher e "⋯". A moldura
+  destacada mostra o nome do nó e o "Voltar ao canvas" sempre visível, e não fica mais sob o painel do nó no desktop.
+- Áreas com 12 cores e amostra no seletor; título com folga da borda.
+- Celular: alvos de toque de 44 px até 1023 px (antes só abaixo de 768). Medido em 360 e 768 px, sem rolagem horizontal.
+- Armadilha: `button { min-width: 40px }` do `index.html`, fora de `@layer`, vencia o `max-md:min-w-11` do Tailwind;
+  o mínimo passou a `max-lg:min-w-11!`.
+- Limite: no canvas o nó escala com o zoom (44 px viram 26 px a 60%); o caminho de toque é Destacar, que abre em 1:1.
+
 ## 6.28.1 — 2026-11-07
 
 Correção (bug do dono, 07/11: "não deu pra remover do canvas o agente encerrado"; unidade canvas-remover).

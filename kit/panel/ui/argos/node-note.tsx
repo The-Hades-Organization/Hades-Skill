@@ -303,9 +303,7 @@ function makeArgosNodeNote() {
 
   // ---- o componente ----
 
-  const BTN = "inline-flex h-6 cursor-pointer items-center px-1.5 t-label text-foreground border border-border outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-40";
-  const LOCK_SVG = h("svg", { viewBox: "0 0 24 24", width: 14, height: 14, fill: "none", stroke: "currentColor", strokeWidth: 2, "aria-hidden": "true" },
-    h("rect", { x: 5, y: 11, width: 14, height: 10, rx: 2 }), h("path", { d: "M8 11V7a4 4 0 0 1 8 0v4" }));
+  const BTN = "inline-flex h-6 cursor-pointer items-center justify-center shrink-0 px-1.5 max-lg:min-h-11 max-lg:min-w-11! t-label text-foreground border border-border outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-40";
 
   interface Editor {
     phase: string;
@@ -322,6 +320,8 @@ function makeArgosNodeNote() {
   }
 
   interface NoteCardProps {
+    /** Id do nó da nota no documento do canvas: as ações do cabeçalho (destacar, recolher) agem sobre ele. */
+    nodeId: string;
     name: string;
     agent?: string;
     model: NoteModel;
@@ -542,8 +542,8 @@ function makeArgosNodeNote() {
     };
 
     const title = model.noteTitle(editor.draft, meta.title) || `${name}.md`;
+    const NodeActions = (globalThis as unknown as { ArgosParts?: { NodeActions?: (p: { id: string; locked: boolean; more: boolean }) => Tree } }).ArgosParts?.NodeActions;
     const header = h("div", { className: "flex items-center gap-1 border-b border-border px-1 py-0.5 t-label", "data-note-header": "" },
-      meta.locked ? h("span", { className: "text-muted-foreground", role: "img", "aria-label": "Conteúdo bloqueado", title: "Conteúdo bloqueado" }, LOCK_SVG) : null,
       renaming !== null
         ? h("input", {
           className: "min-w-0 flex-1 border border-border-strong bg-background px-1 t-label text-foreground", autoFocus: true, value: renaming, maxLength: model.NOTE_FILE_LIMITS.titleChars,
@@ -566,7 +566,9 @@ function makeArgosNodeNote() {
       h("button", {
         type: "button", className: BTN, "aria-label": "Opções da nota", "aria-haspopup": "menu",
         onClick: (event: { clientX: number; clientY: number; target: EventTarget | null; preventDefault(): void; stopPropagation(): void }) => openMenu(event),
-      }, "⋯"));
+      }, "⋯"),
+      // o "⋯" da nota já é o menu dela (inclui travar); aqui só Destacar e Recolher, e o cadeado fica no grupo
+      NodeActions ? h(NodeActions, { id: props.nodeId, locked: meta.locked, more: false }) : null);
 
     const content = current === "raw" || !rendered
       ? h("textarea", {

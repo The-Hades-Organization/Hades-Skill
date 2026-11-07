@@ -107,3 +107,29 @@ Serve qualquer clone e qualquer repo (`--repo`), mas as **regras** que o fluxo a
 projeto (`ref invariants`). O coletor não sabe nada de gate, spec ou lock: quem cruza `specIds` com a fila de specs,
 quem trava a PR e quem decide o que fazer com um estado é a skill. Se algo do coletor precisar de
 regra de negócio, o lugar é a skill, não o script.
+
+## Predicados da máquina de estados
+
+Movidos do `SKILL.md` §Máquina de estados por PR. A tabela de estados e a ordem de prioridade ficam lá.
+
+Os predicados que sustentam a tabela, e por que são assim:
+
+- **achado vivo** = `isResolved=false AND isOutdated=false AND` veredito não terminal. Em repo onde
+  ninguém resolve thread (`resolvedBy: null` em praticamente tudo), então `isResolved` sozinho faria
+  o loop reprocessar o que já foi corrigido. `isOutdated` é o sinal que converge.
+- **achado a triar** = `isResolved=false AND isOutdated=true`. O código mudou naquelas linhas depois
+  do comentário; se ainda vale, só a verificação contra o código atual diz.
+- **esperando reviewer** = thread com veredito `rebutted` ou `indeterminate`. Conta como pendente
+  (bloqueia `done-pending`, porque quem fecha refutação é o humano) e **não** volta para a fila de
+  ação, senão o loop repergunta a cada tick. Resposta do reviewer posterior ao veredito reabre.
+- **comentário top-level** = o único lugar onde vive o resumo do bot do perfil (que posta com
+  `gh pr comment`) e todo achado fora de hunk. Comentário de humano é acionável; o resumo do bot é
+  informativo e sai em `ciReviewSummary`.
+- **review não visto** = review com `submittedAt` maior que o `committedDate` do `headRefOid` **e**
+  maior que o `lastSeenReviewAt` do estado. Sem a segunda metade, um approve sem comentário deixa a
+  PR acionável para sempre. `pushedDate` foi depreciado e volta `null`.
+- **check verde** = existe check e nenhum falhando nem pendente. **Ausência de check não é verde**: o
+  CI do perfil (`flow.ci`) só dispara nas bases que ele declara e não roda em draft.
+
+**`reviewDecision` não é gate de conclusão.** PR `APPROVED` com thread aberta é comum aqui. O gate é
+`unresolved == 0` + review posterior ao push + check verde de verdade.

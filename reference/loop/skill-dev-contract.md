@@ -39,7 +39,7 @@ projeto aqui.
   `reference/panel.md`, `reference/config.md`. Mude com acréscimo: bloco próprio, linhas novas, sem reordenar nem
   refatorar o que já existe. Liste cada acréscimo no report. `VERSION` e `CHANGELOG.md` ficam com a consolidação.
 - **Documentação:** referência do assunto (criar `reference/<assunto>.md` se for assunto novo), linha na tabela
-  "Pedidos típicos" do `SKILL.md`, chaves em `reference/config.md`, página/ação em `reference/panel.md`.
+  de `reference/pedidos.md`, chaves em `reference/config.md`, página/ação em `reference/panel.md`.
 
 ## Entrega
 `.design-sync-reports/report.md`, com:

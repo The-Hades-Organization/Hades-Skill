@@ -150,7 +150,7 @@ export function doctorState(env: PanelEnv): Json {
 }
 
 const DOC_GROUPS: [string, string[]][] = [
-  ["Visão geral", ["SKILL.md"]],
+  ["Visão geral", ["SKILL.md", "reference/pedidos.md", "reference/env.md"]],
   ["Operação", ["reference/run-hades.md", "reference/config.md", "reference/panel.md", "reference/onboard.md", "reference/branch.md"]],
   ["Ambiente", ["reference/architecture.md", "reference/tunnel.md"]],
   ["Loop", [

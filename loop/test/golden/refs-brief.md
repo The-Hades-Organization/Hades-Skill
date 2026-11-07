@@ -2,7 +2,7 @@
 
 Papel **impl**: siga `<SKILL>/reference/loop/roles/impl.md` (processo, espera, handoff, escalada, proibido). Trabalhe só em
 `<T>/agents/impl-r`, nunca no clone principal. Este brief é o contrato do item; o que ele não disser, pergunte em
-`.design-sync-reports/questions.md`.
+`.design-sync-reports/questions.md`. O texto que você escrever (report, PR, nota) segue `reference/escrita.md`.
 
 ## Item
 

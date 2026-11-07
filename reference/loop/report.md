@@ -1,7 +1,8 @@
 # Relatório — formato único de todos os modos
 
 Um formato só, para o dono não ter de aprender a ler cada modo. Em **pt-BR**, honesto sobre o que
-rodou, sem preâmbulo e sem elogio. Cada modo preenche o bloco que lhe cabe e omite o resto.
+rodou, sem preâmbulo e sem elogio. Cada modo preenche o bloco que lhe cabe e omite o resto. A prosa dentro dos blocos segue `reference/escrita.md`
+(`hades write-check <arquivo>` antes de entregar).
 
 ## Esqueleto
 

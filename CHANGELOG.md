@@ -4,6 +4,26 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.27.0 — 2026-11-07
+
+Capacidade nova (issue #81, etapa 2): guia de escrita da Hades e um checador dos padrões de texto de IA.
+
+### Guia de escrita e `hades write-check`
+
+- `reference/escrita.md`: por tipo de texto (documento técnico, nota ao dono, relatório de agente, CHANGELOG, brief,
+  post, texto de interface), qual skill de escrita carregar, quem vence quando duas discordam, construções banidas em
+  pt-BR e checklist de entrega. As skills carregam sob demanda, não em todo turno (o corpo pesa de 10 a 32 KB).
+- `hades write-check [--changelog] [--json] <arquivo>...`: grep dos padrões de escrita de IA em pt-BR (17 regras;
+  travessão em prosa, gancho e resíduo de chat são bloqueantes). Mascara código, crases, aspas retas e comentário HTML;
+  `--changelog` desliga as regras que o formato do CHANGELOG pede. Saída 0 limpo, 1 achados, 2 uso.
+- Modelos de brief, formato do relatório e contrato das unidades apontam o guia; pedido "escreve sem cara de IA" em
+  `reference/pedidos.md`.
+- Medido no corpus: a prosa da Hades já é limpa; o defeito real é travessão em prosa, cabeçalho em pergunta, negrito de
+  rótulo e histórico de edição dentro de referência. O checador não pega o que depende de sentido (tríade,
+  reformulação, hedge). O legado fica como está até o arquivo ser tocado por outro motivo.
+- Armadilha: o ponteiro novo nos modelos de brief muda os goldens `refs-brief`, `agent-new-brief`, `agent-skill-brief`
+  e a lista de docs do `painel-legado`.
+
 ## 6.26.0 — 2026-11-07
 
 Capacidade nova (issue #81, frente 2): regras contra interface de cara gerada no catálogo de qualidade.

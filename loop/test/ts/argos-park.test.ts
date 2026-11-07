@@ -29,7 +29,7 @@ case "\${1:-} \${2:-}" in
 esac
 `;
 
-const SAVED = { PATH: process.env.PATH, HOME: process.env.HOME, HADES_WORK_ROOT: process.env.HADES_WORK_ROOT, HADES_DATA: process.env.HADES_DATA };
+const SAVED = { PATH: process.env.PATH, HADES_HERDR_BIN: process.env.HADES_HERDR_BIN, HOME: process.env.HOME, HADES_WORK_ROOT: process.env.HADES_WORK_ROOT, HADES_DATA: process.env.HADES_DATA };
 const agentJson = (name: string, extra: Record<string, unknown> = {}): void => {
   mkdirSync(join(reg, "agents"), { recursive: true });
   mkdirSync(join(wt(name), REPORTS), { recursive: true });
@@ -69,6 +69,8 @@ beforeAll(() => {
   writeFileSync(join(BIN, "herdr"), HERDR_FAKE);
   chmodSync(join(BIN, "herdr"), 0o755);
   process.env.PATH = `${BIN}:${SAVED.PATH}`;
+  // a fila de gates exporta o HADES_HERDR_BIN da máquina e o herdr() o respeita: o falso vai explícito
+  process.env.HADES_HERDR_BIN = join(BIN, "herdr");
   act = makeAct();
   agentJson("p-ok");
   agentJson("p-mudo");

@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { herdrServerResponds } from "../lib/herdr.ts";
+import { herdrAvailable, herdrServerState } from "../lib/herdr.ts";
 import { devtunnelLoggedIn, ghToken, lingering, unitIs } from "../lib/checks.ts";
 import { claudeSettingsPath } from "../lib/autonomy.ts";
 import { loadRegistry } from "../lib/deps.ts";
@@ -423,9 +423,14 @@ function checkNodeModules(r: Report, ctx: Ctx): void {
   const w = ctx.w;
   const bins = words(env("HADES_DOCTOR_NODE_BINS").replaceAll(",", " "));
   if (!bins.length) return;
+  const script = join(ctx.d, "node-modules.sh");
+  if ((readText(join(ctx.d, "plugins.disabled")) ?? "").trim() !== "") {
+    return r.ok("Instalação", "node_modules", "node_modules não se aplica: plugin do projeto desligado (o ambiente dele não sobe)");
+  }
+  if (!isFile(script)) return r.ok("Instalação", "node_modules", "node_modules não se aplica: sem node-modules.sh em $D (o plugin do projeto não o instala)");
   const missing = bins.filter((bin) => !isExecutable(join(w, "node_modules", ".bin", bin)));
   if (!missing.length) r.ok("Instalação", "node_modules", "node_modules do worktree completo");
-  else r.warn("Instalação", "node_modules", "node_modules do worktree ausente ou incompleto", `o run-hades monta sozinho; à mão: ${ctx.d}/node-modules.sh repair (ou a instalação de dependências do projeto em ${w})`);
+  else r.warn("Instalação", "node_modules", "node_modules do worktree ausente ou incompleto", `o run-hades monta sozinho; à mão: ${script} repair (ou a instalação de dependências do projeto em ${w})`);
 }
 
 function isExecutable(path: string): boolean {
@@ -506,11 +511,17 @@ function checkPanel(r: Report, ctx: Ctx): void {
   checkHerdrServer(r, unit);
 }
 
-/** Painel ativo e o socket do herdr sem resposta (típico depois do reboot): o painel o sobe ao criar terminal, mas avisa. */
+/**
+ * Painel ativo: o servidor do herdr responde? Três desfechos: no ar (ok), fora do ar (o painel o sobe ao criar terminal) e
+ * cliente incompatível (`protocol_mismatch`: o servidor pode estar no ar, o que falha é o binário que o CLI chamou).
+ */
 function checkHerdrServer(r: Report, unit: string): void {
-  if (!has("herdr") || !unitIs(unit, "active")) return;
-  if (herdrServerResponds()) r.ok("Painel", "herdr-servidor", "painel no ar e servidor do herdr respondendo");
-  else r.warn("Painel", "herdr-servidor", "painel no ar sem servidor herdr (o terminal do canvas sobe o servidor ao ser criado)", "abra o `herdr` (ou crie um terminal no canvas: o painel sobe o servidor)");
+  if (!herdrAvailable() || !unitIs(unit, "active")) return;
+  const { state, bin } = herdrServerState();
+  if (state === "ok") r.ok("Painel", "herdr-servidor", "painel no ar e servidor do herdr respondendo");
+  else if (state === "incompatible") {
+    r.warn("Painel", "herdr-servidor", `herdr incompatível com o servidor (${bin}: protocolo do cliente diferente do servidor)`, "aponte HADES_HERDR_BIN para o herdr da mesma versão do servidor (`config.sh set HADES_HERDR_BIN=<caminho>`) ou atualize o herdr do PATH");
+  } else r.warn("Painel", "herdr-servidor", "painel no ar sem servidor herdr (o terminal do canvas sobe o servidor ao ser criado)", "abra o `herdr` (ou crie um terminal no canvas: o painel sobe o servidor)");
 }
 
 function checkBoot(r: Report, ctx: Ctx): void {

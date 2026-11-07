@@ -26,7 +26,7 @@ const GH_LOG = join(T, "gh.log");
 const NOTIFY_LOG = join(T, "notify.log");
 const PROJECT = "ex__proj";
 const reg = (slug: string) => join(WORK, slug, "orchestration");
-const SAVED = { PATH: process.env.PATH, HOME: process.env.HOME, HADES_WORK_ROOT: process.env.HADES_WORK_ROOT, HADES_DATA: process.env.HADES_DATA };
+const SAVED = { PATH: process.env.PATH, HADES_HERDR_BIN: process.env.HADES_HERDR_BIN, HOME: process.env.HOME, HADES_WORK_ROOT: process.env.HADES_WORK_ROOT, HADES_DATA: process.env.HADES_DATA };
 const PATH0 = SAVED.PATH;
 
 const HERDR_FAKE = `#!/usr/bin/env bash
@@ -99,6 +99,8 @@ beforeAll(() => {
     chmodSync(join(name === "notify.sh" ? D : BIN, name), 0o755);
   }
   process.env.PATH = `${BIN}:${PATH0}`;
+  // a fila de gates exporta o HADES_HERDR_BIN da máquina e o herdr() o respeita: o falso vai explícito
+  process.env.HADES_HERDR_BIN = join(BIN, "herdr");
   mkdirSync(join(T, "wt/impl-a"), { recursive: true });
   mkdirSync(join(T, "wt/unit-a"), { recursive: true });
   mkdirSync(join(T, "wt/impl-b"), { recursive: true });

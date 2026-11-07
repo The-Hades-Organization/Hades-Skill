@@ -11,6 +11,7 @@ import { LINK_EDGE_KIND } from "../../../src/lib/canvas-links";
 import { RECRUIT_EDGE_KIND, RECRUIT_ERRORS, recruitSlots, terminalTargetOf } from "../../../src/lib/canvas-recruit";
 import { EXIT } from "../../../src/lib/output";
 import { createCanvasRoutes } from "../../../src/panel/canvas";
+import { createCanvasDrawingsRoutes } from "../../../src/panel/canvas-drawings";
 import { createCanvasNotesRoutes } from "../../../src/panel/canvas-notes";
 import { createArgosTerminalsRoutes } from "../../../src/panel/argos-terminals";
 import type { HerdrCall } from "../../../src/panel/herdr";
@@ -93,6 +94,7 @@ async function rig(doc: CanvasDoc, managerText: () => string = () => MANAGER) {
   };
   let docNow: CanvasDoc | undefined = doc;
   const notes = createCanvasNotesRoutes(D, { loadDoc });
+  const drawings = createCanvasDrawingsRoutes({ loadDoc, patchNodeData: (id, node, rev, check, data) => canvas.patchNodeData(id, node, rev, check, data) });
   const fake = fakeHerdr();
   const terminals = createArgosTerminalsRoutes({
     dir: D, herdr: fake.herdr, roots: () => [clone], managerText,
@@ -119,6 +121,12 @@ async function rig(doc: CanvasDoc, managerText: () => string = () => MANAGER) {
       if (path.startsWith("/api/canvas-notes/")) {
         if (method === "POST") return reply(await notes.action(path, req(method, path, body), { remote: false }));
         return reply(method === "GET" ? notes.get(path) : await notes.write(path, req(method, path, body), { remote: false }));
+      }
+      if (path.startsWith("/api/canvas-drawings/")) {
+        const [clean = "", query = ""] = path.split("?");
+        const asked = Object.fromEntries(new URLSearchParams(query));
+        if (method === "POST") return reply(await drawings.post(clean, req(method, clean, body), { remote: false }));
+        return reply(await drawings.get(clean, asked, { remote: false }));
       }
       if (path.startsWith("/api/canvases")) {
         return reply(method === "GET" ? canvas.getMany(path) : await canvas.writeMany(method as "POST" | "PUT", path, {}, req(method, path, body), { remote: false }));
@@ -956,5 +964,79 @@ describe("canvas-cli: áreas", () => {
   test("area com subcomando desconhecido sai com uso", async () => {
     const r = await rig(baseDoc());
     expect(await r.run("area", "apagar")).toBe(EXIT.usage);
+  });
+});
+
+const drawingNode = (id: string, title: string): CanvasNode => ({
+  id, type: "drawing", x: 0, y: 400, w: 480, h: 320, z: 1, locked: false, blurred: false,
+  data: { v: 1, title, elements: [{ id: "e1", type: "rect", x: 10, y: 10, w: 40, h: 30 }, { id: "e2", type: "text", x: 12, y: 60, text: "oi" }] },
+});
+const drawingDoc = (): CanvasDoc => ({
+  ...baseDoc(),
+  nodes: [...baseDoc().nodes, drawingNode("d-a", "Arquitetura"), drawingNode("d-b", "Detalhe"), drawingNode("d-c", "Solto")],
+  edges: [...baseDoc().edges, link("l-da", "term-orq", "d-a"), link("l-dab", "d-a", "d-b")],
+});
+const sceneOf = (doc: CanvasDoc, id: string): { elements: Dict[] } => (doc.nodes.find((x) => x.id === id) as CanvasNode).data as unknown as { elements: Dict[] };
+
+describe("canvas-cli: desenho", () => {
+  test("list mostra o direto e a cadeia, e não o solto", async () => {
+    const r = await rig(drawingDoc());
+    expect(await r.run("drawing", "list")).toBe(EXIT.ok);
+    expect(r.out).toEqual(["d-a\tArquitetura\tdireto", "d-b\tDetalhe\tcadeia de Arquitetura"]);
+  });
+
+  test("read por título e por id traz elementos; --json é estruturado; o solto é recusado", async () => {
+    const r = await rig(drawingDoc());
+    expect(await r.run("drawing", "read", "arquitetura")).toBe(EXIT.ok);
+    expect(r.out.join("\n")).toContain("e2\ttext");
+    expect(await r.run("drawing", "read", "d-b", "--json")).toBe(EXIT.ok);
+    expect((JSON.parse(r.out[0] as string) as { elements: unknown[] }).elements.length).toBe(2);
+    expect(await r.run("drawing", "read", "d-c")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(CANVAS_CLI_ERRORS.drawingNoAccess);
+  });
+
+  test("add, move, text e remove no ligado direto gravam; conector preso segue", async () => {
+    const r = await rig(drawingDoc());
+    expect(await r.run("drawing", "add", "d-a", "ellipse", "--x", "100", "--y", "100", "--w", "20", "--h", "20", "--id", "el")).toBe(EXIT.ok);
+    expect(await r.run("drawing", "add", "d-a", "arrow", "--from", "e1", "--to", "el", "--id", "seta")).toBe(EXIT.ok);
+    expect(await r.run("drawing", "move", "d-a", "el", "5", "-5")).toBe(EXIT.ok);
+    expect(await r.run("drawing", "text", "d-a", "e2", "olá", "mundo")).toBe(EXIT.ok);
+    expect(await r.run("drawing", "add", "d-a", "stroke", "--points", "0,0;5,5;9,2")).toBe(EXIT.ok);
+    const els = sceneOf(await r.current(), "d-a").elements;
+    expect(els.find((e) => e.id === "el")).toMatchObject({ x: 105, y: 95 });
+    expect(els.find((e) => e.id === "e2")?.text).toBe("olá mundo");
+    expect(els.find((e) => e.id === "seta")).toMatchObject({ from: { ref: "e1" }, to: { ref: "el" } });
+    expect(await r.run("drawing", "remove", "d-a", "el")).toBe(EXIT.ok);
+    expect(sceneOf(await r.current(), "d-a").elements.find((e) => e.id === "seta")?.to).toMatchObject({ x: expect.any(Number) });
+  });
+
+  test("a cadeia só lê: editar d-b é recusado (write_direct_only) e nada muda; o solto, no_access", async () => {
+    const r = await rig(drawingDoc());
+    expect(await r.run("drawing", "remove", "d-b", "e1")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(CANVAS_CLI_ERRORS.drawingWriteDirect);
+    expect(sceneOf(await r.current(), "d-b").elements.length).toBe(2);
+    expect(await r.run("drawing", "remove", "d-c", "e1")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(CANVAS_CLI_ERRORS.drawingNoAccess);
+  });
+
+  test("elemento inexistente e números inválidos: código estável do servidor e uso, sem gravar", async () => {
+    const r = await rig(drawingDoc());
+    expect(await r.run("drawing", "remove", "d-a", "nada")).toBe(EXIT.fail);
+    expect(r.err.at(-1)).toContain("drawing_missing_element");
+    expect(await r.run("drawing", "move", "d-a", "e1", "x", "1")).toBe(EXIT.usage);
+    expect(await r.run("drawing", "add", "d-a", "rect", "--x", "abc")).toBe(EXIT.usage);
+    expect(sceneOf(await r.current(), "d-a").elements.length).toBe(2);
+  });
+
+  test("export --svg imprime o SVG, inclusive da cadeia; sem --svg é uso", async () => {
+    const r = await rig(drawingDoc());
+    expect(await r.run("drawing", "export", "d-b", "--svg")).toBe(EXIT.ok);
+    expect(r.out[0]).toContain("<svg");
+    expect(await r.run("drawing", "export", "d-b")).toBe(EXIT.usage);
+  });
+
+  test("subcomando desconhecido sai com uso", async () => {
+    const r = await rig(drawingDoc());
+    expect(await r.run("drawing", "apagar")).toBe(EXIT.usage);
   });
 });

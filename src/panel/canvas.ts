@@ -17,6 +17,7 @@ import {
   parseCanvasText,
   readCanvasDoc,
   type Removals,
+  validateCanvasDoc,
   removalsBetween,
   userRemovals,
 } from "../lib/canvas-doc.ts";
@@ -109,7 +110,15 @@ export interface CanvasRoutes {
   getMany(path: string): Response | undefined;
   /** POST/PUT de `/api/canvases…` (criar, gravar, renomear, apagar, importar, abrir por escopo, gravar filtros salvos); `undefined` se o caminho não é daqui. */
   writeMany(method: "POST" | "PUT", path: string, query: Record<string, string>, req: Request, caller: CanvasCaller): Promise<Response> | undefined;
+  /**
+   * Troca o `data` de um nó que já existe no canvas `id`, com a regra de revisão do PUT (sem await entre ler e gravar). Serve às rotas que
+   * editam um nó só (o desenho). `check` roda com o documento atual e decide se o chamador pode (devolve `false` = como inexistente).
+   */
+  patchNodeData(id: string, nodeId: string, expectedRev: number, check: (doc: CanvasDoc) => boolean, data: Record<string, unknown>): PatchResult;
 }
+
+/** Resultado de `patchNodeData`: gravou na revisão `rev`, ou recusou pelo motivo. */
+export type PatchResult = { ok: true; rev: number } | { ok: false; reason: "not_found" | "stale" | "unreadable" | "invalid"; rev?: number };
 
 /** O arquivo de filtros salvos existe mas não se lê: a rota recusa (500) em vez de tratá-lo como vazio, que o próximo PUT apagaria. */
 class UnreadableFilters extends Error {}
@@ -557,6 +566,22 @@ export function createCanvasRoutes(dir: string, now: () => Date = () => new Date
 
   return {
     terminalPanes,
+    patchNodeData(id, nodeId, expectedRev, check, data) {
+      try {
+        const current = read(id) ?? (id === DEFAULT_CANVAS_ID ? load(id) : undefined);
+        if (!current || !current.doc.nodes.some((node) => node.id === nodeId) || !check(current.doc)) return { ok: false, reason: "not_found" };
+        if (current.doc.rev !== expectedRev) return { ok: false, reason: "stale", rev: current.doc.rev };
+        const saved: CanvasDoc = { ...current.doc, v: CANVAS_VERSION, rev: current.doc.rev + 1, nodes: current.doc.nodes.map((node) => (node.id === nodeId ? { ...node, data } : node)) };
+        validateCanvasDoc(saved);
+        store(id, { ...current, doc: saved });
+        log("info", "canvas gravado", { canvas: id, rev: saved.rev, nodes: saved.nodes.length, edges: saved.edges.length, node: nodeId });
+        return { ok: true, rev: saved.rev };
+      } catch (error) {
+        if (error instanceof CanvasError) return { ok: false, reason: error.code === CANVAS_ERRORS.unreadable ? "unreadable" : "invalid" };
+        if (error instanceof CanvasStoreError) return { ok: false, reason: "not_found" };
+        throw error;
+      }
+    },
     get() {
       try {
         return send(OK_STATUS, { ...load(DEFAULT_CANVAS_ID).doc });

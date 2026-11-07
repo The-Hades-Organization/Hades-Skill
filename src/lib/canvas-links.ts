@@ -7,6 +7,7 @@ import {
   CANVAS_LIMITS, type CanvasDoc, type CanvasEdge, type CanvasNode, type EdgeClamp, LINK_EDGE_KIND, LINK_STYLES, type LinkStyle,
 } from "./canvas-doc.ts";
 import { type AtomicOp, type CanvasOp, opBatch, opEdgeCreate, opEdgeDelete } from "./canvas-history.ts";
+import { DRAWING_TYPE } from "./canvas-drawing.ts";
 import { NOTE_TYPE } from "./canvas-note.ts";
 
 export { LINK_EDGE_KIND, LINK_STYLES, type LinkStyle };
@@ -17,20 +18,25 @@ export const DEFAULT_LINK_STYLE: LinkStyle = "rope";
  * O que cada ponta é para a conexão; tipo de nó fora desta tabela não conecta. `terminal` é o nó que a ferramenta
  * Terminal da barra cria (pane do herdr sem agente do loop): conecta como o `agent`.
  */
-export type LinkEnd = "terminal" | "note";
-const LINK_END_BY_TYPE: Readonly<Record<string, LinkEnd>> = { agent: "terminal", terminal: "terminal", [NOTE_TYPE]: "note" };
+export type LinkEnd = "terminal" | "note" | "drawing";
+const LINK_END_BY_TYPE: Readonly<Record<string, LinkEnd>> = { agent: "terminal", terminal: "terminal", [NOTE_TYPE]: "note", [DRAWING_TYPE]: "drawing" };
 
 /**
  * O que a conexão dá a quem lê: `note-access` (o agente do terminal lê e escreve a nota pela CLI do painel) e `chain`
  * (nota encadeada: quem lê a nota de entrada percorre a cadeia). Terminal com terminal não tem leitor nesta versão e é
  * recusado (D5: conexão só onde há leitor).
  */
-export type LinkMeaning = "note-access" | "chain";
+export type LinkMeaning = "note-access" | "chain" | "drawing-access" | "drawing-chain";
 const MEANING_BY_PAIR: Readonly<Record<`${LinkEnd}|${LinkEnd}`, LinkMeaning | undefined>> = {
   "terminal|terminal": undefined,
   "terminal|note": "note-access",
   "note|terminal": "note-access",
   "note|note": "chain",
+  "terminal|drawing": "drawing-access",
+  "drawing|terminal": "drawing-access",
+  "drawing|drawing": "drawing-chain",
+  "note|drawing": undefined,
+  "drawing|note": undefined,
 };
 
 /** Códigos estáveis: só ganham valores. */
@@ -80,7 +86,7 @@ export function linkMeaning(fromType: string, toType: string): LinkMeaning | und
   return a && b ? MEANING_BY_PAIR[`${a}|${b}`] : undefined;
 }
 
-/** O nó pode começar uma conexão (é terminal ou nota). */
+/** O nó pode começar uma conexão (é terminal, nota ou desenho). */
 export const canStartLink = (node: CanvasNode | undefined): boolean => node !== undefined && linkEndOf(node.type) !== undefined;
 
 const nodeById = (doc: CanvasDoc, id: string): CanvasNode | undefined => doc.nodes.find((node) => node.id === id);
@@ -106,7 +112,7 @@ export const LINK_ERROR_TEXT: Readonly<Record<LinkErrorCode, string>> = {
   [LINK_ERRORS.danglingNode]: "conexão para nó que não existe",
   [LINK_ERRORS.selfLoop]: "conexão de um nó para ele mesmo",
   [LINK_ERRORS.duplicateLink]: "os dois nós já estão conectados",
-  [LINK_ERRORS.noReader]: "só terminal com nota e nota com nota se conectam",
+  [LINK_ERRORS.noReader]: "só terminal com nota ou desenho, nota com nota e desenho com desenho se conectam",
   [LINK_ERRORS.limitExceeded]: "documento passaria do limite de arestas",
   [LINK_ERRORS.missingLink]: "conexão não existe no documento",
   [LINK_ERRORS.notLink]: "a aresta não é uma conexão",
@@ -254,10 +260,12 @@ export function freshLinkId(doc: CanvasDoc, prefix: string, seed: string): strin
 
 // ---- popover de conexões ----
 
-export const LINK_END_TEXT: Readonly<Record<LinkEnd, string>> = { terminal: "Terminal", note: "Nota" };
+export const LINK_END_TEXT: Readonly<Record<LinkEnd, string>> = { terminal: "Terminal", note: "Nota", drawing: "Desenho" };
 export const LINK_MEANING_TEXT: Readonly<Record<LinkMeaning, string>> = {
   "note-access": "o agente lê e escreve a nota",
   chain: "nota encadeada: a leitura segue a cadeia",
+  "drawing-access": "o agente lê e edita o desenho",
+  "drawing-chain": "desenho encadeado: a leitura segue a cadeia",
 };
 export const LINK_STYLE_TEXT: Readonly<Record<LinkStyle, string>> = { rope: "Corda", circuit: "Circuito" };
 

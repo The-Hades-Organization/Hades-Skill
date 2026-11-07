@@ -165,6 +165,7 @@ function makeArgosCanvasComposer() {
     return {
       terminals: terminals.filter((t) => t.id !== terminal.id && linked.has(t.id)),
       notes: doc.nodes.filter((n) => n.type === "note").map((n) => ({ id: n.id, title: C.noteTitle(n) })),
+      drawings: doc.nodes.filter((n) => n.type === "drawing").map((n) => ({ id: n.id, title: C.drawingTitle(n) })),
       orchestrator: terminal.orchestrator === true,
     };
   }
@@ -357,7 +358,7 @@ function makeArgosCanvasComposer() {
         note: picker.error || (picker.loading ? "Procurando…" : fileItems.length === 0 ? "Nada aqui." : picker.truncated ? "Lista cortada: refine a busca." : ""),
         items: fileItems.map((f) => ({ key: `${f.type}:${f.path}:${f.name}`, label: f.type === "dir" ? `${f.name}/` : f.name, hint: f.name === ".." ? "voltar" : f.path })),
       }
-      : options.length === 0 ? null : { kind: "mention", active: Math.min(active, options.length - 1), note: "", items: options.map((o, i) => ({ key: `${o.kind}:${i}`, label: o.label, hint: o.kind === "terminal" ? "terminal" : o.kind === "note" ? "nota" : o.kind === "file" ? "busca no diretório" : "ação" })) };
+      : options.length === 0 ? null : { kind: "mention", active: Math.min(active, options.length - 1), note: "", items: options.map((o, i) => ({ key: `${o.kind}:${i}`, label: o.label, hint: o.kind === "terminal" ? "terminal" : o.kind === "note" ? "nota" : o.kind === "drawing" ? "desenho" : o.kind === "file" ? "busca no diretório" : "ação" })) };
 
     const choose = (index: number): void => {
       if (!mention) return;

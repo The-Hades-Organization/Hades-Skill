@@ -4,6 +4,23 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.24.0 — 2026-11-07
+
+Capacidade nova (issue #79): desenho e escrita livre no canvas do Argos, legíveis e editáveis por agentes.
+
+### Desenho do canvas (#79)
+
+- Nó `drawing` no canvas: traço livre, formas, texto e conectores ligados aos elementos (o conector segue o elemento
+  quando ele se move). Formato versionado (`v: 1`), modelo puro em `src/lib/` com SVG próprio.
+- Botão **Desenho** na barra do canvas; exportação PNG no painel (rasteriza o mesmo SVG da rota) e SVG pela CLI e pela
+  rota.
+- Agentes leem e editam pelo `hades canvas drawing …` (leitura estruturada, não imagem), com as mesmas regras de
+  permissão das notas: desenho não ligado ao agente responde 404. O compositor cita o desenho pelo `@`, no texto e no
+  menu, e "o que o agente lê" inclui os desenhos ligados (`canvas-links.ts`, lado `drawing`).
+- Golden do painel regravado só pelo caminho explícito (o `sw.js` ganhou os arquivos novos do desenho).
+- Não provado ao vivo: o clique no botão PNG no navegador e a CLI com pane real do herdr (coberta por teste com herdr
+  falso). Fica para depois: o `canvas recruit` listar os desenhos ligados no primeiro prompt.
+
 ## 6.23.1 — 2026-11-07
 
 Correção da 6.23.0 (#80): a área colorida só saía pelo menu e pela paleta; faltava o botão na barra do canvas.

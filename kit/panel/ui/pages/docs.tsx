@@ -1,7 +1,7 @@
 /* Página Documentação (#/docs): usa a base (ui/app.js) pelo HadesCore e se registra pelo registerPage dela.
  * Leitura: o texto numa medida de 70ch (código e tabelas podem passar dela), o índice do grupo e os tópicos ao lado. */
 (() => {
-const { useState, useEffect, useRef, useMemo, useCallback, I, cn, getJSON, Button, Card, CardHeader, CardContent, Input,
+const { useState, useEffect, useRef, useMemo, useCallback, I, cn, getJSON, ErroExplicado, Button, Card, CardHeader, CardContent, Input,
   Skeleton, Mono, Empty, ago, Segmented, slugify, renderMd, Loading, Select } = HadesCore;
 
 function topics(text) {
@@ -70,7 +70,7 @@ function Docs() {
   const [active, setActive] = useState(null);
   const [q, setQ] = useState('');
   const body = useRef(null);
-  const loadIdx = useCallback(() => { setIdxErr(null); getJSON('/api/docs').then(setIdx).catch((e) => setIdxErr(e.message)); }, []);
+  const loadIdx = useCallback(() => { setIdxErr(null); getJSON('/api/docs').then(setIdx).catch((e) => setIdxErr(e)); }, []);
   useEffect(() => { loadIdx(); }, [loadIdx]);
   const g = idx?.groups.find((x) => x.title === group) || idx?.groups[0];
   const cur = docId && g?.items.some((i) => i.id === docId) ? docId : g?.items[0]?.id;
@@ -78,7 +78,7 @@ function Docs() {
   useEffect(() => {
     if (!cur) return;
     setDoc(null); setDocErr(null);
-    getJSON('/api/doc?id=' + encodeURIComponent(cur)).then(setDoc).catch((e) => setDocErr(e.message));
+    getJSON('/api/doc?id=' + encodeURIComponent(cur)).then(setDoc).catch((e) => setDocErr(e));
     window.scrollTo({ top: 0, behavior: 'auto' });
   }, [cur]);
   const toc = useMemo(() => doc ? topics(doc.text) : [], [doc]);
@@ -108,12 +108,7 @@ function Docs() {
     setTimeout(() => { if (Math.abs(alvo() - scrollY) > 4) window.scrollTo({ top: alvo() }); }, 700);
     setActive(id);
   };
-  if (idxErr) return <Empty icon={I.CircleX} title="Não foi possível ler a documentação">
-    <span className="inline-flex flex-wrap items-baseline gap-x-3">
-      {idxErr}
-      <Button variant="link" size="xs" className="h-auto px-0" onClick={loadIdx}>Tentar de novo</Button>
-    </span>
-  </Empty>;
+  if (idxErr) return <ErroExplicado error={idxErr} title="Não foi possível ler a documentação" onRetry={loadIdx} />;
   if (!idx) return <Loading />;
   const shown = toc.filter((t) => t.title.toLowerCase().includes(q.toLowerCase()));
   const pickGroup = (v) => { setGroup(v); setDocId(null); setQ(''); };
@@ -180,9 +175,7 @@ function Docs() {
       </div>
       <div data-tour-step-id="docs-leitura" className="min-w-0" key={cur}>
         {!cur ? <Empty icon={I.FileX} title="Nenhum documento neste grupo" />
-          : docErr ? <Empty icon={I.CircleX} title={`Não foi possível abrir ${docTitle ? plain(docTitle) : cur}`}>
-            {docErr}
-          </Empty>
+          : docErr ? <ErroExplicado error={docErr} title={`Não foi possível abrir ${docTitle ? plain(docTitle) : cur}`} />
           : doc ? <>
             <p className="mb-4 flex flex-wrap items-baseline gap-x-2 t-meta text-muted-foreground">
               <Mono>{doc.id}</Mono>

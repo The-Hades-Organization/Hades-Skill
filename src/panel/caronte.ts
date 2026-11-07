@@ -2,6 +2,7 @@
 // GET /api/caronte/plan/<nome> (prontidão, prévia do pack --dry-run, prompt de retomada, comandos) e
 // POST /api/caronte/park (`hades agent park`). Nenhuma rota faz pack nem unpack: a senha nunca passa pelo navegador.
 // Nome de plano e de agente só chegam ao disco ou ao comando depois de validados contra a lista (400 inválido, 404 desconhecido).
+import { messageOfCliFailure } from "../lib/human-errors.ts";
 import { appendFileSync, mkdirSync, statSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import { listDir, readText } from "../lib/fs.ts";
@@ -191,7 +192,7 @@ export function createCaronteRoutes(deps: CaronteDeps): CaronteRoutes {
     const cwd = statSync(agent.worktree, { throwIfNoEntry: false })?.isDirectory() ? agent.worktree : deps.work().repoTop;
     const r = await (deps.runPark ?? defaultRunPark)(agent.name, cwd, seconds * 1000);
     if (r.timedOut) throw new CaronteRouteError(504, CARONTE_ERRORS.actionTimeout, "o comando do agente não terminou a tempo");
-    if (r.status !== 0) throw new CaronteRouteError(422, CARONTE_ERRORS.actionFailed, clip(lastLine(r.stderr) || lastLine(r.stdout) || "o comando do agente falhou", ERROR_MAX));
+    if (r.status !== 0) throw new CaronteRouteError(422, CARONTE_ERRORS.actionFailed, clip(messageOfCliFailure(r.stderr) || lastLine(r.stdout) || "o comando do agente falhou", ERROR_MAX));
     return clip(r.stdout.trim(), OUTPUT_MAX);
   }
 

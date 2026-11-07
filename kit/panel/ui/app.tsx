@@ -54,11 +54,13 @@ async function post(path, body, retry = true) {
     const t = await fetch('/api/token', { cache: 'no-store' }).then((x) => x.json()).catch(() => ({}));
     if (t.token && t.token !== window.__TOKEN) { window.__TOKEN = t.token; return post(path, body, false); }
   }
-  if (!r.ok) throw Object.assign(new Error(d.error || 'HTTP ' + r.status), { code: d.code });
+  if (!r.ok) throw Object.assign(new Error(d.error || 'HTTP ' + r.status), { code: d.code, explain: d.explain });
   if (path === '/api/config') loadConfirmPrefs();
   return d;
 }
 const getJSON = (url) => fetch(url, { cache: 'no-store' }).then((r) => r.json());
+// texto do toast de falha: a mensagem e, quando o painel explicou (explain), o que fazer agora (reference/erros.md)
+const errDesc = (e) => (e?.explain?.action ? `${e.message}. ${e.explain.action}`.replaceAll('`', '') : e?.message);
 
 // travas de confirmação (HADES_CONFIRM_HOLD segurar, HADES_CONFIRM_TYPED digitar o nome): lidas de /api/config, que vale no desktop
 // e no celular. Antes da primeira leitura, ou se ela falhar, ficam as duas ligadas; quem decide a de digitar é o servidor.
@@ -820,7 +822,7 @@ function useActions() {
       toast({ kind: 'busy', title: 'Ação iniciada', desc: c?.title?.replace(/\?$/, '') || body.action, action: { label: 'Ver execução', icon: I.SquareTerminal, onClick: () => openJob(r.job) } });
       setTimeout(refresh, 500);
       return r.job;
-    } catch (e) { toast({ kind: 'bad', title: 'Não foi possível iniciar', desc: e.message }); return false; }
+    } catch (e) { toast({ kind: 'bad', title: 'Não foi possível iniciar', desc: errDesc(e) }); return false; }
   }, [toast, confirm, openJob, refresh]);
   return run;
 }
@@ -2035,7 +2037,7 @@ window.HadesCore = { useState, useEffect, useRef, useMemo, useCallback, useId, I
   Sheet, useWidth, AreaChart, niceTicks, niceTicksCovering, Legend, OVERALL, svcState, StateBadge, useApp, route, useActions, Kpi, QuickAction,
   JOB_ST, JobRow, jobFio, ago, Segmented, Choice, Select, useWide, Checkbox, PrPicker, Terminal, LogViewer, slugify, renderMd, CFG_ICON, CFG_APPLY,
   modelLabel, cfgNorm, Loading, Fio, FIO_ESTADO, Regua, Leitura, LinhaDeEstado, Num, Tracos, liveThreads, get NAV() { return NAV; },
-  registerPage: window.HadesPanel.registerPage,
+  registerPage: window.HadesPanel.registerPage, ErroExplicado: window.HadesParts?.ErroExplicado, errDesc,
   registerTour: (id, def) => TL.register(id, def), hasTour: (id) => TL.has(id), startPageTour, useTourPreview, ExampleSeal, TL };
 
 // os scripts das páginas vêm depois deste no index.html: o DOMContentLoaded só dispara quando todos rodaram

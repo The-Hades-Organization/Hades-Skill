@@ -9,7 +9,8 @@ import { appendQuality, phaseQuality, prepWorktree, projectEnv, projectNeed, ste
 import { need } from "../lib/deps.ts";
 import { isDir, isFile, readText } from "../lib/fs.ts";
 import { findAgent, herdr, paneFrom, paneInCwd } from "../lib/herdr.ts";
-import { die, out } from "../lib/output.ts";
+import { CLI_ERRORS } from "../lib/human-errors.ts";
+import { EXIT, die, out } from "../lib/output.ts";
 import { labelsText, prReadyValues, renderPrReady } from "../lib/brief-pr.ts";
 import { dataDirOf, installForWorktree } from "../lib/rtk-filters.ts";
 import { run } from "../lib/proc.ts";
@@ -118,7 +119,7 @@ function parseNew(args: string[], base: string): NewOptions {
 }
 
 export async function newAgent(args: string[], work: WorkEnv): Promise<number> {
-  const name = args[0] ?? die("faltou nome do agente");
+  const name = args[0] ?? die("faltou nome do agente", EXIT.usage, CLI_ERRORS.agentNameMissing);
   const project = projectEnv(work);
   projectNeed(project);
   const cardExample = project.get("card.example", "CARD-N") ?? "CARD-N";

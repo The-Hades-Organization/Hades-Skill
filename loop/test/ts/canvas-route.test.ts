@@ -93,7 +93,7 @@ describe("canvas-route: a rota sobre a pasta de dados", () => {
     const out = await json(res);
     expect([res.status, out.code]).toEqual([400, code]);
     expect(JSON.stringify(out)).not.toContain(D);
-    expect(Object.keys(out).sort()).toEqual(["code", "error"]);
+    expect(Object.keys(out).sort()).toEqual(["code", "error", "explain"]);
     expect(existsSync(join(D, "canvas.json"))).toBe(false);
   });
 

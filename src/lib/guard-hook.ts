@@ -17,6 +17,7 @@ import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { readText, firstLine, isFile, isDir } from "./fs.ts";
 import { compactAtOf, ctxCapOf } from "./ctx-cap.ts";
 import { guardRules, maskDataStatements, stripAgentText, stripHeredocBodies, type GuardRules } from "./guard-rules.ts";
+import { HOOK_ERRORS, renderHook } from "./human-errors.ts";
 import { hadesHome, home } from "./paths.ts";
 import { pyDumps, splitLines } from "./pyjson.ts";
 import { containsDir, mostSpecific } from "./worktree-scope.ts";
@@ -53,9 +54,6 @@ const WAIT_BY_COMMAND: { rx: RegExp; wait: string }[] = [
   { rx: /\bgh\s+(?:pr\s+(?:checks|view)|run\s+(?:view|watch))\b/, wait: "hades wait ci <PR> (ou merged <PR>, review <PR>)" },
   { rx: /\bherdr\b/, wait: "hades wait agent <nome> [estado]" },
 ];
-const CERBERUS_HOW =
-  "Só o dono faz isso: no painel local (página Cerberus, Configurações) ou no terminal com `!`. Para ler, " +
-  "use hades cerberus historico | excecao listar | modos.";
 
 // exceção e modo das cabeças só pelo dono (painel local ou `!`): vindo das ferramentas do Claude, barra
 const CERBERUS_OWNER_ONLY: { rx: RegExp; what: string }[] = [
@@ -71,9 +69,6 @@ const AUTONOMY_OWNER_ONLY: { rx: RegExp; what: string }[] = [
   { rx: /\/api\/config\b[^\n]*HADES_ORCH_(?:AUTONOMY|AUTO_START)/, what: "mudar o nível de autonomia ou o toggle da auto-alocação" },
   { rx: /hades\s+agent\s+auto-start\s+(?:on|off)\b/, what: "ligar ou desligar a auto-alocação" },
 ];
-const AUTONOMY_HOW =
-  "Só o dono faz isso: no painel local (Configurações → Orquestração) ou no terminal com `!`. Para ler, " +
-  "use hades agent auto-start status | hades config get HADES_ORCH_AUTONOMY (reference/autonomia.md).";
 // política dos resumidores do rtk: do dono, com a mesma trava (o agente vê mais com `rtk proxy <cmd>`, não muda a política nem confia em filtro)
 const RTK_OWNER_ONLY: { rx: RegExp; what: string }[] = [
   { rx: /\bHADES_RTK_(?:FILTERS|OFF_STACKS|OFF_FILTERS)\s*=/, what: "mudar a política dos filtros do rtk" },
@@ -82,9 +77,6 @@ const RTK_OWNER_ONLY: { rx: RegExp; what: string }[] = [
   { rx: /(?:^|[;&|(]|\s)rtk\s+(?:trust|untrust)\b/, what: "confiar ou revogar a confiança num filtro do rtk" },
   { rx: /hades\s+rtk\s+apply\b[^\n;&|]*--trust/, what: "confiar num filtro do rtk" },
 ];
-const RTK_HOW =
-  "Só o dono faz isso: no painel local (Configurações → Resumidores (rtk)) ou no terminal com `!`. Para ver mais, " +
-  "use `rtk proxy <comando>` (saída sem filtro); a política está em reference/rtk.md.";
 const CERBERUS_READ_ONLY = /hades\s+cerberus\s+(historico|excecao\s+listar|modos|estado)\b/;
 const GATE_WRAP = /(?:gate-lock(?:\.sh)?)/;
 const GATE_VAR_WRAP = /"?\$\{?GL\}?"?\s+run\s/;
@@ -415,7 +407,7 @@ function ownerOnly(cmd: string, d: HookInput, env: HookEnv): void {
   for (const { rx, what } of CERBERUS_OWNER_ONLY) {
     if (rx.test(cmd) && !(what.startsWith("mexer") && CERBERUS_READ_ONLY.test(cmd))) {
       env.cerberusEmit("excecao-so-dono", `barrado: ${what}`, d);
-      throw new Block(`cerberus: ${what} vindo das ferramentas do Claude é barrado. ${CERBERUS_HOW}\n`);
+      throw new Block(renderHook(`cerberus: ${what} vindo das ferramentas do Claude é barrado. Só o dono faz isso.`, HOOK_ERRORS.cerberusOwnerOnly));
     }
   }
 }
@@ -424,7 +416,7 @@ function autonomyOwnerOnly(cmd: string, d: HookInput, env: HookEnv): void {
   for (const { rx, what } of AUTONOMY_OWNER_ONLY) {
     if (!rx.test(cmd)) continue;
     env.cerberusEmit("excecao-so-dono", `barrado: ${what}`, d);
-    throw new Block(`autonomia: ${what} vindo das ferramentas do Claude é barrado. ${AUTONOMY_HOW}\n`);
+    throw new Block(renderHook(`autonomia: ${what} vindo das ferramentas do Claude é barrado. Só o dono faz isso.`, HOOK_ERRORS.autonomyOwnerOnly));
   }
 }
 
@@ -432,7 +424,7 @@ function rtkOwnerOnly(cmd: string, d: HookInput, env: HookEnv): void {
   for (const { rx, what } of RTK_OWNER_ONLY) {
     if (!rx.test(cmd)) continue;
     env.cerberusEmit("excecao-so-dono", `barrado: ${what}`, d);
-    throw new Block(`rtk: ${what} vindo das ferramentas do Claude é barrado. ${RTK_HOW}\n`);
+    throw new Block(renderHook(`rtk: ${what} vindo das ferramentas do Claude é barrado. Só o dono faz isso.`, HOOK_ERRORS.rtkOwnerOnly));
   }
 }
 
@@ -484,10 +476,7 @@ function bashChecks(d: HookInput, cfg: Cfg, rules: GuardRules, env: HookEnv): st
   const wrapped = GATE_WRAP.test(stripped) || GATE_VAR_WRAP.test(stripped);
   if (!wrapped && env.gatePatterns(cwd).some((rx) => rx.test(stripped))) {
     env.cerberusEmit("hook-fila-e-polling", "barrado: test/lint/build fora da fila do gate-lock", d);
-    throw new Block(
-      "gate-lock: test/lint/build fora da fila de gate. Embrulhe em ~/.claude/skills/hades/kit/gate/gate-lock.sh " +
-        "run <kind> --label <L> -- <cmd> (~/.claude/skills/hades/reference/loop/gates.md §3.2).\n",
-    );
+    throw new Block(renderHook("gate-lock: test/lint/build rodando fora da fila de gate.", HOOK_ERRORS.gateOutsideQueue));
   }
   const file = stateFile(env.home(), (d.session_id as string | undefined) || "x");
   if (wrapped) {
@@ -501,7 +490,7 @@ function bashChecks(d: HookInput, cfg: Cfg, rules: GuardRules, env: HookEnv): st
   for (const { rx, what } of rules.fgPoll) {
     if (rx.test(cmd)) {
       env.cerberusEmit("hook-fila-e-polling", `barrado: polling (${what})`, d);
-      throw new Block(`hades-guard: polling barrado (${what}). ${HOW}\n`);
+      throw new Block(renderHook(`hades-guard: polling barrado (${what}).`, HOOK_ERRORS.pollingBlocked, HOW));
     }
   }
   const keys = repeatKeys(rules, cmd);
@@ -519,7 +508,7 @@ function bashChecks(d: HookInput, cfg: Cfg, rules: GuardRules, env: HookEnv): st
     if (now - last < windowS) {
       const name = key.split(":")[0];
       env.cerberusEmit("hook-fila-e-polling", `barrado: a mesma checagem (${name}) repetida dentro de ${Math.floor(windowS / 60)} min`, d);
-      throw new Block(`hades-guard: a mesma checagem (${key}) já rodou há ${Math.trunc((now - last) / 60)} min — isso é polling. ${HOW}\n`);
+      throw new Block(renderHook(`hades-guard: a mesma checagem (${key}) já rodou há ${Math.trunc((now - last) / 60)} min — isso é polling.`, HOOK_ERRORS.pollingRepeated, HOW));
     }
   }
   for (const key of keys) seen[key] = now;

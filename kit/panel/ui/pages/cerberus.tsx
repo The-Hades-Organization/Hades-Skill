@@ -2,7 +2,7 @@
  * Os blocos das cabeças (ui/cerberus/<cabeça>.js, reference/cerberus.md) se registram por HadesCerberus.registerBlock.
  * As três cabeças são objetos (cartão); o resto da página fica no chão: o que barrou, as exceções e o histórico. */
 (() => {
-const { useState, useEffect, useCallback, useMemo, I, cn, post, getJSON, Button, Dot, Card, CardHeader, CardContent,
+const { useState, useEffect, useCallback, useMemo, I, cn, post, getJSON, ErroExplicado, Button, Dot, Card, CardHeader, CardContent,
   Mono, Tip, Empty, Table, Th, Td, Tr, Dialog, DialogHeader, DialogFooter, Choice, useWide, useApp, ago, Loading, CFG_ICON,
   LinhaDeEstado, Tracos, useTourPreview, ExampleSeal, Select } = HadesCore;
 
@@ -381,16 +381,13 @@ function Cerberus() {
   const exemplo = useTourPreview('cerberus');
   const [xReal, setX] = useState(null);
   const x = exemplo ?? xReal;
-  const [err, setErr] = useState('');
+  const [err, setErr] = useState(null);
   const [opening, setOpening] = useState(false);
   const reg = useBlocks();
-  const load = useCallback(() => getJSON('/api/cerberus').then((d) => { const n = normalize(d); setX(n); setErr(''); loadBlocks(n.blocos); })
-    .catch((e) => setErr(e.message || 'falha ao ler o Cerberus')), []);
+  const load = useCallback(() => getJSON('/api/cerberus').then((d) => { const n = normalize(d); setX(n); setErr(null); loadBlocks(n.blocos); })
+    .catch((e) => setErr(e || new Error('falha ao ler o Cerberus'))), []);
   useEffect(() => { load(); }, [load]);
-  if (err && !x) return <Empty icon={I.TriangleAlert} title="Não foi possível ler o Cerberus">
-    <span className="mr-2">{err}</span>
-    <Button size="sm" variant="outline" icon={I.RotateCw} onClick={() => { setErr(''); load(); }}>Tentar de novo</Button>
-  </Empty>;
+  if (err && !x) return <ErroExplicado error={err} title="Não foi possível ler o Cerberus" onRetry={() => { setErr(null); load(); }} />;
   if (!x) return <Loading />;
   const remote = !!x.remote;
   const byHead = (cab, list) => list.filter((it) => it.cabeca === cab);

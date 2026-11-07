@@ -128,6 +128,10 @@ interface HadesCoreApi extends HadesPanelApi {
   QuickAction: PanelComponent;
   JobRow: PanelComponent;
   CopyButton: PanelComponent;
+  /** Erro com causa, ação e referência (ui/parts/erro.tsx; reference/erros.md §No painel). */
+  ErroExplicado: PanelComponent;
+  /** Texto do toast de falha: mensagem mais a ação do `explain`, se o painel mandou. */
+  errDesc(e: unknown): string;
   WidgetApk: PanelComponent;
   Th: PanelComponent;
   Td: PanelComponent;
@@ -183,5 +187,7 @@ interface Window {
   Terminal: new (options?: Record<string, unknown>) => unknown;
   FitAddon: { FitAddon: new () => unknown };
   HadesFx?: Record<string, FC<Record<string, unknown>> | undefined>;
+  /** Partes reutilizáveis (ui/parts/*.tsx), carregadas antes do app.js. */
+  HadesParts?: { ErroExplicado?: PanelComponent } & Record<string, unknown>;
 }
 declare const HadesCore: HadesCoreApi;

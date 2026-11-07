@@ -14,8 +14,8 @@ describe("widget-api", () => {
   const cases: [string, string, () => string][] = [
     ["sem token configurado a rota fecha (404 widget_off)", "404 widget_off", () => wr("sem-token-configurado")],
     ["criar pelo acesso remoto: 403 e nada gravado", "403 widget_local_only|0", () => `${wr("criar-pelo-remoto")}|${wr("criar-pelo-remoto-gravou")}`],
-    ["criar sem o token do painel: 403", "403 token", () => wr("criar-sem-token-do-painel")],
-    ["operação fora da lista: 400", "400 operação inválida", () => wr("op-invalida")],
+    ["criar sem o token do painel: 403", "403 panel_token", () => wr("criar-sem-token-do-painel")],
+    ["operação fora da lista: 400", "400 panel_bad_request", () => wr("op-invalida")],
     ["criar no painel local: 200", "200 -", () => wr("criar")],
     ["arquivo do token com 600 e só o hash dentro", "arquivo-modo 600 sem-token-em-claro 1", () => `arquivo-modo ${wr("arquivo-modo")}`],
     ["status: configurado e sem o valor do token", "200 - 1 1", () => { const f = wr("status-configurado").split(" "); return `${wr("status")} ${f[0]} ${f[2]}`; }],

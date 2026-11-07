@@ -11,16 +11,20 @@ export const EXIT = {
 export type ExitCode = (typeof EXIT)[keyof typeof EXIT];
 
 export class HadesError extends Error {
+  /** código de saída do processo */
   readonly code: number;
-  constructor(message: string, code: number = EXIT.usage) {
+  /** código estável do catálogo de erros para humano (src/lib/human-errors-catalog.ts); sem ele vale o da classe do código de saída */
+  readonly errorCode: string | undefined;
+  constructor(message: string, code: number = EXIT.usage, errorCode?: string) {
     super(message);
     this.name = "HadesError";
     this.code = code;
+    this.errorCode = errorCode;
   }
 }
 
-export function die(message: string, code: number = EXIT.usage): never {
-  throw new HadesError(message, code);
+export function die(message: string, code: number = EXIT.usage, errorCode?: string): never {
+  throw new HadesError(message, code, errorCode);
 }
 
 const SIGPIPE_EXIT = 141;

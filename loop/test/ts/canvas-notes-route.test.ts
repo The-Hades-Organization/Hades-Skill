@@ -76,7 +76,9 @@ describe("canvas-notes-route: a rota sobre a pasta de dados", () => {
     const second = await json(await write(routes, "nota-a", { text: "dois", rev: first.rev }));
     expect(second.rev).not.toBe(first.rev);
     const stale = await write(routes, "nota-a", { text: "três", rev: first.rev });
-    expect([stale.status, (await json(stale))]).toEqual([409, { error: "nota recusada (note_stale_revision)", code: NOTE_ROUTE_ERRORS.staleRevision, rev: second.rev }]);
+    const { explain, ...body } = await json(stale);
+    expect([stale.status, body]).toEqual([409, { error: "nota recusada (note_stale_revision)", code: NOTE_ROUTE_ERRORS.staleRevision, rev: second.rev }]);
+    expect((explain as { code: string }).code).toBe(NOTE_ROUTE_ERRORS.staleRevision);
     expect(readFileSync(file("nota-a"), "utf8")).toBe("dois");
   });
 

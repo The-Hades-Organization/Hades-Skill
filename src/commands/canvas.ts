@@ -20,6 +20,7 @@ import { findStateDir } from "../lib/kit.ts";
 import { loadProfile, pathValue } from "../lib/profile.ts";
 import { resolveProject } from "../lib/project.ts";
 import { EXIT, HadesError } from "../lib/output.ts";
+import { renderCli } from "../lib/human-errors.ts";
 import { text } from "../lib/activity.ts";
 import { agentFiles, loadWorkEnv, readJson } from "../lib/work.ts";
 import { TERMINAL_NAME_MAX } from "../panel/argos-terminals.ts";
@@ -898,7 +899,7 @@ export async function runCanvas(args: readonly string[], deps: CanvasCliDeps): P
     }
     const code = error instanceof CanvasCliError || error instanceof RecruitError || error instanceof LinkError || error instanceof NoteError ? error.code : undefined;
     if (code === undefined) throw error;
-    deps.err(`hades canvas: ${error instanceof Error ? error.message : String(error)} (${code})`);
+    deps.err(renderCli(`${error instanceof Error ? error.message : String(error)} (${code})`, code, "hades canvas"));
     return EXIT.fail;
   }
 }

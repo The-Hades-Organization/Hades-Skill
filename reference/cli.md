@@ -28,6 +28,7 @@ Os subcomandos vêm agrupados por área. Coluna "Shim": `kit/<arquivo>` é um sh
 | `thanatos new <card\|PR\|<iso>..<iso>> [--force] [--json]` · `list\|show <id>\|search <termo>` · `cited [--base <ref>\|--pr <n>\|<arquivo>…]` | post-mortem de incidente em produção do projeto, gravado fora do repo; `cited` avisa arquivo já citado em post-mortem (`reference/thanatos.md`) | `cited` sempre 0 |
 | `watch [--next] [--all\|--agent <nome>…\|--agents a,b\|--orchestrator <sessão:pane>] [<segundos>]` | eventos novos dos agentes do seu pane (sem flag, num pane do herdr; `--all` = todos), um por linha (QUESTION, PR-OPEN, DONE, REVIEW, MERGED, THANATOS, PARKED, CTX-OVER, STALLED, BUDGET) | — |
 | `wait ci <PR>\|gate <pid> [sumário]\|queue <label>\|merged <PR>\|review <PR>\|answer <worktree> <Qn>\|agent <nome> [estado]\|proc <padrão>` | espera até o evento e sai com uma linha; rode em segundo plano (`HADES_WAIT_EVERY`, `HADES_WAIT_MAX`) | — |
+| `wait agents --any [--all\|--agent <nome>…\|--agents a,b\|--orchestrator <sessão:pane>] [<segundos>]` | espera o primeiro evento de qualquer agente do orquestrador (os mesmos eventos e o mesmo escopo do `watch`) e sai com `AGENTS <n>` e uma linha por evento (`DONE a`, `QUESTION b 1`, …). Os que chegam juntos (folga de 2 s) viram um despertar só, e o seguinte espera `HADES_ORCH_WAKE_MIN_S` (30 s) desde o anterior. Teto `HADES_WAIT_MAX` → `TIMEOUT agents depois de N min` (exit 3); o `watch` morrer → `END agents …` (exit 1). Rode em segundo plano | — |
 | `consolidate plan\|merge\|verify <PR>…`, `comment <N> <PR>… [--post]`, `ready <N> [--post]`, `after-merge <N> <PR>… [--post]` | junta PRs abertas numa PR de consolidação (a do orquestrador), por merge | — |
 | `gate-lock run <kind> [--label L] [--timeout S] [--cost-gb N] [--step S:E] [--priority N] -- <cmd>`, `status`, `peak <label>` | fila de admissão de gates (FIFO por projeto, memória, scope systemd); saída 75 = não admitido até o timeout; `status` e o notify overrunam gate longo (`HADES_GATE_OVERRUN_MIN`, `HADES_GATE_OVERRUN_FACTOR`) | `kit/gate/gate-lock.sh` |
 | `json-merge3 <arquivo>…` | merge estrutural de 3 vias de JSON em conflito | — |
@@ -45,6 +46,10 @@ Os subcomandos vêm agrupados por área. Coluna "Shim": `kit/<arquivo>` é um sh
 | `guard [context <cwd>]` · `guard register` | hook PreToolUse/PostToolUse (JSON no stdin) e o registro dele no `settings.json` (abaixo) | — |
 
 Notas do `agent`:
+- `status --compact [<nome>]`: uma linha por agente, sem cabeçalho e sem consultar o GitHub: `nome herdr fase evento pr ctx custo`
+  (`herdr` = estado no herdr ou `fora`; `evento` = `<ferramenta ou tipo>@<idade>` do último evento do diário; `ctx` = tokens do
+  último turno da sessão do worktree; `custo` = US$ das transcrições do worktree, subagentes inclusive; campo vazio vira `—`).
+  É o acompanhamento barato: não custa o pane nem a PR. Sem a flag, a tabela de sempre.
 - `reassign-orchestrator <nome>…|--all` aponta o `orchestrator` dos registros para o pane atual.
 - `phase <nome> <fase> --no-commit`: a fase não faz commit e o `DONE` do `hades watch` exige só a prova (`resume` mantém,
   `phase` sem a flag reseta).

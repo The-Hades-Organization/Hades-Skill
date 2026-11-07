@@ -1,7 +1,8 @@
 // `hades agent prompt|answer|phase|resume|escalate|status|list|done`: o dia a dia do orquestrador com um agente alocado.
 import { spawnSync } from "node:child_process";
 import { rmSync, statSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { compactLine, contextOfWorktree, costOfWorktree, lastEventLabel, lastJournalEvent } from "./agent-status.ts";
 import { settled } from "../lib/caronte.ts";
 import { afterFreshSession, deliverySet, isoNow, jqText, journalAgentEnd, regUpdate, roleCard } from "../lib/agent-registry.ts";
 import { phaseQuality } from "../lib/agent-project.ts";
@@ -230,7 +231,9 @@ function prOfBranch(branch: string): string {
   return ghText(["pr", "list", "--head", branch, "--state", "all", "--json", "number", "--jq", ".[0].number"]);
 }
 
-export function status(args: string[], work: WorkEnv): number {
+export function status(rawArgs: string[], work: WorkEnv): number {
+  const compact = rawArgs.includes("--compact");
+  const args = rawArgs.filter((a) => a !== "--compact");
   let files: string[];
   if (args[0]) {
     files = [agentFile(work, args[0])];
@@ -241,6 +244,7 @@ export function status(args: string[], work: WorkEnv): number {
     return 0;
   }
   const agents = listAgents();
+  if (compact) return statusCompact(files, agents);
   const row = (cells: string[]): string => `${padBytes(cells[0] ?? "", 14)} ${padBytes(cells[1] ?? "", 11)} ${padBytes(cells[2] ?? "", 9)} ${padBytes(cells[3] ?? "", 8)} ${padBytes(cells[4] ?? "", 6)} ${padBytes(cells[5] ?? "", 9)} ${cells[6] ?? ""}`;
   out(row(["AGENTE", "MODO", "HERDR", "PR", "PERG", "RELATÓRIO", "WORKTREE"]));
   for (const file of files) {
@@ -264,6 +268,29 @@ export function status(args: string[], work: WorkEnv): number {
     const firstReportLine = (readText(join(worktree, work.reports, "report.md")) ?? "").split("\n")[0] ?? "";
     const report = firstReportLine.startsWith("STATUS: DONE") ? "pronto" : "—";
     out(row([name, mode, hostState, pr ? `#${pr}` : "", String(openQuestions(worktree, work.reports)), report, worktree]));
+  }
+  return 0;
+}
+
+/** `status --compact`: não consulta o GitHub (lento); a PR é a que o registro já guarda. */
+function statusCompact(files: string[], agents: ReturnType<typeof listAgents>): number {
+  const now = Date.now();
+  for (const file of files) {
+    const record = readJson(file) ?? {};
+    const name = jqText(record.name);
+    const worktree = jqText(record.worktree);
+    const journalDir = join(dirname(dirname(dirname(file))), "journal");
+    out(
+      compactLine({
+        name,
+        herdr: String(agents.find((a) => a.name === name)?.agent_status ?? "fora"),
+        phase: jqText(record.phase),
+        lastEvent: lastEventLabel(lastJournalEvent(journalDir, name), now),
+        pr: record.pr === undefined || record.pr === null ? "" : jqText(record.pr),
+        ctxTokens: contextOfWorktree(worktree),
+        costUsd: worktree ? costOfWorktree(worktree) : 0,
+      }),
+    );
   }
   return 0;
 }

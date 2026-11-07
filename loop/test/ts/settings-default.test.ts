@@ -82,15 +82,24 @@ describe("readSettings e recentModelIds", () => {
 
 describe("hades doctor, linha settings-padrao", () => {
   mkdirSync(join(T, "proj/b"), { recursive: true });
-  const doctor = (json: string | undefined): { level: string; msg: string }[] => {
+  mkdirSync(join(T, "home"), { recursive: true });
+  // Ambiente da CI: HOME vazio, sem HADES_DATA/HADES_KIT_DIR e cwd sem instância, ou seja, sem instalação do Hades.
+  const runDoctor = (json: string | undefined): { code: number; items: { id: string; level: string; msg: string }[] } => {
     const file = join(T, "s.json");
     if (json !== undefined) writeFileSync(file, json);
+    const { HADES_DATA: _data, HADES_KIT_DIR: _kit, ...rest } = process.env;
     const r = Bun.spawnSync([process.execPath, join(SKILL, "src/cli.ts"), "doctor", "--quick", "--json"], {
-      env: { ...process.env, HADES_WT: SKILL, HADES_CLAUDE_SETTINGS: json === undefined ? join(T, "ausente.json") : file, HADES_CLAUDE_PROJECTS: join(T, "proj") },
+      cwd: T,
+      env: { ...rest, HOME: join(T, "home"), HADES_WT: SKILL, HADES_CLAUDE_SETTINGS: json === undefined ? join(T, "ausente.json") : file, HADES_CLAUDE_PROJECTS: join(T, "proj") },
     });
-    const items = (JSON.parse(r.stdout.toString()) as { items: { id: string; level: string; msg: string }[] }).items;
-    return items.filter((i) => i.id === "settings-padrao");
+    return { code: r.exitCode, items: (JSON.parse(r.stdout.toString()) as { items: { id: string; level: string; msg: string }[] }).items };
   };
+  const doctor = (json: string | undefined): { level: string; msg: string }[] => runDoctor(json).items.filter((i) => i.id === "settings-padrao");
+  test("dado ambiente sem instalação, então o doctor sai com erro de instalação e JSON, não mudo", () => {
+    const { code, items } = runDoctor('{"effortLevel":"low"}');
+    expect(code).not.toBe(0);
+    expect(items.find((i) => i.id === "instalacao")?.level).toBe("error");
+  });
   test("dado xhigh, [1m], chave que não casa e padrão caro, então quatro avisos", () => {
     const rows = doctor('{"model":"opus[1m]","effortLevel":"xhigh","modelSettings":{"claude-opus-5":{}}}');
     expect(rows.map((r) => r.level)).toEqual(["warn", "warn", "warn", "warn"]);

@@ -6,6 +6,7 @@ import { readText } from "./fs.ts";
 import { type GuardRules, isPolling } from "./guard-rules.ts";
 import { modelKey, PRICE } from "./price.ts";
 import { PyFloat, pyRound } from "./pyjson.ts";
+import { classifyTurn, isWakeText, type TurnTool } from "./turn-class.ts";
 import { agentDivergence, dominantModel, type AgentDivergence, type ExpectedOf } from "./usage-model.ts";
 import { mostSpecific } from "./worktree-scope.ts";
 
@@ -13,7 +14,7 @@ export { modelKey };
 
 export type Dict = Record<string, unknown>;
 
-export const CACHE_VERSION = 4;
+export const CACHE_VERSION = 5;
 const REWRITE_GAP_SECONDS = 3600;
 const REWRITE_MIN_TOKENS = 100_000;
 const CACHE_READ_PRICE_SHARE = 0.2e-6;
@@ -44,6 +45,10 @@ export interface Row {
   rewrite_cost: number;
   ctx_sum: number;
   ctx_max: number;
+  /** Turnos de acompanhamento (`turn-class.ts`), com custo e soma de contexto; ausentes nas linhas anteriores à medida. */
+  follow_turns?: number;
+  follow_cost?: number;
+  follow_ctx_sum?: number;
   models: Record<string, number>;
   efforts: Record<string, number>;
   read: number;
@@ -69,6 +74,8 @@ interface Request {
   cwd: string;
   effort: string;
   poll: boolean;
+  tools: TurnTool[];
+  afterWake: boolean;
 }
 
 /** (custo da requisição, parte de escrita de cache) em US$. */
@@ -83,7 +90,7 @@ export function cost(modelKeyName: string, usage: Dict): [number, number] {
   return [total, write];
 }
 
-function newRequest(line: Dict, message: Dict, path: string): Request {
+function newRequest(line: Dict, message: Dict, path: string, afterWake: boolean): Request {
   return {
     usage: isDict(message.usage) ? message.usage : undefined,
     model: modelKey(message.model),
@@ -93,7 +100,30 @@ function newRequest(line: Dict, message: Dict, path: string): Request {
     cwd: text(line.cwd, ""),
     effort: text(line.effort, "?"),
     poll: false,
+    tools: [],
+    afterWake,
   };
+}
+
+/** Os tool_use do bloco da mensagem, na ordem; o Bash leva o comando. */
+function toolsOf(message: Dict): TurnTool[] {
+  const blocks = Array.isArray(message.content) ? message.content : [];
+  const tools: TurnTool[] = [];
+  for (const block of blocks) {
+    if (!isDict(block) || block.type !== "tool_use" || typeof block.name !== "string") continue;
+    const command = isDict(block.input) && typeof block.input.command === "string" ? block.input.command : undefined;
+    tools.push(command === undefined ? { name: block.name } : { name: block.name, command });
+  }
+  return tools;
+}
+
+/** O texto do usuário é o aviso de segundo plano (a primeira parte de texto da mensagem). */
+function userWakes(message: Dict): boolean {
+  const content = message.content;
+  if (typeof content === "string") return isWakeText(content);
+  if (!Array.isArray(content)) return false;
+  const first = content.find((block) => isDict(block) && typeof block.text === "string");
+  return isDict(first) && typeof first.text === "string" && isWakeText(first.text);
 }
 
 function foregroundPolling(message: Dict, rules: GuardRules): boolean {
@@ -109,19 +139,29 @@ function requestsOf(path: string, rules: GuardRules): Request[] {
   const content = readText(path);
   if (content === undefined) return [];
   const requests = new Map<unknown, Request>();
+  let wakePending = false;
   for (const raw of content.split("\n")) {
-    if (!raw.includes('"assistant"')) continue;
+    const mayWake = raw.includes("<task-notification") && raw.includes('"user"');
+    if (!mayWake && !raw.includes('"assistant"')) continue;
     let line: unknown;
     try {
       line = JSON.parse(raw);
     } catch {
       continue;
     }
-    if (!isDict(line) || line.type !== "assistant") continue;
+    if (!isDict(line)) continue;
+    if (line.type === "user") {
+      wakePending = userWakes(isDict(line.message) ? line.message : {});
+      continue;
+    }
+    if (line.type !== "assistant") continue;
     const message = isDict(line.message) ? line.message : {};
     const id = orElse(line.requestId, orElse(message.id, null));
-    const request = requests.get(id) ?? newRequest(line, message, path);
+    const known = requests.get(id);
+    const request = known ?? newRequest(line, message, path, wakePending);
+    wakePending = false;
     requests.set(id, request);
+    request.tools.push(...toolsOf(message));
     if (foregroundPolling(message, rules)) request.poll = true;
   }
   return [...requests.values()];
@@ -130,7 +170,7 @@ function requestsOf(path: string, rules: GuardRules): Request[] {
 function newRow(request: Request, day: string): Row {
   return {
     session: request.sid, sidechain: request.side, day, cwd: request.cwd, cost: 0, turns: 0, poll_turns: 0, poll_cost: 0,
-    rewrite_cost: 0, ctx_sum: 0, ctx_max: 0, models: {}, efforts: {}, read: 0, write: 0, output: 0, first: request.ts, last: request.ts, tok: {},
+    rewrite_cost: 0, ctx_sum: 0, ctx_max: 0, follow_turns: 0, follow_cost: 0, follow_ctx_sum: 0, models: {}, efforts: {}, read: 0, write: 0, output: 0, first: request.ts, last: request.ts, tok: {},
   };
 }
 
@@ -174,6 +214,11 @@ export function parseFileFull(path: string, rules: GuardRules, sinceMs = 0): { r
     if (when >= sinceMs) reqs.push([Math.floor(when / 1000), request.model, ...tok, price]);
     bump(row.models, request.model);
     bump(row.efforts, request.effort);
+    if (classifyTurn(request) === "follow") {
+      row.follow_turns = (row.follow_turns ?? 0) + 1;
+      row.follow_cost = (row.follow_cost ?? 0) + price;
+      row.follow_ctx_sum = (row.follow_ctx_sum ?? 0) + ctx;
+    }
     if (request.poll) {
       row.poll_turns += 1;
       row.poll_cost += price;
@@ -327,17 +372,23 @@ export interface Totals {
   rewrite_cost: number;
   ctx_sum: number;
   ctx_max: number;
+  follow_turns: number;
+  follow_cost: number;
+  follow_ctx_sum: number;
   read: number;
   write: number;
   output: number;
   /** Tokens por modelo (criado na primeira soma). */
   tok?: Record<string, Tok>;
 }
-const ZERO: Totals = { cost: 0, turns: 0, poll_turns: 0, poll_cost: 0, rewrite_cost: 0, ctx_sum: 0, ctx_max: 0, read: 0, write: 0, output: 0 };
+const ZERO: Totals = { cost: 0, turns: 0, poll_turns: 0, poll_cost: 0, rewrite_cost: 0, ctx_sum: 0, ctx_max: 0, follow_turns: 0, follow_cost: 0, follow_ctx_sum: 0, read: 0, write: 0, output: 0 };
 const SUMMED = ["cost", "turns", "poll_turns", "poll_cost", "rewrite_cost", "ctx_sum", "read", "write", "output"] as const;
 
 function add(into: Totals, row: Row): void {
   for (const key of SUMMED) into[key] += row[key];
+  into.follow_turns += row.follow_turns ?? 0;
+  into.follow_cost += row.follow_cost ?? 0;
+  into.follow_ctx_sum += row.follow_ctx_sum ?? 0;
   into.ctx_max = Math.max(into.ctx_max, row.ctx_max);
   const tok = (into.tok ??= {});
   for (const [model, value] of Object.entries(row.tok ?? {})) tok[model] = addTok(tok[model], value);
@@ -453,12 +504,23 @@ interface RoleRow extends Dict {
 /** Campos de % de 5 h e semanal de um conjunto de tokens por modelo (a conta é da calibração, em limites.ts). */
 export type PctOf = (tok: Record<string, Tok> | undefined) => Dict;
 
+/** Acompanhamento × decisão de um papel (turnos, contexto médio e custo de cada grupo); só o orquestrador tem. */
+export function followupSplit(totals: Totals): Dict {
+  const group = (turns: number, ctxSum: number, cost: number): Dict => ({ turns, ctxAvg: avg(ctxSum, turns), cost: rf(cost, 2) });
+  return {
+    follow: group(totals.follow_turns, totals.follow_ctx_sum, totals.follow_cost),
+    decision: group(totals.turns - totals.follow_turns, totals.ctx_sum - totals.follow_ctx_sum, totals.cost - totals.follow_cost),
+  };
+}
+
 export function roleRow(role: string, totals: Totals, sessions: number, grand: number): RoleRow {
+  const split = role === "orchestrator" && totals.follow_turns > 0 ? { followup: followupSplit(totals) } : {};
   return {
     role, sessions, cost: rf(totals.cost, 2), share: rf((100 * totals.cost) / grand, 1), turns: totals.turns,
     pollCost: rf(totals.poll_cost, 2), pollShare: share(totals.poll_cost, totals.cost, 1), rewriteCost: rf(totals.rewrite_cost, 2),
     ctxAvg: avg(totals.ctx_sum, totals.turns), ctxMax: totals.ctx_max,
     readShare: totals.cost ? rf((100 * totals.read * CACHE_READ_PRICE_SHARE) / totals.cost, 1) : 0,
+    ...split,
   };
 }
 

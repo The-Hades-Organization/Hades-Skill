@@ -199,6 +199,38 @@ function Estimated() {
   </Card>;
 }
 
+// Orquestrador: turnos de acompanhamento (wait/watch, pane, agent list/status) × decisão/escrita; regra em src/lib/turn-class.ts.
+function Acompanhamento({ d }) {
+  const split = d.byRole.find((r) => r.role === 'orchestrator')?.followup;
+  if (!split) return null;
+  const total = split.follow.turns + split.decision.turns;
+  const row = (label, g) => <Tr key={label}>
+    <Td className="pl-0">{label}</Td>
+    <Td className="text-right tabular-nums">{g.turns.toLocaleString('pt-BR')}</Td>
+    <Td className="text-right tabular-nums">{total ? Math.round(100 * g.turns / total) + '%' : '—'}</Td>
+    <Td className="text-right tabular-nums">{ktok(g.ctxAvg)}</Td>
+    <Td className="pr-0 text-right tabular-nums">{usd(g.cost)}</Td>
+  </Tr>;
+  return <Card>
+    <CardHeader title="Orquestrador: acompanhamento × decisão" summary={`${total.toLocaleString('pt-BR')} turnos em ${d.days} dias`}
+      description="Acompanhamento é o despertar de wait/watch, a leitura de pane e agent list/status, sem escrita nem decisão. Cada despertar relê o contexto inteiro." />
+    <CardContent>
+      <Table>
+        <thead>
+          <tr className="border-b">
+            <Th className="pl-0">Grupo</Th>
+            <Th className="text-right">Turnos</Th>
+            <Th className="text-right">% dos turnos</Th>
+            <Th className="text-right">Contexto médio (tokens)</Th>
+            <Th className="pr-0 text-right">Custo (US$)</Th>
+          </tr>
+        </thead>
+        <tbody>{row('Acompanhamento', split.follow)}{row('Decisão e escrita', split.decision)}</tbody>
+      </Table>
+    </CardContent>
+  </Card>;
+}
+
 function Usage() {
   const run = useActions();
   const [x, setX] = useState(null);
@@ -329,6 +361,7 @@ function Usage() {
         </CardContent>
       </Card>
     </div>
+    <Acompanhamento d={d} />
     <Estimated />
     {d.overCap?.length ? <Card>
       <CardHeader title="Sessões acima do teto" summary={`contexto máximo contra o teto do papel · ${d.overCap.length}`} />

@@ -4,6 +4,31 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.17.0 — 2026-11-06
+
+Custo dos agentes, quarta onda: o orquestrador acompanha os agentes por evento e por status em vez de ler pane, e cada
+despertar junta os eventos que chegam juntos (issue #63). A medida veio antes da mudança: em 30 dias, os turnos de
+acompanhamento do orquestrador foram 5,4% dos turnos e 4,2% do custo (US$ 62 de US$ 1.477), com contexto médio de 265k,
+maior que o dos turnos de decisão (237k), porque cada despertar relê tudo. O ganho possível é pequeno; a regra de
+classificação é conservadora, então o número é piso.
+
+### Acompanhamento barato do orquestrador (#63)
+
+- `hades wait agents --any`: espera o primeiro evento de qualquer agente do orquestrador e junta os que chegam juntos
+  num despertar só (`AGENTS <n>` + uma linha por evento); `HADES_ORCH_WAKE_MIN_S` (30 s) é o intervalo mínimo entre
+  despertares.
+- `hades agent status --compact`: uma linha por agente (herdr, fase, último evento, PR, contexto, custo), sem consultar
+  o GitHub.
+- Consumo e `hades usage` separam, no orquestrador, os turnos de acompanhamento dos de decisão. O cache do usage passou
+  à v5.
+- Cartões do orquestrador: acompanhar por evento, pane do herdr só para diagnóstico (com teto de linhas), cada despertar
+  relê o contexto inteiro.
+
+### Correção
+
+- A CI da 6.16.0 ficou vermelha: o `hades doctor` sem instalação do Hades (o caso do runner) saía com rc=1 e stdout
+  vazio, e o `--json` não parseava. Agora relata o item `instalacao`, ainda roda `settings-padrao` e imprime o resultado.
+
 ## 6.16.0 — 2026-11-06
 
 Custo dos agentes, terceira onda: o doctor aponta o padrão caro herdado do `settings.json` (issue #67) e o Consumo mostra

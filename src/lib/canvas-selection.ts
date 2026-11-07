@@ -275,6 +275,14 @@ export function nextInOrder(order: readonly string[], current: string | undefine
   return order[backward ? at - 1 : at + 1];
 }
 
+/**
+ * O foco que chega ao host entra pelo primeiro (ou último) nó, e isso move a câmera até ele. Só vale para o Tab: foco que
+ * o navegador devolve ao voltar à aba ou à janela, e foco por clique, não são pedido de navegação e deixam a câmera quieta.
+ */
+export function entersFirstNodeOnFocus(cause: { pointer: boolean; windowReturn: boolean }): boolean {
+  return !cause.pointer && !cause.windowReturn;
+}
+
 /** Nome acessível do nó: o rótulo (do registro de tipos, ou tipo e id) e os estados que mudam o que dá para fazer com ele. */
 export function nodeName(node: CanvasNode, label: string, selected: boolean): string {
   const parts = [label || `${node.type} ${node.id}`];

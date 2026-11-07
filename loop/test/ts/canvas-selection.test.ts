@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { validateCanvasDoc, type CanvasDoc, type CanvasNode } from "../../../src/lib/canvas-doc";
 import { applyOp, createHistory, perform, record, undo } from "../../../src/lib/canvas-history";
 import {
-  CORNER_SE, SELECTION_LIMITS, hitTest, keySelect, marqueeSelect, movableIds, moveOp, nextInOrder, nodeName, nudgeOp, pressEmpty,
+  CORNER_SE, entersFirstNodeOnFocus, SELECTION_LIMITS, hitTest, keySelect, marqueeSelect, movableIds, moveOp, nextInOrder, nodeName, nudgeOp, pressEmpty,
   pressNode, pruneSelection, rectFrom, resizeCursor, resizeOp, resizePreview, sameSelection, snap, tabOrder,
 } from "../../../src/lib/canvas-selection";
 
@@ -335,6 +335,12 @@ describe("canvas-selection: teclado", () => {
     expect(nextInOrder(order, "a", true)).toBeUndefined();
     expect(nextInOrder(order, "sumiu", false)).toBe("a");
     expect(nextInOrder([], undefined, false)).toBeUndefined();
+  });
+
+  test("foco no host só entra pelo primeiro nó (e move a câmera) quando vem do Tab, não de clique nem de volta à janela", () => {
+    expect(entersFirstNodeOnFocus({ pointer: false, windowReturn: false })).toBe(true);
+    expect(entersFirstNodeOnFocus({ pointer: true, windowReturn: false })).toBe(false);
+    expect(entersFirstNodeOnFocus({ pointer: false, windowReturn: true })).toBe(false);
   });
 
   test("nome acessível: rótulo, selecionado e bloqueado; sem rótulo, tipo e id", () => {

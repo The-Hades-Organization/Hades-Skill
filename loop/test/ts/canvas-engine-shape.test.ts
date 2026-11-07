@@ -100,7 +100,7 @@ let Canvas: ArgosCanvasApi;
 beforeAll(async () => {
   for (const key of STUBBED) saved[key] = g[key];
   g.CanvasModel = { doc: docModule, history, camera, selection, argos, links };
-  g.window = { devicePixelRatio: 1, matchMedia: () => ({ matches: false, addEventListener: () => undefined, removeEventListener: () => undefined }) };
+  g.window = { devicePixelRatio: 1, addEventListener: () => undefined, removeEventListener: () => undefined, matchMedia: () => ({ matches: false, addEventListener: () => undefined, removeEventListener: () => undefined }) };
   g.document = {
     createElement: (tag: string) => {
       if (tag !== "canvas") return fakeElement();

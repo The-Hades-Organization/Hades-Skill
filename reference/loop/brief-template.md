@@ -2,7 +2,7 @@
 
 Papel **{{PAPEL}}**: siga `{{CARTAO}}` (processo, espera, handoff, escalada, proibido). Trabalhe só em
 `{{WORKTREE}}`, nunca no clone principal. Este brief é o contrato do item; o que ele não disser, pergunte em
-`{{REPORTS}}/questions.md`.
+`{{REPORTS}}/questions.md`. O texto que você escrever (report, PR, nota) segue `reference/escrita.md`.
 
 ## Item
 

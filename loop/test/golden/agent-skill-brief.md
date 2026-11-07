@@ -2,7 +2,7 @@
 
 Papel **impl** da skill: siga `<T>/skill/reference/loop/skill-dev-contract.md` (vence o cartão onde divergir) e `<T>/skill/reference/loop/roles/impl.md` para espera, handoff e
 escalada. Trabalhe só em `<T>/home/.claude/hades/skill-dev/demo`, branch `skill/demo` (base `main` em `<SHA>`). Porta de teste, se
-precisar de painel: 21289. O que este brief não disser, pergunte em `.design-sync-reports/questions.md`.
+precisar de painel: 21289. O que este brief não disser, pergunte em `.design-sync-reports/questions.md`. O texto que você escrever (report, referência, nota) segue `reference/escrita.md`.
 
 ## Item
 

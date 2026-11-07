@@ -52,5 +52,7 @@ projeto aqui.
 - **rascunho da entrada do CHANGELOG** (o que, por quê, armadilhas medidas);
 - o que ficou de fora.
 
+O texto do report segue `reference/escrita.md` (tipo "relatório de agente"): rode `hades write-check` nele antes do DONE.
+
 Dúvida que só o dono decide vai em `.design-sync-reports/questions.md` (`## Q<n> — <assunto>`). Siga com o que não
 depende dela.

@@ -2,7 +2,7 @@
 
 Papel **{{PAPEL}}** da skill: siga `{{CONTRATO}}` (vence o cartão onde divergir) e `{{CARTAO}}` para espera, handoff e
 escalada. Trabalhe só em `{{WORKTREE}}`, branch `{{BRANCH}}` (base `{{BASE}}` em `{{BASE_SHA}}`). Porta de teste, se
-precisar de painel: {{PORTA}}. O que este brief não disser, pergunte em `{{REPORTS}}/questions.md`.
+precisar de painel: {{PORTA}}. O que este brief não disser, pergunte em `{{REPORTS}}/questions.md`. O texto que você escrever (report, referência, nota) segue `reference/escrita.md`.
 
 ## Item
 

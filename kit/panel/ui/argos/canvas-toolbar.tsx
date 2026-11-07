@@ -128,5 +128,8 @@ registerTool({ id: 'terminal', label: 'Terminal', icon: 'SquareTerminal', hint: 
 // ferramenta Nota: o retângulo solto vira um nó `note` (pages/argos.tsx, toolRect.note)
 registerTool({ id: 'note', label: 'Nota', icon: 'StickyNote', hint: 'arraste um retângulo no canvas', order: 20 });
 
+// ferramenta Área: o retângulo solto vira um nó `area` com os nós de centro dentro dele (pages/argos.tsx, toolRect.area)
+registerTool({ id: 'area', label: 'Área', icon: 'SquareDashed', hint: 'arraste um retângulo em volta dos nós', order: 30 });
+
 window.ArgosCanvasToolbar = { CLICK_PX, TOOL_ERRORS, registerTool, listTools, dragRect, rectToWorld, CanvasToolbar, ToolDragLayer };
 })();

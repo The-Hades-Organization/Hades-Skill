@@ -191,6 +191,17 @@ export function areaAtPoint(doc: CanvasDoc, point: { x: number; y: number }, ign
 
 const centerOf = (node: CanvasNode): { x: number; y: number } => ({ x: node.x + node.w / 2, y: node.y + node.h / 2 });
 
+/** Os nós (sem as áreas) cujo centro cai dentro do retângulo, na ordem do documento: quem a área desenhada em volta encaixa. */
+export function nodesCenteredIn(doc: CanvasDoc, rect: { x: number; y: number; w: number; h: number }): string[] {
+  return doc.nodes
+    .filter((node) => !isAreaNode(node))
+    .filter((node) => {
+      const center = centerOf(node);
+      return center.x >= rect.x && center.x <= rect.x + rect.w && center.y >= rect.y && center.y <= rect.y + rect.h;
+    })
+    .map((node) => node.id);
+}
+
 /** Os ids com os membros das áreas que estão entre eles: mover a área leva quem está encaixado. Sem repetir, na ordem. */
 export function withAreaMembers(doc: CanvasDoc, ids: readonly string[]): string[] {
   const out = new Set(ids);

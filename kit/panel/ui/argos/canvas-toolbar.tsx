@@ -52,12 +52,12 @@ function rectToWorld(cam, rect, { size, min }) {
   return { x: p.x, y: p.y, w: Math.max(min.w, rect.w / cam.k), h: Math.max(min.h, rect.h / cam.k) };
 }
 
-/** Botão da barra: ícone com rótulo visível em tela larga e só ícone (com nome acessível) no estreito; vertical, sempre só ícone. */
+/** Botão da barra: ícone com rótulo visível em tela larga e só ícone (com nome acessível) no estreito; vertical mostra o rótulo a partir de xl (1280 px) e é só ícone abaixo. */
 function ToolButton({ icon, label, title, pressed, onClick, style, vertical }) {
   const Icon = I[icon] || I.Square;
   return <button type="button" aria-pressed={pressed === undefined ? undefined : pressed} aria-label={label} title={title || label} onClick={onClick}
-    className={cn('inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 px-2 t-meta max-md:min-h-11 max-md:min-w-11 max-md:justify-center', vertical && 'w-8 justify-center px-0 max-md:w-11', RING, pressed ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground')}>
-    <Icon aria-hidden="true" className="size-4" style={style} /><span className={vertical ? 'sr-only' : 'max-lg:sr-only'}>{label}</span>
+    className={cn('inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 px-2 t-meta max-md:min-h-11 max-md:min-w-11 max-md:justify-center', vertical && 'w-8 justify-center px-0 max-md:w-11 xl:w-full xl:justify-start xl:px-2', RING, pressed ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground')}>
+    <Icon aria-hidden="true" className="size-4" style={style} /><span className={vertical ? 'max-md:sr-only max-xl:sr-only' : 'max-lg:sr-only'}>{label}</span>
   </button>;
 }
 

@@ -196,6 +196,13 @@ testada por `loop/test/ts/canvas-store.test.ts`. Sem dependência nova.
   chips dos filtros ativos), lista de nós (`l`), toolbar vertical (44 px), grupo da câmera com desfazer e refazer, e a
   gaveta do nó. A vista é sempre o canvas; a lista é um painel sobre ele. `Ctrl+K` abre a paleta única (canvas e Painel, com
   o grupo "Painel", que traz "Tour desta página" quando a página tem tour); **F6** e **Shift+F6** andam entre as regiões. Esconder controles: §Esconder controles.
+- **Primeiro uso e celular.** Canvas sem nós mostra uma tela vazia com botões de novo terminal e nova nota. A ilha de
+  estado tem chips por tom (cada um filtra e leva ao primeiro nó; herdr fora do ar aparece como chip). O botão direito no
+  vazio mostra ~12 comandos essenciais por intenção e "Mais N comandos…", que abre a paleta; item do nó que não vale agora
+  mostra o motivo na própria linha. A toolbar vertical ganha rótulo visível a partir de `xl`. Os valores de estado dos
+  filtros saem em português, e os níveis de conteúdo se chamam De perto, Médio, De longe e Bem longe. Abaixo de 1024 px todo
+  botão do palco (`data-argos-stage`) tem ao menos 44 px, o trilho do shell passa a 44 px abaixo de `lg`, e a Legenda fica
+  acima da barra de zoom em 360 px.
 - **Filtros só escondem.** O filtro de estado, registro e papel tira o nó da vista, não do documento: a posição dele fica
   guardada e volta quando o filtro some. PR e gate aparecem enquanto ligados a um agente visível.
 - **Gravação.** Cada gesto vira uma operação do histórico e agenda a gravação com debounce de 600 ms (`SAVE_DELAY_MS`).
@@ -627,6 +634,13 @@ vizinhos assentados (sem vizinho: abaixo de todo o conteúdo, ou na origem num d
 passos do tamanho do nó, que não encosta em nenhum nó do documento (folga de `LAYOUT_GAP` = 24), preferindo a **direita** (o
 fluxo vai da esquerda para a direita). Se nenhuma posição couber em 60 anéis, cai para baixo de todo o conteúdo. Um índice por
 grade evita varrer todos os nós a cada candidato.
+
+**Vaga livre e organizar por equipes.** Recrutar, trazer terminal (join), nota nova e a sincronia de agentes procuram a vaga
+livre mais perto do orquestrador (`canvas-space`) quando a grade está ocupada, então nenhum nó novo cai sobre outro nó ou
+área. Orquestrador dentro de uma área mantém a equipe nela, e os nós novos entram nos membros no mesmo lote (um desfazer).
+**Organizar** (`tidy:arrange`, Shift+O) põe o orquestrador no centro, notas acima e recrutas abaixo; a área acompanha a
+equipe e cresce para caber. Travados e fixados ficam, nada se sobrepõe, o arranjo é um passo do desfazer (animação de
+250 ms) e a câmera enquadra ao fim.
 
 ## Layout de forças
 

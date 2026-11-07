@@ -4,6 +4,19 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.30.0 — 2026-11-07
+
+Capacidade nova (Argos, unidade argos-fluxo): o fluxo de uso do canvas ficou mais claro.
+
+- Toolbar com rótulos a partir de `xl`; filtros de estado e níveis de conteúdo em português; "Conteúdo dos nós" no
+  menu Vista.
+- Menu do fundo enxuto: 12 essenciais e "Mais N comandos…", com o motivo de cada item desabilitado.
+- Tela vazia com botões de ação (novo terminal, nova nota).
+- Ilha de estado com chips por tom; cada chip filtra e leva aos nós dele ("esperam por você").
+- Organizar por equipes (`Shift+O`), procurando vaga livre no canvas.
+- Celular: piso de toque de 44 px (antes 40) e trilho lateral de 44 px; a Legenda não fica mais sob a barra de zoom.
+  Medido em 360 e 768 px, sem rolagem horizontal.
+
 ## 6.29.0 — 2026-11-07
 
 Capacidade nova (Argos, unidade argos-camadas): o "subir/baixar" vira um modelo só, com três estados.

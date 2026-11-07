@@ -89,6 +89,10 @@ export const CANVAS_UI_MODULES = {
   links: "canvas-links.ts",
   // orquestrador e recrutas: arestas terminal → agente alocado pela CLI (orchestrationEdges)
   recruit: "canvas-recruit.ts",
+  // organizar o canvas por equipes (tidy:arrange em pages/argos.tsx)
+  tidy: "canvas-tidy.ts",
+  // vaga livre para nó novo: importado por canvas-recruit e canvas-sync
+  space: "canvas-space.ts",
   // ligação ao vivo com o servidor: religação com recuo e conferência de reserva (pages/argos.tsx)
   live: "canvas-live.ts",
 } as const;

@@ -23,7 +23,7 @@ function CanvasLegend() {
   useEffect(() => { if (open) panel.current?.focus(); }, [open]);
   // o Button não repassa ref (React 18): o foco volta ao botão pelo contêiner
   const close = () => { setOpen(false); root.current?.querySelector('button')?.focus(); };
-  return <div ref={root} className="absolute bottom-2 left-2 z-10 grid max-w-[calc(100%-4.5rem)] gap-1 max-md:bottom-16">
+  return <div ref={root} className="absolute bottom-2 left-2 z-10 grid max-w-[calc(100%-4.5rem)] gap-1 max-md:bottom-[7.5rem] max-md:max-w-[calc(100%-1rem)]">
     {open ? <div ref={panel} id={PANEL_ID} role="region" aria-label="Legenda do canvas" tabIndex={-1}
       onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } }}
       className="grid max-h-[min(24rem,60dvh)] w-72 max-w-full gap-3 overflow-y-auto elev-float bg-popover p-3 text-popover-foreground outline-none scrollbar-thin animate-fade-in">

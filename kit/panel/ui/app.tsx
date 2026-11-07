@@ -668,7 +668,7 @@ function Sidebar({ page, d, onNavigate, rail, closed = [], onToggleGroup, onTogg
   const railItem = (n) => {
     const on = page === n.id, b = badge[n.id];
     return <Tip key={n.id} side="right" text={b && b !== 'spin' && b !== 'on' ? `${n.label} · ${b}${n.id === 'herdr' ? ' trabalhando' : n.id === 'queue' ? ' na fila' : ''}` : b === 'spin' ? `${n.label} · rodando` : n.label}>
-      <a href={'#/' + n.id} onClick={onNavigate} aria-label={n.label} aria-current={on ? 'page' : undefined} className={cn('relative grid size-9 place-items-center transition-colors [&>svg]:size-4', focus,
+      <a href={'#/' + n.id} onClick={onNavigate} aria-label={n.label} aria-current={on ? 'page' : undefined} className={cn('relative grid size-9 max-lg:size-11 place-items-center transition-colors [&>svg]:size-4', focus,
         on ? 'bg-sidebar-accent text-metal' : 'text-rail-muted hover:bg-sidebar-accent hover:text-sidebar-foreground')}>
         <n.icon />
         {alive(n.id) || blocked(n.id) || b === 'on' ? <span className={cn('absolute right-1 top-1 size-[7px] rounded-full', blocked(n.id) ? 'bg-warn' : b === 'on' ? 'bg-ok' : 'pulso bg-vivo')} /> : null}
@@ -730,7 +730,7 @@ function Sidebar({ page, d, onNavigate, rail, closed = [], onToggleGroup, onTogg
       </div>}
     </div>
     {d?.versionCheck?.update ? (rail ? <Tip side="right" text={`Versão ${d.versionCheck.remote} disponível (você está na ${d.versionCheck.local})`}>
-      <a href="#/overview" onClick={onNavigate} aria-label={`Versão ${d.versionCheck.remote} disponível`} className={cn('mb-2 grid size-9 shrink-0 place-items-center text-metal transition-colors hover:bg-sidebar-accent', focus)}>
+      <a href="#/overview" onClick={onNavigate} aria-label={`Versão ${d.versionCheck.remote} disponível`} className={cn('mb-2 grid size-9 max-lg:size-11 shrink-0 place-items-center text-metal transition-colors hover:bg-sidebar-accent', focus)}>
         <I.CircleArrowUp className="size-4" />
       </a>
     </Tip>

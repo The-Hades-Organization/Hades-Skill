@@ -5,7 +5,8 @@
 // Sem dependência de Node: roda no painel e no navegador.
 import { CANVAS_LIMITS, isLiveNodeType, mergeWithGraph, paneKey, validateCanvasDoc, withoutNodes, type CanvasDoc, type CanvasNode, type HeldReason } from "./canvas-doc.ts";
 import type { CanvasLayout, EnteringNode } from "./canvas-layout.ts";
-import { herdrTargetOf, orchestrationEdges, orchestratorTerminals, recruitSlots, recruitsOf, terminalTargetOf } from "./canvas-recruit.ts";
+import { herdrTargetOf, orchestrationEdges, orchestratorTerminals, RECRUIT_LAYOUT, recruitSlots, recruitsOf, terminalTargetOf } from "./canvas-recruit.ts";
+import { findFreeBox } from "./canvas-space.ts";
 
 /** Códigos estáveis: só ganham valores, nunca renomeiam. */
 export const SYNC_ERRORS = {
@@ -127,23 +128,21 @@ function belowOrchestrators(doc: CanvasDoc, graphNodes: GraphSnapshot["nodes"], 
     byTerminal.set(terminal.id, group);
   }
   const out = new Map<string, { x: number; y: number }>();
-  const taken: { x: number; y: number; w: number; h: number }[] = doc.nodes.map((n) => ({ x: n.x, y: n.y, w: n.w, h: n.h }));
-  const free = (box: { x: number; y: number; w: number; h: number }): boolean =>
-    taken.every((t) => box.x >= t.x + t.w || t.x >= box.x + box.w || box.y >= t.y + t.h || t.y >= box.y + box.h);
+  const placed: { x: number; y: number; w: number; h: number }[] = [];
   for (const { terminal, newcomers } of byTerminal.values()) {
     const orchestrated = doc.nodes.filter((node) => orchestratorTerminals(doc, refOf.get(node.id) ?? { id: node.id })[0]?.id === terminal.id);
     const team = [...recruitsOf(doc, terminal.id), ...orchestrated];
     const sizes = [...team, ...newcomers].map((n) => ({ w: n.w, h: n.h }));
     const cell = { w: Math.max(...sizes.map((z) => z.w)), h: Math.max(...sizes.map((z) => z.h)) };
     // quem já está abaixo não se move: as vagas da fileira recentrada podem cair em cima dele, então vale a primeira livre
-    // entre as fileiras de tamanho crescente; sem vaga livre, fica a posição do layout
+    // entre as fileiras de tamanho crescente; sem vaga na grade, a busca de espaço livre em volta do orquestrador
+    // (dentro da área dele, se houver)
     const candidates: { x: number; y: number }[] = [];
     for (let count = sizes.length; count <= sizes.length + SLOT_SEARCH_EXTRA; count++) candidates.push(...recruitSlots(terminal, Array.from({ length: count }, () => cell)));
     for (const node of newcomers) {
-      const at = candidates.find((c) => free({ x: c.x, y: c.y, w: node.w, h: node.h }));
-      if (at === undefined) continue;
+      const at = findFreeBox(doc, node, { anchor: terminal, prefer: "below", gap: { x: RECRUIT_LAYOUT.gapX, y: RECRUIT_LAYOUT.gapY }, candidates, extra: placed });
       out.set(node.id, at);
-      taken.push({ x: at.x, y: at.y, w: node.w, h: node.h });
+      placed.push({ x: at.x, y: at.y, w: node.w, h: node.h });
     }
   }
   return out;

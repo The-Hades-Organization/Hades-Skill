@@ -96,6 +96,7 @@ const ALL = 'all';
 const DEFAULT_STATE = 'active';
 const SEARCH_DEBOUNCE_MS = 250;
 const CAMERA_HASH_DEBOUNCE_MS = 500;
+const STATE_VALUE_LABELS = { working: 'Trabalhando', idle: 'Ocioso', blocked: 'Esperando você', done: 'Concluído', unknown: 'Sem sinal', archived: 'Arquivado' };
 // zoom máximo ao enquadrar os achados da busca: um achado só não enche a tela
 const SEARCH_FRAME_MAX_ZOOM = 1;
 const STORE_LAYOUT = 'hades.argos.layout';
@@ -426,6 +427,12 @@ function Argos() {
     for (const def of HID.hiddenCommandDefs(hiddenPort)) {
       try { made.commands.register(def); } catch (e) { console.error('argos: comando dos ocultos recusado', def.id, e && e.code); }
     }
+    // Organizar por equipes (src/lib/canvas-tidy.ts): sempre disponível; o layout de forças em curso é parado pelo próprio comando
+    try {
+      made.commands.register({ id: 'tidy:arrange', label: 'Organizar o canvas por equipes', group: 'Canvas', shortcut: 'shift+o',
+        hint: 'orquestrador no centro, recrutas e notas em volta; trava e fixados ficam; desfaz num passo',
+        surfaces: ['palette', 'canvas-menu'], run: () => host.current.tidyArrange() });
+    } catch (e) { console.error('argos: comando de organizar recusado', e && e.code); }
     const call = (name) => (...args) => host.current[name](...args);
     const docNow = () => cstateRef.current?.doc ?? null;
     const api = {
@@ -560,14 +567,33 @@ function Argos() {
       toast({ kind: 'bad', title: 'Não deu para gravar o layout', desc: L.errorText(e && e.code, 'O canvas recusou as posições.') });
     }
   };
+  // organizar por equipes: a operação espera o fim da animação (ou uma parada) para entrar como um passo do desfazer
+  const tidyPending = useRef(null);
+  const finishTidy = () => {
+    const op = tidyPending.current;
+    if (!op) return false;
+    tidyPending.current = null;
+    const cur = cstateRef.current;
+    if (!cur) return true;
+    try {
+      commit(M.store.commitGesture(cur, op));
+      // o arranjo pode levar os nós para longe do que está na tela: a câmera acompanha para o dono ver o resultado
+      requestAnimationFrame(() => apiRef.current?.fitAll(true));
+    } catch (e) {
+      console.error('canvas: arranjo por equipes recusado', e && e.code);
+      toast({ kind: 'bad', title: 'Não deu para organizar o canvas', desc: L.errorText(e && e.code, 'O canvas mudou durante a animação; as posições ficaram como estavam. Tente de novo.') });
+    }
+    return true;
+  };
   const runFailed = (e) => {
+    tidyPending.current = null;
     runBase.current = null; setRunning(false);
     console.error('canvas: forças pararam', e && e.code);
     toast({ kind: 'bad', title: 'O layout de forças parou', desc: L.errorText(e && e.code, 'A simulação falhou; as posições ficaram como estavam.') });
     const cur = cstateRef.current;
     if (cur) apiRef.current?.showDoc(M.store.projectView(cur.doc, reading.current.visibleIds, reading.current.edges));
   };
-  const runDone = (result) => { runBase.current = null; setRunning(false); setLastRun(result); commitPlacements(result.placements); };
+  const runDone = (result) => { runBase.current = null; setRunning(false); if (finishTidy()) return; setLastRun(result); commitPlacements(result.placements); };
   const runHooks = useRef(null);
   runHooks.current = { done: runDone, fail: runFailed };
   const runner = useMemo(() => window.ArgosReadingRunner.createForceRunner({
@@ -580,7 +606,9 @@ function Argos() {
   const stopRun = () => {
     const partial = runner.stop();
     if (!partial) return;
-    runBase.current = null; setRunning(false); setLastRun(partial);
+    runBase.current = null; setRunning(false);
+    if (finishTidy()) return;
+    setLastRun(partial);
     commitPlacements(partial.placements);
   };
   // `make(doc, neighbors)` cria a simulação sobre o que está visível; entrada recusada (ForceError) vira aviso e nada roda
@@ -596,6 +624,31 @@ function Argos() {
     runner.start(sim);
   };
   const arrange = (pinned) => startRun((doc, neighbors) => M.force.startArrange({ doc, neighbors }, { pinned: pinned || reading.current.pins }));
+  // organiza o canvas inteiro por equipes: calcula pelo modelo (puro), anima ~250 ms e grava tudo como um passo do desfazer
+  const tidyArrange = () => {
+    stopRun();
+    const cur = cstateRef.current;
+    if (!cur) return;
+    let op; let moves;
+    try {
+      const result = M.tidy.tidyArrange({ doc: cur.doc, neighbors: L.neighborMap([...reading.current.edges, ...cur.doc.edges]) }, { pinned: reading.current.pins });
+      op = M.tidy.tidyOp(cur.doc, result);
+      moves = [...result.placements, ...result.frames.map(({ id, x, y }) => ({ id, x, y }))];
+    } catch (e) {
+      console.error('canvas: organizar por equipes falhou', e && e.code);
+      toast({ kind: 'bad', title: 'Não deu para organizar o canvas', desc: L.errorText(e && e.code, 'O arranjo falhou; nada foi movido.') });
+      return;
+    }
+    if (!op) { toast({ kind: 'info', title: 'O canvas já está organizado', desc: 'Nenhum nó precisou mudar de lugar.' }); return; }
+    if (reading.current.view !== 'graph' || !apiRef.current) { commit(M.store.commitGesture(cur, op)); return; }
+    const base = M.store.projectView(cur.doc, reading.current.visibleIds, reading.current.edges);
+    const from = cur.doc.nodes.map(({ id, x, y }) => ({ id, x, y }));
+    const startedAt = performance.now();
+    const ms = reducedMotion() ? 0 : M.tidy.TIDY_ANIMATION_MS;
+    const progress = () => (ms === 0 ? 1 : (performance.now() - startedAt) / ms);
+    tidyPending.current = op; runBase.current = base; setRunning(true);
+    runner.start({ step: () => { const done = progress() >= 1; return { steps: 1, settled: done, done }; }, placements: () => M.tidy.tweenPlacements(from, moves, progress()) });
+  };
   const stopRef = useRef(stopRun);
   stopRef.current = stopRun;
   // declarado antes do efeito do gravador: na saída, o parcial entra na fila antes do flush
@@ -631,7 +684,7 @@ function Argos() {
       return true;
     } catch (e) {
       console.error('canvas: leitura falhou', e && e.code);
-      setCanvasError(L.errorText(e && e.code, 'Não deu para ler o canvas.'));
+      setCanvasError(L.errorText(e && e.code, 'O painel não respondeu à leitura.'));
       return false;
     }
   }, [saver, watch, reconcile, scheduleSave]);
@@ -842,7 +895,9 @@ function Argos() {
   const orchEdges = useMemo(() => (orchDoc ? M.recruit.orchestrationEdges(orchDoc, preset.nodes) : NO_NODES), [orchDoc, preset]);
   const presetEdges = useMemo(() => (orchEdges.length ? [...preset.edges, ...orchEdges] : preset.edges), [preset, orchEdges]);
   const chipResult = useMemo(() => M.filters.applyFilters(chipNodes, presetEdges, chips, now), [chipNodes, presetEdges, chips, now]);
-  const filterDims = useMemo(() => M.filters.buildFilterBar(chipNodes, presetEdges, chips, now), [chipNodes, presetEdges, chips, now]);
+  // os valores de estado chegam crus do grafo (working, blocked…): o filtro os mostra em português; valor novo aparece como veio
+  const filterDims = useMemo(() => M.filters.buildFilterBar(chipNodes, presetEdges, chips, now)
+    .map((d) => (d.dim === 'state' ? { ...d, chips: d.chips.map((c) => ({ ...c, label: STATE_VALUE_LABELS[c.value] ?? c.label })) } : d)), [chipNodes, presetEdges, chips, now]);
   const shown = useMemo(() => ({
     nodes: preset.nodes.filter((n) => chipResult.visible.has(n.id)),
     // o terminal não passa pelos filtros (é nó do usuário): a aresta dele fica enquanto o agente estiver visível
@@ -1640,7 +1695,7 @@ function Argos() {
   const scopeWorktree = () => L.validNodes(graphRef.current).find((n) => n.type === 'agent' && n.worktree
     && M.store.scopedCanvasId({ kind: 'worktree', key: `${n.registry}:${n.label}` }) === canvasIdRef.current)?.worktree || '';
   host.current = {
-    setFocus, growNode,
+    setFocus, growNode, tidyArrange,
     termRun, termTarget, termEdit, termRole, termClose, termRemoveEnded, termClosable,
     openLinks, linkStart, noteTarget, noteClose,
     composerToggle: () => setComposer((c) => (c !== null ? null : ttyHost.focused())),
@@ -1916,12 +1971,18 @@ function Argos() {
       if (first) select(first.id);
     }
   };
-  const jump = (v, text, tone) => <button type="button" onClick={() => jumpWaiting(v)} className={cn('min-h-8 cursor-pointer underline underline-offset-3 hover:no-underline outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11', tone)}>{text}</button>;
-  const main = attention ? jump('attention', `${attention} ${attention === 1 ? 'espera' : 'esperam'} por você`, 'decoration-warn')
-    : stalled ? jump('stalled', `${plural(stalled, 'parado', 'parados')} sem evento há ${HadesCore.dur(L.STALL_MS / 1000)}`, 'decoration-bad')
-    : working ? `${working} trabalhando` : 'nenhum agente trabalhando';
-  const restText = [(attention || stalled) && working ? `${working} trabalhando` : null, attention && stalled ? plural(stalled, 'parado', 'parados') : null,
-    plural(agents.length, 'agente', 'agentes'), closed ? `${closed} concluídos ou arquivados` : null, graph.herdr?.available === false ? 'herdr fora do ar' : null].filter(Boolean).join(' · ');
+  // chips por tom: cada um é um filtro de um toque ("N esperam por você" leva ao primeiro e o seleciona)
+  const jump = (v, text, dot) => <button key={v} type="button" onClick={() => jumpWaiting(v)} className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 px-1.5 whitespace-nowrap outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11">
+    <span className={cn('size-2 shrink-0 rounded-full', dot)} aria-hidden="true" />{text}</button>;
+  const statusChips = [
+    attention ? jump('attention', `${attention} ${attention === 1 ? 'espera' : 'esperam'} por você`, 'bg-warn') : null,
+    stalled ? jump('stalled', `${plural(stalled, 'parado', 'parados')} sem evento há ${HadesCore.dur(L.STALL_MS / 1000)}`, 'bg-bad') : null,
+    working ? jump('working', `${working} trabalhando`, 'bg-ok') : null,
+  ].filter(Boolean);
+  // o aviso do herdr não pode ficar só no tooltip: sem hover (celular) ninguém o veria
+  const herdrDown = graph.herdr?.available === false ? <span key="herdr" className="px-1.5 text-bad">herdr fora do ar</span> : null;
+  const main = statusChips.length || herdrDown ? [...statusChips, herdrDown] : 'nenhum agente trabalhando';
+  const restText = [plural(agents.length, 'agente', 'agentes'), closed ? `${closed} concluídos ou arquivados` : null].filter(Boolean).join(' · ');
   // QT-2: estado sem contagem zero constante; o que está ligado fica mesmo com zero
   const stateItems = L.STATE_FILTERS.map((it) => ({ ...it, active: it.value === stateFilter,
     count: it.value === 'all' ? undefined : countable.filter((n) => L.matchesState(n, it.value, now)).length }))
@@ -1950,7 +2011,7 @@ function Argos() {
     : NO_NODES;
   const hasNodes = shown.nodes.length > 0;
   const canvasPane = canvasError ? <Empty icon={I.CircleAlert} title="Não deu para ler o canvas.">
-    {canvasError}. A lista continua disponível. <button type="button" onClick={loadCanvas} className="cursor-pointer underline underline-offset-3 hover:no-underline">Tentar de novo</button>
+    {canvasError} A lista continua disponível. <button type="button" onClick={loadCanvas} className="cursor-pointer underline underline-offset-3 hover:no-underline">Tentar de novo</button>
   </Empty> : !viewDoc ? <StageSkeleton inner />
     : <P.CanvasPane doc={viewDoc} selection={engineSelection} onSelectionChange={onSelectionChange} onOp={onOp} graphById={graphById} types={types} now={now}
       onContext={openMenu} onReady={onCanvasReady} onLinkState={onLinkState} nodeShape={nodeShape}
@@ -1968,7 +2029,7 @@ function Argos() {
           {!desk ? <Button variant="ghost" size="icon-sm" icon={I.Menu} aria-label="Abrir a navegação" className="max-md:size-11" onClick={openNav} /> : null}
           <span className="marca ml-1 size-5 shrink-0" aria-hidden="true" />
           <span className="max-sm:sr-only px-1 t-label font-medium">Argos</span>
-          <span className="flex min-w-0 items-center px-1 t-body tabular-nums" role="status" title={restText}>{main}</span>
+          <span className="flex min-w-0 flex-wrap items-center gap-x-1 px-1 t-body tabular-nums" role="status" title={restText}>{main}</span>
           <span className="tabular-nums px-1 t-meta text-muted-foreground max-lg:hidden">{countSummary}</span>
         </R.Island>
         <R.Island label="Leitura do canvas" region="reading">
@@ -2032,7 +2093,7 @@ function Argos() {
       })() : null}
     </div>;
   return <div className="relative flex min-h-0 flex-1 flex-col">
-    <div ref={stageRef} className="relative min-h-0 flex-1 overflow-hidden" onDragOver={onStageDragOver} onDrop={onStageDrop}>
+    <div ref={stageRef} data-argos-stage className="relative min-h-0 flex-1 overflow-hidden" onDragOver={onStageDragOver} onDrop={onStageDrop}>
       {canvasPane}
       {/* camadas, HUD e controles num quadro que encolhe à direita quando a gaveta abre na mesa; fora disso, o palco inteiro */}
       <div className="pointer-events-none absolute inset-y-0 left-0 right-0" style={focusShift ? { right: focusShift } : undefined}>
@@ -2040,11 +2101,15 @@ function Argos() {
         {emptyStage ? <div className="pointer-events-none absolute inset-0 grid place-items-center p-4">
           <div className="pointer-events-auto max-w-md border border-border-strong bg-background/95 p-4">
             <Empty icon={I.Network} title={!totalNodes ? 'Nenhum agente ainda.' : filtered ? 'Nenhum nó com esse filtro.' : 'Nenhum agente em andamento.'}>
-              {!totalNodes ? 'Os agentes aparecem aqui assim que você criar o primeiro: hades agent new. Você já pode criar um terminal ou uma nota pelas ferramentas.'
+              {!totalNodes ? 'Cada agente do Hades vira um nó aqui, com o estado e o que ele espera de você. Crie o primeiro com hades agent new, ou comece já por um terminal ou uma nota; depois de escolher, arraste um retângulo no canvas.'
                 : filtered ? 'Tire um filtro para ver os nós de volta.' : 'Os agentes concluídos continuam no grafo.'}
             </Empty>
-            <div className="flex flex-wrap gap-x-4 gap-y-1">
-              {!totalNodes ? <button type="button" onClick={() => copyText('hades agent new')} className="cursor-pointer underline underline-offset-3 hover:no-underline max-md:min-h-11">Copiar o comando</button> : null}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {!totalNodes ? <>
+                <Button size="sm" icon={I.SquareTerminal} className="max-md:min-h-11" onClick={() => armTool('terminal')}>Novo terminal</Button>
+                <Button size="sm" variant="outline" icon={I.StickyNote} className="max-md:min-h-11" onClick={() => armTool('note')}>Nova nota</Button>
+                <Button size="sm" variant="ghost" icon={I.Copy} className="max-md:min-h-11" title="Copia hades agent new para o terminal" onClick={() => copyText('hades agent new')}>Copiar comando de agente</Button>
+              </> : null}
               {totalNodes && filtered ? <button type="button" onClick={clearAll} className="cursor-pointer underline underline-offset-3 hover:no-underline max-md:min-h-11">Limpar os filtros</button> : null}
               {totalNodes && !filtered ? <button type="button" onClick={() => setState('all')} className="cursor-pointer underline underline-offset-3 hover:no-underline max-md:min-h-11">
                 {closed ? `Mostrar todos (${plural(closed, 'concluído', 'concluídos')})` : 'Mostrar todos'}</button> : null}
@@ -2055,7 +2120,7 @@ function Argos() {
         </div> : null}
         {layersOn ? <>
           <P.CanvasLayers api={canvasApi} nodes={layerNodes}
-            menu={menu ? { target: menu.target, at: menu.at, registry: commands, commandCtx: ctxFor(menu.node), actionCtx, onClose: () => setMenu(null),
+            menu={menu ? { target: menu.target, at: menu.at, registry: commands, commandCtx: ctxFor(menu.node), actionCtx, essentials: window.ArgosCanvasMenu.CANVAS_ESSENTIALS, onClose: () => setMenu(null),
               onAction: (item, node) => { menuAction(item, node).catch((e) => { console.error('argos: ação do menu falhou', item.key, e); toast({ kind: 'bad', title: L.actionFailTitle(item.key), desc: L.errorText(e && e.code, 'A ação falhou.') }); }); },
               onError: (message) => toast({ kind: 'bad', title: 'Menu do canvas', desc: message }) } : undefined}
             balloon={balloonId && cstate ? { nodeId: balloonId, drafts, onDrafts: setDrafts, doc: cstate.doc, ctx: actionCtx, fetch: tokenFetch, onClose: () => setBalloonId(null),

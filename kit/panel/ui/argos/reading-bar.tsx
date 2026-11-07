@@ -179,14 +179,17 @@ function LayoutSwitch({ layout, onLayout, running, onStop, last }) {
   </div>;
 }
 
+/** Nome de cada escolha (da mais padrão à que mostra o conteúdo de mais longe); sem nome, o próprio percentual. */
+const DETAIL_NAMES = ['De perto', 'Médio', 'De longe', 'Bem longe'];
+
 /** De que zoom para cima o nó aparece completo (terminal, nota e o resto); a primeira escolha é a padrão. */
 function DetailSwitch({ value, choices, onChange }) {
   const pct = (k) => `${Math.round(k * 100)}%`;
   return <div className="grid gap-1">
     <Segmented label="Mostrar o conteúdo a partir do zoom" value={String(value)} onChange={(v) => onChange(Number(v))}
-      items={choices.map((k) => ({ value: String(k), label: pct(k) }))} />
+      items={choices.map((k, i) => ({ value: String(k), label: DETAIL_NAMES[i] ?? pct(k) }))} />
     <span className="t-micro text-muted-foreground">
-      A partir de {pct(value)} de zoom{value === choices[0] ? ' (padrão)' : ''}. Menos zoom mostra o conteúdo mais de longe e monta mais nós de uma vez.
+      Conteúdo completo a partir de {pct(value)} de zoom{value === choices[0] ? ' (padrão)' : ''}. Quanto mais longe, mais nós mostram o conteúdo e mais pesado fica.
     </span>
   </div>;
 }

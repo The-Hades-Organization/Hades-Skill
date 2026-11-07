@@ -113,14 +113,19 @@
 }
 html, body { background: var(--background); color: var(--foreground); }
 body { margin: 0; font-family: 'Figtree', ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; caret-color: var(--vivo); }
-/* celular: alvos de toque de pelo menos 40 px. Fora de @layer, vence os utilitários (h-8, size-8) sem tocar no app.js */
+/* celular: alvos de toque de pelo menos 44 px (regra do dono). Fora de @layer, vence os utilitários (h-8, size-8) sem tocar no app.js */
+/* tablet (768 a 1023 px): o palco do Argos também é de toque; os controles dele (size-8) sobem a 44 px */
+@media (max-width: 1023px) {
+  [data-argos-stage] button { min-height: 44px; min-width: 44px; }
+  [data-argos-stage] [role=switch] { min-height: 0; min-width: 0; }
+}
 @media (max-width: 767px), (pointer: coarse) {
-  button, [role=tab], select, input:not([type=checkbox]):not([type=radio]) { min-height: 40px; }
-  button { min-width: 40px; }
-  [role=switch] { min-height: 0; min-width: 0; }  /* o Switch tem tamanho próprio (h-5 w-9); o piso de 40px o deformava no celular */
-  nav a[href^="#/"] { min-height: 40px; }
-  main a[href^="http"] { display: inline-flex; align-items: center; min-height: 40px; }
-  /* controles segmentados (h-9 com 3px de folga): crescem junto com os botões de 40 px */
+  button, [role=tab], select, input:not([type=checkbox]):not([type=radio]) { min-height: 44px; }
+  button { min-width: 44px; }
+  [role=switch] { min-height: 0; min-width: 0; }  /* o Switch tem tamanho próprio (h-5 w-9); o piso de 44px o deformava no celular */
+  nav a[href^="#/"] { min-height: 44px; min-width: 44px; }  /* o trilho do shell tem ícones size-9 (36 px) */
+  main a[href^="http"] { display: inline-flex; align-items: center; min-height: 44px; }
+  /* controles segmentados (h-9 com 3px de folga): crescem junto com os botões de 44 px */
   .p-\[3px\] { height: auto; min-height: 46px; }
   .p-\[3px\] > button { white-space: nowrap; flex-shrink: 0; }
   input[type=checkbox], input[type=radio] { width: 20px; height: 20px; }

@@ -476,6 +476,9 @@ function makeArgosCanvas() {
      * nó. Marca que dura, não passageira: o Firefox entrega o `focus` do host depois que o botão focado sai do DOM.
      */
     let hostLevel = false;
+    // origem do foco que chega ao host: clique e volta à janela/aba não são Tab e não levam a câmera a nó nenhum
+    let pointerFocus = false;
+    let windowAway = false;
     const live = document.createElement("div");
     live.setAttribute("aria-live", "polite");
     live.style.cssText = "position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap";
@@ -1664,6 +1667,12 @@ function makeArgosCanvas() {
 
     function onFocus(e: FocusEvent): void {
       if (e.target !== host || focusId !== undefined || hostLevel) return;
+      const cause = { pointer: pointerFocus, windowReturn: windowAway };
+      windowAway = false;
+      if (!S.entersFirstNodeOnFocus(cause)) {
+        hostLevel = true;
+        return;
+      }
       const ids = tabOrder();
       if (ids.length === 0) return;
       // Shift+Tab vindo de depois do canvas entra pelo último nó
@@ -1705,6 +1714,10 @@ function makeArgosCanvas() {
       target.addEventListener(type, fn, options);
       cleanups.push(() => target.removeEventListener(type, fn, options));
     };
+    listen(host, "pointerdown", () => {
+      pointerFocus = true;
+      setTimeout(() => { pointerFocus = false; }, 0);
+    }, { capture: true });
     listen(host, "pointerdown", onLinkPointerDown, { capture: true });
     listen(host, "pointerdown", onPointerDown);
     listen(host, "pointermove", onPointerMove);
@@ -1722,6 +1735,13 @@ function makeArgosCanvas() {
     listen(host, "focusout", onFocusOut);
     listen(host, "contextmenu", (e) => e.preventDefault());
     listen(host, "dblclick", onDoubleClick);
+
+    const onWindowBlur = (): void => { windowAway = true; };
+    // o foco do elemento volta junto do `focus` da janela: zera depois que os dois já dispararam
+    const onWindowFocus = (): void => { setTimeout(() => { windowAway = false; }, 0); };
+    window.addEventListener("blur", onWindowBlur);
+    window.addEventListener("focus", onWindowFocus);
+    cleanups.push(() => { window.removeEventListener("blur", onWindowBlur); window.removeEventListener("focus", onWindowFocus); });
 
     const observer = new ResizeObserver(resize);
     observer.observe(host);

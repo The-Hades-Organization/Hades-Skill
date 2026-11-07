@@ -4,6 +4,24 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.22.0 — 2026-11-07
+
+Correção (issue #76): sair do canvas do Argos e voltar (trocar de aba, clicar na barra lateral do painel) levava a
+câmera até um nó que o dono não pediu.
+
+### Câmera quieta na volta do foco (#76)
+
+- Causa: quando o host do canvas recebia foco sem nó focado, o `onFocus` entrava pelo primeiro nó da ordem de leitura e
+  a câmera ia até ele. O foco devolvido pelo navegador ao voltar à aba ou à janela e o clique no canvas caíam nesse
+  caminho. "Aleatório" era o primeiro da ordem de leitura mudando com o canvas; "fixo", o mesmo com o canvas parado.
+- Correção: só o Tab entra pelo primeiro (ou último) nó. Clique e volta de janela/aba deixam a câmera onde está
+  (`entersFirstNodeOnFocus` em `src/lib/canvas-selection.ts`; sinais de clique e de janela fora em `canvas-engine.tsx`).
+- Mantidos: devolução de foco ao fechar menus e diálogos, F6 e navegação explícita até nó.
+
+### Armadilhas
+
+- Os `.focus()` do Argos já usavam `preventScroll`: a rolagem do navegador não era a causa.
+
 ## 6.21.0 — 2026-11-07
 
 Terminal do nó do Argos com links clicáveis e busca (issue #73). O mouse no programa fica para depois: precisa de

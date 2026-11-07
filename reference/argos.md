@@ -833,7 +833,9 @@ abaixo de 3 px ainda é clique.
 O canvas é uma parada do Tab (`role="application"`, nome acessível com as instruções). Ao entrar, o foco vai ao primeiro
 nó (ou ao último, vindo de trás com Shift+Tab); Tab e Shift+Tab percorrem os nós na ordem de leitura (de cima para baixo,
 da esquerda para a direita, desempate pelo id) e saem do canvas nas pontas. O nó focado ganha um botão por cima, com foco
-visível e nome acessível (rótulo, "selecionado", "bloqueado"), e a câmera o revela.
+visível e nome acessível (rótulo, "selecionado", "bloqueado"), e a câmera o revela. Só o Tab (e o F6) entra assim: o foco
+que o navegador devolve ao host ao voltar à aba/janela, e o foco por clique, não escolhem nó nem movem a câmera
+(`entersFirstNodeOnFocus`; sem isso, sair do canvas e voltar levava a câmera ao primeiro nó da ordem de leitura).
 
 | Tecla | Faz |
 |---|---|

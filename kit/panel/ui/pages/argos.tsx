@@ -30,6 +30,7 @@ const HID = window.ArgosCanvasHidden;
 // supervisor do canvas (supervisor.js, carregado pelo index.html antes da página): painel flutuante que observa os terminais
 const SUP = window.ArgosSupervisor;
 const NOTE_ID_PREFIX = 'note';
+const AREA_ID_PREFIX = 'area';
 // pedaço aleatório do nome do arquivo da nota nova (freshNoteName pede minúsculas e números, de 6 a 32)
 const noteToken = () => crypto.randomUUID().replace(/-/g, '').slice(0, 12);
 // notas soltas de fora nascem em escada a partir do ponto do soltar (unidades do mundo), para uma não cobrir a outra
@@ -1374,6 +1375,7 @@ function Argos() {
     terminal: (rect, cam) => setTermDialog({ mode: 'create', tab: 'details',
       rect: window.ArgosCanvasToolbar.rectToWorld(cam, rect, { size: NT.TERMINAL_SIZE, min: NT.ttyMinNodeSize(null) }) }),
     note: (rect, cam) => placeNote(rect, cam),
+    area: (rect, cam) => placeArea(rect, cam),
   };
   const onToolRect = (rect) => {
     const run = toolRect[termTool];
@@ -1506,6 +1508,18 @@ function Argos() {
     let made;
     try { made = M.note.createNoteFromRect(doc, { id, rect, token: noteToken }); } catch (e) { if (!e || typeof e.code !== 'string') throw e; opFailed(e.code); return; }
     window.ArgosNodeNote.rememberMode(made.note, 'raw');
+    if (termCommit(() => made.op)) { host.current.selectIds([id]); apiRef.current?.revealNode(id, true); }
+  };
+  const placeArea = (screenRect, cam) => {
+    const doc = cstateRef.current?.doc;
+    const A = M.areas;
+    if (!doc || !A) { opFailed(M.history.HISTORY_ERRORS.invalidOp); return; }
+    const size = { w: A.AREA_LIMITS.width, h: A.AREA_LIMITS.height };
+    const rect = window.ArgosCanvasToolbar.rectToWorld(cam, screenRect, { size, min: { w: A.AREA_LIMITS.minWidth, h: A.AREA_LIMITS.minHeight } });
+    const members = A.nodesCenteredIn(doc, rect);
+    const id = M.clipboard.sequentialIds(doc, AREA_ID_PREFIX)('node');
+    let made;
+    try { made = A.createAreaNode(doc, { id, ...rect, members }); } catch (e) { if (!e || typeof e.code !== 'string') throw e; opFailed(e.code); return; }
     if (termCommit(() => made.op)) { host.current.selectIds([id]); apiRef.current?.revealNode(id, true); }
   };
   // fechar a nota (mod+alt+w e o menu do nó): confirma, tira o nó e manda apagar o arquivo (a rota só apaga o da pasta padrão)

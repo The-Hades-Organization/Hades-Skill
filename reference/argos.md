@@ -1226,6 +1226,9 @@ sem área segue válido e um Hades antigo lê a área como nó de tipo desconhec
 - **Apagar** a área não apaga os nós; apagar um nó o tira da lista. **Colar** uma área remapeia os membros copiados junto para
   os ids novos e solta os demais (`remapAreaData`).
 - **Convivência com grupos**: independentes. O nó pode estar num grupo e numa área ao mesmo tempo; um não altera o outro.
+- Barra de ferramentas: botão **Área** (`registerTool` id `area`, ícone `SquareDashed`). Arrastar um retângulo cria a área
+  com esse tamanho (clique ou Enter: 480×320; mínimo 160×120) e encaixa os nós cujo centro cai dentro dele
+  (`nodesCenteredIn`, sem outras áreas), num passo só de desfazer.
 - Comandos (catálogo O8, paleta Ctrl+K e menu do nó/da área): `area:create` (em volta da seleção, ou no centro da vista),
   `area:dock` (escolhe a área), `area:undock` (o nó vai para a direita da área), `area:rename`, `area:color`. São o equivalente
   de teclado do arrastar. Erros do modelo (`AreaError.code`, estáveis, só ganham valores): `area_invalid_data`,

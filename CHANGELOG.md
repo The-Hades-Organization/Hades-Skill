@@ -4,6 +4,16 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.23.1 — 2026-11-07
+
+Correção da 6.23.0 (#80): a área colorida só saía pelo menu e pela paleta; faltava o botão na barra do canvas.
+
+### Botão Área na barra do canvas
+
+- Ferramenta **Área** (ícone de retângulo tracejado) ao lado de Terminal e Nota. Arrastar um retângulo cria a área com
+  esse tamanho (clique ou Enter: 480×320) e já encaixa os nós cujo centro cai dentro dele, num passo só de desfazer
+  (`nodesCenteredIn` em `src/lib/canvas-areas.ts`).
+
 ## 6.23.0 — 2026-11-07
 
 Capacidade nova (issue #80): áreas coloridas no canvas do Argos para agrupar agentes por frente de trabalho, com encaixe

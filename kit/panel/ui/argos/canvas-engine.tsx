@@ -181,7 +181,7 @@ type Gesture =
     /** Borda sob o ponteiro com um nó só sendo arrastado: soltar acopla. */
     edge: DockEdgeName | undefined;
   }
-  | { kind: "resize"; pointer: number; start: Vec; id: string; dw: number; dh: number; moved: boolean }
+  | { kind: "resize"; pointer: number; start: Vec; id: string; edge: SelectionModule.ResizeEdge; dw: number; dh: number; moved: boolean }
   /** Alt+arrastar: traço no mundo; as cordas que ele cruzar ganham uma abraçadeira ao soltar. */
   | { kind: "clamp-stroke"; pointer: number; start: Vec; from: Vec; end: Vec; moved: boolean }
   /** Abraçadeira arrastada ao longo das cordas: `ts` é o novo `t` de cada conexão presa. */
@@ -206,7 +206,6 @@ interface LinkFrame {
 
 const NO_LINKS: LinkFrame = { geoms: [], ropes: 0, stepped: 0 };
 /** Cursor da alça de redimensionar (canto de baixo à direita) e a classe que o impõe sobre o nó rico (index.html). */
-const RESIZE_CURSOR = "nwse-resize";
 const RESIZE_CURSOR_CLASS = "canvas-resize-cursor";
 
 const overlaps = (a: Rect, b: Rect): boolean => a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h;
@@ -581,7 +580,7 @@ function makeArgosCanvas() {
       if (gesture.kind === "move" && gesture.set.has(node.id)) {
         return { ...node, x: node.x + gesture.dx + (gesture.snap?.dx ?? 0), y: node.y + gesture.dy + (gesture.snap?.dy ?? 0) };
       }
-      if (gesture.kind === "resize" && gesture.id === node.id) return { ...node, ...S.resizePreview(node, gesture.dw, gesture.dh) };
+      if (gesture.kind === "resize" && gesture.id === node.id) return { ...node, ...S.resizePreview(node, gesture.dw, gesture.dh, gesture.edge) };
       return node;
     }
 
@@ -1154,19 +1153,30 @@ function makeArgosCanvas() {
     /** Mão aberta com Espaço segurado, fechada enquanto arrasta por ele ou pelo botão do meio. */
     const applyCursor = (): void => {
       const grabbing = gesture.kind === "pan" && gesture.grab;
-      const resizing = gesture.kind === "resize" || (gesture.kind === "none" && overResize);
-      host.style.cursor = grabbing ? "grabbing" : spaceHeld ? "grab" : linking ? "crosshair" : resizing ? RESIZE_CURSOR : "";
+      const resizeEdge = gesture.kind === "resize" ? gesture.edge : gesture.kind === "none" ? overResize : undefined;
+      const resizing = resizeEdge !== undefined;
+      host.style.cursor = grabbing ? "grabbing" : spaceHeld ? "grab" : linking ? "crosshair" : resizeEdge ? S.resizeCursor(resizeEdge) : "";
       // o nó rico (nota, terminal) cobre a alça e tem cursor próprio (texto): a classe o vence enquanto vale
+      // a classe vence o cursor do conteúdo rico; o formato da seta (borda ou canto) vai na variável que o CSS lê
+      if (resizeEdge) host.style.setProperty("--canvas-resize-cursor", S.resizeCursor(resizeEdge));
       host.classList.toggle(RESIZE_CURSOR_CLASS, resizing && !grabbing && !spaceHeld && !linking);
     };
-    /** Mouse parado sobre a alça de redimensionar de um nó selecionado (sem botão apertado). */
-    let overResize = false;
-    /** A alça de redimensionar de um nó selecionado está sob o ponto (vale também sobre o conteúdo do nó rico, que a cobre). */
-    const onResizeHandle = (e: PointerEvent): boolean =>
-      S.hitTest(doc.nodes, C.screenToWorld(cam, screenPoint(e)), { k: cam.k, detail: detailOf(cam.k), resizable: (n) => selected.has(n.id) && !n.locked })?.region === "resize";
+    /** Lados sob o mouse parado sobre a alça ou a borda de redimensionar (sem botão apertado). */
+    let overResize: SelectionModule.ResizeEdge | undefined;
+    // a borda do terminal vale sem selecionar: a faixa é fina e fica abaixo do cabeçalho, que segue sendo a alça de mover
+    const EDGE_NODE_TYPE = "terminal";
+    const resizeOptions = (): SelectionModule.HitOptions => ({
+      k: cam.k, detail: detailOf(cam.k), resizable: (n) => selected.has(n.id) && !n.locked,
+      edgeResizable: (n) => n.type === EDGE_NODE_TYPE && !n.locked,
+    });
+    /** Alça (nó selecionado) ou borda (terminal) de redimensionar sob o ponto: vale também sobre o conteúdo do nó rico, que a cobre. */
+    const resizeHitAt = (e: PointerEvent): SelectionModule.Hit | undefined => {
+      const hit = S.hitTest(doc.nodes, C.screenToWorld(cam, screenPoint(e)), resizeOptions());
+      return hit?.region === "resize" ? hit : undefined;
+    };
     const trackResizeHover = (e: PointerEvent): void => {
-      const over = e.pointerType === "mouse" && gesture.kind === "none" && onResizeHandle(e);
-      if (over === overResize) return;
+      const over = e.pointerType === "mouse" && gesture.kind === "none" ? resizeHitAt(e)?.edge : undefined;
+      if (over?.left === overResize?.left && over?.right === overResize?.right && over?.bottom === overResize?.bottom && (over === undefined) === (overResize === undefined)) return;
       overResize = over;
       applyCursor();
     };
@@ -1310,7 +1320,7 @@ function makeArgosCanvas() {
       // com Espaço segurado o gesto é do canvas até sobre o conteúdo de um nó rico
       // conteúdo do nó rico trata o próprio clique, menos na alça de redimensionar (que ele cobre)
       const overRich = !spaceHeld && e.target instanceof Element && e.target.closest("[data-canvas-node]");
-      if (overRich && !(e.button === 0 && onResizeHandle(e))) return;
+      if (overRich && !(e.button === 0 && resizeHitAt(e))) return;
       if (overRich) {
         // a alça é do canvas: o nó não seleciona texto nem toma o foco por baixo do arrasto
         e.preventDefault();
@@ -1347,12 +1357,10 @@ function makeArgosCanvas() {
         return;
       }
       clearClamp();
-      const hit = S.hitTest(doc.nodes, world, {
-        k: cam.k, detail: detailOf(cam.k), resizable: (n) => selected.has(n.id) && !n.locked,
-      });
+      const hit = S.hitTest(doc.nodes, world, resizeOptions());
       const shift = e.shiftKey;
-      if (hit?.region === "resize") {
-        gesture = { kind: "resize", pointer: e.pointerId, start: p, id: hit.id, dw: 0, dh: 0, moved: false };
+      if (hit?.region === "resize" && hit.edge) {
+        gesture = { kind: "resize", pointer: e.pointerId, start: p, id: hit.id, edge: hit.edge, dw: 0, dh: 0, moved: false };
         applyCursor();
         return;
       }
@@ -1422,7 +1430,7 @@ function makeArgosCanvas() {
           return;
         case "resize":
           g.moved = true;
-          ({ dw: g.dw, dh: g.dh } = clampResize(g.id, (p.x - g.start.x) / cam.k, (p.y - g.start.y) / cam.k));
+          ({ dw: g.dw, dh: g.dh } = clampResize(g.id, g.edge, (p.x - g.start.x) / cam.k, (p.y - g.start.y) / cam.k));
           markContent();
           return;
         case "clamp-stroke":
@@ -1444,13 +1452,18 @@ function makeArgosCanvas() {
 
     /** Encaixe magnético do arrasto, se ligado (modo ou Ctrl/Cmd) e se alguma guia acendeu; senão o soltar usa a grade. */
     // a borda solta encaixa na grade (resizeOp): o limite é a primeira linha da grade que ainda cabe o mínimo
-    function clampResize(id: string, dw: number, dh: number): { dw: number; dh: number } {
+    function clampResize(id: string, edge: SelectionModule.ResizeEdge, dx: number, dy: number): { dw: number; dh: number } {
       const node = byId.get(id);
       const min = node && minSizeOf ? minSizeOf(node) : undefined;
-      if (!node || !min) return { dw, dh };
+      if (!node || !min) return { dw: dx, dh: dy };
       const grid = S.SELECTION_LIMITS.grid;
-      const least = (start: number, side: number, minSide: number) => Math.ceil((start + minSide) / grid) * grid - start - side;
-      return { dw: Math.max(dw, least(node.x, node.w, min.w)), dh: Math.max(dh, least(node.y, node.h, min.h)) };
+      const leastEnd = (start: number, side: number, minSide: number) => Math.ceil((start + minSide) / grid) * grid - start - side;
+      // a borda esquerda anda para a direita até a última linha da grade que ainda deixa o mínimo
+      const mostStart = (start: number, side: number, minSide: number) => Math.floor((start + side - minSide) / grid) * grid - start;
+      return {
+        dw: edge.left ? Math.min(dx, mostStart(node.x, node.w, min.w)) : edge.right ? Math.max(dx, leastEnd(node.x, node.w, min.w)) : dx,
+        dh: edge.bottom ? Math.max(dy, leastEnd(node.y, node.h, min.h)) : dy,
+      };
     }
     function snapOf(g: Extract<Gesture, { kind: "move" }>): SnapMove | undefined {
       const snap = opts.snap;
@@ -1509,7 +1522,7 @@ function makeArgosCanvas() {
           break;
         }
         case "resize":
-          if (g.moved) emitOp(S.resizeOp(doc, g.id, g.dw, g.dh));
+          if (g.moved) emitOp(S.resizeOp(doc, g.id, g.dw, g.dh, S.SELECTION_LIMITS.grid, g.edge));
           break;
         case "clamp-stroke":
           dirty.overlay = true;
@@ -1697,7 +1710,7 @@ function makeArgosCanvas() {
     listen(host, "pointermove", onPointerMove);
     listen(host, "pointerup", onPointerUp);
     listen(host, "pointercancel", onPointerUp);
-    listen(host, "pointerleave", () => { if (overResize) { overResize = false; applyCursor(); } });
+    listen(host, "pointerleave", () => { if (overResize) { overResize = undefined; applyCursor(); } });
     listen(host, "wheel", onWheel, { passive: false });
     listen(host, "keydown", onKeyDown);
     listen(host, "keyup", onKeyUp);

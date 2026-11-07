@@ -816,7 +816,14 @@ toque). Texto longo corta por largura (`truncate`) com `title` do texto inteiro,
 | arrastar pelo cabeçalho | move o nó, ou a seleção inteira se ele estiver nela; ao soltar, o nó pego encaixa na grade de 20 e os outros andam o mesmo delta |
 | arrastar o corpo (detalhe completo) | pan (o corpo é do conteúdo); longe, o nó inteiro vale como cabeçalho |
 | alça (canto inferior direito, nó selecionado) | redimensiona; ao soltar, as bordas direita e de baixo encaixam na grade; lado mínimo 40 |
+| borda esquerda, direita ou de baixo e cantos de baixo do **terminal** (sem selecionar) | redimensiona só os lados tocados; a esquerda muda `x` e `w` juntos (a direita do nó fica parada); o cursor segue a borda (`ew-resize`, `ns-resize`, `nesw-resize`, `nwse-resize`) |
 | dois dedos | pinça (zoom e pan) |
+
+O **topo do terminal é a alça de mover**: nem a borda de cima nem os cantos de cima redimensionam, e a faixa lateral só
+começa abaixo do cabeçalho. A faixa é de 6 px de tela (o canto, 12 px) e proporcional ao zoom, fina para não roubar o clique do
+conteúdo; vale sem selecionar o nó. Um gesto é uma operação só (desfazer volta inteiro). Os outros tipos de nó mantêm só a alça
+do canto inferior direito, com o nó selecionado (`hitTest` em `src/lib/canvas-selection.ts`, opção `edgeResizable`). O resize do
+terminal segue disparando o `pane.set_size` (debounce em `node-tty.tsx`).
 
 Nó `locked` não move nem redimensiona: pegá-lo não move ninguém, e no meio de uma seleção ele fica parado. Movimento
 abaixo de 3 px ainda é clique.
@@ -2424,9 +2431,18 @@ sobem ao canvas). **Só o nó legível tem xterm**: com o zoom baixo ou o nó pe
 deixou de ser usado pelo nó (só os limites de tamanho do quadro); o conversor segue testado em `term-ansi.test.ts`. Esta
 unidade não pede resize: a grade do xterm é a do quadro (`term.resize(cols, linhas)`), escalada por transform.
 
+**Medida e escala (com o fork do herdr).** Com `pane.set_size` disponível (§Tamanho do terminal do nó), o nó calcula
+**cols × rows** pela área de desenho (`areaBox`) e pela **célula real do xterm** (`measureCell`:
+`term._core._renderService.dimensions.css.cell`, API interna sem alternativa; ausente, vale a estimativa `cellSize`: 0,6 em ×
+17 px vezes o zoom do texto), em `gridFor`, sempre dentro dos limites do herdr (4..1000 × 2..500). Pede a grade com **debounce
+de 150 ms** (`resizeDebounce`) ao montar, ao redimensionar o nó e ao mudar o zoom do texto; com o quadro já na grade pedida
+(`sizeApplied`) a escala é **1** (sem `fitScale`). Enquanto o pedido não volta, e sem suporte, vale a escala do quadro de
+antes. Nó em miniatura (`headerOnly`) ou com escala fixa (`scale`) não pede.
+
 ### Tamanho do terminal do nó: por que o nó não pede resize
 
-O nó só escala o quadro (`fitScale`); o agente nunca vê o tamanho do nó. Medido no herdr 0.8.2 (sessão de teste, o que o processo
+Sem o fork do herdr (§abaixo, `pane.set_size`), o nó só escala o quadro (`fitScale`); o agente nunca vê o tamanho do nó.
+Medido no herdr 0.8.2 (sessão de teste, o que o processo
 dentro do pane lê em `stty size` a cada SIGWINCH, com um cliente `herdr session attach` num PTY de tamanho escolhido):
 
 - **O tamanho é da sessão inteira.** O PTY do cliente vira a área da sessão, e todo pane de todo workspace e aba (também os
@@ -2446,6 +2462,28 @@ dentro do pane lê em `stty size` a cada SIGWINCH, com um cliente `herdr session
 Por isso o painel não anexa cliente herdr para ditar tamanho. **Terminal criado no canvas também é pane do herdr** (sessão
 `default`, `POST /api/argos/terminals`), não PTY próprio: nenhum nó do canvas tem resize exato. Só o `/api/term` (página
 Terminal, `PtyTerminal`) tem PTY próprio e refaz `cols`/`rows` pelo tamanho da tela.
+
+### Tamanho do terminal do nó com o fork do herdr (`pane.set_size`)
+
+O fork do herdr (0.9.5 + `2d6f765b`) ganhou `pane.set_size { pane_id, cols 4..1000, rows 2..500 }` (e `release: true`), que
+**fixa a grade do pane** e vence o resize de qualquer cliente anexado; `pane_info` ganha `cols`, `rows`, `size_pinned`, e a
+fixação vive só na memória do servidor do herdr. O painel o usa assim:
+
+- **`HADES_HERDR_BIN`** (`reference/config.md`): o binário que o painel chama em todo lugar (padrão `herdr` do PATH), validado
+  na subida (`resolveHerdrBin`). Para o fork: o caminho absoluto dele.
+- **`POST /api/herdr/size`** `{ session?, pane, cols, rows } | { session?, pane, release: true }` (`herdr-page.ts` `size`): mesma
+  porta de autenticação, token e Origin do `/api/herdr/input`; pane conferido contra o retrato; limites validados na fronteira
+  (400 `size-invalid`); taxa de 20 pedidos por 10 s por pane (429 `size-rate-limited` com `Retry-After`); herdr sem o
+  método: **501 `herdr-unsupported`** (o 0.8.2 responde `invalid_request` "unknown variant `pane.set_size`", medido; a negativa
+  fica guardada por 5 min por servidor). Os códigos só ganham valores.
+- **Host** (`createTtyHost`, dep `sendSize`): o primeiro pedido decide o suporte; `herdr-unsupported` o desliga para a sessão
+  da página e o nó volta ao `fitScale` e ao zoom por tamanho do nó, sem erro na tela. O host **libera** (`release`) a grade
+  quando o nó sai do canvas (ou troca de pane) e **refaz** os pedidos quando o fluxo (re)conecta. Só pane no fluxo pede
+  (polling não).
+- A disputa descrita abaixo (cliente anexado) deixa de valer **para o pane fixado**; os demais seguem como no 0.8.2.
+
+Prova ao vivo e limites medidos: `.design-sync-reports/report.md` da unidade `argos-resize`; testes em
+`loop/test/ts/argos-tty-size.test.ts`, `herdr-stream.test.ts` (rota e cursor) e `herdr-bin-config.test.ts`.
 
 ### Rolagem do terminal do nó
 
@@ -2569,8 +2607,8 @@ botão não é controle). Prova: `argos-abrir-terminal.test.ts`.
 ## Fluxo do terminal (servidor)
 
 O nó de agente mostra o pane do herdr ao vivo. O servidor (`src/panel/herdr-stream.ts`) manda quadros prontos do herdr;
-a grade é a do herdr (o painel nunca manda resize ao PTY: `pane.resize` move divisão). UI e renderização de ANSI são do
-componente do nó.
+a grade é a do herdr; o tamanho só muda pelo `POST /api/herdr/size` (`pane.set_size` do fork; `pane.resize` move divisão e o
+painel não o usa). UI e renderização de ANSI são do componente do nó.
 
 **`GET /api/herdr/stream?session=<s>&panes=<p1,p2>`** (SSE; autenticação das outras rotas GET). `session` padrão
 `default`; `session` e cada pane validados no formato (`SESSION_NAME`/`PANE_ID` de `herdr-page.ts`), até
@@ -2579,7 +2617,7 @@ são conferidos contra a listagem atual do herdr (`pane.list`): pane fora dela r
 
 | Evento | Dados |
 |---|---|
-| `frame` | `{ pane, revision, cols, rows, ansi }`: a tela visível (`pane.read source=visible format=ansi`) |
+| `frame` | `{ pane, revision, cols, rows, ansi, cursor? }`: a tela visível (`pane.read source=visible format=ansi`); `cursor` `{ row, col, visible }` (base 0) só quando o herdr o entrega (fork); mudar só o cursor também gera quadro novo. `/api/herdr/read` (texto, CLI) não leva cursor |
 | `status` | `{ pane, agentStatus }`: `idle`, `working`, `blocked`, `done` ou `unknown` |
 | `exited` | `{ pane }`: o pane saiu ou fechou; o servidor para de lê-lo |
 | `error` | `{ pane?, message, code }`; `code` de `STREAM_ERRORS` (`pane_unknown`, `read_failed`, `subscription_failed`, `session_down`…) |
@@ -2772,6 +2810,12 @@ herdr (criar, fechar, trocar o papel): o stderr "no herdr server is running…" 
 - **Diretório:** `cwd` ausente é o clone do projeto (`W` do `env.sh`); mandado, é resolvido (links seguidos) e tem de ficar
   dentro do clone ou da worktree de um agente registrado e não encerrado (as worktrees que o canvas abre por escopo).
   Fora, `..` que escapa ou link para fora: `invalid`.
+- **Nome no herdr:** o fork do herdr só aceita nome de agente em `[a-z][a-z0-9_-]{0,31}`; o painel guarda e mostra o nome
+  do terminal como foi digitado e passa ao `herdr agent start` o derivado (`deriveHerdrAgentName`, em
+  `src/lib/herdr-agent-name.ts`): minúsculas, sem acento, o que não cabe vira `-`, hífens repetidos e das pontas somem, começa
+  por letra (prefixo `agent`), até 32 caracteres; colisão com outro terminal do registro ganha `-2`, `-3`… O derivado fica
+  no registro (`herdrName`) e a troca de papel o reusa; registro antigo sem o campo deriva na hora. `hades canvas recruit`
+  passa pelo mesmo caminho (cria pela rota do painel).
 - **Criar:** `herdr workspace create --cwd <cwd> --label <nome> --no-focus` e `herdr agent start <nome> --kind <agente>
   --pane <pane> --timeout 55000 -- [--model] [--effort] [--append-system-prompt-file <arquivo>]` (a mesma via do
   `hades agent`). O papel (com as instruções próprias e as de gerente) é gravado antes em
@@ -3130,8 +3174,10 @@ nó oculto com `Shift+H` ficava no documento para sempre.
 
 ### Cursor estimado
 
-O herdr (0.8.2 e a 0.9.5, conferido no schema da API) não entrega a posição do cursor. `guessCursor` (`term-logic.tsx`)
-estima pelo quadro:
+**O cursor real vem primeiro.** O fork do herdr entrega `cursor { row, col, visible }` no `pane.read source=visible`, e o fluxo o
+leva no quadro (`frame.cursor`); o nó o desenha (`frameCursor`: escondido ou fora da grade, nenhum cursor). A estimativa abaixo
+é a **queda**: só vale quando o quadro não traz o campo (herdr 0.8.2 e 0.9.5 sem o fork, e pane rolado ao histórico).
+`guessCursor` (`term-logic.tsx`) estima pelo quadro:
 
 - **Caixa de entrada do Claude Code** (`promptBoxCursor`): a linha que começa com `❯` logo abaixo de uma régua `─`, com outra
   régua embaixo. O cursor vai ao fim da última linha com texto da caixa; a sugestão esmaecida (SGR 2) da caixa vazia não
@@ -3144,8 +3190,12 @@ estima pelo quadro:
 
 ### Zoom do texto
 
-O herdr não muda colunas nem linhas de um pane (§Tamanho do terminal do nó): redimensionar o nó só muda a escala, e a
-proporção diferente da do quadro sobra em faixa vazia. O zoom do texto age sobre o terminal focado, ou o nó com terminal
+**Com o fork (`pane.set_size`):** o zoom muda **só a fonte** do xterm (`host.stepTextZoom`: passo 1,2×, entre 50% e 300%,
+`TEXT_ZOOM_LIMITS`; o fator vive no host, por nó, e não persiste no documento), o nó não muda de tamanho e o herdr refaz a
+grade (a célula maior dá menos cols × rows, pedidos por debounce). `Ctrl+Alt+0` volta a 100%.
+
+**Sem o suporte** (herdr 0.8.2): o herdr não muda colunas nem linhas de um pane (§Tamanho do terminal do nó): redimensionar o
+nó só muda a escala, e a proporção diferente da do quadro sobra em faixa vazia. O zoom do texto age sobre o terminal focado, ou o nó com terminal
 selecionado sozinho (agente ou criado no canvas), e leva o nó à **proporção exata do quadro** na escala seguinte
 (`NT.ttyZoomSize(size, frame, kind)`: passo 1,2×, entre os limites de `fitScale`, nunca abaixo do mínimo do terminal), num
 passo do desfazer, com um toast da escala. `Ctrl+Alt+0` volta a 100% (a célula natural). As teclas estão em

@@ -15,6 +15,7 @@ import type { Herdr } from "./herdr.ts";
 import { PANE_ID, SESSION_NAME } from "./herdr-page.ts";
 import { send } from "./http.ts";
 import type { Level } from "./log.ts";
+import { deriveHerdrAgentName } from "../lib/herdr-agent-name.ts";
 
 type Dict = Record<string, unknown>;
 
@@ -148,6 +149,8 @@ interface TerminalRecord {
   session: string;
   pane: string;
   name: string;
+  /** O nome que o herdr conhece (`agent start`), derivado de `name`; ausente nos terminais criados antes dele. */
+  herdrName?: string;
   agent: string;
   model?: string;
   effort?: string;
@@ -164,7 +167,7 @@ const isTerminalRecord = (value: unknown): value is TerminalRecord => {
   if (typeof value !== "object" || value === null) return false;
   const r = value as Dict;
   const optionalText = (v: unknown): boolean => v === undefined || typeof v === "string";
-  return [r.session, r.pane, r.name, r.agent, r.cwd, r.createdAt].every((v) => typeof v === "string") && [r.model, r.effort, r.role, r.instructions].every(optionalText)
+  return [r.session, r.pane, r.name, r.agent, r.cwd, r.createdAt].every((v) => typeof v === "string") && [r.model, r.effort, r.role, r.instructions, r.herdrName].every(optionalText)
     && (r.orchestrator === undefined || typeof r.orchestrator === "boolean");
 };
 
@@ -480,6 +483,10 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
     }
   }
 
+  /** Os nomes de agente já em uso na sessão: o derivado dos terminais registrados (o do próprio pane, se pedido, não conta). */
+  const takenHerdrNames = (records: readonly TerminalRecord[], exceptPane?: string): string[] =>
+    records.filter((t) => t.pane !== exceptPane).map((t) => t.herdrName ?? deriveHerdrAgentName(t.name));
+
   const startArgs = (name: string, pane: string, choice: TerminalChoice, promptFile?: string): string[] => {
     const args = agentArgs(choice, promptFile);
     return ["agent", "start", name, "--kind", choice.agent, "--pane", pane, "--timeout", String(TERMINAL_TIMEOUTS.startMs - 5000), ...(args.length ? ["--", ...args] : [])];
@@ -553,13 +560,14 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
     if (alive.length >= TERMINAL_LIMITS.terminals) throw invalid(`limite de ${TERMINAL_LIMITS.terminals} terminais do canvas`);
 
     const session = DEFAULT_SESSION;
+    const herdrName = deriveHerdrAgentName(name, takenHerdrNames(alive));
     const pane = paneFrom(await createWorkspace(session, ["workspace", "create", "--cwd", cwd, "--label", name, "--no-focus"]));
     if (!PANE_ID.test(pane)) throw fail(ARGOS_ERROR_CODES.herdrFailed, "o herdr não devolveu o pane criado");
     try {
       const promptText = promptFileText(choice);
       const promptFile = promptText !== undefined ? writePrompt(session, pane, promptText) : undefined;
       await waitPrompt(session, pane);
-      await herdrCall(session, startArgs(name, pane, choice, promptFile), TERMINAL_TIMEOUTS.startMs, "iniciar-agente");
+      await herdrCall(session, startArgs(herdrName, pane, choice, promptFile), TERMINAL_TIMEOUTS.startMs, "iniciar-agente");
     } catch (error) {
       removePrompt(session, pane);
       // o pane sem agente não fica para trás: o canvas não o registrou e ninguém o fecharia
@@ -568,7 +576,7 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
       throw error;
     }
     const record: TerminalRecord = {
-      session, pane, name, agent: choice.agent, cwd, createdAt: new Date(deps.now()).toISOString(),
+      session, pane, name, herdrName, agent: choice.agent, cwd, createdAt: new Date(deps.now()).toISOString(),
       ...(choice.model !== undefined && { model: choice.model }), ...(choice.effort !== undefined && { effort: choice.effort }),
       ...(choice.role !== undefined && { role: choice.role.slug }),
       ...(orchestrator && { orchestrator: true }), ...(instructions !== undefined && { instructions }),
@@ -627,8 +635,9 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
     }
     if (left.length > 0) throw fail(ARGOS_ERROR_CODES.herdrFailed, "o processo do agente não saiu");
     await waitPrompt(record.session, record.pane);
-    await herdrCall(record.session, startArgs(name, record.pane, choice, promptFile), TERMINAL_TIMEOUTS.startMs, "reiniciar-agente");
-    const updated: TerminalRecord = { ...record, role: role?.slug, orchestrator, instructions };
+    const herdrName = record.herdrName ?? deriveHerdrAgentName(name, takenHerdrNames(terminals(), record.pane));
+    await herdrCall(record.session, startArgs(herdrName, record.pane, choice, promptFile), TERMINAL_TIMEOUTS.startMs, "reiniciar-agente");
+    const updated: TerminalRecord = { ...record, herdrName, role: role?.slug, orchestrator, instructions };
     if (role === undefined) delete updated.role;
     if (!orchestrator) delete updated.orchestrator;
     if (instructions === undefined) delete updated.instructions;

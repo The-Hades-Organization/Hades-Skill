@@ -13,6 +13,10 @@ export interface HerdrCall {
 }
 
 export interface Herdr {
+  /** Binário que o painel chama (HADES_HERDR_BIN): nome simples (resolvido no PATH) ou caminho absoluto. */
+  readonly bin: string;
+  /** O binário existe (caminho absoluto) ou está no PATH. */
+  installed(): boolean;
   call(session: string | null, args: string[], timeoutMs?: number): Promise<HerdrCall>;
   json(session: string | null, args: string[]): Promise<Dict | null>;
   cached<T>(key: string, load: () => Promise<T>, ttlS?: number): Promise<T>;
@@ -211,10 +215,12 @@ export function createHerdrSocket(): HerdrSocket {
   return { request, subscribe };
 }
 
-export function createHerdr(): Herdr {
+export function createHerdr(options: { bin?: string } = {}): Herdr {
+  const bin = options.bin ?? "herdr";
   const cache = new Map<string, { t: number; value: unknown }>();
+  const resolved = (): string | undefined => (bin.startsWith("/") ? bin : which(bin));
 
-  const argv = (session: string | null, args: string[]): string[] => ["herdr", ...(session && session !== "default" ? ["--session", session] : []), ...args];
+  const argv = (session: string | null, args: string[]): string[] => [bin, ...(session && session !== "default" ? ["--session", session] : []), ...args];
 
   async function call(session: string | null, args: string[], timeoutMs = CALL_TIMEOUT_MS): Promise<HerdrCall> {
     const r = await exec(argv(session, args), { timeoutMs });
@@ -249,20 +255,22 @@ export function createHerdr(): Herdr {
     cached(`${session}\0snap`, async () => ((await json(session, ["api", "snapshot"]))?.snapshot as Dict | undefined) ?? null);
 
   async function startServer(): Promise<"systemd-run" | "detached"> {
-    const bin = which("herdr") ?? "herdr";
+    const server = resolved() ?? bin;
     // unit transitória do usuário: o KillMode do hds-panel mata tudo no cgroup dele, então só `detached` não basta sob systemd.
     // O PATH do gerenciador de usuário costuma não ter ~/.local/bin nem o node do nvm, e os panes do servidor herdam o
     // ambiente dele: sem o PATH do painel, o shell do pane não acha o CLI do agente.
     if (which("systemd-run")) {
-      const r = await exec(["systemd-run", "--user", "--collect", "--quiet", `--setenv=PATH=${process.env.PATH ?? ""}`, bin, "server"], { timeoutMs: CALL_TIMEOUT_MS });
+      const r = await exec(["systemd-run", "--user", "--collect", "--quiet", `--setenv=PATH=${process.env.PATH ?? ""}`, server, "server"], { timeoutMs: CALL_TIMEOUT_MS });
       if (r.status === 0) return "systemd-run";
     }
-    const child = Bun.spawn([bin, "server"], { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true });
+    const child = Bun.spawn([server, "server"], { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: true });
     child.unref();
     return "detached";
   }
 
   return {
+    bin,
+    installed: () => resolved() !== undefined,
     call,
     json,
     startServer,
@@ -270,7 +278,7 @@ export function createHerdr(): Herdr {
     snap,
     forget: (key) => (key === undefined ? cache.clear() : void cache.delete(key)),
     async badge() {
-      if (!which("herdr")) return null;
+      if (!resolved()) return null;
       const retrato = await snap("default");
       if (!retrato) return null;
       const agents = (Array.isArray(retrato.agents) ? retrato.agents : []) as Dict[];

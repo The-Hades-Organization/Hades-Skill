@@ -12,6 +12,8 @@ export const SELECTION_LIMITS = {
   header: 24,
   /** Lado da alça de redimensionar, em pixels de tela (o alvo não encolhe com o zoom). */
   handlePx: 12,
+  /** Espessura, em pixels de tela, da faixa de borda que redimensiona (esquerda, direita, baixo) nos nós de borda. */
+  edgePx: 6,
   /** Menor lado de um nó ao redimensionar, em unidades de mundo. */
   minSide: 40,
   /** Movimento, em pixels de tela, abaixo do qual o gesto ainda é um clique. */
@@ -29,9 +31,21 @@ export const snap = (value: number, grid: number = SELECTION_LIMITS.grid): numbe
 
 export type HitRegion = "header" | "body" | "resize";
 
+/** Quais lados do nó o gesto de redimensionar move (o topo nunca: é a alça de mover). */
+export interface ResizeEdge {
+  left: boolean;
+  right: boolean;
+  bottom: boolean;
+}
+
+/** A alça do canto inferior direito. */
+export const CORNER_SE: ResizeEdge = { left: false, right: true, bottom: true };
+
 export interface Hit {
   id: string;
   region: HitRegion;
+  /** Em `region: "resize"`, os lados que o arrasto move. */
+  edge?: ResizeEdge;
 }
 
 export interface HitOptions {
@@ -40,6 +54,24 @@ export interface HitOptions {
   detail: Detail;
   /** Nós que mostram a alça (selecionados e livres). */
   resizable: (node: CanvasNode) => boolean;
+  /** Nós cujas bordas esquerda, direita e de baixo e os cantos de baixo redimensionam, selecionados ou não (livres). */
+  edgeResizable?: (node: CanvasNode) => boolean;
+}
+
+/** Lados sob `p` na borda de `node`: cantos de baixo (alça cheia) e faixas laterais e de baixo, abaixo do cabeçalho. */
+function edgeAt(node: CanvasNode, p: Vec, k: number): ResizeEdge | undefined {
+  const handle = SELECTION_LIMITS.handlePx / k;
+  const band = SELECTION_LIMITS.edgePx / k;
+  const nearLeft = p.x - node.x;
+  const nearRight = node.x + node.w - p.x;
+  const nearBottom = node.y + node.h - p.y;
+  if (nearBottom <= handle && nearRight <= handle) return CORNER_SE;
+  if (nearBottom <= handle && nearLeft <= handle) return { left: true, right: false, bottom: true };
+  if (nearBottom <= band) return { left: false, right: false, bottom: true };
+  if (p.y - node.y <= SELECTION_LIMITS.header) return undefined;
+  if (nearLeft <= band) return { left: true, right: false, bottom: false };
+  if (nearRight <= band) return { left: false, right: true, bottom: false };
+  return undefined;
 }
 
 /**
@@ -54,7 +86,9 @@ export function hitTest(nodes: readonly CanvasNode[], p: Vec, opts: HitOptions):
   }
   if (!best) return undefined;
   const handle = SELECTION_LIMITS.handlePx / opts.k;
-  if (opts.resizable(best) && p.x >= best.x + best.w - handle && p.y >= best.y + best.h - handle) return { id: best.id, region: "resize" };
+  if (opts.resizable(best) && p.x >= best.x + best.w - handle && p.y >= best.y + best.h - handle) return { id: best.id, region: "resize", edge: CORNER_SE };
+  const edge = opts.edgeResizable?.(best) ? edgeAt(best, p, opts.k) : undefined;
+  if (edge) return { id: best.id, region: "resize", edge };
   if (opts.detail !== "full" || p.y - best.y <= SELECTION_LIMITS.header) return { id: best.id, region: "header" };
   return { id: best.id, region: "body" };
 }
@@ -153,20 +187,45 @@ export function moveOp(doc: CanvasDoc, ids: readonly string[], anchor: string, r
 
 const clampSide = (side: number): number => Math.min(CANVAS_LIMITS.size, Math.max(SELECTION_LIMITS.minSide, side));
 
-/** Quadro ao vivo durante o arrasto da alça (canto inferior direito), sem encaixe; respeita o lado mínimo. */
-export function resizePreview(node: CanvasNode, rawDw: number, rawDh: number): Rect {
-  return { x: node.x, y: node.y, w: clampSide(node.w + rawDw), h: clampSide(node.h + rawDh) };
+/** Cursor do CSS de cada combinação de lados. */
+export function resizeCursor(edge: ResizeEdge): string {
+  if (edge.bottom && edge.left) return "nesw-resize";
+  if (edge.bottom && edge.right) return "nwse-resize";
+  if (edge.bottom) return "ns-resize";
+  return "ew-resize";
 }
 
-/** Operação de soltar a alça: a borda direita e a de baixo encaixam na grade. Nó `locked` recusa (`undefined`). */
-export function resizeOp(doc: CanvasDoc, id: string, rawDw: number, rawDh: number, grid: number = SELECTION_LIMITS.grid): CanvasOp | undefined {
-  if (!Number.isFinite(rawDw) || !Number.isFinite(rawDh)) throw new RangeError("deslocamento inválido");
+/** Um eixo: o lado do começo (esquerda) anda com `delta` e o do fim (direita) também; só o que o gesto move muda. */
+function spanAfter(start: number, size: number, delta: number, moveStart: boolean, moveEnd: boolean, grid: number | undefined): { pos: number; size: number } {
+  const place = (v: number): number => (grid === undefined ? v : snap(v, grid));
+  if (moveStart) {
+    const end = start + size;
+    const next = clampSide(end - place(start + delta));
+    return { pos: end - next, size: next };
+  }
+  if (moveEnd) return { pos: start, size: clampSide(place(start + size + delta) - start) };
+  return { pos: start, size };
+}
+
+function resized(node: CanvasNode, dx: number, dy: number, edge: ResizeEdge, grid: number | undefined): Rect {
+  const h = spanAfter(node.y, node.h, dy, false, edge.bottom, grid);
+  const w = spanAfter(node.x, node.w, dx, edge.left, edge.right, grid);
+  return { x: w.pos, y: h.pos, w: w.size, h: h.size };
+}
+
+/** Quadro ao vivo durante o arrasto da alça ou da borda, sem encaixe; respeita o lado mínimo. A borda esquerda move `x` e `w` juntos. */
+export function resizePreview(node: CanvasNode, rawDx: number, rawDy: number, edge: ResizeEdge = CORNER_SE): Rect {
+  return resized(node, rawDx, rawDy, edge, undefined);
+}
+
+/** Operação de soltar a alça ou a borda: os lados movidos encaixam na grade. Nó `locked` recusa (`undefined`). */
+export function resizeOp(doc: CanvasDoc, id: string, rawDx: number, rawDy: number, grid: number = SELECTION_LIMITS.grid, edge: ResizeEdge = CORNER_SE): CanvasOp | undefined {
+  if (!Number.isFinite(rawDx) || !Number.isFinite(rawDy)) throw new RangeError("deslocamento inválido");
   const node = indexOf(doc).get(id);
   if (!node || node.locked) return undefined;
-  const w = clampSide(snap(node.x + node.w + rawDw, grid) - node.x);
-  const h = clampSide(snap(node.y + node.h + rawDh, grid) - node.y);
-  if (w === node.w && h === node.h) return undefined;
-  return opResize(doc, id, { x: node.x, y: node.y, w, h });
+  const to = resized(node, rawDx, rawDy, edge, grid);
+  if (to.x === node.x && to.y === node.y && to.w === node.w && to.h === node.h) return undefined;
+  return opResize(doc, id, to);
 }
 
 // ---- teclado ----

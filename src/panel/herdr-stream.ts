@@ -46,12 +46,30 @@ export const STREAM_ERRORS = {
 } as const;
 export type StreamErrorCode = (typeof STREAM_ERRORS)[keyof typeof STREAM_ERRORS];
 
+/** Cursor do `pane.read` visible (fork do herdr); qualquer forma fora do contrato vira ausente. */
+export function parseCursor(raw: unknown): FrameCursor | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const { row, col, visible } = raw as Dict;
+  if (!Number.isInteger(row) || !Number.isInteger(col) || (row as number) < 0 || (col as number) < 0 || typeof visible !== "boolean") return undefined;
+  return { row: row as number, col: col as number, visible };
+}
+function sameCursor(a: FrameCursor | undefined, b: FrameCursor | undefined): boolean {
+  return a?.row === b?.row && a?.col === b?.col && a?.visible === b?.visible;
+}
+
 export interface Frame {
   pane: string;
   revision: number;
   cols: number;
   rows: number;
   ansi: string;
+  /** Cursor real (base 0, relativo à tela visível); ausente quando o herdr não o entrega. */
+  cursor?: FrameCursor;
+}
+export interface FrameCursor {
+  row: number;
+  col: number;
+  visible: boolean;
 }
 export type StreamEvent =
   | { event: "frame"; data: Frame }
@@ -89,6 +107,8 @@ export interface HerdrStream {
   open(req: Request, query: Record<string, string>): Promise<Response>;
   /** A entrada direta mudou o pane: relê já (respeitando o teto), sem esperar o recuo. */
   nudge(session: string, pane: string): void;
+  /** O `pane.set_size` mudou o PTY: a grade do quadro passa a ser a dele (fixada) ou volta ao layout (liberada). */
+  sized(session: string, pane: string, size: PaneSize): void;
   stats(): StreamStats;
   stop(): void;
 }
@@ -150,6 +170,8 @@ interface PaneWatch {
   status?: string;
   cols?: number;
   rows?: number;
+  /** Tamanho fixado pelo `pane.set_size` do fork: o PTY não segue o retângulo do layout até ser liberado. */
+  pinned?: boolean;
   pollMs: number;
   /** Próxima espera curta de ECHO_RETRY_MS; `ECHO_RETRY_MS.length` = janela fechada. */
   echoStep: number;
@@ -171,7 +193,13 @@ interface SessionHub {
   attach(watcher: Watcher, seeds: PaneSeed[]): void;
   detach(watcher: Watcher): void;
   nudge(pane: string): void;
+  sized(pane: string, size: PaneSize): void;
   close(): void;
+}
+export interface PaneSize {
+  cols?: unknown;
+  rows?: unknown;
+  pinned: boolean;
 }
 
 function createSessionHub(ctx: HubContext, session: string, socketPath: string, onClosed: () => void): SessionHub {
@@ -221,7 +249,7 @@ function createSessionHub(ctx: HubContext, session: string, socketPath: string, 
     for (const p of rowsOf((layout as Dict | undefined)?.panes)) {
       const w = panes.get(String(p.pane_id));
       const rect = p.rect as Dict | undefined;
-      if (!w || typeof rect?.width !== "number") continue;
+      if (!w || w.pinned || typeof rect?.width !== "number") continue;
       // a altura acompanha o layout como a largura: guardada só na primeira leitura, o pane que crescia ficava com o
       // número de linhas antigo e o nó cortava as de baixo (onde fica o campo de digitação do agente)
       const height = typeof rect.height === "number" ? rect.height : w.rows;
@@ -235,13 +263,14 @@ function createSessionHub(ctx: HubContext, session: string, socketPath: string, 
     return touched;
   }
 
-  function publish(w: PaneWatch, ansi: string, cols: number, rows: number): void {
-    const same = w.frame !== undefined && w.frame.ansi === ansi && w.frame.cols === cols && w.frame.rows === rows;
+  function publish(w: PaneWatch, ansi: string, cols: number, rows: number, cursor?: FrameCursor): void {
+    const same =
+      w.frame !== undefined && w.frame.ansi === ansi && w.frame.cols === cols && w.frame.rows === rows && sameCursor(w.frame.cursor, cursor);
     const echoing = same && w.echoStep < ECHO_RETRY_MS.length;
     w.pollMs = echoing ? FRAME_INTERVAL_MS : nextPollMs(w.pollMs, !same);
     if (same) return;
     w.echoStep = ECHO_RETRY_MS.length;
-    w.frame = { pane: w.id, revision: ctx.nextRevision(), cols, rows, ansi };
+    w.frame = { pane: w.id, revision: ctx.nextRevision(), cols, rows, ansi, ...(cursor ? { cursor } : {}) };
     stats.frames += 1;
     broadcast(w, { event: "frame", data: w.frame });
   }
@@ -256,10 +285,11 @@ function createSessionHub(ctx: HubContext, session: string, socketPath: string, 
       if (w.cols === undefined) applyLayout((await socket.request(socketPath, "pane.layout", { pane_id: w.id }, READ_TIMEOUT_MS)).layout);
       stats.reads += 1;
       const result = await socket.request(socketPath, "pane.read", { pane_id: w.id, source: "visible", format: "ansi", strip_ansi: false }, READ_TIMEOUT_MS);
-      const text = (result.read as Dict | undefined)?.text;
+      const read = result.read as Dict | undefined;
+      const text = read?.text;
       if (typeof text !== "string") throw new Error("pane.read sem texto");
       if (w.cols === undefined || w.rows === undefined) throw new Error("pane fora do layout do herdr");
-      publish(w, text, w.cols, w.rows);
+      publish(w, text, w.cols, w.rows, parseCursor(read?.cursor));
       w.failing = false;
     } catch (error) {
       if (error instanceof HerdrSocketError && error.code === PANE_NOT_FOUND) {
@@ -300,6 +330,10 @@ function createSessionHub(ctx: HubContext, session: string, socketPath: string, 
       case "pane_updated": {
         const info = data.pane as Dict | undefined;
         const w = panes.get(String(info?.pane_id));
+        if (w && info && typeof info.size_pinned === "boolean") {
+          resize(w, { cols: info.cols, rows: info.rows, pinned: info.size_pinned });
+          return;
+        }
         const rows = (info?.scroll as Dict | undefined)?.viewport_rows;
         if (w && typeof rows === "number" && rows !== w.rows) {
           w.rows = rows;
@@ -413,6 +447,29 @@ function createSessionHub(ctx: HubContext, session: string, socketPath: string, 
     if (panes.size === 0 && !syncing) close();
   }
 
+  // o fork informa o tamanho do PTY: fixado, ele vale sobre o retângulo do layout; liberado, a próxima leitura relê o layout
+  function resize(w: PaneWatch, size: PaneSize): void {
+    const { cols, rows } = size;
+    if (!size.pinned) {
+      if (!w.pinned) return;
+      w.pinned = false;
+      w.cols = undefined;
+      wake(w);
+      return;
+    }
+    if (!Number.isInteger(cols) || !Number.isInteger(rows)) return;
+    const changed = !w.pinned || cols !== w.cols || rows !== w.rows;
+    w.pinned = true;
+    w.cols = cols as number;
+    w.rows = rows as number;
+    if (changed) wake(w);
+  }
+
+  function sized(pane: string, size: PaneSize): void {
+    const w = panes.get(pane);
+    if (w) resize(w, size);
+  }
+
   function nudge(pane: string): void {
     const w = panes.get(pane);
     if (!w) return;
@@ -420,7 +477,7 @@ function createSessionHub(ctx: HubContext, session: string, socketPath: string, 
     wake(w);
   }
 
-  return { attach, detach, nudge, close };
+  return { attach, detach, nudge, sized, close };
 }
 
 export function createHerdrStream(deps: StreamDeps): HerdrStream {
@@ -567,6 +624,7 @@ export function createHerdrStream(deps: StreamDeps): HerdrStream {
   return {
     open,
     nudge: (session, pane) => hubs.get(session)?.nudge(pane),
+    sized: (session, pane, size) => hubs.get(session)?.sized(pane, size),
     stats: () => ({ ...stats }),
     stop() {
       for (const hub of [...hubs.values()]) hub.close();

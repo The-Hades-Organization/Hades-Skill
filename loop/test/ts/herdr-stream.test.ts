@@ -7,9 +7,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Socket } from "bun";
 import { createHerdrSocket, type Herdr } from "../../../src/panel/herdr";
-import { createHerdrPage, inputParams, KEYS, MAX_KEYS, MAX_TEXT } from "../../../src/panel/herdr-page";
+import { createHerdrPage, inputParams, isUnsupportedMethod, KEYS, MAX_KEYS, MAX_TEXT, SIZE_ERRORS, SIZE_LIMITS, SIZE_RATE_MAX, SIZE_RATE_WINDOW_MS, SizeError, sizeParams } from "../../../src/panel/herdr-page";
 import {
-  createHerdrStream, ECHO_RETRY_MS, FRAME_INTERVAL_MS, IDLE_POLL_MAX_MS, type HerdrStream, nextPollMs, parseStreamQuery, STREAM_ERRORS, STREAM_PANES_MAX,
+  createHerdrStream, ECHO_RETRY_MS, parseCursor, FRAME_INTERVAL_MS, IDLE_POLL_MAX_MS, type HerdrStream, nextPollMs, parseStreamQuery, STREAM_ERRORS, STREAM_PANES_MAX,
   subscriptionsFor, StreamRequestError,
 } from "../../../src/panel/herdr-stream";
 import type { PanelEnv } from "../../../src/panel/env";
@@ -29,7 +29,9 @@ interface FakePane {
   status: string;
   rows: number;
   cols: number;
+  cursor?: Dict;
 }
+type SizeMode = "ok" | "unknown_method" | "invalid_request";
 
 /** O herdr falso: uma requisição por conexão, `events.subscribe` segura a conexão aberta. */
 function createFakeHerdr(path: string) {
@@ -39,6 +41,8 @@ function createFakeHerdr(path: string) {
   const inputs: Dict[] = [];
   const subscriptions: Dict[][] = [];
   let refuseSubscribe = false;
+  let sizeMode: SizeMode = "unknown_method";
+  const sizes: Dict[] = [];
   const reply = (s: Socket<undefined>, body: Dict): void => {
     s.write(`${JSON.stringify(body)}\n`);
   };
@@ -57,7 +61,7 @@ function createFakeHerdr(path: string) {
       case "pane.read":
         counts.reads += 1;
         if (!pane) return void reply(s, { id, error: { code: "pane_not_found", message: `pane ${String(params.pane_id)} not found` } });
-        reply(s, { id, result: { type: "pane_read", read: { pane_id: params.pane_id, source: params.source, format: params.format, text: pane.text, revision: 0, truncated: false } } });
+        reply(s, { id, result: { type: "pane_read", read: { pane_id: params.pane_id, source: params.source, format: params.format, text: pane.text, revision: 0, truncated: false, ...(pane.cursor ? { cursor: pane.cursor } : {}) } } });
         return void s.end();
       case "pane.send_input": {
         const keys = (params.keys ?? []) as string[];
@@ -67,6 +71,13 @@ function createFakeHerdr(path: string) {
         reply(s, { id, result: { type: "ok" } });
         return void s.end();
       }
+      case "pane.set_size":
+        // 0.8.2: `invalid_request` com a variante desconhecida; outro herdr: `unknown_method`; o fork: aplica e devolve pane_info
+        if (sizeMode === "invalid_request") return void reply(s, { id, error: { code: "invalid_request", message: "unknown variant `pane.set_size`, expected one of `pane.read`" } });
+        if (sizeMode === "unknown_method" || !pane) return void reply(s, { id, error: sizeMode === "ok" ? { code: "pane_not_found", message: "pane not found" } : { code: "unknown_method", message: method } });
+        sizes.push(params);
+        reply(s, { id, result: { type: "pane_info", pane: params.release === true ? { pane_id: params.pane_id, size_pinned: false } : { pane_id: params.pane_id, cols: params.cols, rows: params.rows, size_pinned: true } } });
+        return void s.end();
       case "events.subscribe":
         if (refuseSubscribe) return void reply(s, { id, error: { code: "invalid_request", message: "assinatura recusada" } });
         counts.subscribes += 1;
@@ -90,7 +101,10 @@ function createFakeHerdr(path: string) {
     },
   });
   return {
-    panes, counts, inputs, subscriptions, subs,
+    panes, counts, inputs, subscriptions, subs, sizes,
+    setSizeMode(mode: SizeMode): void {
+      sizeMode = mode;
+    },
     emit(event: string, data: Dict): void {
       for (const s of subs) s.write(`${JSON.stringify({ event, data })}\n`);
     },
@@ -101,6 +115,8 @@ function createFakeHerdr(path: string) {
       panes.clear();
       inputs.length = 0;
       subscriptions.length = 0;
+      sizes.length = 0;
+      sizeMode = "unknown_method";
       Object.assign(counts, { subscribes: 0, reads: 0, lists: 0 });
       refuseSubscribe = false;
     },
@@ -232,6 +248,39 @@ describe("herdr-stream: SSE contra o herdr falso", () => {
     if (pane) pane.text = "tela maior";
     await until(() => framesOf(a.events).some((f) => f.rows === 40));
     expect(framesOf(a.events).at(-1)).toMatchObject({ cols: 80, rows: 40 });
+    await a.close();
+  });
+
+  test("tamanho fixado pelo set_size vence o layout até ser liberado; liberado, o quadro volta ao layout", async () => {
+    freshStream();
+    addPane("w1:p1", "tela");
+    const a = await connect("session=default&panes=w1:p1");
+    await until(() => framesOf(a.events).length > 0);
+    const pane = fake.panes.get("w1:p1");
+    stream?.sized("default", "w1:p1", { cols: 100, rows: 30, pinned: true });
+    if (pane) pane.text = "tela fixada";
+    await until(() => framesOf(a.events).some((f) => f.cols === 100 && f.rows === 30));
+    fake.emit("layout_updated", { layout: { panes: [{ pane_id: "w1:p1", rect: { width: 60, height: 40 } }] } });
+    if (pane) pane.text = "tela fixada depois do layout";
+    stream?.nudge("default", "w1:p1");
+    await until(() => framesOf(a.events).some((f) => String(f.ansi).includes("depois do layout")));
+    expect(framesOf(a.events).at(-1)).toMatchObject({ cols: 100, rows: 30 });
+    stream?.sized("default", "w1:p1", { pinned: false });
+    if (pane) pane.text = "tela liberada";
+    await until(() => framesOf(a.events).some((f) => f.cols === 80 && f.rows === 24));
+    await a.close();
+  });
+
+  test("pane_updated com size_pinned do fork fixa a grade do quadro no tamanho do PTY", async () => {
+    freshStream();
+    addPane("w1:p1", "tela");
+    const a = await connect("session=default&panes=w1:p1");
+    await until(() => framesOf(a.events).length > 0);
+    fake.emit("pane_updated", { pane: { pane_id: "w1:p1", cols: 120, rows: 35, size_pinned: true, scroll: { viewport_rows: 50 } } });
+    const pane = fake.panes.get("w1:p1");
+    if (pane) pane.text = "tela do pty";
+    await until(() => framesOf(a.events).some((f) => f.cols === 120 && f.rows === 35));
+    expect(framesOf(a.events).some((f) => f.rows === 50)).toBe(false);
     await a.close();
   });
 
@@ -495,5 +544,119 @@ describe("herdr-page: entrada direta", () => {
     for (const key of ["Enter", "Escape", "Ctrl+C", "Tab", "Up", "Down", "Left", "Right", "y", "n"]) expect(Object.hasOwn(KEYS, key)).toBe(true);
     expect(KEYS["Ctrl+C"]).toBe("C-c");
     for (const name of Object.values(KEYS)) expect(HERDR_KEY_NAMES.has(name)).toBe(true);
+  });
+});
+
+describe("herdr-stream: cursor real do pane.read", () => {
+  test("parseCursor: só aceita row/col inteiros não negativos e visible booleano", () => {
+    expect(parseCursor({ row: 3, col: 7, visible: true })).toEqual({ row: 3, col: 7, visible: true });
+    expect(parseCursor({ row: 0, col: 0, visible: false })).toEqual({ row: 0, col: 0, visible: false });
+    for (const bad of [undefined, null, 5, {}, { row: -1, col: 0, visible: true }, { row: 1.5, col: 0, visible: true }, { row: 1, col: 0 }, { row: "1", col: 0, visible: true }]) expect(parseCursor(bad)).toBeUndefined();
+  });
+
+  test("dado herdr que entrega o cursor, então o quadro o leva; sem ele, o campo some", async () => {
+    freshStream();
+    addPane("w1:p1", "$ ls");
+    const withCursor = fake.panes.get("w1:p1");
+    if (withCursor) withCursor.cursor = { row: 0, col: 4, visible: true };
+    addPane("w1:p2", "sem cursor");
+    const a = await connect("session=default&panes=w1:p1,w1:p2");
+    await until(() => framesOf(a.events, "w1:p1").length > 0 && framesOf(a.events, "w1:p2").length > 0);
+    expect(framesOf(a.events, "w1:p1")[0]?.cursor).toEqual({ row: 0, col: 4, visible: true });
+    expect(Object.hasOwn(framesOf(a.events, "w1:p2")[0] as Dict, "cursor")).toBe(false);
+    await a.close();
+  });
+
+  test("dado o cursor que muda com o texto igual, então sai quadro novo", async () => {
+    freshStream();
+    addPane("w1:p1", "$ ");
+    const pane = fake.panes.get("w1:p1");
+    if (pane) pane.cursor = { row: 0, col: 2, visible: true };
+    const a = await connect("session=default&panes=w1:p1");
+    await until(() => framesOf(a.events).length > 0);
+    if (pane) pane.cursor = { row: 0, col: 2, visible: false };
+    fake.emit("pane_updated", { pane_id: "w1:p1" });
+    await until(() => framesOf(a.events).some((f) => (f.cursor as Dict | undefined)?.visible === false));
+    await a.close();
+  });
+});
+
+describe("herdr-page: rota de tamanho (/api/herdr/size)", () => {
+  const env = { dir: D, locks: undefined } as unknown as PanelEnv;
+  const herdrCli = {
+    cached: async <V>(_key: string, load: () => Promise<V>) => load(),
+    call: async () => ({ rc: 0, out: JSON.stringify({ sessions: [{ name: "default", running: true, socket_path: SOCK }] }), err: "" }),
+    snap: async () => ({ panes: [...fake.panes.keys()].map((pane_id) => ({ pane_id })) }),
+    forget: () => undefined,
+  } as unknown as Herdr;
+  const page = (): ReturnType<typeof createHerdrPage> => createHerdrPage(env, herdrCli, socket);
+  const code = async (p: Promise<unknown>): Promise<string | undefined> => p.then(() => undefined, (e: unknown) => (e instanceof SizeError ? e.code : e instanceof BadRequest ? "bad-request" : "outro"));
+
+  test("sizeParams: limites do fork nas duas pontas, release sozinho", () => {
+    const refused = (body: Dict): string | undefined => {
+      try {
+        sizeParams("w1:p1", body);
+        return undefined;
+      } catch (e) {
+        return e instanceof SizeError ? e.code : "outro";
+      }
+    };
+    expect(sizeParams("w1:p1", { cols: SIZE_LIMITS.colsMin, rows: SIZE_LIMITS.rowsMin })).toEqual({ pane_id: "w1:p1", cols: 4, rows: 2 });
+    expect(sizeParams("w1:p1", { cols: SIZE_LIMITS.colsMax, rows: SIZE_LIMITS.rowsMax })).toEqual({ pane_id: "w1:p1", cols: 1000, rows: 500 });
+    expect(sizeParams("w1:p1", { release: true })).toEqual({ pane_id: "w1:p1", release: true });
+    for (const body of [{ cols: 3, rows: 10 }, { cols: 1001, rows: 10 }, { cols: 80, rows: 1 }, { cols: 80, rows: 501 }, { cols: 80.5, rows: 10 }, { cols: "80", rows: 10 }, { rows: 10 }, {}, { release: false }, { release: true, cols: 80 }]) expect(refused(body)).toBe(SIZE_ERRORS.invalid);
+  });
+
+  test("dado herdr com o método, então o pedido chega com pane_id, cols e rows e a resposta traz o pane_info", async () => {
+    addPane("w1:p1");
+    fake.setSizeMode("ok");
+    const done = await page().size({ session: "default", pane: "w1:p1", cols: 100, rows: 30 }, false);
+    expect(fake.sizes.at(-1)).toEqual({ pane_id: "w1:p1", cols: 100, rows: 30 });
+    expect(done).toMatchObject({ session: "default", pane: "w1:p1", info: { cols: 100, rows: 30, size_pinned: true } });
+    await page().size({ session: "default", pane: "w1:p1", release: true }, false);
+    expect(fake.sizes.at(-1)).toEqual({ pane_id: "w1:p1", release: true });
+  });
+
+  test("dado herdr sem o método (unknown_method e invalid_request do 0.8.2), então herdr-unsupported com 501", async () => {
+    addPane("w1:p1");
+    for (const mode of ["unknown_method", "invalid_request"] as const) {
+      fake.setSizeMode(mode);
+      const p = page();
+      const err = await p.size({ session: "default", pane: "w1:p1", cols: 80, rows: 24 }, false).then(() => null, (e: unknown) => e);
+      expect(err).toBeInstanceOf(SizeError);
+      expect((err as SizeError).code).toBe(SIZE_ERRORS.unsupported);
+      expect((err as SizeError).status).toBe(501);
+    }
+    expect(isUnsupportedMethod({ code: "invalid_request", message: "outro erro qualquer" } as never)).toBe(false);
+  });
+
+  test("dado herdr sem o método, então a negativa fica guardada e o segundo pedido nem chega ao herdr", async () => {
+    addPane("w1:p1");
+    fake.setSizeMode("invalid_request");
+    const p = page();
+    expect(await code(p.size({ session: "default", pane: "w1:p1", cols: 80, rows: 24 }, false, 1000))).toBe(SIZE_ERRORS.unsupported);
+    fake.setSizeMode("ok");
+    expect(await code(p.size({ session: "default", pane: "w1:p1", cols: 80, rows: 24 }, false, 2000))).toBe(SIZE_ERRORS.unsupported);
+    expect(fake.sizes).toEqual([]);
+  });
+
+  test("dado rajada acima do teto, então size-rate-limited com 429 e Retry-After, e a janela volta depois", async () => {
+    addPane("w1:p1");
+    fake.setSizeMode("ok");
+    const p = page();
+    for (let i = 0; i < SIZE_RATE_MAX; i++) await p.size({ session: "default", pane: "w1:p1", cols: 80 + i, rows: 24 }, false, 5000);
+    const err = await p.size({ session: "default", pane: "w1:p1", cols: 90, rows: 24 }, false, 5001).then(() => null, (e: unknown) => e);
+    expect((err as SizeError).code).toBe(SIZE_ERRORS.rateLimited);
+    expect((err as SizeError).status).toBe(429);
+    expect((err as SizeError).retryAfterS).toBeGreaterThan(0);
+    await p.size({ session: "default", pane: "w1:p1", cols: 90, rows: 24 }, false, 5000 + SIZE_RATE_WINDOW_MS + 1);
+  });
+
+  test("pane fora da listagem e sessão desconhecida são recusados antes do herdr", async () => {
+    addPane("w1:p1");
+    fake.setSizeMode("ok");
+    expect(await code(page().size({ session: "default", pane: "w9:p9", cols: 80, rows: 24 }, false))).toBe("bad-request");
+    expect(await code(page().size({ session: "outra", pane: "w1:p1", cols: 80, rows: 24 }, false))).toBe("bad-request");
+    expect(fake.sizes).toEqual([]);
   });
 });

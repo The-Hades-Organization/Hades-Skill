@@ -139,9 +139,26 @@ describe("argos-terminals: criar terminal", () => {
     const res = await r.post("/api/argos/terminals", { name: "dev 1" });
     expect(res).toEqual({ status: 200, body: { herdr: { session: "default", pane: "w1:p1" }, agent: "claude" } });
     expect(r.fake.calls[0]).toEqual({ session: null, args: ["workspace", "create", "--cwd", r.clone, "--label", "dev 1", "--no-focus"] });
-    expect(startCall(r)).toEqual(["agent", "start", "dev 1", "--kind", "claude", "--pane", "w1:p1", "--timeout", String(TERMINAL_TIMEOUTS.startMs - 5000)]);
-    expect(r.registry()).toMatchObject([{ session: "default", pane: "w1:p1", name: "dev 1", agent: "claude", cwd: r.clone }]);
+    expect(startCall(r)).toEqual(["agent", "start", "dev-1", "--kind", "claude", "--pane", "w1:p1", "--timeout", String(TERMINAL_TIMEOUTS.startMs - 5000)]);
+    expect(r.registry()).toMatchObject([{ session: "default", pane: "w1:p1", name: "dev 1", herdrName: "dev-1", agent: "claude", cwd: r.clone }]);
     expect(r.notices).toEqual([]);
+  });
+
+  test("o nome do painel fica no registro e no workspace; só o agent start recebe o derivado (minúscula, ponto vira hífen)", async () => {
+    const r = rig();
+    await r.post("/api/argos/terminals", { name: "Revisor Final.2" });
+    expect(startCall(r)?.[2]).toBe("revisor-final-2");
+    expect(r.registry()).toMatchObject([{ name: "Revisor Final.2", herdrName: "revisor-final-2" }]);
+    expect(r.fake.calls[0]?.args).toContain("Revisor Final.2");
+  });
+
+  test("dois nomes que dão no mesmo derivado: o segundo ganha -2 no herdr e o nome do painel segue intacto", async () => {
+    const r = rig();
+    await r.post("/api/argos/terminals", { name: "Dev A" });
+    const second = await r.post("/api/argos/terminals", { name: "dev.a" });
+    expect(second.status).toBe(200);
+    expect(startCall(r)?.[2]).toBe("dev-a-2");
+    expect(r.registry().map((t) => [t.name, t.herdrName])).toEqual([["Dev A", "dev-a"], ["dev.a", "dev-a-2"]]);
   });
 
   test("predefinição e papel entram como --model/--effort/--append-system-prompt; o corpo vence a predefinição", async () => {
@@ -385,6 +402,15 @@ describe("argos-terminals: trocar papel", () => {
     expect(readFileSync(promptFile(r), "utf8")).toBe(ROLE_TEXT);
     expect(r.fake.calls.filter((c) => c.args[0] === "workspace").length).toBe(1);
     expect(r.registry()[0]?.role).toBe("revisor");
+  });
+
+  test("reinicia com o mesmo nome de herdr que o terminal já tinha", async () => {
+    const r = rig();
+    await r.post("/api/argos/roles", { role: ROLE });
+    await r.post("/api/argos/terminals", { name: "Dev X", model: "claude-opus-5-5" });
+    await r.post("/api/argos/terminals/role", { session: "default", pane: "w1:p1", name: "Dev X", role: "revisor" });
+    expect(startCall(r)?.[2]).toBe("dev-x");
+    expect(r.registry()[0]?.herdrName).toBe("dev-x");
   });
 
   test("role null tira o papel: o agente sobe sem --append-system-prompt-file e o arquivo some", async () => {

@@ -54,7 +54,7 @@ const readJson = (path: string): Dict | undefined => {
   }
 };
 
-export function createOrchestration(env: PanelEnv, config: () => Record<string, string>): Orchestration {
+export function createOrchestration(env: PanelEnv, config: () => Record<string, string>, herdrBin = "herdr"): Orchestration {
   const root = env.locks ? join(dirname(env.locks), "orchestration") : undefined;
   let herdr: { t: number; agents: Dict[] } = { t: 0, agents: [] };
   const reportsDir = (): string => config().HADES_ORCH_REPORTS_DIR || DEFAULT_REPORTS_DIR;
@@ -63,7 +63,7 @@ export function createOrchestration(env: PanelEnv, config: () => Record<string, 
     if (Date.now() / 1000 - herdr.t > LIVE_TTL_S) {
       let agents: Dict[] = [];
       try {
-        const raw = (await exec(["herdr", "agent", "list"], { timeoutMs: LIVE_TIMEOUT_MS })).stdout;
+        const raw = (await exec([herdrBin, "agent", "list"], { timeoutMs: LIVE_TIMEOUT_MS })).stdout;
         const result = (JSON.parse(raw || "{}") as { result?: { agents?: Dict[] } }).result;
         agents = result?.agents ?? [];
       } catch {
@@ -131,7 +131,7 @@ export function createOrchestration(env: PanelEnv, config: () => Record<string, 
 
   async function terminal(name: string): Promise<Dict> {
     agent(name);
-    const raw = await out(["herdr", "agent", "read", name, "--source", "recent-unwrapped", "--lines", TERMINAL_LINES], TERMINAL_TIMEOUT_MS);
+    const raw = await out([herdrBin, "agent", "read", name, "--source", "recent-unwrapped", "--lines", TERMINAL_LINES], TERMINAL_TIMEOUT_MS);
     return { name, text: raw.replace(ANSI, "") };
   }
 

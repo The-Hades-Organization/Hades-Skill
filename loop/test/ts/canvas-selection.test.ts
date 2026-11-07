@@ -5,8 +5,8 @@ import { describe, expect, test } from "bun:test";
 import { validateCanvasDoc, type CanvasDoc, type CanvasNode } from "../../../src/lib/canvas-doc";
 import { applyOp, createHistory, perform, record, undo } from "../../../src/lib/canvas-history";
 import {
-  SELECTION_LIMITS, hitTest, keySelect, marqueeSelect, movableIds, moveOp, nextInOrder, nodeName, nudgeOp, pressEmpty,
-  pressNode, pruneSelection, rectFrom, resizeOp, resizePreview, sameSelection, snap, tabOrder,
+  CORNER_SE, SELECTION_LIMITS, hitTest, keySelect, marqueeSelect, movableIds, moveOp, nextInOrder, nodeName, nudgeOp, pressEmpty,
+  pressNode, pruneSelection, rectFrom, resizeCursor, resizeOp, resizePreview, sameSelection, snap, tabOrder,
 } from "../../../src/lib/canvas-selection";
 
 const GRID = SELECTION_LIMITS.grid;
@@ -172,6 +172,87 @@ describe("canvas-selection: mover", () => {
   test("deslocamento que não é número é erro", () => {
     const doc = docOf(node("a"));
     expect(() => moveOp(doc, ["a"], "a", Number.NaN, 0)).toThrow(RangeError);
+  });
+});
+
+describe("canvas-selection: bordas e cantos que redimensionam", () => {
+  const term = [node("t", { x: 100, y: 100, w: 200, h: 160 })];
+  const opts = { k: 1, detail: "full" as const, resizable: () => false, edgeResizable: () => true };
+  const edgeOf = (x: number, y: number, over: Partial<typeof opts> = {}) => {
+    const hit = hitTest(term, { x, y }, { ...opts, ...over });
+    return hit?.region === "resize" ? hit.edge : undefined;
+  };
+
+  test("dado nó de borda, quando o ponteiro está na borda esquerda, direita ou de baixo, então redimensiona só aquele lado", () => {
+    expect(edgeOf(102, 180)).toEqual({ left: true, right: false, bottom: false });
+    expect(edgeOf(298, 180)).toEqual({ left: false, right: true, bottom: false });
+    expect(edgeOf(200, 258)).toEqual({ left: false, right: false, bottom: true });
+  });
+
+  test("dado o canto de baixo, então os dois lados movem (esquerdo e direito)", () => {
+    expect(edgeOf(102, 258)).toEqual({ left: true, right: false, bottom: true });
+    expect(edgeOf(298, 258)).toEqual(CORNER_SE);
+  });
+
+  test("o topo continua sendo a alça de mover: nem a borda nem os cantos de cima redimensionam", () => {
+    expect(hitTest(term, { x: 101, y: 101 }, opts)?.region).toBe("header");
+    expect(hitTest(term, { x: 299, y: 101 }, opts)?.region).toBe("header");
+    expect(hitTest(term, { x: 200, y: 101 }, opts)?.region).toBe("header");
+    // logo abaixo do cabeçalho a faixa lateral já vale
+    expect(edgeOf(101, 100 + SELECTION_LIMITS.header + 1)?.left).toBe(true);
+  });
+
+  test("o miolo do nó segue sendo conteúdo e nó fora da lista de borda não ganha borda", () => {
+    expect(hitTest(term, { x: 200, y: 180 }, opts)?.region).toBe("body");
+    expect(edgeOf(102, 180, { edgeResizable: () => false })).toBeUndefined();
+  });
+
+  test("a faixa tem tamanho fixo de tela: em k=0.5 cobre o dobro em unidades de mundo", () => {
+    expect(edgeOf(108, 180, { k: 1 })).toBeUndefined();
+    expect(edgeOf(108, 180, { k: 0.5 })?.left).toBe(true);
+  });
+
+  test("cursor segue a borda", () => {
+    expect(resizeCursor({ left: true, right: false, bottom: false })).toBe("ew-resize");
+    expect(resizeCursor({ left: false, right: true, bottom: false })).toBe("ew-resize");
+    expect(resizeCursor({ left: false, right: false, bottom: true })).toBe("ns-resize");
+    expect(resizeCursor({ left: true, right: false, bottom: true })).toBe("nesw-resize");
+    expect(resizeCursor(CORNER_SE)).toBe("nwse-resize");
+  });
+
+  test("a borda esquerda muda x e w juntos e a direita do nó fica parada", () => {
+    const doc = docOf(node("a", { x: 100, y: 0, w: 200, h: 80 }));
+    const op = resizeOp(doc, "a", -41, 0, GRID, { left: true, right: false, bottom: false });
+    expect(op).toEqual({ kind: "resize", id: "a", from: { x: 100, y: 0, w: 200, h: 80 }, to: { x: 60, y: 0, w: 240, h: 80 } });
+    expect(resizePreview(doc.nodes[0]!, -30, 0, { left: true, right: false, bottom: false })).toEqual({ x: 70, y: 0, w: 230, h: 80 });
+  });
+
+  test("o canto de baixo esquerdo move x, w e h; o lado mínimo segura a borda esquerda com a direita parada", () => {
+    const doc = docOf(node("a", { x: 100, y: 0, w: 200, h: 80 }));
+    const edge = { left: true, right: false, bottom: true };
+    const op = resizeOp(doc, "a", -20, 40, GRID, edge);
+    expect(op?.kind === "resize" ? op.to : undefined).toEqual({ x: 80, y: 0, w: 220, h: 120 });
+    const squeezed = resizePreview(doc.nodes[0]!, 900, 0, edge);
+    expect(squeezed.x + squeezed.w).toBe(300);
+    expect(squeezed.w).toBe(SELECTION_LIMITS.minSide);
+  });
+
+  test("o canto de baixo direito e a borda de baixo seguem o redimensionar de sempre; locked recusa", () => {
+    const doc = docOf(node("a", { x: 10, y: 0, w: 100, h: 80 }));
+    expect(resizeOp(doc, "a", 0, 40, GRID, { left: false, right: false, bottom: true })?.kind).toBe("resize");
+    expect(resizeOp(doc, "a", 33, 27, GRID, CORNER_SE)).toEqual(resizeOp(doc, "a", 33, 27));
+    expect(resizeOp(docOf(node("l", { locked: true })), "l", -60, 0, GRID, { left: true, right: false, bottom: false })).toBeUndefined();
+  });
+
+  test("um gesto de borda esquerda é uma operação só e o desfazer volta inteiro", () => {
+    const doc = docOf(node("a", { x: 100, y: 0, w: 200, h: 80 }));
+    const op = resizeOp(doc, "a", -40, 20, GRID, { left: true, right: false, bottom: true });
+    if (!op) throw new Error("sem operação");
+    const done = perform(createHistory(), doc, op);
+    expect(posOf(done.doc, "a")).toEqual({ x: 60, y: 0, w: 240, h: 100 });
+    const back = undo(done.history, done.doc);
+    expect(back && posOf(back.doc, "a")).toEqual({ x: 100, y: 0, w: 200, h: 80 });
+    expect(undo(back?.history ?? done.history, back?.doc ?? done.doc)).toBeUndefined();
   });
 });
 

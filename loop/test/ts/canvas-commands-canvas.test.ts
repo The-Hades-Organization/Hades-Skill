@@ -463,6 +463,23 @@ describe("canvas-commands-canvas: copiar, colar, duplicar e excluir (O5)", () =>
     expect(harness(base()).applies("clip:paste")).toBe(false);
   });
 
+  test("selecionar tudo marca os nós à vista e deixa de fora os ocultos", async () => {
+    const h = harness({ ...base(), hidden: ["c"] });
+    await h.run("select:all");
+    expect([...h.s.selection].sort()).toEqual(["a", "agent:r:z", "b"]);
+  });
+
+  test("selecionar tudo com o canvas vazio não vale e com tudo oculto também não", () => {
+    expect(harness(makeDoc([])).applies("select:all")).toBe(false);
+    expect(harness({ ...makeDoc([note("a", 0, 0)]), hidden: ["a"] }).applies("select:all")).toBe(false);
+  });
+
+  test("selecionar tudo é Ctrl+A e não vale com campo ou terminal em foco", () => {
+    const def = harness(base()).def("select:all");
+    expect(def.shortcut).toBe("mod+a");
+    expect(def.inEditable).toBe(false);
+  });
+
   test("copiar e colar leva os nós, a conexão interna e o grupo; seleciona os novos; desfazer volta ao anterior", async () => {
     const h = harness(base());
     const before = clone(h.s.doc);

@@ -190,6 +190,13 @@ export interface DocSaver {
   setRev(rev: number, doc?: CanvasDoc): void;
   /** Agenda a gravação; vários agendamentos seguidos viram um envio só, com o último documento. */
   schedule(doc: CanvasDoc): void;
+  /**
+   * O servidor andou (outra aba, a CLI, um agente) e a aba tem edição na fila: reaplica a edição sobre `theirs` (`rebaseDoc`),
+   * troca a fila pelo resultado e passa a gravar a partir da revisão nova, sem esperar o 409. Devolve o documento que a tela deve
+   * mostrar. `undefined` quando não dá agora: envio em andamento (o 409 dele reconcilia pelo caminho de sempre) ou `theirs` que
+   * não passa da revisão que a aba já tem. Sem edição na fila devolve `theirs` e só adota a revisão.
+   */
+  absorb(theirs: CanvasDoc): CanvasDoc | undefined;
   /** Envia já o que estiver na fila (e espera o envio em andamento). Nunca rejeita: a falha vira estado e nova tentativa. */
   flush(options?: { leaving?: boolean }): Promise<void>;
   /** Cancela o temporizador; o que estava na fila não é enviado. */
@@ -346,6 +353,19 @@ export function createDocSaver(deps: SaverDeps): DocSaver {
       if (disposed) return;
       pending = doc;
       arm(delayMs);
+    },
+    absorb(theirs) {
+      if (disposed || running !== undefined || theirs.rev <= rev) return undefined;
+      const merged = pending === undefined ? theirs : rebaseDoc(base, pending, theirs);
+      rev = theirs.rev;
+      base = theirs;
+      rebases = 0;
+      if (pending !== undefined) {
+        pending = merged;
+        // o agrupamento de 600 ms continua valendo; sem temporizador (espera de nova tentativa), recomeça o ciclo
+        if (timer === undefined) arm(delayMs);
+      }
+      return merged;
     },
     flush(options) {
       clear();

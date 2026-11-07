@@ -402,13 +402,24 @@ mudança só aparecia com F5.
 - **Empurrão.** `GET /api/canvas/stream` (SSE, `src/panel/canvas-stream.ts`, até 16 páginas; o excedente leva `429` com
   `Retry-After`) avisa `event: canvas` com `{ id, rev }` a cada gravação em disco (`PUT` do documento, criar, importar, renomear;
   a CLI também passa pelo `PUT`, então toda gravação avisa) e `event: registry` quando `argos/terminals.json` muda. O aviso não
-  leva o documento: a tela relê pela rota de sempre. Gravação recusada (409) não avisa. O polling de 4 s (`POLL_MS`) e a volta
-  da aba (`visibilitychange`) são a reserva; o `open` do stream também confere o que passou enquanto ele estava fora.
+  leva o documento: a tela relê pela rota de sempre. Gravação recusada (409) não avisa.
+- **Transporte** (`src/lib/canvas-live.ts`, `createLiveLink`; a página só fornece o stream, o relógio e o que fazer com o aviso).
+  O `EventSource` religa sozinho depois de queda de rede, mas desiste para sempre quando a resposta não é 200 (`429` do teto de
+  páginas, `401` de sessão vencida, painel reiniciando). Quando o `readyState` fecha de vez, o transporte abre outro stream depois
+  de um recuo exponencial com sorteio (1 s, 2 s, 4 s… até 30 s, ±25 %; zera quando o stream abre). Conferência de reserva da `rev`
+  (`GET /api/canvases`): a cada 4 s com o stream fora do ar, a cada 30 s com ele no ar (rede de segurança contra aviso perdido), e
+  na volta da aba e ao (re)ligar. Com a aba escondida nenhum timer fica armado; o `PanelStream` solta a conexão sozinho. Funciona
+  pelo túnel: é a mesma rota, a mesma autenticação. A tela se atualiza sozinha, em menos de 1 s com o stream no ar; não há botão
+  nem aviso de "recarregar".
 - **Regra** (`NT.createCanvasWatch`, `node-terminal.tsx`). `observe({ serverRev, hidden })` relê se a `rev` do servidor passou da
-  conhecida, a aba está visível e o gravador ocioso e sem edição na fila (`externalRevReload`). Senão pula e registra o motivo no
-  console (`canvas: releitura pulada`): `hidden`, `busy: <estado>` (`saving`, `error`, `fila`) ou `rev igual`, uma vez por mudança de
-  motivo. Passados `EXTERNAL_STALE_MS` (10 s) atrás do servidor sem poder reler, a tela mostra "O canvas mudou por fora" com o botão
-  Recarregar (grava o que está na fila e relê; com o gravador em erro só avisa, porque reler jogaria a edição fora).
+  conhecida e a aba está visível. O gravador ocioso e sem edição na fila lê o documento por inteiro (`loadCanvas`). Com edição
+  só agendada (`fila`, ainda dentro dos 600 ms de agrupamento) a página não espera: `DocSaver.absorb(theirs)` reaplica a edição
+  sobre o documento novo com `rebaseDoc` (mescla por nó: o que o dono acabou de arrastar ou digitar fica como ele deixou, o que o
+  servidor criou, mexeu ou apagou entra), troca a fila pelo resultado e passa a gravar a partir da revisão nova, sem esperar o 409.
+  A tela mostra o resultado e conserva a pilha de desfazer (ela refaz por id e descarta passo de nó que sumiu). Envio em
+  andamento (`saving`) ou em erro não relê: o 409 do envio reconcilia pelo caminho de sempre e o gravador, ao ficar ocioso, chama
+  `settled`. Quando pula, o motivo vai ao console (`canvas: releitura pulada`): `hidden`, `busy: <estado>` ou `rev igual`, uma vez
+  por mudança de motivo. Atrás do servidor por mais de `EXTERNAL_STALE_MS` (10 s) só registra no console.
 - **Depois do envio.** Quando o gravador volta a `idle` com a tela atrás do servidor, `settled` relê na hora. Isso fecha o caso
   silencioso: no 409 com edição na fila a tela não recebe o documento reconciliado, mas a `rev` gravada avançava a `rev` conhecida
   e a conferência nunca mais via diferença. Agora esse caso marca a tela como atrás (`diverged`) e a `rev` gravada não vale como
@@ -811,7 +822,7 @@ toque). Texto longo corta por largura (`truncate`) com `title` do texto inteiro,
 | Shift+clique | soma ou tira o nó |
 | clique no vazio | limpa (com Shift, mantém) |
 | arrastar o fundo | pan (padrão, `backgroundDrag: "pan"`); com `"select"`, retângulo |
-| Shift+arrastar no vazio | retângulo de seleção, somando à seleção (pega o que ele toca) |
+| Shift+arrastar no vazio | retângulo de seleção, somando à seleção (pega o que ele toca); com Shift apertado sobre o fundo o cursor vira cruz |
 | botão do meio | pan, sempre |
 | arrastar pelo cabeçalho | move o nó, ou a seleção inteira se ele estiver nela; ao soltar, o nó pego encaixa na grade de 20 e os outros andam o mesmo delta |
 | arrastar o corpo (detalhe completo) | pan (o corpo é do conteúdo); longe, o nó inteiro vale como cabeçalho |
@@ -2124,6 +2135,7 @@ comando. Chamar de novo não repete nem lança.
 | `distribute:horizontal` · `distribute:vertical` | `Ctrl+Alt+Shift+→` · `Ctrl+Alt+Shift+↓` | O2 |
 | `grid:snap` Organizar na grade | `Shift+G` | O2 |
 | `snap:toggle` Ligar/desligar o encaixe magnético | `Shift+M` | O3 |
+| `select:all` | `Ctrl+A` (terminal ou campo em foco fica com o dele) | O5 |
 | `clip:copy` · `clip:paste` · `clip:duplicate` | `Ctrl+C` · `Ctrl+V` · `Ctrl+D` | O5 |
 | `clip:delete` Excluir | `Delete` · `Backspace` | O5 |
 | `walk:next` · `walk:previous` | `Ctrl+Alt+→`/`↓` · `Ctrl+Alt+←`/`↑` | N4 |

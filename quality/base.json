@@ -979,6 +979,322 @@
    "text": "Operação sensível a desempenho tem um orçamento medido e um teste de regressão determinístico no CI; número de desempenho em comentário vem de medição, não de intuição.",
    "severity": "baixa",
    "default": "off"
+  },
+  {
+   "id": "ui.escala-tipografica",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Tipografia segue uma escala curta e com degraus visíveis de tamanho e peso (poucos tamanhos, razão clara entre eles); título e corpo se distinguem de cara. Uma família bem escolhida costuma bastar, e a fonte do sistema como voz de display é escolha, não omissão. Nada de tamanho solto por componente.",
+   "severity": "media"
+  },
+  {
+   "id": "ui.medida-de-leitura",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Parágrafo corrido tem medida de 65 a 75 caracteres (max-width em ch), entrelinha folgada, título com quebra balanceada (text-wrap) e sem tracking apertado demais; confira com o texto real em cada largura, não com lorem ipsum.",
+   "severity": "baixa"
+  },
+  {
+   "id": "ui.contraste-minimo",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Texto de corpo e placeholder com contraste de pelo menos 4,5:1 e texto grande de 3:1, medido no resultado renderizado, nos dois temas. Sobre fundo colorido, o texto secundário leva um tom da própria cor, não cinza.",
+   "severity": "alta"
+  },
+  {
+   "id": "ui.cor-com-papel",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "A paleta tem poucas cores com papel definido (neutros tingidos, uma cor de ação, cores de estado); a cor de destaque aparece pouco para ser destaque. Nada de roxo-azulado de gradiente por reflexo nem de preto e branco puros sem tom; tema claro ou escuro sai do contexto de uso, não da moda da categoria.",
+   "severity": "media"
+  },
+  {
+   "id": "ui.hierarquia-um-foco",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Cada tela tem um foco primário claro e no máximo um botão primário por região; o resto recua por tamanho, peso e cor. Se tudo grita, nada é lido. Número gigante com rótulo miúdo e três métricas ao lado não é hierarquia, é modelo repetido.",
+   "severity": "media"
+  },
+  {
+   "id": "ui.sem-cartao-como-estrutura",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Cartão não é a estrutura padrão da página: grade de cartões do mesmo tamanho com ícone, título e texto é o molde genérico, e cartão dentro de cartão é sempre erro. Agrupe por espaço, alinhamento e divisória antes de caixa.",
+   "severity": "media"
+  },
+  {
+   "id": "ui.ritmo-de-espacamento",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Espaçamento vem de uma escala e tem ritmo: itens do mesmo grupo juntos, grupos separados com folga, mais espaço acima do título do que abaixo. Padding igual em tudo é falta de decisão; confira os valores computados.",
+   "severity": "media"
+  },
+  {
+   "id": "ui.sem-gradiente-no-texto",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Sem texto com gradiente (background-clip: text): ênfase vem de peso ou tamanho. Gradiente de fundo só quando a identidade o pede, nunca como verniz padrão.",
+   "severity": "media",
+   "check": {
+    "kind": "grep",
+    "pattern": "background-clip:\\s*text|bg-clip-text",
+    "files": "*"
+   }
+  },
+  {
+   "id": "ui.sombra-com-profundidade",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Sombra tem deslocamento e desfoque suaves e diz a camada do elemento; halo colorido sem deslocamento e sombra dura (4px 4px 0) só valem num mundo visual que os escolheu, nunca por padrão.",
+   "severity": "baixa",
+   "check": {
+    "kind": "grep",
+    "pattern": "box-shadow:\\s*[0-9]+px\\s+[0-9]+px\\s+0(px)?[\\s;,]",
+    "files": "*"
+   }
+  },
+  {
+   "id": "ui.sem-borda-lateral-colorida",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Cartão, item de lista, aviso e citação não levam borda lateral colorida acima de 1px como marca de tipo; indique o estado com ícone, rótulo ou fundo tingido.",
+   "severity": "baixa",
+   "check": {
+    "kind": "grep",
+    "pattern": "border-(left|right)(-width)?:\\s*([2-9]|[1-9][0-9]+)px",
+    "files": "*"
+   }
+  },
+  {
+   "id": "ui.sem-vidro-decorativo",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Desfoque de fundo (backdrop-filter) e efeito de vidro servem a um efeito específico (camada sobre conteúdo que rola, por exemplo), não de enfeite em cartão que não cobre nada.",
+   "severity": "baixa",
+   "check": {
+    "kind": "grep",
+    "pattern": "backdrop-filter|backdrop-blur",
+    "files": "*"
+   }
+  },
+  {
+   "id": "ui.icone-de-biblioteca-unica",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Ícone vem de uma biblioteca ou de SVG autoral, num só traço e peso; emoji e glifo Unicode não fazem papel de ícone, e ícone decorativo não repete o título do que acompanha. Ícone sozinho leva rótulo acessível.",
+   "severity": "media"
+  },
+  {
+   "id": "ui.sem-ornamento-de-modelo",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Sem ornamento de modelo: sobretítulo (kicker) acima do título, numeração 01/02/03 sem sequência real, selo de \"novo\" sem motivo, sparkline e anel de progresso no lugar de conteúdo, monoespaçada como fantasia de \"técnico\". Se o elemento sai e a tela perde nada, ele sai.",
+   "severity": "baixa"
+  },
+  {
+   "id": "ui.texto-de-acao-especifico",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Botão e link nomeiam a ação com verbo e objeto (\"Salvar rascunho\", \"Convidar pessoa\"); nada de \"Enviar\", \"OK\", \"Clique aqui\" ou \"Saiba mais\" sem contexto. O mesmo conceito tem a mesma palavra na interface inteira, na língua do produto.",
+   "severity": "media"
+  },
+  {
+   "id": "ui.erro-diz-problema-e-saida",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Mensagem de erro diz o que deu errado, em linguagem de quem usa, e o que fazer a seguir; nada de \"Algo deu errado\", código cru nem culpa do usuário. Erro de campo aparece junto do campo e liga a ele por associação acessível.",
+   "severity": "alta"
+  },
+  {
+   "id": "ui.estados-completos",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Toda tela e componente com dado remoto ou ação trata os estados: carregando (com a forma do conteúdo, sem pular o layout), vazio (diz por que e o que fazer), erro (com nova tentativa), desabilitado, sucesso e conteúdo extremo (texto longo, zero, milhares). Só o caso feliz não está pronto.",
+   "severity": "alta"
+  },
+  {
+   "id": "ui.foco-visivel",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Foco de teclado sempre visível e com contraste, em todo elemento interativo; remover o contorno padrão só junto de um substituto. Confira a ordem do Tab e que nada fica preso.",
+   "severity": "alta",
+   "check": {
+    "kind": "grep",
+    "pattern": "outline:\\s*(none|0)[\\s;]|outline-none",
+    "files": "*"
+   }
+  },
+  {
+   "id": "ui.responsivo-de-verdade",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "A composição muda com a largura, não só encolhe: confira em 360, 768 e largura de desktop, sem rolagem horizontal da página e sem texto estourando o contêiner. Alvo de toque com pelo menos 44px; nada depende de hover para existir.",
+   "severity": "media"
+  },
+  {
+   "id": "ui.sem-largura-fixa-em-px",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Contêiner de layout não usa largura fixa em px que passe da tela pequena; use max-width, unidades relativas e grade fluida.",
+   "severity": "baixa",
+   "check": {
+    "kind": "grep",
+    "pattern": "(^|[^-a-z])width:\\s*[0-9]{3,}px",
+    "files": "*.css"
+   }
+  },
+  {
+   "id": "ui.movimento-com-proposito",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Movimento tem um papel (orientar, dar retorno, revelar relação) e um momento autoral, não efeito espalhado nem a mesma entrada em toda seção. Curva de saída exponencial, duração curta, partindo de um estado já visível; anime transform e opacidade antes de propriedade de layout.",
+   "severity": "media"
+  },
+  {
+   "id": "ui.movimento-respeita-preferencia",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Animação não essencial é desligada ou reduzida sob prefers-reduced-motion, e nada pisca mais de três vezes por segundo; o conteúdo continua acessível sem a animação.",
+   "severity": "alta"
+  },
+  {
+   "id": "ui.sem-modal-por-reflexo",
+   "group": "framework",
+   "tags": [
+    "frontend",
+    "anti-slop"
+   ],
+   "scope": [
+    "frontend"
+   ],
+   "text": "Modal só para tarefa que exige interrupção e foco protegido; confirmação reversível vira desfazer, e formulário longo vira página ou painel. Quando houver modal: foco dentro, Esc fecha, foco volta a quem abriu.",
+   "severity": "baixa"
   }
  ]
 }

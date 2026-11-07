@@ -4,6 +4,22 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.26.0 — 2026-11-07
+
+Capacidade nova (issue #81, frente 2): regras contra interface de cara gerada no catálogo de qualidade.
+
+### Pacote `anti-slop` (#81)
+
+- 22 regras `ui.*` (tipografia, cor, hierarquia, espaçamento, ornamento, texto vago, estados, responsivo, movimento),
+  derivadas do Impeccable (Apache-2.0, atribuição em `quality/THIRD-PARTY.md` e licença em `quality/licenses/`).
+  Seis delas têm `check` por grep.
+- Campo novo `scope` no catálogo (aditivo no esquema): regra com `scope: ["frontend"]` só entra em trabalho de frontend
+  (dependência de UI no `package.json`, `index.html` ou stack de UI). Backend não recebe.
+- `doctor` e `hades deps` avisam se o Impeccable está instalado e o que se perde sem ele; é aviso, nunca erro.
+- Armadilha: os goldens de quality e do doctor mudam a cada regra nova do catálogo.
+- Correção de teste: `painel-herdr-admin` dependia da config da máquina que a fila de gates exporta; com
+  `HADES_HERDR_BIN` absoluto, o painel do teste chamava o herdr real. O teste agora fixa o herdr falso.
+
 ## 6.25.0 — 2026-11-07
 
 Capacidade nova (issue #81, frente 1): auditoria de usabilidade recorrente do painel com o Impeccable.

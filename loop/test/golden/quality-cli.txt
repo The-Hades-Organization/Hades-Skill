@@ -11,7 +11,7 @@ off  baixa      banco     banco.dado-fora-da-migracao
 off  media      banco     banco.trava-pesada-anunciada      
 off  media      banco     banco.esquema-igual-as-migracoes  
 $ on --all (default)
-on: 114 off: 13
+on: 136 off: 13
 $ off --all, on 2 regras
 on   alta       praticas  pratica.erro-explicito            
 on   alta       testes    teste.deterministico              

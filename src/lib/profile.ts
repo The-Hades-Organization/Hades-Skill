@@ -120,7 +120,7 @@ export function stepOf(ref: string): StepLine | undefined {
   return { kind: step.kind ?? null, costGb: step.costGb ?? null, parallel: step.parallel ?? 0, measuredAt: step.measuredAt ?? "" };
 }
 
-function repoRoot(dir: string): string {
+export function repoRoot(dir: string): string {
   const top = run("git", ["-C", dir, "rev-parse", "--show-toplevel"]);
   return top.status === 0 && top.stdout.trim() ? top.stdout.trim() : dir;
 }

@@ -4,7 +4,8 @@ import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readdirSync, read
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EVENT_LABELS, EVENTS, history, notify, NotifyContext, status, SWITCHABLE_EVENTS } from "../../../src/lib/notify";
-import { prProblems, Watcher } from "../../../src/lib/notify-watch";
+import { planPrNotices, toSnapshot } from "../../../src/lib/notify-marks";
+import { Watcher } from "../../../src/lib/notify-watch";
 
 const ROOT = join(import.meta.dir, "../../..");
 const dir = mkdtempSync(join(tmpdir(), "hades-notify-tipos-"));
@@ -76,10 +77,14 @@ describe("interruptor do gate", () => {
 });
 
 describe("CI separado do review", () => {
-  const prs = [{ number: 7, checks: { failing: true }, headRefOid: "abcdef1234567" }, { number: 8, unseenReviewSincePush: true, lastReviewAt: "t" }];
+  const prs = [
+    toSnapshot({ number: 7, checks: { failing: [{ name: "build" }] }, headRefOid: "abcdef1234567" }),
+    toSnapshot({ number: 8, unseenReviewSincePush: true, lastReviewAt: "t" }),
+  ].flatMap((pr) => pr ?? []);
 
   test("dado CI vermelho e review novo, então cada um sai no seu tipo", () => {
-    expect([...prProblems(prs).values()].map((p) => `${p.event}:${p.obj}`).sort()).toEqual(["ci:PR #7 CI", "pr:PR #8 review"]);
+    const { events } = planPrNotices(prs, {}, { now: 0, remindHours: 0 });
+    expect(events.map((e) => `${e.event}:${e.obj}`).sort()).toEqual(["ci:PR #7 CI", "pr:PR #8 review"]);
   });
 
   test("dado HADES_NOTIFY_EV_CI=off, então o CI não notifica e o review novo sim", async () => {
@@ -89,9 +94,16 @@ describe("CI separado do review", () => {
     expect((await notify(ctx, "pr", "warn", "review novo", { obj: "PR #8 review" })).sent).toBe(true);
   });
 
-  test("dado HADES_NOTIFY_EV_PR=off no config.env e CI sem valor próprio, então o CI segue silenciado", async () => {
+  test("dado HADES_NOTIFY_EV_PR=off no config.env e CI sem valor próprio, então o CI agora notifica (interruptores independentes)", async () => {
     setEnv({});
     const ctx = configEnv("legado", ["HADES_NOTIFY_EV_PR=off"]);
+    expect(ctx.eventChannels("ci")).toBe("both");
+    expect((await notify(ctx, "ci", "error", "CI vermelho", { obj: "PR #7 CI" })).sent).toBe(true);
+  });
+
+  test("dado HADES_NOTIFY_EV_CI=pr já gravado e o review desligado, então o CI segue silenciado", async () => {
+    setEnv({});
+    const ctx = configEnv("legado-pr", ["HADES_NOTIFY_EV_PR=off", "HADES_NOTIFY_EV_CI=pr"]);
     expect(ctx.eventChannels("ci")).toBe("off");
     expect((await notify(ctx, "ci", "error", "CI vermelho", { obj: "PR #7 CI" })).why).toBe("evento desligado");
   });
@@ -106,9 +118,9 @@ describe("CI separado do review", () => {
     expect(configEnv("padrao", []).eventChannels("ci")).toBe("both");
   });
 
-  test("dado o catálogo do kit, então o CI começa seguindo o review (padrão pr)", () => {
+  test("dado o catálogo do kit, então o CI segue aceitando pr entre os valores", () => {
     const row = readFileSync(join(ROOT, "kit/config.tsv"), "utf8").split("\n").find((l) => l.startsWith("HADES_NOTIFY_EV_CI\t"));
-    expect(row?.split("\t")[1]).toBe("pr");
+    expect(row?.split("\t")[2]).toContain("pr,");
   });
 });
 

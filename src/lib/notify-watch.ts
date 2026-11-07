@@ -5,7 +5,8 @@ import { createInterface } from "node:readline";
 import { existsSync, mkdirSync, statSync } from "node:fs";
 import { HEALTH_DEFAULT, healthPaths } from "./config.ts";
 import { listDir, readText } from "./fs.ts";
-import { type Heartbeat, type NotifyContext, forget, jload, jsave, notify, scrub } from "./notify.ts";
+import { type Heartbeat, type NotifyContext, WHY_REPEATED, forget, jload, jsave, notify, scrub } from "./notify.ts";
+import { type PrSnapshot, ackMark, loadMarks, planPrNotices, saveMarks, toSnapshot } from "./notify-marks.ts";
 import { splitLines } from "./pyjson.ts";
 import { run } from "./proc.ts";
 import { serviceManager } from "./service-manager.ts";
@@ -57,28 +58,6 @@ interface Source {
   key: string;
   every: number;
   fn: () => Promise<void>;
-}
-
-interface PrState {
-  number?: number;
-  checks?: { failing?: boolean };
-  headRefOid?: string;
-  live?: unknown[];
-  topLevelLive?: unknown[];
-  unseenReviewSincePush?: boolean;
-  lastReviewAt?: string;
-}
-
-/** CI vermelho sai no tipo `ci` e review novo no `pr`: cada um tem o interruptor dele. */
-export function prProblems(prs: PrState[]): Problems {
-  const probs: Problems = new Map();
-  for (const pr of prs) {
-    if (pr.checks?.failing) Watcher.add(probs, "ci", `PR #${pr.number} CI`, ["error", "CI vermelho", String(pr.headRefOid ?? "").slice(0, 10)]);
-    if ((pr.live?.length ?? 0) > 0 || (pr.topLevelLive?.length ?? 0) > 0 || pr.unseenReviewSincePush) {
-      Watcher.add(probs, "pr", `PR #${pr.number} review`, ["warn", "review novo para tratar", `${pr.lastReviewAt}|${pr.live?.length ?? 0}|${pr.topLevelLive?.length ?? 0}`]);
-    }
-  }
-  return probs;
 }
 
 export class Watcher {
@@ -203,7 +182,21 @@ export class Watcher {
     const cli = selfCli("pr-loop-state", "--json");
     const r = run(cli.command, cli.args, { cwd: process.env.HADES_WT || undefined, timeoutMs: 150000 });
     if (r.status !== 0) throw new Error("coletor de PRs falhou");
-    await this.problems("prs", prProblems((JSON.parse(r.stdout) as { prs?: PrState[] }).prs ?? []));
+    const parsed: unknown = JSON.parse(r.stdout);
+    const listed = typeof parsed === "object" && parsed !== null && "prs" in parsed && Array.isArray(parsed.prs) ? parsed.prs : [];
+    await this.notifyPrs(listed.flatMap((raw) => toSnapshot(raw) ?? []));
+  }
+
+  /** Avisa o CI vermelho e o review novo que ainda não foram avisados (identidade em notify-marks.ts, não a janela do dedupe).
+   * Cada tipo tem o interruptor dele. Evento desligado ou lock ocupado não marca: ligar depois ainda avisa. */
+  async notifyPrs(prs: readonly PrSnapshot[]): Promise<void> {
+    const plan = planPrNotices(prs, loadMarks(this.ctx), { now: this.ctx.now() / 1000, remindHours: this.ctx.cint("HADES_NOTIFY_CI_REMIND_H", 0) });
+    let marks = plan.marks;
+    for (const event of plan.events) {
+      const result = await notify(this.ctx, event.event, event.severity, event.text, { obj: event.obj, sig: event.sig, src: "prs" });
+      if (result.sent || result.why === WHY_REPEATED) marks = ackMark(marks, event);
+    }
+    saveMarks(this.ctx, marks);
   }
 
   /** `doctor --json`: um aviso por item com erro. */

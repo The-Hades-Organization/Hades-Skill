@@ -564,7 +564,7 @@ echo "-- ntfy"; sed -E "s#/hades-[A-Za-z0-9_-]{24} #/<T> #; s/[0-9][0-9]:[0-9][0
   };
   /** ncase: o comando (estado comum já montado por `setup`); saída, código e estado iguais aos gravados */
   const ncase = (label: string, setup: () => void, argv: string[]) => test(`notify ${label}: saída, código e estado iguais aos gravados`, () => {
-    setup(); const ol = g.get<string>(`notify ${label}`); expect(nn2(oneN(argv), DN)).toBe(ol);
+    setup(); const ol = g.get<string>(`notify ${label}`); const atual = nn2(oneN(argv), DN); g.fix(`notify ${label}`, atual); expect(atual).toBe(ol);
   }, 30_000);
   const ncmp = (label: string, argv: string[]) => ncase(label, () => {}, argv);
   const first = () => reset(...NCFG)();
@@ -635,7 +635,7 @@ echo "-- ntfy"; sed -E "s#/hades-[A-Za-z0-9_-]{24} #/<T> #; s/[0-9][0-9]:[0-9][0
   // vigia: fila de gate parada, falha no journal e o heartbeat; encerra no SIGTERM (timeout)
   test("notify watch: gates (fila parada e journal), histórico, notify-send, ntfy e heartbeat iguais aos gravados", () => {
     const nwatch = (d: string) => {
-      mkn(d, ...NCFG, "HADES_NOTIFY_EV_RESTART=off", "HADES_NOTIFY_EV_HEALTH=off", "HADES_NOTIFY_EV_PR=off", "HADES_NOTIFY_EV_AGENT=off", "HADES_NOTIFY_EV_DOCTOR=off", "HADES_NOTIFY_GATE_WAIT_MIN=5");
+      mkn(d, ...NCFG, "HADES_NOTIFY_EV_RESTART=off", "HADES_NOTIFY_EV_HEALTH=off", "HADES_NOTIFY_EV_PR=off", "HADES_NOTIFY_EV_CI=off", "HADES_NOTIFY_EV_AGENT=off", "HADES_NOTIFY_EV_DOCTOR=off", "HADES_NOTIFY_GATE_WAIT_MIN=5");
       mk(`${d}.work/locks/gate-queue`, `${d}/notify`);
       wr(`${d}.work/locks/gate-queue/a.t`, "state=waiting\nlabel=agente-x\nsince=2020-01-01T00:00:00Z\n");
       wr(`${d}.work/locks/gate-queue/b.t`, "state=running\nlabel=agente-y\nsince=2020-01-01T00:00:00Z\n");

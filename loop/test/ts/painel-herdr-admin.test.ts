@@ -49,6 +49,8 @@ const calls = (): string[] => {
 
 const SAVED_PATH = process.env.PATH;
 const SAVED_HOME = process.env.HOME;
+// a fila de gates exporta a config da máquina, e um HADES_HERDR_BIN absoluto ali levaria o painel ao herdr real
+const SAVED_HERDR_BIN = process.env.HADES_HERDR_BIN;
 beforeAll(() => {
   mkdirSync(BIN, { recursive: true });
   mkdirSync(join(D, "logs"), { recursive: true });
@@ -60,10 +62,13 @@ beforeAll(() => {
   chmodSync(join(D, "notify.sh"), 0o755);
   process.env.PATH = `${BIN}:${SAVED_PATH}`;
   process.env.HOME = join(T, "home");
+  process.env.HADES_HERDR_BIN = join(BIN, "herdr");
 });
 afterAll(() => {
   process.env.PATH = SAVED_PATH;
   process.env.HOME = SAVED_HOME;
+  if (SAVED_HERDR_BIN === undefined) delete process.env.HADES_HERDR_BIN;
+  else process.env.HADES_HERDR_BIN = SAVED_HERDR_BIN;
   rmSync(T, { recursive: true, force: true });
 });
 

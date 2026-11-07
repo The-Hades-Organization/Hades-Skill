@@ -4,6 +4,21 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.25.0 — 2026-11-07
+
+Capacidade nova (issue #81, frente 1): auditoria de usabilidade recorrente do painel com o Impeccable.
+
+### `hades ux-audit` e o papel `ux-audit` (#81)
+
+- Auditoria de usabilidade do painel e do Argos com o Impeccable que o dev instalou (nunca empacotado). Comandos
+  `start`, `add`, `list`, `forward [--issues]`, `resolve`, `done`, `reminder`; cartão em `reference/loop/roles/ux-audit.md`.
+- Achados viram itens com chave estável (página + regra) que não se repetem entre rodadas; resolvido que volta é
+  regressão. `forward --issues` abre issue só por ordem explícita.
+- `HADES_UX_AUDIT_REMINDER` (padrão `release`, ou `off`): o `skill-release check` lembra quando `kit/panel/ui` mudou desde
+  a última rodada. Sem o Impeccable, `start` sai 69 com como instalar.
+- Armadilha: a regra do achado é o tipo do problema, não a frase; frase como chave fazia o mesmo achado voltar como novo.
+- Prova: duas rodadas num painel descartável; a segunda repetiu os 7 achados como "repetido" e trouxe 1 novo.
+
 ## 6.24.0 — 2026-11-07
 
 Capacidade nova (issue #79): desenho e escrita livre no canvas do Argos, legíveis e editáveis por agentes.

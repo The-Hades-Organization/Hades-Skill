@@ -83,6 +83,10 @@ Tudo pelo `hades agent`, de dentro de um clone. A **pasta de relatórios** é `.
 - Reusar a worktree numa rodada nova: renomeie o `<pasta>/report.md` anterior (`report-1.md`) antes do `prompt`
   (`prompt`, `resume`, `phase` e `answer` avisam quando o report ainda começa com `STATUS: DONE`; o watch ignora report mais velho que o prompt).
 
+### Papel `ux-audit` (auditoria de usabilidade)
+Não é um `--role` do `new`: abre-se a unidade como impl e o brief manda seguir `roles/ux-audit.md` (cartão e comando em
+`reference/ux-audit.md`). Issue na org só por ordem do orquestrador (`hades ux-audit forward --issues`).
+
 ### Evoluir a própria skill (unidades `skill`)
 
 Mudança na skill não usa o `new` (ele exige card, `node_modules` e lock): usa uma **unidade** com worktree no git local

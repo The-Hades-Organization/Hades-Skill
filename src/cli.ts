@@ -52,6 +52,7 @@ const commands: Record<string, () => Promise<Command>> = {
   journal: async () => (await import("./commands/journal.ts")).journalCommand,
   contrib: async () => (await import("./commands/contrib.ts")).contribCommand,
   thanatos: async () => (await import("./commands/thanatos.ts")).thanatosCommand,
+  "ux-audit": async () => (await import("./commands/ux-audit.ts")).uxAuditCommand,
   moirai: async () => (await import("./commands/moirai.ts")).moiraiCommand,
   caronte: async () => (await import("./commands/caronte.ts")).caronteCommand,
   canvas: async () => (await import("./commands/canvas.ts")).canvasCommand,
@@ -86,6 +87,7 @@ const HELP = `hades <subcomando> [argumentos]
   skill-release drift|check|guard|release  evolução da própria skill: drift, check (regressão pela fila), guardas, release
   journal list|tail|show <agente> [--since d] [--kind k] [--json]  diário de eventos por agente (hades journal)
   thanatos new|list|show|search|cited  post-mortem de incidente em produção do projeto, fora do repo (hades thanatos)
+  ux-audit start|add|list|forward|resolve|done|reminder  auditoria de usabilidade do painel e do Argos com o Impeccable (reference/ux-audit.md)
   moirai history|estimate <plan.md>  histórico das unidades encerradas e estimativa de custo e duração por unidade do plano (hades moirai)
   caronte pack|unpack|brief      leva uma orquestração para outra sessão ou máquina: pacote cifrado com senha, abrir o pacote, ou o prompt de retomada (hades caronte)
   canvas note list|read|write | recruit|connect|reassign|dismiss|notify   o agente do terminal fala com o canvas: notas ligadas e equipe do orquestrador (hades canvas)

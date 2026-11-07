@@ -20,6 +20,7 @@
           "text": {"type": "string", "minLength": 10},
           "severity": {"enum": ["bloqueante", "alta", "media", "baixa"]},
           "default": {"enum": ["on", "off"], "description": "estado antes da escolha do usuário (padrão: on)"},
+          "scope": {"type": "array", "items": {"enum": ["frontend"]}, "description": "só entra no bloco injetado quando o trabalho tem esse escopo (hoje: frontend); sem scope vale para todo trabalho"},
           "check": {
             "type": "object",
             "required": ["kind"],
@@ -45,6 +46,13 @@
           "id": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "description": "estável; mesmo id no ~/.claude/hades/quality substitui o do catálogo"},
           "title": {"type": "string", "minLength": 3},
           "text": {"type": "string", "description": "uma linha: a que trabalho o pacote serve"},
+          "attribution": {
+            "type": "object",
+            "required": ["author", "origin", "license", "commit"],
+            "additionalProperties": false,
+            "description": "origem de texto derivado de terceiro (quality/THIRD-PARTY.md)",
+            "properties": {"author": {"type": "string"}, "origin": {"type": "string"}, "license": {"type": "string"}, "commit": {"type": "string"}, "note": {"type": "string"}}
+          },
           "rules": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)+$"}}
         }
       }

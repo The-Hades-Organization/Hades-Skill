@@ -15,6 +15,7 @@ import { chaves, medidas } from "../lib/limites-io.ts";
 import { findStateDir } from "../lib/kit.ts";
 import { EXIT, out, warn as warnErr } from "../lib/output.ts";
 import { home, selfCli } from "../lib/paths.ts";
+import { IMPECCABLE_INSTALL, IMPECCABLE_LOSS, impeccableStatus } from "../lib/impeccable.ts";
 import { pyDumps } from "../lib/pyjson.ts";
 import { LISTENERS_TOOL, listenersToolPresent, memTotalMb, run, tcpListeners, which, type Listener } from "../lib/proc.ts";
 import { readEnvSh, unitPrefix } from "../lib/config.ts";
@@ -155,6 +156,7 @@ function checkTools(r: Report, ctx: Ctx): void {
   }
   checkServiceManager(r);
   checkRegistry(r, ctx);
+  checkImpeccable(r);
 }
 
 /** Domínio do launchd que o Hades usa: gui/<uid> com sessão gráfica, senão user/<uid> (ssh, sem login). */
@@ -192,6 +194,14 @@ function checkRegistry(r: Report, ctx: Ctx): void {
     } else if (dep.level === "error") r.err(g, dep.id, `${dep.id} não encontrado`, dep.install);
     else r.warn(g, dep.id, `${dep.id} não encontrado`, dep.install);
   }
+}
+
+/** Impeccable é opcional: ausente é só aviso, nunca erro. */
+function checkImpeccable(r: Report): void {
+  const g = "Ferramentas";
+  const st = impeccableStatus();
+  if (st.found) return r.ok(g, "impeccable", `impeccable ${st.version || "instalado"} (${st.path})`);
+  r.warn(g, "impeccable", `impeccable não encontrado (opcional): ${IMPECCABLE_LOSS}`, IMPECCABLE_INSTALL);
 }
 
 /** Portas publicadas por containers do projeto: o docker-proxy é do root e não aparece no ss. */

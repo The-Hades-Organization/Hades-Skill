@@ -8,7 +8,7 @@ projeto vêm do perfil (`rules.docs`, `reference/projects.md`) e valem por cima.
 
 | O quê | Onde |
 |---|---|
-| Catálogo base (127 regras, texto próprio) | `<skill>/quality/base.json` |
+| Catálogo base (149 regras, texto próprio ou derivado com atribuição) | `<skill>/quality/base.json` |
 | Pacotes base (conjuntos nomeados de regras) | `<skill>/quality/packs.json` |
 | Regras e pacotes do dono (mesmo formato; mesmo `id` vence o base) | `~/.claude/hades/quality/*.json` |
 | Escolhas do dono | `~/.claude/hades/quality/choices.tsv` (uma linha `id<TAB>on\|off` só para o que difere do padrão) |
@@ -35,12 +35,29 @@ pacote parcial completa o pacote.
 | `seguranca` | autorização no servidor, segredo, injeção, conteúdo externo, abuso, auditoria |
 | `banco` | consulta, transação, restrição no banco, data com fuso, migração segura |
 | `testes` | comportamento, determinismo, limites e erro, bug com teste |
+| `anti-slop` | interface sem cara de gerada por IA: tipografia, cor, hierarquia, espaçamento, ornamento genérico, texto vago, estados, responsivo, movimento (22 regras `ui.*`) |
 | `rust` | projeto Rust: erro sem pânico, async sem bloqueio, `unsafe` justificado, tracing, lints no manifesto, teste determinístico |
 
 Regras de uma linguagem só (`py.`, `sh.`, `ts.`…) ficam fora de pacote: o filtro por grupo já as cobre. A exceção é a
 linguagem com regras suficientes para ligar de uma vez (hoje `rs.`, no pacote `rust`). O dono
 acrescenta pacote num `~/.claude/hades/quality/*.json` com chave `packs` (mesmo `id` substitui o do base);
 `hades quality validate` reprova id duplicado e pacote que cita regra inexistente.
+
+### Pacote anti-slop e escopo de frontend
+
+As regras `ui.*` (pacote `anti-slop`) têm `scope: ["frontend"]`: ligadas por padrão como as demais, mas o `inject`
+só as põe no bloco quando o trabalho é de frontend, e some delas em trabalho só de backend. Escopo não muda o estado
+(`choices.tsv`, painel e `hades quality list` seguem iguais); só filtra a injeção. O trabalho é de **frontend** quando
+o repositório de `--dir` tem dependência de UI (react, vue, svelte, solid, preact, lit, astro, next, nuxt, angular,
+vite) no `package.json` da raiz, de `apps/*`, `packages/*`, `web/`, `frontend/` ou `client/`, um `index.html` na raiz,
+ou uma stack `pnpm-next` ou `tauri` detectada. Regra sem `scope` vale para todo trabalho. O dono desliga o pacote
+inteiro como qualquer outro (`hades quality off --pack anti-slop`).
+
+A entrada do pacote leva `attribution` (autor, origem, licença, commit do upstream): o texto deriva do Impeccable
+(Apache-2.0), modificado e em pt-BR; detalhes em `quality/THIRD-PARTY.md` e a licença em
+`quality/licenses/impeccable-LICENSE`. A Hades não empacota a skill do Impeccable: `hades doctor` e `hades deps`
+dizem se está instalada (aviso, nunca erro) e o que se perde sem ela (auditoria de usabilidade do painel, crítica de
+UI); as regras do pacote seguem valendo sem ela.
 
 ## Ligar e desligar
 

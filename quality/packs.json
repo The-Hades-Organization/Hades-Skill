@@ -94,6 +94,24 @@
     "rs.conversao-numerica-explicita", "rs.visibilidade-minima", "rs.lints-no-manifesto",
     "rs.gate-fmt-clippy", "rs.ordem-de-hashmap", "rs.tipo-fecha-dominio",
     "rs.doc-comment-contrato", "rs.crates-em-uma-direcao", "rs.teste-sem-mutar-ambiente"]
+  },
+  {
+   "id": "anti-slop",
+   "title": "Interface sem cara de IA",
+   "text": "Contra os padrões típicos de interface gerada: tipografia, cor, hierarquia, espaçamento, ornamento genérico, texto vago, estados, responsivo e movimento. Liga sozinho em trabalho de frontend.",
+   "attribution": {
+    "author": "Paul Bakaus",
+    "origin": "https://github.com/pbakaus/impeccable",
+    "license": "Apache-2.0",
+    "commit": "414603bf14c7a344edb466bb1f85690c77ce8b7d",
+    "note": "Texto derivado e modificado, reescrito em pt-BR; ver quality/THIRD-PARTY.md"
+   },
+   "rules": ["ui.escala-tipografica", "ui.medida-de-leitura", "ui.contraste-minimo", "ui.cor-com-papel", "ui.hierarquia-um-foco",
+    "ui.sem-cartao-como-estrutura", "ui.ritmo-de-espacamento", "ui.sem-gradiente-no-texto", "ui.sombra-com-profundidade",
+    "ui.sem-borda-lateral-colorida", "ui.sem-vidro-decorativo", "ui.icone-de-biblioteca-unica",
+    "ui.sem-ornamento-de-modelo", "ui.texto-de-acao-especifico", "ui.erro-diz-problema-e-saida", "ui.estados-completos",
+    "ui.foco-visivel", "ui.responsivo-de-verdade", "ui.sem-largura-fixa-em-px", "ui.movimento-com-proposito",
+    "ui.movimento-respeita-preferencia", "ui.sem-modal-por-reflexo"]
   }
  ]
 }

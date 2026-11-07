@@ -4,9 +4,9 @@
 // ou declara contradição.
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { listDir, readText } from "./fs.ts";
+import { isDir, isFile, listDir, readText } from "./fs.ts";
 import { hadesHome, skillRoot } from "./paths.ts";
-import { type Json, type JsonObject, isObject, loadProfile, pathValue, pyRepr, readJson } from "./profile.ts";
+import { type Json, type JsonObject, detectStacks, isObject, loadProfile, pathValue, pyRepr, readJson, repoRoot } from "./profile.ts";
 import { resolveProject } from "./project.ts";
 
 export const GROUPS = ["linguagem", "framework", "praticas", "estilo", "testes", "banco"];
@@ -226,9 +226,55 @@ function checkSuffix(check: Json | undefined): string {
   return ` — checagem: \`${str(check.cmd)}\``;
 }
 
+// ------------------------------------------------------------------ escopo do trabalho
+
+const FRONTEND_DEPS = /^(react|react-dom|preact|vue|svelte|solid-js|lit|astro|next|nuxt|@angular\/core|@sveltejs\/kit|@remix-run\/react|vite)$/;
+const FRONTEND_STACKS = new Set(["pnpm-next", "tauri"]);
+
+function hasFrontendDeps(pkgFile: string): boolean {
+  const text = readText(pkgFile);
+  if (!text) return false;
+  try {
+    const doc = JSON.parse(text) as Record<string, unknown>;
+    return ["dependencies", "devDependencies", "peerDependencies"].some((k) => {
+      const deps = doc[k];
+      return isObject(deps as Json) && Object.keys(deps as object).some((n) => FRONTEND_DEPS.test(n));
+    });
+  } catch {
+    return false;
+  }
+}
+
+/** Escopos do trabalho em dir: "frontend" se o repo tem stack de interface ou dependência de UI (raiz, apps/*, packages/*). */
+export function workScopes(dir: string | undefined): Set<string> {
+  const scopes = new Set<string>();
+  try {
+    const root = repoRoot(dir ?? process.cwd());
+    const candidates = [join(root, "package.json")];
+    for (const sub of ["apps", "packages", "web", "frontend", "client"]) {
+      const base = join(root, sub);
+      if (!isDir(base)) continue;
+      candidates.push(join(base, "package.json"));
+      for (const n of listDir(base)) candidates.push(join(base, n, "package.json"));
+    }
+    if (candidates.some((f) => isFile(f) && hasFrontendDeps(f)) || isFile(join(root, "index.html"))) scopes.add("frontend");
+    if (detectStacks(dir).some((n) => FRONTEND_STACKS.has(n))) scopes.add("frontend");
+  } catch {
+    // sem repo legível: sem escopo, e as regras com scope ficam de fora
+  }
+  return scopes;
+}
+
+/** Regra sem scope vale sempre; com scope, só quando o trabalho tem algum deles. */
+export function inScope(rule: JsonObject, scopes: Set<string>): boolean {
+  const need = strings(rule.scope);
+  return need.length === 0 || need.some((x) => scopes.has(x));
+}
+
 export function inject(phase: string, dir: string | undefined): string {
   const { rules } = resolved(dir);
-  const on = rules.filter((r) => r.state === "on");
+  const scopes = workScopes(dir);
+  const on = rules.filter((r) => r.state === "on" && inScope(r, scopes));
   if (on.length === 0) return "";
   const rank = (r: JsonObject): [number, number, string] => [LEVELS.indexOf(str(r.effSeverity)), GROUPS.indexOf(str(r.group)), str(r.id)];
   const order = (a: JsonObject, b: JsonObject): number => {

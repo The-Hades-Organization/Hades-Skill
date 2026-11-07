@@ -14,6 +14,7 @@ import type { Shape } from "../../../../src/lib/canvas-argos.ts";
 import type { SnapGuide, SnapMove, SnapOptions } from "../../../../src/lib/canvas-snap.ts";
 import type * as LinksModule from "../../../../src/lib/canvas-links.ts";
 import type { ClampHit, LinkStyle, Rope, RopePin } from "../../../../src/lib/canvas-links.ts";
+import type * as AreasModule from "../../../../src/lib/canvas-areas.ts";
 
 interface CanvasModelApi {
   doc: typeof DocModule;
@@ -24,6 +25,8 @@ interface CanvasModelApi {
   argos: typeof ArgosModule;
   /** Conexões do dono (aresta `link`); sem o módulo, a aresta `link` sai reta como as outras e a ferramenta não arma. */
   links?: typeof LinksModule;
+  /** Áreas coloridas: encaixe ao soltar, membros que andam com a área e retângulo oco. Sem o módulo, a área é um nó comum. */
+  areas?: typeof AreasModule;
 }
 
 /** Pedido de menu do nó (Enter, tecla de menu, Shift+F10). O menu em si é de quem usa o motor. */
@@ -261,6 +264,12 @@ function makeArgosCanvas() {
   const S = model.selection;
   const H = model.history;
   const LINKS = model.links;
+  const AREAS = model.areas;
+  /** Opacidades da área (interior, faixa do título e destaque de quem vai receber o nó solto). */
+  const AREA_FILL_ALPHA = 0.1;
+  const AREA_HEADER_ALPHA = 0.3;
+  const AREA_DROP_ALPHA = 0.22;
+  const isAreaNode = (n: CanvasNode): boolean => AREAS?.isAreaNode(n) === true;
 
   /** Cores lidas das variáveis do tema; o harness e a página definem as mesmas. */
   const THEME_VARS = {
@@ -862,6 +871,14 @@ function makeArgosCanvas() {
         ctx.fillStyle = fill;
         for (const n of nodes) {
           ctx.globalAlpha = alphaOf(n);
+          if (isAreaNode(n)) {
+            // a área não vira ponto: segue um retângulo bem translúcido na cor dela, para o agrupamento aparecer de longe
+            ctx.fillStyle = areaInk(n);
+            ctx.globalAlpha *= AREA_FILL_ALPHA;
+            ctx.fillRect(n.x, n.y, n.w, n.h);
+            ctx.fillStyle = fill;
+            continue;
+          }
           fillShape(ctx, shapeOf(n, "dot"), n);
         }
       }
@@ -912,6 +929,35 @@ function makeArgosCanvas() {
       ctx.textAlign = "start";
     }
 
+    /** Cor da área na paleta do tema (`chart-1`..`chart-5`); sem cor válida, o cinza neutro do tema. */
+    const areaInk = (n: CanvasNode): string => {
+      const color = AREAS?.areaLook(n).color;
+      return color === undefined ? colors.muted : (palette[Number(color.slice("chart-".length)) - 1] ?? colors.muted);
+    };
+
+    /** Área: retângulo translúcido com borda tracejada e o título na faixa de cima; o interior não tem opacidade de nó. */
+    function drawArea(ctx: CanvasRenderingContext2D, n: CanvasNode, full: boolean, fontScreen: number, pad: number): void {
+      const base = ctx.globalAlpha;
+      const ink = areaInk(n);
+      ctx.fillStyle = ink;
+      ctx.globalAlpha = base * AREA_FILL_ALPHA;
+      ctx.fillRect(n.x, n.y, n.w, n.h);
+      if (full) {
+        ctx.globalAlpha = base * AREA_HEADER_ALPHA;
+        ctx.fillRect(n.x, n.y, n.w, Math.min(S.SELECTION_LIMITS.header, n.h));
+      }
+      ctx.globalAlpha = base;
+      ctx.lineWidth = 1.5 / cam.k;
+      ctx.strokeStyle = ink;
+      ctx.setLineDash([6 / cam.k, 4 / cam.k]);
+      ctx.strokeRect(n.x, n.y, n.w, n.h);
+      ctx.setLineDash([]);
+      const title = C.shortLabel(labelOf(n), (n.w - 2 * pad) * cam.k, fontScreen);
+      if (!title) return;
+      ctx.fillStyle = colors.fg;
+      ctx.fillText(title, n.x + pad, n.y + Math.min(S.SELECTION_LIMITS.header, n.h) / 2);
+    }
+
     /** Bloco (rótulo curto, fonte fixa de tela) ou nó completo (cabeçalho, rótulo e tipo em escala de mundo). */
     function drawBlocks(ctx: CanvasRenderingContext2D, visible: readonly CanvasNode[], detail: Detail): void {
       const full = detail === "full";
@@ -925,6 +971,10 @@ function makeArgosCanvas() {
       const hair = 1 / cam.k;
       for (const n of visible) {
         ctx.globalAlpha = alphaOf(n);
+        if (isAreaNode(n)) {
+          drawArea(ctx, n, full, fontScreen, pad);
+          continue;
+        }
         const shape = shapeOf(n, detail);
         if (shape !== "square") {
           drawShapedBlock(ctx, n, shape, fontScreen, hair);
@@ -977,6 +1027,7 @@ function makeArgosCanvas() {
         ctx.fillRect(g.edge === "left" ? 0 : view.w - zone, 0, zone, view.h);
         ctx.globalAlpha = 1;
       }
+      if (AREAS) drawDropTargets(ctx, g);
       if (!g.snap) return;
       worldTransform(ctx);
       ctx.lineWidth = 1 / cam.k;
@@ -984,6 +1035,24 @@ function makeArgosCanvas() {
       ctx.beginPath();
       for (const guide of g.snap.guides) traceGuide(ctx, guide);
       ctx.stroke();
+    }
+    /** Retorno do encaixe: a área que receberia o nó se ele fosse solto agora ganha anel e preenchimento mais fortes. */
+    function drawDropTargets(ctx: CanvasRenderingContext2D, g: Extract<Gesture, { kind: "move" }>): void {
+      if (!AREAS) return;
+      const targets = AREAS.dropTargets(doc, g.ids, g.dx, g.dy);
+      if (targets.length === 0) return;
+      worldTransform(ctx);
+      for (const id of targets) {
+        const area = byId.get(id);
+        if (!area) continue;
+        ctx.fillStyle = areaInk(area);
+        ctx.globalAlpha = AREA_DROP_ALPHA;
+        ctx.fillRect(area.x, area.y, area.w, area.h);
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = 3 / cam.k;
+        ctx.strokeStyle = areaInk(area);
+        ctx.strokeRect(area.x, area.y, area.w, area.h);
+      }
     }
     function traceGuide(ctx: CanvasRenderingContext2D, guide: SnapGuide): void {
       const segment = (axis: "x" | "y", at: number, from: number, to: number): void => {
@@ -1139,6 +1208,11 @@ function makeArgosCanvas() {
       opts.onOp(op, H.applyOp(doc, op));
     }
 
+    /** Movimento terminado: com áreas, o encaixe e a retirada que ele causa entram no mesmo passo do desfazer. */
+    function settleAndEmit(move: CanvasOp | undefined, carried: readonly string[]): void {
+      emitOp(AREAS ? AREAS.settleMove(doc, move, carried) : move);
+    }
+
     // ---- ponteiro ----
     const screenPoint = (e: { clientX: number; clientY: number }): Vec => {
       const r = host.getBoundingClientRect();
@@ -1170,8 +1244,11 @@ function makeArgosCanvas() {
     const EDGE_NODE_TYPE = "terminal";
     const resizeOptions = (): SelectionModule.HitOptions => ({
       k: cam.k, detail: detailOf(cam.k), resizable: (n) => selected.has(n.id) && !n.locked,
-      edgeResizable: (n) => n.type === EDGE_NODE_TYPE && !n.locked,
+      edgeResizable: (n) => (n.type === EDGE_NODE_TYPE || isAreaNode(n)) && !n.locked,
+      hollow: isAreaNode,
     });
+    /** Hit test sem alça de redimensionar (hover, duplo clique): a área continua oca. */
+    const plainHitOptions = (): SelectionModule.HitOptions => ({ k: cam.k, detail: detailOf(cam.k), resizable: () => false, hollow: isAreaNode });
     /** Alça (nó selecionado) ou borda (terminal) de redimensionar sob o ponto: vale também sobre o conteúdo do nó rico, que a cobre. */
     const resizeHitAt = (e: PointerEvent): SelectionModule.Hit | undefined => {
       const hit = S.hitTest(doc.nodes, C.screenToWorld(cam, screenPoint(e)), resizeOptions());
@@ -1208,7 +1285,7 @@ function makeArgosCanvas() {
       }
     }
     const hitNode = (p: Vec): string | undefined =>
-      S.hitTest(doc.nodes, C.screenToWorld(cam, p), { k: cam.k, detail: detailOf(cam.k), resizable: () => false })?.id;
+      S.hitTest(doc.nodes, C.screenToWorld(cam, p), plainHitOptions())?.id;
 
     function startLink(from?: string): boolean {
       const origin = from ?? (selected.size === 1 ? [...selected][0] : focusId);
@@ -1371,7 +1448,9 @@ function makeArgosCanvas() {
         const press = S.pressNode([...selected], hit.id, shift);
         emitSelection(press.selection);
         if (hit.region === "header") {
-          const ids = S.movableIds(doc, press.selection, hit.id);
+          // a área leva os membros: eles entram na lista que anda (e que o encaixe do soltar considera arrastada)
+          const grabbed = S.movableIds(doc, press.selection, hit.id);
+          const ids = AREAS ? AREAS.withAreaMembers(doc, grabbed) : grabbed;
           if (ids.length === 0 && byId.get(hit.id)?.locked) announce("Nó bloqueado: não se move.");
           gesture = {
             kind: "move", pointer: e.pointerId, start: p, ids, set: new Set(ids), anchor: hit.id, dx: 0, dy: 0, moved: false, onClick: press.onClick,
@@ -1416,7 +1495,7 @@ function makeArgosCanvas() {
           g.moved = true;
           g.end = end;
           dirty.overlay = true;
-          emitSelection(S.marqueeSelect(doc.nodes, S.rectFrom(g.start, end), g.base, g.additive));
+          emitSelection(S.marqueeSelect(doc.nodes, S.rectFrom(g.start, end), g.base, g.additive, isAreaNode));
           requestFrame();
           return;
         }
@@ -1479,7 +1558,7 @@ function makeArgosCanvas() {
       const dock = opts.dock;
       if (!dock || e.button !== 0) return;
       if (e.target instanceof Element && e.target.closest("[data-canvas-node]")) return;
-      const hit = S.hitTest(doc.nodes, C.screenToWorld(cam, screenPoint(e)), { k: cam.k, detail: detailOf(cam.k), resizable: () => false });
+      const hit = S.hitTest(doc.nodes, C.screenToWorld(cam, screenPoint(e)), plainHitOptions());
       if (hit?.region !== "header") return;
       e.preventDefault();
       dock.toggleElevated(hit.id);
@@ -1521,7 +1600,7 @@ function makeArgosCanvas() {
             break;
           }
           // de novo sobre o documento de agora: ele pode ter mudado desde o último movimento
-          emitOp(snapOf(g)?.op ?? S.moveOp(doc, g.ids, g.anchor, g.dx, g.dy));
+          settleAndEmit(snapOf(g)?.op ?? S.moveOp(doc, g.ids, g.anchor, g.dx, g.dy), g.ids);
           break;
         }
         case "resize":
@@ -1633,8 +1712,9 @@ function makeArgosCanvas() {
         }
         if (S.isArrowKey(key)) {
           e.preventDefault();
-          const op = S.nudgeOp(doc, [...selected], node.id, key, e.shiftKey);
-          if (op) emitOp(op);
+          const carried = AREAS ? AREAS.withAreaMembers(doc, S.movableIds(doc, [...selected], node.id)) : [...selected];
+          const op = S.nudgeOp(doc, carried, node.id, key, e.shiftKey);
+          if (op) settleAndEmit(op, carried);
           else if (node.locked) announce("Nó bloqueado: não se move.");
           return;
         }

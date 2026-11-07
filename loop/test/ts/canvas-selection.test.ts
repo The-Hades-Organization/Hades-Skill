@@ -348,3 +348,33 @@ describe("canvas-selection: teclado", () => {
     expect(nodeName(node("n1"), "", false)).toBe("note n1");
   });
 });
+
+describe("canvas-selection: nó oco (área)", () => {
+  const ar = node("ar", { type: "area", w: 500, h: 400, z: -1000 });
+  const inner = node("in", { x: 100, y: 100, z: 0 });
+  const hollow = (n: CanvasNode) => n.type === "area";
+  const opts = { k: 1, detail: "full" as const, resizable: () => false, edgeResizable: () => true, hollow };
+
+  test("o interior deixa o clique passar; o cabeçalho acerta; sem hollow o interior acerta", () => {
+    expect(hitTest([ar], { x: 250, y: 200 }, opts)).toBeUndefined();
+    expect(hitTest([ar], { x: 250, y: 5 }, opts)?.region).toBe("header");
+    expect(hitTest([ar], { x: 250, y: 200 }, { ...opts, hollow: undefined })?.id).toBe("ar");
+  });
+
+  test("a borda ainda redimensiona e o nó dentro da área é o acertado", () => {
+    expect(hitTest([ar], { x: 499, y: 200 }, opts)?.region).toBe("resize");
+    expect(hitTest([ar, inner], { x: 120, y: 120 }, opts)?.id).toBe("in");
+  });
+
+  test("afastado o cabeçalho oco tem ao menos 16px de tela", () => {
+    expect(hitTest([ar], { x: 250, y: 30 }, { ...opts, k: 0.25, detail: "far" as never })?.id).toBe("ar");
+    expect(hitTest([ar], { x: 250, y: 80 }, { ...opts, k: 0.25 })).toBeUndefined();
+  });
+
+  test("marquee só pega a área inteira", () => {
+    const partial = marqueeSelect([ar, inner], { x: 50, y: 50, w: 200, h: 200 } as never, [], false, hollow);
+    expect(partial).toEqual(["in"]);
+    const whole = marqueeSelect([ar, inner], { x: -10, y: -10, w: 600, h: 500 } as never, [], false, hollow);
+    expect([...whole].sort()).toEqual(["ar", "in"]);
+  });
+});

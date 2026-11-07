@@ -4,6 +4,7 @@
 // pela pilha de desfazer real (`perform`/`undo`) e o teste confere que desfazer devolve o documento idêntico.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import * as align from "../../../src/lib/canvas-align";
+import * as areas from "../../../src/lib/canvas-areas";
 import * as batch from "../../../src/lib/canvas-batch";
 import * as blur from "../../../src/lib/canvas-blur";
 import * as clipboard from "../../../src/lib/canvas-clipboard";
@@ -68,7 +69,7 @@ const g = globalThis as unknown as Record<string, unknown>;
 let Cmd: Commands;
 
 beforeAll(async () => {
-  g.CanvasModel = { history, groups, align, clipboard, walk, next, batch, blur, dock, store, export: exportModel };
+  g.CanvasModel = { history, groups, align, clipboard, walk, next, batch, blur, dock, store, export: exportModel, areas };
   // @ts-expect-error o .tsx é script de navegador: ele publica em globalThis, o import é só pelo efeito
   await import("../../../kit/panel/ui/argos/commands-canvas.tsx");
   Cmd = g.ArgosCanvasCommands as Commands;
@@ -213,13 +214,13 @@ describe("canvas-commands-canvas: registro", () => {
       expect(typeof def.label === "function" || def.label.trim() !== "").toBe(true);
       expect(def.shortcut !== undefined || def.surfaces.length > 0).toBe(true);
     }
-    expect(new Set(rows.map((r) => r.feature))).toEqual(new Set(["O1", "O2", "N4", "O5", "O6"]));
+    expect(new Set(rows.map((r) => r.feature))).toEqual(new Set(["O1", "O2", "N4", "O5", "O6", "O8"]));
   });
 
-  test("com todas as portas cobre os onze itens do catálogo e nenhum atalho repete", () => {
+  test("com todas as portas cobre os doze itens do catálogo e nenhum atalho repete", () => {
     const h = harness(makeDoc([]), { snap: false, dock: true, owner: [], batch: {}, workspace: {} });
     const rows = Cmd.canvasCommandRows(h.api);
-    expect(new Set(rows.map((r) => r.feature))).toEqual(new Set(["O1", "O2", "O3", "O5", "N4", "N5", "A4", "O6", "O7", "W1", "W3"]));
+    expect(new Set(rows.map((r) => r.feature))).toEqual(new Set(["O1", "O2", "O3", "O5", "N4", "N5", "A4", "O6", "O7", "O8", "W1", "W3"]));
     const chords = h.registry.help({}).flatMap((e) => e.shortcuts);
     expect(new Set(chords).size).toBe(chords.length);
     expect(h.report.refused).toEqual([]);
@@ -912,5 +913,68 @@ describe("canvas-commands-canvas: vários canvases (W1) e exportar/importar (W3)
     await h.run("canvas:import");
     expect(h.s.created).toEqual([]);
     expect(h.s.notes[0]?.code).toBe("canvas_too_large");
+  });
+});
+
+describe("canvas-commands-canvas: áreas (O8)", () => {
+  const base = (): CanvasDoc => makeDoc([note("a", 100, 100), note("b", 300, 100), note("far", 3000, 3000)]);
+  const areaOf = (d: CanvasDoc, id: string): string[] => areas.areaMembers(d, id).map((n) => n.id);
+  const firstArea = (d: CanvasDoc): CanvasNode => d.nodes.find((n) => n.type === "area") as CanvasNode;
+
+  test("area:create em volta da seleção encaixa os nós, seleciona a área e desfazer devolve o documento", async () => {
+    const h = harness(base());
+    const before = clone(h.s.doc);
+    h.s.selection = ["a", "b"];
+    await h.run("area:create");
+    const created = firstArea(h.s.doc);
+    expect(areaOf(h.s.doc, created.id)).toEqual(["a", "b"]);
+    expect(created.x).toBeLessThan(100);
+    expect(created.x + created.w).toBeGreaterThan(400);
+    expect(h.s.selection).toEqual([created.id]);
+    expect(h.s.history.past).toHaveLength(1);
+    h.undoAll();
+    expect(h.s.doc).toEqual(before);
+  });
+
+  test("area:create sem seleção cria uma área vazia", async () => {
+    const h = harness(base());
+    await h.run("area:create");
+    expect(areaOf(h.s.doc, firstArea(h.s.doc).id)).toEqual([]);
+  });
+
+  test("area:dock só vale com nó solto e área; encaixa a escolhida e area:undock retira", async () => {
+    const h = harness(base());
+    h.s.selection = ["far"];
+    expect(h.applies("area:dock")).toBe(false);
+    h.s.selection = [];
+    await h.run("area:create");
+    const id = firstArea(h.s.doc).id;
+    h.s.selection = ["far"];
+    expect(h.applies("area:undock")).toBe(false);
+    h.s.answers.choose.push(id);
+    await h.run("area:dock");
+    expect(areaOf(h.s.doc, id)).toEqual(["far"]);
+    h.s.selection = ["far"];
+    await h.run("area:undock");
+    expect(areaOf(h.s.doc, id)).toEqual([]);
+  });
+
+  test("area:rename e area:color trocam título e cor; cancelar não grava; título inválido avisa", async () => {
+    const h = harness(base());
+    await h.run("area:create");
+    const id = firstArea(h.s.doc).id;
+    h.s.selection = [id];
+    const commits = h.s.commits;
+    await h.run("area:rename");
+    expect(h.s.commits).toBe(commits);
+    h.s.answers.text.push("Squad");
+    await h.run("area:rename");
+    expect(firstArea(h.s.doc).data.title).toBe("Squad");
+    h.s.answers.text.push("   ");
+    await h.run("area:rename");
+    expect(h.s.notes.at(-1)?.level).toBe("error");
+    h.s.answers.choose.push("chart-4");
+    await h.run("area:color");
+    expect(firstArea(h.s.doc).data.color).toBe("chart-4");
   });
 });

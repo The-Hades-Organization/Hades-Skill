@@ -935,3 +935,26 @@ describe("canvas-cli: recruit --cwd em worktree de agente que já concluiu", () 
     expect(r.err.some((l) => l.includes(AVISO))).toBe(false);
   });
 });
+
+describe("canvas-cli: áreas", () => {
+  const areaNode = (id: string, data: Dict): CanvasNode => ({ id, type: "area", x: 0, y: 0, w: 500, h: 400, z: -1000, data, locked: false, blurred: false });
+
+  test("area list sem área diz que não há; com área mostra id, título, cor, quantos e os membros", async () => {
+    const vazio = await rig(baseDoc());
+    expect(await vazio.run("area", "list")).toBe(EXIT.ok);
+    expect(vazio.out.join("\n")).toContain("nenhuma área");
+
+    const doc = baseDoc();
+    doc.nodes.push(areaNode("ar1", { title: "Squad", color: "chart-2", members: ["term-comum", "n-ctx"] }));
+    const r = await rig(doc);
+    expect(await r.run("area", "list")).toBe(EXIT.ok);
+    const text = r.out.join("\n");
+    expect(text).toContain("ar1\tSquad\tchart-2\t2");
+    expect(text).toContain("  Comum\tterm-comum\tterminal");
+  });
+
+  test("area com subcomando desconhecido sai com uso", async () => {
+    const r = await rig(baseDoc());
+    expect(await r.run("area", "apagar")).toBe(EXIT.usage);
+  });
+});

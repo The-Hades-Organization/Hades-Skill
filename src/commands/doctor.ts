@@ -23,6 +23,8 @@ import { judgeSlice, showSlice } from "../lib/doctor-slice.ts";
 import { belongsTo, otherInstances, type InstanceIdentity } from "../lib/doctor-instancias.ts";
 import { inheritedDefault, judgeSettings, readSettings, recentModelIds, roleSettings } from "../lib/settings-default.ts";
 import { configValue } from "../lib/work.ts";
+import { judgeMark, type MarkProbe } from "../lib/doctor-mark.ts";
+import { MARK_BRIDGE_KEY, bridgePathOf, markUrl, parseState, readBridge, type Bridge } from "../lib/mark-bridge.ts";
 import { serviceManager } from "../lib/service-manager.ts";
 import { FILTERS_REL, planWorktree, policyAdvice, rtkBinary, rtkConfig, settingsFor, trustState } from "../lib/rtk-filters.ts";
 
@@ -524,6 +526,34 @@ function checkHerdrServer(r: Report, unit: string): void {
   } else r.warn("Painel", "herdr-servidor", "painel no ar sem servidor herdr (o terminal do canvas sobe o servidor ao ser criado)", "abra o `herdr` (ou crie um terminal no canvas: o painel sobe o servidor)");
 }
 
+const MARK_PROBE_TIMEOUT_MS = 3000;
+const HTTP_UNAUTHORIZED = 401;
+const HTTP_FORBIDDEN = 403;
+
+/** Sonda `GET /api/state` por curl: o token vai por stdin (`--config -`), nunca na linha de comando nem na saída. */
+function probeMark(bridge: Bridge): MarkProbe {
+  const config = [`header = "Authorization: Bearer ${bridge.token}"`, bridge.scheme === "https" ? "insecure" : "", `url = "${markUrl(bridge, "/api/state")}"`, 'write-out = "\\n%{http_code}"', "silent", `max-time = ${MARK_PROBE_TIMEOUT_MS / 1000}`].filter(Boolean).join("\n");
+  const res = spawnSync("curl", ["--config", "-"], { input: config, encoding: "utf8", timeout: MARK_PROBE_TIMEOUT_MS + 1000 });
+  if (res.status !== 0 || typeof res.stdout !== "string") return { kind: "unreachable" };
+  const cut = res.stdout.lastIndexOf("\n");
+  const code = Number(res.stdout.slice(cut + 1));
+  if (code === HTTP_UNAUTHORIZED || code === HTTP_FORBIDDEN) return { kind: "rejected" };
+  try {
+    const state = parseState(JSON.parse(res.stdout.slice(0, cut)));
+    return state === undefined ? { kind: "unreachable" } : { kind: "answered", state };
+  } catch {
+    return { kind: "unreachable" };
+  }
+}
+
+function checkMark(r: Report, ctx: Ctx): void {
+  const read = readBridge(bridgePathOf(configValue(MARK_BRIDGE_KEY, "")));
+  const probe = read.ok && !ctx.quick ? probeMark(read.bridge) : undefined;
+  const v = judgeMark(read, probe);
+  if (v.level === "ok") r.ok("Painel", "mark-ponte", v.msg);
+  else r.warn("Painel", "mark-ponte", v.msg, v.fix ?? "");
+}
+
 function checkBoot(r: Report, ctx: Ctx): void {
   if (serviceManager().kind === "launchd") return;
   const unit = env("HADES_BOOT_UNIT", `${ctx.hu}-boot`);
@@ -721,6 +751,7 @@ export function doctorCommand(args: string[]): number {
   checkRtk(report, ctx);
   checkSettingsDefault(report);
   checkPanel(report, ctx);
+  checkMark(report, ctx);
   checkBoot(report, ctx);
   checkCleaning(report, ctx);
   checkNotifications(report, ctx);

@@ -18,6 +18,8 @@ import { createHerdrPage, SizeError } from "./herdr-page.ts";
 import { createHerdrStream } from "./herdr-stream.ts";
 import { exec } from "./exec.ts";
 import { createArgos } from "./argos.ts";
+import { createMark } from "./mark.ts";
+import { MARK_BRIDGE_KEY, bridgePathOf } from "../lib/mark-bridge.ts";
 import { createCanvasRoutes } from "./canvas.ts";
 import { createCanvasHub } from "./canvas-stream.ts";
 import { createCanvasContentRoutes } from "./canvas-content.ts";
@@ -165,6 +167,15 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
   const argos = createArgos({
     env, herdr, herdrPage, config: () => core.configValues(env), gates: () => (gatewatch.detail().gates as Record<string, unknown>[] | undefined) ?? [],
     workRoot: env.locks ? dirname(dirname(env.locks)) : workRoot(process.env, home()),
+  });
+  // Mark no Argos (reference/argos.md §Mark): proxy para a ponte em loopback do Mark-LVI; o token nunca chega ao navegador
+  const mark = createMark({
+    bridgePath: () => bridgePathOf(core.configValues(env)[MARK_BRIDGE_KEY]),
+    timeoutMs: () => {
+      const seconds = Number.parseInt(core.configValues(env).HADES_MARK_TIMEOUT_S ?? "", 10);
+      return (Number.isNaN(seconds) || seconds < 1 ? 5 : seconds) * 1000;
+    },
+    auditFile: join(env.dir, "logs", "panel-mark.log"),
   });
   // empurrão do canvas: a página abre /api/canvas/stream e é avisada de cada gravação (reference/argos.md §Releitura do documento)
   const canvasHub = createCanvasHub();
@@ -362,6 +373,10 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     if (path === TERM_PATHS.list) return termHttp.list();
     if (path === "/api/journal/stream") return misc.journal.stream(req, query);
     if (path === "/api/herdr/stream") return herdrStream.open(req, query);
+    if (path.startsWith("/api/mark/")) {
+      const markRead = await mark.get(path, req);
+      if (markRead) return markRead;
+    }
     if (path.startsWith("/api/argos/")) {
       const terminalsRead = argosTerminals.get(path);
       if (terminalsRead) return terminalsRead;
@@ -589,6 +604,8 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     // supervisor do canvas: consulta e resumo das notas pelo claude -p (D1 pelo acesso remoto)
     const supervisorWrite = supervisor.post(path, body, { remote });
     if (supervisorWrite) return supervisorWrite;
+    const markWrite = await mark.post(path, body, { remote });
+    if (markWrite) return markWrite;
     if (path === "/api/argos/action") return argos.act(body, { remote, ip: req.headers.get("cf-connecting-ip") ?? undefined });
     if (path === "/api/caronte/park") {
       try {
@@ -745,5 +762,5 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
   gatewatch.start();
   term.start();
   const widgetListener = widget.serve();
-  return { stop: () => { sampler.stop(); gatewatch.stop(); term.stop(); pluginHost.stop(); widgetListener?.stop(); herdrStream.stop(); void server.stop(true); }, port: server.port ?? port, token };
+  return { stop: () => { sampler.stop(); gatewatch.stop(); term.stop(); pluginHost.stop(); widgetListener?.stop(); herdrStream.stop(); mark.close(); void server.stop(true); }, port: server.port ?? port, token };
 }

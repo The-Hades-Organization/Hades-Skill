@@ -248,10 +248,10 @@ const URL_PORTAL = "http://localhost:3000/app";
 // ------------------------------------------------------------------ registro
 
 describe("tipos vivos: registro", () => {
-  test("registra os seis tipos como nós de usuário em HTML, sem menu nem ação do servidor", () => {
+  test("registra os sete tipos como nós de usuário em HTML, sem menu nem ação do servidor", () => {
     const registry = createNodeTypeRegistry();
     const defs = Live.registerLiveTypes(registry, makeDeps(fakeFetch().fetch));
-    expect(defs.map((d) => d.type)).toEqual(["portal", "terminal", "tree", "plan", "agent-file", "conversation"]);
+    expect(defs.map((d) => d.type)).toEqual(["portal", "terminal", "tree", "plan", "agent-file", "conversation", "mark"]);
     for (const def of registry.list()) {
       expect(def.live).toBe(false);
       expect(def.draw.surface).toBe("html");
@@ -265,7 +265,7 @@ describe("tipos vivos: registro", () => {
     const deps = makeDeps(fakeFetch().fetch);
     Live.registerLiveTypes(registry, deps);
     expect(() => Live.registerLiveTypes(registry, deps)).not.toThrow();
-    expect(registry.list()).toHaveLength(6);
+    expect(registry.list()).toHaveLength(7);
   });
 });
 

@@ -3653,3 +3653,35 @@ teclado vindo de evento (saída nova num terminal, foco devolvido ao fechar um d
   Espaço como usado.
 - Depuração: `localStorage["argos.cameraDebug"] = "1"` imprime no console cada movimento que não é pan/zoom, com a origem
   (`selection:*`, `select`, `url`, `tty-jump`), a câmera de partida e a seleção antes e depois.
+
+## Mark
+
+O nó `mark` mostra o Mark-LVI (o assistente de voz do dono) no canvas: a orbe na cor do estado, o nome, as últimas falas e ações do log, um campo de texto para mandar pedido, o botão de acordar e o de abrir o último relatório. Mede 360×420, desenha em HTML e existe um por canvas. A paleta (Ctrl+K, *Mark*) só o oferece quando o `bridge.json` do Mark existe e o canvas ainda não tem um nó `mark`. Colar ou duplicar pode criar um segundo nó; cada um abre o seu stream, e o teto de 8 streams protege o servidor.
+
+**Caminho.** O navegador fala só com o servidor do painel (`/api/mark/*`, com a autenticação do painel). O servidor lê o `bridge.json` (chave `HADES_MARK_BRIDGE`, padrão `~/.config/mark-lvi/bridge.json`) a cada chamada e a cada conexão, e fala com o Mark em `127.0.0.1`: a porta e o esquema vêm do arquivo, o host nunca. Com `https` o certificado do Mark é autoassinado, e a verificação é ignorada só para o loopback. O token do Mark fica no servidor e nunca chega ao navegador, ao log nem a esta documentação.
+
+| Rota | O que faz |
+|---|---|
+| `GET /api/mark/state` | estado do Mark (`state`, `speaking`, `muted`, `claude`, `last_report` sem o caminho), ou `{online:false, ...}` com a causa |
+| `GET /api/mark/events` | SSE que repassa o `/ws` do Mark: eventos `state` e `log`. Fecha o WebSocket e o SSE juntos quando um lado cai |
+| `POST /api/mark/command` | `{"text": "..."}`: manda o pedido ao Mark |
+| `POST /api/mark/wake` | acorda o Mark |
+| `GET /api/mark/report` | texto do último relatório que o Mark anunciou, só leitura |
+
+**Limites.** O texto do pedido tem no máximo 2000 caracteres e não pode ser vazio. `command` e `wake` somam 10 pedidos por janela de 10 s (excedente recebe 429 com `Retry-After`), porque cada um fala ou acorda o Mark na sala do dono. No máximo 8 streams SSE ao mesmo tempo. Cada chamada ao Mark tem timeout, configurado em `HADES_MARK_TIMEOUT_S` (padrão 5 s). O relatório é lido do disco local, cortado em 256 KiB (a resposta traz `clipped: true`), e só vale se for um `.md` regular dentro de uma pasta `reports`, depois de resolver links; o caminho vem do Mark, nunca da requisição. O nó mostra o relatório como texto, sem interpretar HTML.
+
+**Fora do ar.** Sem o Mark, as rotas respondem `{online:false, code, explain}`, com o texto do catálogo de erros humanos e a ação "rode `mark`". O nó mostra a causa e a ação e tenta de novo sozinho, com recuo de 2, 4, 8, 16 e 30 s (o teto de 30 s se repete). Todo timer, o stream e o pedido em andamento morrem com o nó.
+
+| Código | Causa |
+|---|---|
+| `mark_bridge_missing` | o `bridge.json` não existe: o Mark não está aberto |
+| `mark_bridge_invalid` | o arquivo existe, mas não tem porta, token ou esquema válidos |
+| `mark_process_gone` | o `pid` do arquivo não existe mais (o Mark caiu sem apagá-lo) |
+| `mark_unreachable` | a porta recusou a conexão ou estourou o timeout |
+| `mark_rejected` | o Mark respondeu 401 ou 403: o token do arquivo não vale |
+| `mark_bad_response` | o Mark respondeu algo fora do contrato |
+| `mark_text_empty`, `mark_text_too_long` | o pedido veio vazio ou acima de 2000 caracteres |
+| `mark_streams_busy`, `mark_rate_limited` | os tetos de 8 streams e de 10 pedidos por 10 s |
+| `mark_no_report`, `mark_report_unreadable` | o Mark não anunciou relatório, ou ele não pôde ser lido |
+
+O `hades doctor` confere a ponte no item `mark-ponte` (`reference/doctor.md`).

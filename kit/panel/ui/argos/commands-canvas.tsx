@@ -156,6 +156,12 @@ interface CanvasSketchPort {
   at(): { x: number; y: number };
 }
 
+/** Nó do Mark (reference/argos.md §Mark): a página diz se o `bridge.json` existe e onde o nó nasce. */
+interface CanvasMarkPort {
+  at(): { x: number; y: number };
+  available(): boolean;
+}
+
 /** Nó de agente como terminal: a página tem o host dos terminais (foco do teclado, atenção, números de salto). */
 interface CanvasTtyPort {
   /** Foca o próximo terminal que pede atenção; `false` se nenhum pede. */
@@ -230,6 +236,7 @@ interface CanvasCommandsApi {
   savedFilters?: CanvasSavedFiltersPort;
   scope?: CanvasScopePort;
   sketch?: CanvasSketchPort;
+  mark?: CanvasMarkPort;
   tty?: CanvasTtyPort;
   terminals?: CanvasTerminalPort;
   composer?: CanvasComposerPort;
@@ -304,6 +311,10 @@ const NO_DEFAULT_FILTER = "-";
 const ROUND_CHOICE = "";
 /** Tamanho do nó `unit-sketch` (o mesmo que types-user.tsx declara no registro de tipos). */
 const SKETCH_FRAME = { w: 320, h: 220 } as const;
+/** Tipo e tamanho do nó do Mark (o mesmo que types-live.tsx declara no registro); um por canvas. */
+const MARK_TYPE = "mark";
+const MARK_FRAME = { w: 360, h: 420 } as const;
+const MARK_ID_PREFIX = "mark";
 /** Números de salto dos terminais visíveis: Alt+1 a Alt+9. */
 const TTY_JUMP_KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 const GROUP_AREAS = "Áreas";
@@ -825,6 +836,31 @@ function makeArgosCanvasCommands() {
           const node = {
             id, type: C.UNIT_SKETCH_TYPE, x: Math.round(x - SKETCH_FRAME.w / 2), y: Math.round(y - SKETCH_FRAME.h / 2), ...SKETCH_FRAME,
             z: Math.min(D.CANVAS_LIMITS.layer, top + 1), data: { ...unit }, locked: false, blurred: false,
+          };
+          docPort.commit(M.history.opCreate(doc, [node]));
+          docPort.select([id]);
+          docPort.reveal(id);
+        }),
+      });
+    }
+
+    // ---- Mark: um nó por canvas, oferecido só quando o bridge.json existe ----
+    const mark = api.mark;
+    if (mark !== undefined) {
+      const D = readOptionalModel("doc");
+      const hasMark = (): boolean => docPort.doc().nodes.some((node) => node.type === MARK_TYPE);
+      add("A7", {
+        id: "mark:add", label: "Mark", hint: "estado e pedidos do assistente de voz", group: GROUP_CREATE, surfaces: SURFACES_CANVAS,
+        when: () => mark.available() && !hasMark(),
+        run: guardedAsync(async () => {
+          if (hasMark()) return;
+          const doc = docPort.doc();
+          const { x, y } = mark.at();
+          const top = doc.nodes.reduce((layer, node) => Math.max(layer, node.z), 0);
+          const id = M.clipboard.sequentialIds(doc, MARK_ID_PREFIX)("node");
+          const node = {
+            id, type: MARK_TYPE, x: Math.round(x - MARK_FRAME.w / 2), y: Math.round(y - MARK_FRAME.h / 2), ...MARK_FRAME,
+            z: Math.min(D.CANVAS_LIMITS.layer, top + 1), data: {}, locked: false, blurred: false,
           };
           docPort.commit(M.history.opCreate(doc, [node]));
           docPort.select([id]);

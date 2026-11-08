@@ -1058,4 +1058,78 @@ export const HUMAN_ERRORS: Readonly<Record<string, HumanError>> = {
     action: "Peça ao agente para dividir em pedidos menores.",
     ref: `${ARGOS} §Desenho (\`canvas-drawing.ts\`)`,
   },
+
+  // ------------------------------------------------------------------ Mark no Argos (nó mark, src/panel/mark.ts)
+  mark_bridge_missing: {
+    title: "O Mark não está aberto",
+    cause: "O arquivo da ponte (`bridge.json`) não existe: o Mark apaga o arquivo ao sair e só o grava quando sobe.",
+    action: "Abra o Mark com `mark`. Se ele já está aberto e o arquivo mora em outro lugar, aponte a chave `HADES_MARK_BRIDGE` nas Configurações.",
+    ref: `${ARGOS} §Mark`,
+  },
+  mark_bridge_invalid: {
+    title: "O arquivo da ponte do Mark está inválido",
+    cause: "O `bridge.json` existe, mas não tem porta, token, esquema e pid válidos (arquivo cortado, de outra versão ou de outro programa).",
+    action: "Feche o Mark e abra de novo com `mark`, que regrava o arquivo. Confira se `HADES_MARK_BRIDGE` aponta o arquivo do Mark.",
+    ref: `${ARGOS} §Mark`,
+  },
+  mark_process_gone: {
+    title: "O Mark fechou sem apagar a ponte",
+    cause: "O `bridge.json` sobrou de uma execução que terminou à força, e o processo que ele cita não existe mais.",
+    action: "Abra o Mark com `mark`: ele regrava o arquivo e o nó volta sozinho.",
+    ref: `${ARGOS} §Mark`,
+  },
+  mark_unreachable: {
+    title: "O Mark não respondeu na ponte",
+    cause: "O arquivo da ponte existe e o processo está vivo, mas a porta recusou a conexão, caiu no meio ou passou do tempo de espera.",
+    action: "Reabra o Mark com `mark`. Se ele demora a subir, aumente `HADES_MARK_TIMEOUT_S` nas Configurações.",
+    ref: `${ARGOS} §Mark`,
+  },
+  mark_rejected: {
+    title: "O Mark recusou o token da ponte",
+    cause: "O token do `bridge.json` não vale mais: o Mark gera um novo a cada execução e o arquivo lido é de uma anterior.",
+    action: "Reabra o Mark com `mark` para gravar um token novo.",
+    ref: `${ARGOS} §Mark`,
+  },
+  mark_bad_response: {
+    title: "O Mark respondeu algo que o painel não entende",
+    cause: "A resposta da ponte não segue o contrato esperado (estado fora do formato ou resposta de erro).",
+    action: "Atualize o Mark para a versão com a ponte (`/api/state`) e abra de novo com `mark`. `hades doctor` mostra o que a ponte devolveu.",
+    ref: `${ARGOS} §Mark`,
+  },
+  mark_text_empty: {
+    title: "O pedido ao Mark está vazio",
+    cause: "O campo de texto chegou sem nada além de espaços.",
+    action: "Escreva o pedido e envie de novo.",
+    ref: `${ARGOS} §Mark`,
+  },
+  mark_text_too_long: {
+    title: "O pedido ao Mark é longo demais",
+    cause: "O painel recusa pedido acima de 2000 caracteres para o Mark não ler um texto enorme em voz alta nem enfileirar um bloco inteiro.",
+    action: "Encurte o pedido. Texto longo vai melhor numa nota do Argos que o Mark leia depois.",
+    ref: `${ARGOS} §Mark`,
+  },
+  mark_streams_busy: {
+    title: "Abas demais acompanhando o Mark",
+    cause: "O painel limita quantas abas recebem o fluxo ao vivo do Mark ao mesmo tempo.",
+    action: "Feche as abas do painel que não usa; a aba recusada tenta de novo sozinha em alguns segundos.",
+    ref: `${ARGOS} §Mark`,
+  },
+  mark_rate_limited: {
+    title: "Pedidos demais ao Mark em pouco tempo",
+    cause: "O painel limita pedidos e acordares por janela de 10 segundos, porque o Mark fala e abre janelas na máquina.",
+    action: "Espere o tempo do `Retry-After` e envie de novo.",
+    ref: `${ARGOS} §Mark`,
+  },
+  mark_no_report: {
+    title: "O Mark ainda não tem relatório",
+    cause: "O estado do Mark não cita relatório, ou o arquivo citado está fora da pasta `reports` dele.",
+    action: "Peça ao Mark uma pesquisa ou tarefa que gere relatório e abra o botão de novo.",
+    ref: `${ARGOS} §Mark`,
+  },
+  mark_report_unreadable: {
+    title: "Não consegui ler o relatório do Mark",
+    cause: "O arquivo do relatório sumiu ou o painel não tem permissão para lê-lo.",
+    action: "Confira a pasta `reports` do Mark e rode `hades doctor`.",
+    ref: `${ARGOS} §Mark`,
+  },
 };

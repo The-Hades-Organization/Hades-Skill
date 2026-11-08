@@ -19,6 +19,8 @@ import { createHerdrStream } from "./herdr-stream.ts";
 import { exec } from "./exec.ts";
 import { createArgos } from "./argos.ts";
 import { createMark } from "./mark.ts";
+import { createMarkVoice, type VoiceSocketData } from "./mark-voice.ts";
+import { VOICE_MODES, isVoiceMode, type VoiceMode } from "./mark-voice-logic.ts";
 import { MARK_BRIDGE_KEY, bridgePathOf } from "../lib/mark-bridge.ts";
 import { createCanvasRoutes } from "./canvas.ts";
 import { createCanvasHub } from "./canvas-stream.ts";
@@ -55,8 +57,11 @@ import * as core from "./routes-core.ts";
 import { CANVAS_HARNESS_HTML, createCanvasModuleBundler, createUiTranspiler } from "./ui-transpile.ts";
 import { TOURS_MARKER, tourScriptTags } from "./ui-tours.ts";
 import { createTerm } from "./term.ts";
-import { createTermHttp, type TermSocketData } from "./term-http.ts";
-import { TERM_PATHS } from "./term-protocol.ts";
+import { createTermHttp, originAllowedFor, type TermSocketData } from "./term-http.ts";
+import { TERM_LIMITS, TERM_PATHS } from "./term-protocol.ts";
+import type { Server, ServerWebSocket, WebSocketHandler } from "bun";
+
+type SocketData = TermSocketData | VoiceSocketData;
 
 const AUTH_DELAY_MS = 1000;
 const NOTIFY_APPLY_TIMEOUT_MS = 30_000;
@@ -169,12 +174,13 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     workRoot: env.locks ? dirname(dirname(env.locks)) : workRoot(process.env, home()),
   });
   // Mark no Argos (reference/argos.md §Mark): proxy para a ponte em loopback do Mark-LVI; o token nunca chega ao navegador
+  const markTimeoutMs = (): number => {
+    const seconds = Number.parseInt(core.configValues(env).HADES_MARK_TIMEOUT_S ?? "", 10);
+    return (Number.isNaN(seconds) || seconds < 1 ? 5 : seconds) * 1000;
+  };
   const mark = createMark({
     bridgePath: () => bridgePathOf(core.configValues(env)[MARK_BRIDGE_KEY]),
-    timeoutMs: () => {
-      const seconds = Number.parseInt(core.configValues(env).HADES_MARK_TIMEOUT_S ?? "", 10);
-      return (Number.isNaN(seconds) || seconds < 1 ? 5 : seconds) * 1000;
-    },
+    timeoutMs: markTimeoutMs,
     auditFile: join(env.dir, "logs", "panel-mark.log"),
   });
   // empurrão do canvas: a página abre /api/canvas/stream e é avisada de cada gravação (reference/argos.md §Releitura do documento)
@@ -243,6 +249,21 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     log,
   });
   const termHttp = createTermHttp({ term, auth, port });
+  // voz do Mark pelo painel (reference/argos.md §Mark §Voz): o mesmo `bridge.json`, o mesmo token, só no servidor
+  const markVoice = createMarkVoice({
+    auth, port, originAllowed: originAllowedFor(auth, port), reachable: () => mark.reachable(),
+    bridgePath: () => bridgePathOf(core.configValues(env)[MARK_BRIDGE_KEY]),
+    connectTimeoutMs: () => markTimeoutMs(),
+    maxSessionMs: () => {
+      const seconds = Number.parseInt(core.configValues(env).HADES_MARK_VOICE_MAX_S ?? "", 10);
+      return (Number.isNaN(seconds) || seconds < 1 ? 600 : seconds) * 1000;
+    },
+    defaultMode: (): VoiceMode => {
+      const mode = core.configValues(env).HADES_MARK_VOICE_MODE ?? "";
+      return isVoiceMode(mode) ? mode : VOICE_MODES[0];
+    },
+    auditFile: join(env.dir, "logs", "panel-mark.log"),
+  });
   // supervisor do canvas (reference/argos.md §Supervisor): só lê o pane (a leitura do /api/herdr/read) e as notas
   const supervisor = createSupervisorRoutes({
     dir: env.dir,
@@ -737,11 +758,25 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
 
   // a primeira amostra sai antes de atender, como no original: o primeiro /api/snapshot já vem cheio
   await sampler.sample();
-  const server = Bun.serve<TermSocketData>({
+  // um só handler de WebSocket no Bun.serve: o terminal e a voz do Mark se distinguem pelo `kind` do dado do socket
+  const isVoice = (ws: ServerWebSocket<SocketData>): ws is ServerWebSocket<VoiceSocketData> => "kind" in ws.data && ws.data.kind === "voice";
+  const websocket: WebSocketHandler<SocketData> = {
+    maxPayloadLength: Math.max(TERM_LIMITS.inputBytes, markVoice.websocket.maxPayloadLength ?? 0),
+    backpressureLimit: termHttp.websocket.backpressureLimit,
+    idleTimeout: termHttp.websocket.idleTimeout,
+    open: (ws) => (isVoice(ws) ? markVoice.websocket.open?.(ws) : termHttp.websocket.open?.(ws as ServerWebSocket<TermSocketData>)),
+    message: (ws, message) => (isVoice(ws) ? markVoice.websocket.message?.(ws, message) : termHttp.websocket.message?.(ws as ServerWebSocket<TermSocketData>, message)),
+    drain: (ws) => { if (!isVoice(ws)) termHttp.websocket.drain?.(ws as ServerWebSocket<TermSocketData>); },
+    close: (ws, code, reason) => (isVoice(ws) ? markVoice.websocket.close?.(ws, code, reason) : termHttp.websocket.close?.(ws as ServerWebSocket<TermSocketData>, code, reason)),
+  };
+  const server = Bun.serve<SocketData>({
     hostname: "127.0.0.1",
     port,
-    websocket: termHttp.websocket,
+    websocket,
     async fetch(req, srv) {
+      if (req.method === "GET" && markVoice.isVoicePath(new URL(req.url).pathname)) {
+        return widgetScopeRefused(req) ?? markVoice.handle(req, srv as Server<VoiceSocketData>);
+      }
       // o WebSocket do terminal confere host, chave, Origin e a chave HADES_TERMINAL antes de trocar de protocolo
       if (req.method === "GET" && termHttp.isSocketPath(new URL(req.url).pathname)) {
         return widgetScopeRefused(req) ?? termHttp.upgrade(req, srv);
@@ -762,5 +797,5 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
   gatewatch.start();
   term.start();
   const widgetListener = widget.serve();
-  return { stop: () => { sampler.stop(); gatewatch.stop(); term.stop(); pluginHost.stop(); widgetListener?.stop(); herdrStream.stop(); mark.close(); void server.stop(true); }, port: server.port ?? port, token };
+  return { stop: () => { sampler.stop(); gatewatch.stop(); term.stop(); pluginHost.stop(); widgetListener?.stop(); herdrStream.stop(); mark.close(); markVoice.close(); void server.stop(true); }, port: server.port ?? port, token };
 }

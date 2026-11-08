@@ -56,6 +56,8 @@ export interface Mark {
   get(path: string, req: Request): Promise<Response | undefined>;
   /** POST /api/mark/*: undefined se o caminho não é do Mark. */
   post(path: string, body: Dict, caller: { remote: boolean }): Promise<Response | undefined>;
+  /** `undefined` se o Mark responde ao estado; senão a causa de estar fora (usada para explicar uma voz que não abriu). */
+  reachable(): Promise<OfflineCause | undefined>;
   /** Fecha todos os streams (desligamento do painel). */
   close(): void;
   size(): number;
@@ -82,6 +84,23 @@ export function parseLogLine(raw: unknown): { kind: "log" | "sys"; speaker: stri
 function offline(cause: OfflineCause): Dict {
   const { title, cause: why, action, ref } = explain(cause);
   return { online: false, available: cause !== MARK_ERRORS.bridgeMissing, cause, explain: { code: cause, title, cause: why, action, ref } };
+}
+
+/** O Mark usa certificado autoassinado com `https`: a verificação cai só aqui, onde o host é sempre 127.0.0.1. */
+export const tlsFor = (bridge: Bridge): { rejectUnauthorized: boolean } | undefined => (bridge.scheme === "https" ? { rejectUnauthorized: false } : undefined);
+
+/** Uma linha JSON por fato que muda o Mark (pedido, voz). Sem arquivo, nada é gravado; a falha de gravação nunca derruba o pedido. */
+export function createAudit(file: string | undefined, now: () => number): (action: string, caller: { remote: boolean }, detail: Dict) => void {
+  return (action, caller, detail) => {
+    if (file === undefined) return;
+    try {
+      mkdirSync(dirname(file), { recursive: true });
+      appendFileSync(file, `${JSON.stringify({ at: new Date(now()).toISOString(), action, remote: caller.remote, ...detail })}\n`);
+    } catch (error) {
+      // a auditoria não derruba o pedido; o código do erro basta para achar a causa (sem caminho nem texto do pedido)
+      console.error(`mark: auditoria não gravada (${(error as NodeJS.ErrnoException).code ?? "erro"})`);
+    }
+  };
 }
 
 type UpstreamFailure = { ok: false; cause: OfflineCause };
@@ -121,9 +140,6 @@ export function createMark(deps: MarkDeps): Mark {
 
   const frame = (event: string, data: unknown): string => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 
-  /** O Mark usa certificado autoassinado com `https`: a verificação cai só aqui, onde o host é sempre 127.0.0.1. */
-  const tlsFor = (bridge: Bridge): { rejectUnauthorized: boolean } | undefined => (bridge.scheme === "https" ? { rejectUnauthorized: false } : undefined);
-
   async function call(bridge: Bridge, path: string, init: { method: "GET" | "POST"; body?: string }): Promise<Upstream<unknown>> {
     const headers: Record<string, string> = { Authorization: `Bearer ${bridge.token}` };
     if (init.body !== undefined) headers["Content-Type"] = "application/json";
@@ -162,16 +178,7 @@ export function createMark(deps: MarkDeps): Mark {
     return send(status, { error: "o Mark não respondeu", code: cause });
   }
 
-  function audit(action: string, caller: { remote: boolean }, detail: Dict): void {
-    if (deps.auditFile === undefined) return;
-    try {
-      mkdirSync(dirname(deps.auditFile), { recursive: true });
-      appendFileSync(deps.auditFile, `${JSON.stringify({ at: new Date(now()).toISOString(), action, remote: caller.remote, ...detail })}\n`);
-    } catch (error) {
-      // a auditoria não derruba o pedido; o código do erro basta para achar a causa (sem caminho nem texto do pedido)
-      console.error(`mark: auditoria não gravada (${(error as NodeJS.ErrnoException).code ?? "erro"})`);
-    }
-  }
+  const audit = createAudit(deps.auditFile, now);
 
   function rateRefused(): Response | undefined {
     const wait = limiter.take();
@@ -337,6 +344,10 @@ export function createMark(deps: MarkDeps): Mark {
       if (path === ROUTES.command) return command(body, caller);
       if (path === ROUTES.wake) return wake(caller);
       return undefined;
+    },
+    async reachable() {
+      const got = await fetchState();
+      return got.ok ? undefined : got.cause;
     },
     close() {
       for (const stream of [...streams]) stream.end();

@@ -445,6 +445,12 @@ function Argos() {
         hint: 'orquestrador no centro, recrutas e notas em volta; trava e fixados ficam; desfaz num passo',
         surfaces: ['palette', 'canvas-menu'], run: () => host.current.tidyArrange() });
     } catch (e) { console.error('argos: comando de organizar recusado', e && e.code); }
+    // Falar com o Mark: atalho para a folha de voz sem achar o nó; só com a ponte (o mesmo teste da paleta do nó)
+    try {
+      made.commands.register({ id: 'mark:voice', label: 'Falar com o Mark', group: 'Canvas',
+        hint: 'abre a voz: segure para falar, ou deixe a conversa aberta', when: () => markAvailRef.current,
+        surfaces: ['palette'], run: () => { const nm = window.ArgosNodeMark; if (nm) nm.openVoice().catch((e) => console.error('argos: voz do Mark não carregou', e)); } });
+    } catch (e) { console.error('argos: comando de voz recusado', e && e.code); }
     const call = (name) => (...args) => host.current[name](...args);
     const docNow = () => cstateRef.current?.doc ?? null;
     const api = {

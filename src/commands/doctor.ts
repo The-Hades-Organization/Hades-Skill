@@ -23,8 +23,8 @@ import { judgeSlice, showSlice } from "../lib/doctor-slice.ts";
 import { belongsTo, otherInstances, type InstanceIdentity } from "../lib/doctor-instancias.ts";
 import { inheritedDefault, judgeSettings, readSettings, recentModelIds, roleSettings } from "../lib/settings-default.ts";
 import { configValue } from "../lib/work.ts";
-import { judgeMark, type MarkProbe } from "../lib/doctor-mark.ts";
-import { MARK_BRIDGE_KEY, bridgePathOf, markUrl, parseState, readBridge, type Bridge } from "../lib/mark-bridge.ts";
+import { judgeMark, judgeMarkVoice, parseVoiceProbe, VOICE_PROBE_SCRIPT, type MarkProbe, type MarkVoiceProbe } from "../lib/doctor-mark.ts";
+import { MARK_BRIDGE_KEY, bridgePathOf, markUrl, markWsUrl, parseState, readBridge, type Bridge } from "../lib/mark-bridge.ts";
 import { serviceManager } from "../lib/service-manager.ts";
 import { FILTERS_REL, planWorktree, policyAdvice, rtkBinary, rtkConfig, settingsFor, trustState } from "../lib/rtk-filters.ts";
 
@@ -546,12 +546,25 @@ function probeMark(bridge: Bridge): MarkProbe {
   }
 }
 
+/** Sonda de voz: um `bun -e` à parte faz `hello`/`ready`/`bye` no `/ws/voice`; o token entra por stdin. */
+function probeMarkVoice(bridge: Bridge): MarkVoiceProbe {
+  const input = JSON.stringify({ url: `${markWsUrl(bridge)}/voice`, token: bridge.token, insecure: bridge.scheme === "https", timeoutMs: MARK_PROBE_TIMEOUT_MS });
+  const res = spawnSync(process.execPath, ["-e", VOICE_PROBE_SCRIPT], { input, encoding: "utf8", timeout: MARK_PROBE_TIMEOUT_MS + 2000 });
+  return res.status === 0 && typeof res.stdout === "string" ? parseVoiceProbe(res.stdout) : "failed";
+}
+
 function checkMark(r: Report, ctx: Ctx): void {
   const read = readBridge(bridgePathOf(configValue(MARK_BRIDGE_KEY, "")));
   const probe = read.ok && !ctx.quick ? probeMark(read.bridge) : undefined;
   const v = judgeMark(read, probe);
   if (v.level === "ok") r.ok("Painel", "mark-ponte", v.msg);
   else r.warn("Painel", "mark-ponte", v.msg, v.fix ?? "");
+  // a voz só se confere com o Mark respondendo ao estado: com ele fora, o aviso de cima já diz o que fazer
+  if (read.ok && probe?.kind === "answered") {
+    const voice = judgeMarkVoice(probeMarkVoice(read.bridge));
+    if (voice.level === "ok") r.ok("Painel", "mark-voz", voice.msg);
+    else r.warn("Painel", "mark-voz", voice.msg, voice.fix ?? "");
+  }
 }
 
 function checkBoot(r: Report, ctx: Ctx): void {

@@ -4,6 +4,32 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.34.0 — 2026-11-08
+
+Feature (#99, unidades mark-voz no fork do Mark e argos-voz na skill): falar e ouvir o Mark pelo Argos, no celular
+(Android com Chrome, via túnel) e no desktop, com a mesma voz e o mesmo cérebro do desktop. O dono pediu o áudio pelo
+Mark, não pela fala e voz do navegador: o celular vira microfone e alto-falante remotos do Gemini Live dele.
+
+- Servidor (`src/panel/mark-voice.ts`, `mark-voice-logic.ts`): `GET /api/mark/voice` com upgrade WebSocket e as
+  mesmas guardas do terminal (host, chave, Origin antes do upgrade). Repassa quadros binários e de controle ao
+  `/ws/voice` da ponte do Mark em loopback, lendo o `bridge.json` a cada conexão (o token não chega ao navegador).
+  Um cliente por vez (`busy`), teto de quadro (3200 B) e de taxa (100 quadros/s) também na entrada do painel, teto de
+  duração (`HADES_MARK_VOICE_MAX_S`, 600 s), fechamento conjunto, erros `mark_voice_*` no catálogo de erros humanos.
+  Nenhum quadro de áudio vai para log, arquivo ou teste.
+- Cliente (`kit/panel/ui/argos/voice.tsx`, `voice-logic.tsx` e dois AudioWorklets): captura com cancelamento de eco,
+  reamostrada para PCM16 16 kHz; reprodução 24 kHz com buffer curto, que `interrupted` esvazia. O nó `mark` ganha
+  "Falar", que abre uma folha em tela cheia: segurar para falar (padrão, `HADES_MARK_VOICE_MODE`), conversa aberta,
+  medidor, orbe, últimas falas, encerrar. Espaço segurado no desktop; Wake Lock e retomada do `AudioContext` no
+  celular; comando de paleta `mark:voice`. O código de voz carrega sob demanda.
+- Doctor: item `mark-voz` (o Mark responde `ready` a um `hello`).
+- Lado do Mark (PR #8 do fork, mergeada): `/ws/voice` na ponte; enquanto há cliente, o microfone e a palavra de
+  ativação do desktop pausam e a resposta toca só no cliente; a sessão do Live não reinicia na troca.
+- Descoberto: o Live gera fala mais rápido que o tempo real; sem cadenciar a saída (~0,4 s à frente), a resposta
+  inteira ia ao buffer do celular e `interrupted` não a cortava. Em conversa aberta o cliente manda quadro sempre,
+  porque calar estouraria o `idle_timeout` de 5 s do Mark. Captura headless mostra `rate_limit` falso: o worklet gira
+  no tempo virtual do navegador.
+- Fica com o dono no aparelho: voz real, latência até a primeira sílaba, eco no viva-voz, tela apagando, troca de rede.
+
 ## 6.33.0 — 2026-11-08
 
 Feature (#98, unidade argos-mark): o Mark-LVI vira um nó do canvas do Argos. O dono pediu para ver e falar com o Mark

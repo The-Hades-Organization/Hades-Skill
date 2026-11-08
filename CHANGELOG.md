@@ -4,6 +4,28 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.33.0 — 2026-11-08
+
+Feature (#98, unidade argos-mark): o Mark-LVI vira um nó do canvas do Argos. O dono pediu para ver e falar com o Mark
+de qualquer aba do painel, inclusive pelo celular via túnel. A voz continua no desktop.
+
+- Nó `mark` (`kit/panel/ui/argos/node-mark.tsx`, 360×420): orbe na cor do estado (ouvindo, pensando, falando, mudo),
+  nome, log ao vivo com rolagem própria, campo de texto, botões acordar e abrir o último relatório (só leitura, como
+  `<pre>`, sem HTML). Fora do ar, o nó mostra causa e ação e reconecta com recuo. "Mark" aparece na paleta só quando a
+  ponte existe.
+- Servidor do painel (`src/panel/mark.ts`, `src/lib/mark-bridge.ts`): `GET /api/mark/state`, `GET /api/mark/events`
+  (SSE que repassa o `/ws` do Mark), `POST /api/mark/command`, `POST /api/mark/wake`, `GET /api/mark/report`. O painel
+  lê `bridge.json` (`{port, token, scheme, pid}`) a cada chamada, fala só com 127.0.0.1 e manda o token como Bearer:
+  **o token nunca chega ao navegador**. Arquivo ausente, `pid` morto ou porta fechada respondem `{online:false, cause}`
+  com códigos `mark_*` no catálogo de erros humanos. O relatório só abre se for um `.md` regular dentro de uma pasta
+  `reports`, conferido depois de resolver links simbólicos.
+- Configurações: `HADES_MARK_BRIDGE` (caminho do `bridge.json`, padrão `~/.config/mark-lvi/bridge.json`) e
+  `HADES_MARK_TIMEOUT_S`. O plano falava em `mark.bridge`, mas o catálogo só aceita chaves `HADES_*`.
+- Doctor: item `mark-ponte` (ponte encontrada, Mark respondendo).
+- Limite conhecido: copiar, colar ou duplicar pode criar um segundo nó mark. O teto de 8 streams SSE protege o servidor.
+- Capturas em 360 e 768 px pelo Firefox headless atrás de um proxy que segura o `load`. O chromium headless shell não
+  esperou a página e capturou só a tela de abertura.
+
 ## 6.32.0 — 2026-11-07
 
 Correção com opção nova (#45, unidade notify-dedupe): CI vermelho e review novo avisam uma vez por evento, não uma vez

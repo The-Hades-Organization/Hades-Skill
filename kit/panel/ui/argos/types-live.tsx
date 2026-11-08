@@ -74,7 +74,7 @@ const LIVE_ERRORS = {
   unavailable: "live_unavailable",
 } as const;
 
-const LIVE_TYPE = { portal: "portal", terminal: "terminal", tree: "tree", plan: "plan", agentFile: "agent-file", conversation: "conversation" } as const;
+const LIVE_TYPE = { portal: "portal", terminal: "terminal", tree: "tree", plan: "plan", agentFile: "agent-file", conversation: "conversation", mark: "mark" } as const;
 
 const TIMEOUT_MS = 8000;
 const POLL_MS = 5000;
@@ -396,6 +396,13 @@ function TerminalNode(props: { deps: LiveDeps; node: NodeRenderInput }): ReactNo
   return h(api.NodeTerminal, { session, pane, hasAgent: node.data.hasAgent === true, live: node.selected });
 }
 
+/** O nó do Mark vive em node-mark.tsx; o painel fala com ele em /api/mark/*, e o token do Mark nunca passa por aqui. */
+function MarkNode(): ReactNode {
+  const api = (globalThis as unknown as { ArgosNodeMark?: { MarkNode: () => ReactNode } }).ArgosNodeMark;
+  if (!api) return h("div", { className: BODY }, h(Note, { tone: "text-bad", status: true }, ERROR_TEXT[LIVE_ERRORS.unavailable]));
+  return h(api.MarkNode);
+}
+
 function TreeNode(props: { deps: LiveDeps; node: NodeRenderInput }): ReactNode {
   const { deps, node } = props;
   const model = modelOf(deps);
@@ -523,7 +530,7 @@ function ConversationNode(props: { deps: LiveDeps; node: NodeRenderInput }): Rea
 
 // ------------------------------------------------------------------ registro
 
-const SIZES = { portal: { w: 640, h: 420 }, terminal: { w: 640, h: 400 }, tree: { w: 320, h: 400 }, plan: { w: 420, h: 400 }, agentFile: { w: 240, h: 60 }, conversation: { w: 420, h: 400 } } as const;
+const SIZES = { portal: { w: 640, h: 420 }, terminal: { w: 640, h: 400 }, tree: { w: 320, h: 400 }, plan: { w: 420, h: 400 }, agentFile: { w: 240, h: 60 }, conversation: { w: 420, h: 400 }, mark: { w: 360, h: 420 } } as const;
 
 type LiveComponent = (props: { deps: LiveDeps; node: NodeRenderInput }) => ReactNode;
 
@@ -539,10 +546,11 @@ function liveTypeDefs(deps: LiveDeps): NodeTypeDef[] {
     def(LIVE_TYPE.plan, "Plano", "ClipboardList", SIZES.plan, PlanNode),
     def(LIVE_TYPE.agentFile, "Arquivo do agente", "FileText", SIZES.agentFile, AgentFileNode),
     def(LIVE_TYPE.conversation, "Conversa", "MessagesSquare", SIZES.conversation, ConversationNode),
+    def(LIVE_TYPE.mark, "Mark", "Orbit", SIZES.mark, MarkNode),
   ];
 }
 
-/** Registra os seis tipos; chamar de novo (modo estrito do React) não repete nem lança: o que já existe fica como está. */
+/** Registra os sete tipos; chamar de novo (modo estrito do React) não repete nem lança: o que já existe fica como está. */
 function registerLiveTypes(types: NodeTypeRegistry, deps: LiveDeps): NodeTypeDef[] {
   const done: NodeTypeDef[] = [];
   for (const def of liveTypeDefs(deps)) done.push(types.get(def.type) ?? types.register(def));

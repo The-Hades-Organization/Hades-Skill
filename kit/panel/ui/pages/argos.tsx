@@ -58,6 +58,9 @@ function loadTerminalScripts() {
   return terminalScripts;
 }
 
+/** Intervalo da conferência de que o Mark existe (a paleta lê o último resultado). */
+const MARK_PROBE_MS = 15000;
+
 // forma do nó no desenho de longe, vinda do tipo; fora do componente para a identidade não mudar a cada render
 const nodeShape = (n) => M.argos.typeLook(n.type).shape;
 const POLL_MS = 4000;
@@ -352,6 +355,15 @@ function Argos() {
   const setFullDetail = (k) => { const next = M.camera.fullDetailScale(k); setFullDetailState(next); writeStored(STORE_DETAIL, next); };
   const snapRef = useRef(snapOn);
   snapRef.current = snapOn;
+  // "Mark" na paleta só quando o bridge.json existe: o servidor responde `available`; a rota nunca devolve o token
+  const markAvailRef = useRef(false);
+  useEffect(() => {
+    let alive = true;
+    const probe = () => getJSON('/api/mark/state').then((s) => { if (alive) markAvailRef.current = !!(s && s.available); }).catch(() => { if (alive) markAvailRef.current = false; });
+    probe();
+    const timer = setInterval(probe, MARK_PROBE_MS);
+    return () => { alive = false; clearInterval(timer); };
+  }, []);
   const [dockState, setDockState] = useState(() => M.dock.emptyDock());
   const dockRef = useRef(dockState);
   // filtros salvos da instância (L5): o conjunto lido do servidor e a seleção de chips que os comandos leem na hora
@@ -445,6 +457,7 @@ function Argos() {
       savedFilters: { set: () => savedRef.current, current: () => chipsRef.current, apply: call('applyChips'), save: call('saveFilters'), reload: call('reloadFilters') },
       scope: { options: call('scopeOptions'), current: () => canvasIdRef.current, open: call('openScope'), openDefault: call('openDefaultCanvas') },
       sketch: { at: call('viewCenter') },
+      mark: { at: call('viewCenter'), available: () => markAvailRef.current },
       tty: { nextAttention: call('ttyNextAttention'), jump: call('ttyJump'), release: () => ttyHost.focus(null), focused: () => ttyHost.focused() !== null,
         zoomable: () => host.current.ttyZoomTarget() !== null, zoomText: call('ttyZoomText') },
       focus: { enabled: () => focusRef.current.on, available: () => focusRef.current.available, setEnabled: call('setFocus') },

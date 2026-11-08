@@ -31,6 +31,9 @@ interface Logic {
   levelOfPcm16(samples: Int16Array): number;
   createVoiceProtocol(send: (o: unknown) => void, mode: string): Protocol;
   isTypingTarget(t: unknown): boolean;
+  MIC_SILENT_MS: number;
+  createMicWatchdog(now: () => number): { arm(on: boolean): void; frame(): void; silent(): boolean };
+  diagLine(d: { state: string; rate: number; frames: number }): string;
 }
 
 const loadLogic = (): Logic => {
@@ -311,5 +314,61 @@ describe("carga sob demanda e arquivos servidos", () => {
       const src = readFileSync(join(ui, file), "utf8");
       expect(src).not.toMatch(/MediaRecorder|console\.(log|debug)|localStorage|indexedDB|SpeechRecognition|speechSynthesis/);
     }
+  });
+});
+
+describe("vigia do microfone mudo (bug: Chrome do Android não entrega quadro)", () => {
+  const logic = loadLogic();
+  const make = () => {
+    let t = 0;
+    const dog = logic.createMicWatchdog(() => t);
+    return { dog, at: (ms: number) => { t = ms; } };
+  };
+
+  test("dado botão apertado e nenhum quadro, quando passa o limite, então o vigia acusa mudo", () => {
+    const { dog, at } = make();
+    at(10_000);
+    dog.arm(true);
+    at(10_000 + logic.MIC_SILENT_MS - 1);
+    expect(dog.silent()).toBe(false);
+    at(10_000 + logic.MIC_SILENT_MS);
+    expect(dog.silent()).toBe(true);
+  });
+
+  test("dado botão apertado, quando os quadros seguem chegando, então nunca acusa", () => {
+    const { dog, at } = make();
+    dog.arm(true);
+    for (let ms = 30; ms < 10_000; ms += 30) { at(ms); dog.frame(); expect(dog.silent()).toBe(false); }
+  });
+
+  test("dado nada armado (botão solto, conversa fechada), quando passa muito tempo sem quadro, então não acusa", () => {
+    const { dog, at } = make();
+    at(60_000);
+    expect(dog.silent()).toBe(false);
+  });
+
+  test("dado quadro antigo e botão apertado agora, quando conta o limite, então conta do aperto e não do quadro velho", () => {
+    const { dog, at } = make();
+    at(100);
+    dog.frame();
+    at(20_000);
+    dog.arm(true);
+    at(20_000 + logic.MIC_SILENT_MS - 1);
+    expect(dog.silent()).toBe(false);
+    at(20_000 + logic.MIC_SILENT_MS);
+    expect(dog.silent()).toBe(true);
+  });
+
+  test("dado o limite, quando compara com o idle_timeout do Mark, então acusa antes dos 5 s", () => {
+    expect(logic.MIC_SILENT_MS).toBe(1500);
+  });
+
+  test("dado o estado do contexto, a taxa e os quadros, quando monta a linha de diagnóstico, então traz os três e nenhum áudio", () => {
+    expect(logic.diagLine({ state: "running", rate: 48000, frames: 12 })).toBe("áudio: running · 48000 Hz · 12 quadros enviados");
+    expect(logic.diagLine({ state: "suspended", rate: 0, frames: 0 })).toBe("áudio: suspended · — Hz · 0 quadros enviados");
+  });
+
+  test("dado o erro de microfone mudo, quando decide religar, então é fatal (religar o socket não destrava o navegador)", () => {
+    expect(logic.isFatalCode("mark_voice_mic_silent")).toBe(true);
   });
 });

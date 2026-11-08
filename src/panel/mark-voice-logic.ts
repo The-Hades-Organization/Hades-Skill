@@ -42,10 +42,11 @@ export const VOICE_ERRORS = {
   micDenied: "mark_voice_mic_denied",
   micMissing: "mark_voice_mic_missing",
   insecureContext: "mark_voice_insecure_context",
+  micSilent: "mark_voice_mic_silent",
 } as const;
 export type VoiceErrorCode = (typeof VOICE_ERRORS)[keyof typeof VOICE_ERRORS];
 
-export const CLIENT_VOICE_ERRORS: readonly VoiceErrorCode[] = [VOICE_ERRORS.micDenied, VOICE_ERRORS.micMissing, VOICE_ERRORS.insecureContext];
+export const CLIENT_VOICE_ERRORS: readonly VoiceErrorCode[] = [VOICE_ERRORS.micDenied, VOICE_ERRORS.micMissing, VOICE_ERRORS.insecureContext, VOICE_ERRORS.micSilent];
 
 const PROTOCOL_CODES: Readonly<Record<string, VoiceErrorCode>> = {
   hello_required: VOICE_ERRORS.helloRequired,

@@ -4,6 +4,22 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.35.1 — 2026-11-08
+
+Correção (#103, unidade voz-celular): a voz do Mark no Chrome do Android abria, mas o microfone não entregava áudio.
+O medidor ficava parado com o botão apertado e o Mark fechava em 5 s com `mark_voice_idle_timeout`. Causa provável,
+ainda sem prova no aparelho: o worklet de captura não tinha saída e o `AudioContext` ficava suspenso fora do gesto (o
+pedido de permissão do `getUserMedia` tira o contexto do gesto).
+
+- O worklet `voice-capture` ganhou uma saída, ligada ao `destination` por um `GainNode` de ganho 0: o grafo passa a
+  processá-lo, sem eco.
+- `resume()` do contexto ao apertar o botão, ao ligar a conversa aberta e depois do `getUserMedia`. A espera é limitada
+  a 800 ms, porque sem gesto o `resume()` pode nunca resolver (medido no Firefox headless).
+- Vigia no cliente (`createMicWatchdog`, relógio injetado): botão apertado, ou conversa aberta com a voz pronta, e
+  nenhum quadro em 1,5 s fecha com o erro novo `mark_voice_mic_silent`, antes do timeout de 5 s do Mark. Não vigia com
+  a aba escondida.
+- Linha de diagnóstico sob o medidor: estado do contexto, taxa e quadros enviados. Só contagem, nenhum áudio em log.
+
 ## 6.35.0 — 2026-11-08
 
 Feature (#97 e #102, unidade canvas-criar): o agente cria desenho no canvas sem passo manual do dono, e o Mark ganha

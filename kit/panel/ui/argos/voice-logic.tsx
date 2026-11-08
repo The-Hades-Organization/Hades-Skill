@@ -11,10 +11,13 @@ const RECONNECT_MS = [1000, 2000, 4000, 8000, 15000];
 const RECONNECT_TRIES = 5;
 const VOICE_PATH = '/api/mark/voice';
 const INFO_TIMEOUT_MS = 6000;
+/** Botão apertado (ou conversa aberta) sem nenhum quadro do worklet por este tempo = o navegador não entrega o microfone.
+ * Fica bem abaixo dos 5 s do idle_timeout do Mark, para o erro certo chegar antes do genérico. */
+const MIC_SILENT_MS = 1500;
 /** Códigos em que religar não adianta: a causa é de quem fala (microfone, vaga ocupada) ou o tempo da sessão acabou. */
 const FATAL_CODES = new Set([
   'mark_voice_busy', 'mark_voice_too_long', 'mark_voice_mic_denied', 'mark_voice_mic_missing', 'mark_voice_insecure_context',
-  'mark_voice_unavailable', 'mark_voice_bad_mode', 'mark_voice_hello_required',
+  'mark_voice_unavailable', 'mark_voice_mic_silent', 'mark_voice_bad_mode', 'mark_voice_hello_required',
 ]);
 
 const reconnectMs = (attempt) => RECONNECT_MS[Math.min(Math.max(attempt, 0), RECONNECT_MS.length - 1)];
@@ -103,6 +106,31 @@ function createVoiceProtocol(send, initialMode) {
   };
 }
 
+/**
+ * Vigia do microfone mudo. O worklet de captura posta quadros o tempo todo, com ou sem botão; se nenhum chega enquanto o dono
+ * quer falar, o áudio não está fluindo (contexto suspenso, nó nunca processado). `now` é injetado (ms) para o teste.
+ */
+function createMicWatchdog(now) {
+  let armedAt = null;
+  let lastFrameAt = null;
+  return {
+    /** Liga quando o botão é apertado ou a conversa abre; desliga ao soltar/fechar. Rearmar já armado não zera a contagem. */
+    arm(on) {
+      if (!on) { armedAt = null; return; }
+      if (armedAt === null) armedAt = now();
+    },
+    frame() { lastFrameAt = now(); },
+    silent() {
+      if (armedAt === null) return false;
+      const since = lastFrameAt !== null && lastFrameAt > armedAt ? lastFrameAt : armedAt;
+      return now() - since >= MIC_SILENT_MS;
+    },
+  };
+}
+
+/** Linha de diagnóstico da folha: só estado do contexto, taxa e contagem; nenhum áudio. */
+const diagLine = (d) => `áudio: ${d.state} · ${d.rate > 0 ? d.rate : '—'} Hz · ${d.frames} quadros enviados`;
+
 /** Espaço segurado fala no desktop, mas nunca enquanto o foco está num campo de texto. */
 function isTypingTarget(target) {
   if (!target || !target.tagName) return false;
@@ -111,7 +139,8 @@ function isTypingTarget(target) {
 }
 
 window.ArgosVoiceLogic = {
-  FRAME_BYTES_MAX, MODES, RECONNECT_TRIES, VOICE_PATH, INFO_TIMEOUT_MS,
+  FRAME_BYTES_MAX, MODES, RECONNECT_TRIES, VOICE_PATH, INFO_TIMEOUT_MS, MIC_SILENT_MS,
   reconnectMs, isFatalCode, voiceUrl, micErrorCode, explainFor, levelOfPcm16, createVoiceProtocol, isTypingTarget,
+  createMicWatchdog, diagLine,
 };
 })();

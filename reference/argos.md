@@ -794,8 +794,8 @@ convertidas em pixels). Pinça: escala pela razão dos dedos e arrasta junto. En
 
 | Escala | Nó |
 |---|---|
-| `k < 0,25` | bloco de cor (agrupado por cor), anel na seleção |
-| `0,25 ≤ k < 0,6` | bloco com faixa de cor e rótulo curto em fonte fixa de tela |
+| `k < 0,25` | bloco de cor (agrupado por cor), anel na seleção; rótulo de cada área e grupo com a contagem por estado |
+| `0,25 ≤ k < 0,6` | bloco com faixa de cor, rótulo curto em fonte fixa de tela e uma linha de resumo |
 | `k ≥ 0,6` | nó completo: cabeçalho colorido com rótulo, tipo no corpo, conteúdo HTML se o nó for rico, alça na seleção |
 
 O 0,6 é o padrão do nó completo. Em **Vista → Conteúdo dos nós** o dono escolhe 60%, 45%, 30% ou 20% de zoom
@@ -806,6 +806,22 @@ do nó completo (com 20%, abaixo dela é bloco de cor). A abertura e o "Focar no
 nós ricos de uma vez, o que pesa mais com muitos terminais e notas à vista.
 
 Nó `locked` tem borda tracejada; `blurred` sai esmaecido.
+
+**Zoom semântico** (regra em `src/lib/canvas-semantic.ts`, `loop/test/ts/canvas-semantic.test.ts`; o motor só desenha).
+- **Bem longe.** Cada área e cada grupo leva o nome e, na segunda linha, a contagem por estado dos membros vivos:
+  "1 pede você · 3 trabalhando · 2 em repouso" (balde zerado some; nó do usuário não conta). "Pede você" é a regra de
+  `needsAttention` (permissão pendente ou agente bloqueado). O texto é de tela fixa (11 px, `--font-sans`) sobre fundo do
+  tema, cortado pela largura da caixa. As maiores escolhem lugar primeiro e um rótulo que cobriria outro é descartado
+  (`placeLabels`); caixa abaixo de 56 x 28 px de tela fica sem rótulo. Nó que pede você segue com a cor cheia de estado.
+- **De longe e Médio.** Sob o rótulo, uma linha de resumo cortada pela largura, só se o bloco tem ao menos
+  `SUMMARY_MIN_BLOCK_PX` (30) de altura na tela. Agente: estado e fase. PR: `#número · estado · CI ok|rodando|falhou`. Nota:
+  título ou primeira linha do texto, quando o documento os guarda (o corpo mora em arquivo, que o motor não lê).
+  Terminal: sem resumo, porque a última linha só chega pelo fluxo do tty e não há rota nova. Nó de forma própria
+  (hexágono, círculo, losango) fica só com o rótulo.
+- **Clicar o rótulo.** Toque ou clique sem arrasto no rótulo de uma área ou grupo enquadra a caixa (mesmo `fitRect` do
+  "Enquadrar"); arrastar por cima continua sendo mover a câmera. Pelo teclado, Enter na área focada, abaixo do nó
+  completo, enquadra; o menu do nó segue em Menu de contexto e Shift+F10. Grupo não recebe foco de teclado.
+- **De perto.** Sem mudança.
 
 **Abertura.** Sem câmera salva, a câmera abre com tudo à vista se couber em escala ≥ 0,6; senão, em 0,6 a partir do canto
 superior esquerdo do conteúdo (centrado se couber na largura). A regra é uma só (`openingCamera`, em `canvas-camera.ts`):

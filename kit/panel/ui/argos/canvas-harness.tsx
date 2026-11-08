@@ -65,7 +65,46 @@ function makeCanvasHarness() {
   // fora do componente: identidade estável, senão cada render do harness (o contador) redesenharia o canvas
   const describeNode = (node: CanvasNode): string => (typeof node.data.label === "string" ? node.data.label : node.id);
 
-  const makeDoc = (count: number): CanvasDoc => M.doc.validateCanvasDoc(synth.syntheticDoc({ count, seed: SEED }));
+  /** Uma área por bloco de AREA_COLS x AREA_ROWS nós da grade do gerador (280 x 160), com os nós do bloco como membros. */
+  const AREA_COLS = 10;
+  const AREA_ROWS = 5;
+  const AREA_PITCH = { w: 280, h: 160 } as const;
+  const AREA_COLOR_CYCLE = ["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"] as const;
+  const withAreas = (base: CanvasDoc): CanvasDoc => {
+    const cols = Math.max(1, Math.ceil(Math.sqrt(base.nodes.length * 2.5)));
+    const blocks = new Map<string, string[]>();
+    base.nodes.forEach((n, i) => {
+      const key = `${Math.floor((i % cols) / AREA_COLS)}:${Math.floor(Math.floor(i / cols) / AREA_ROWS)}`;
+      blocks.set(key, [...(blocks.get(key) ?? []), n.id]);
+    });
+    const areas = [...blocks].map(([key, members], i): CanvasNode => {
+      const [bx, by] = key.split(":").map(Number) as [number, number];
+      return {
+        id: `area${i + 1}`, type: "area", x: bx * AREA_COLS * AREA_PITCH.w - 40, y: by * AREA_ROWS * AREA_PITCH.h - 40,
+        w: AREA_COLS * AREA_PITCH.w, h: AREA_ROWS * AREA_PITCH.h, z: M.areas.AREA_Z, locked: false, blurred: false,
+        data: { title: `Área ${i + 1}`, color: AREA_COLOR_CYCLE[i % AREA_COLOR_CYCLE.length], members },
+      };
+    });
+    return { ...base, nodes: [...areas, ...base.nodes] };
+  };
+
+  /** O total (nós e áreas) fica em `count`: o limite do documento (2000) vale para os dois juntos. */
+  const makeDoc = (count: number): CanvasDoc => {
+    let base = count;
+    let doc = withAreas(synth.syntheticDoc({ count: base, seed: SEED }));
+    while (doc.nodes.length > count) {
+      base -= doc.nodes.length - count;
+      doc = withAreas(synth.syntheticDoc({ count: base, seed: SEED }));
+    }
+    return M.doc.validateCanvasDoc(doc);
+  };
+
+  /** Pior caso do resumo: todo nó tem linha de resumo, e o balde gira entre os três estados. */
+  const summaryOf = (node: CanvasNode): string | undefined => (node.type === "area" ? undefined : `Resumo do ${String(node.data.label ?? node.id)} em andamento`);
+  const bucketOf = (node: CanvasNode): "attention" | "working" | "rest" | undefined => {
+    if (node.type === "area") return undefined;
+    return (["attention", "working", "rest"] as const)[Number(node.id.slice(1)) % 3];
+  };
 
   /** Ponteiro sintético no host do canvas: passa pelo mesmo caminho do gesto real. */
   function pointer(host: HTMLElement, type: string, x: number, y: number, button: number): void {
@@ -319,7 +358,7 @@ function makeCanvasHarness() {
       h("div", { ref: boxRef, style: { flex: "1 1 auto", minHeight: 0, borderTop: "1px solid var(--border)" } },
         h(CanvasView, {
           doc, selection, onSelectionChange: setSelection, onOp, onReady, label: "Canvas de teste",
-          onNodeMenu, describeNode,
+          onNodeMenu, describeNode, summaryOf, bucketOf,
         })));
   }
 

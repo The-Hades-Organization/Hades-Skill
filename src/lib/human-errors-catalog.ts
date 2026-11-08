@@ -1230,4 +1230,10 @@ export const HUMAN_ERRORS: Readonly<Record<string, HumanError>> = {
     action: "Abra o painel pelo endereço `https` do túnel, ou por `localhost` no computador.",
     ref: `${ARGOS} §Voz`,
   },
+  mark_voice_mic_silent: {
+    title: "O microfone não está entregando áudio",
+    cause: "O navegador abriu o microfone, mas nenhum áudio chegou à voz do Mark em 1,5 s.",
+    action: "Abra a voz de novo. Se repetir, recarregue a página.",
+    ref: `${ARGOS} §Voz`,
+  },
 };

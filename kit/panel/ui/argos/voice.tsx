@@ -12,6 +12,7 @@ const CAPTURE_MODULE = '/ui/argos/voice-capture-worklet.js';
 const PLAY_MODULE = '/ui/argos/voice-play-worklet.js';
 const LINES_SHOWN = 6;
 const LEVEL_TICK_MS = 80;
+const RESUME_WAIT_MS = 800;
 const VIBRATE_DOWN_MS = 25;
 const VIBRATE_UP_MS = 12;
 /** Estados do Mark por nome e cor da orbe; o nó mark.tsx é o dono da tabela, aqui só a leitura. */
@@ -44,7 +45,17 @@ function useVoiceSession() {
   const [away, setAway] = useState(false);
   const [maxS, setMaxS] = useState(null);
   const [lines, setLines] = useState([]);
+  const [diag, setDiag] = useState('');
   const r = useRef({});
+
+  /** Chrome do Android deixa o contexto `suspended` fora de um gesto: retoma no toque e confere o estado depois. */
+  const wakeAudio = () => {
+    const ctx = r.current.ctx;
+    if (!ctx || ctx.state === 'closed' || ctx.state === 'running') return Promise.resolve();
+    // sem gesto o resume() pode nunca resolver: a espera é limitada, e o estado real aparece na linha de diagnóstico
+    const gaveUp = new Promise((done) => setTimeout(done, RESUME_WAIT_MS));
+    return Promise.race([ctx.resume().catch(() => undefined), gaveUp]);
+  };
 
   const fail = (code, served) => {
     const s = r.current;
@@ -63,6 +74,7 @@ function useVoiceSession() {
     if (s.ws) { s.ws.onclose = s.ws.onmessage = s.ws.onerror = null; try { s.ws.close(); } catch { /* já fechado */ } }
     if (s.stream) s.stream.getTracks().forEach((t) => t.stop());
     if (s.capture) { s.capture.port.onmessage = null; s.capture.disconnect(); }
+    if (s.mute) s.mute.disconnect();
     if (s.play) s.play.disconnect();
     if (s.ctx && s.ctx.state !== 'closed') s.ctx.close().catch(() => undefined);
     if (s.events) s.events.close();
@@ -70,6 +82,7 @@ function useVoiceSession() {
     r.current = { texts: s.texts };
     setPressed(false);
     setLevel(0);
+    setDiag('');
   }
 
   function connect() {
@@ -121,6 +134,8 @@ function useVoiceSession() {
       s.ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
       s.ctx.resume().catch(() => undefined);
       s.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+      // o pedido de permissão pode ter tirado o contexto do gesto: retoma de novo agora que o microfone existe
+      await wakeAudio();
     } catch (err) {
       return fail(L.micErrorCode(err, window.isSecureContext), null);
     }
@@ -131,17 +146,34 @@ function useVoiceSession() {
       return fail('mark_voice_failed', null);
     }
     if (!s.alive) return;
-    s.capture = new AudioWorkletNode(s.ctx, 'voice-capture', { numberOfInputs: 1, numberOfOutputs: 0 });
+    // Um worklet sem saída ligada ao destino pode nunca ser processado (Chrome do Android): a saída vai ao destino por um ganho 0
+    // (silêncio, sem eco) só para o grafo puxar a captura.
+    s.capture = new AudioWorkletNode(s.ctx, 'voice-capture', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
+    s.mute = s.ctx.createGain();
+    s.mute.gain.value = 0;
+    s.capture.connect(s.mute);
+    s.mute.connect(s.ctx.destination);
     s.ctx.createMediaStreamSource(s.stream).connect(s.capture);
     s.play = new AudioWorkletNode(s.ctx, 'voice-play', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1] });
     s.play.connect(s.ctx.destination);
     s.peak = 0;
+    s.sent = 0;
+    s.dog = L.createMicWatchdog(() => performance.now());
     s.capture.port.onmessage = (event) => {
       const buf = event.data;
+      s.dog.frame();
       s.peak = Math.max(s.peak, L.levelOfPcm16(new Int16Array(buf)));
-      if (s.proto && s.ws && s.ws.readyState === 1 && s.proto.canSend(buf.byteLength)) s.ws.send(buf);
+      if (s.proto && s.ws && s.ws.readyState === 1 && s.proto.canSend(buf.byteLength)) { s.ws.send(buf); s.sent += 1; }
     };
-    s.meter = setInterval(() => { setLevel(s.peak); s.peak = 0; }, LEVEL_TICK_MS);
+    s.meter = setInterval(() => {
+      setLevel(s.peak);
+      s.peak = 0;
+      setDiag(L.diagLine({ state: s.ctx.state, rate: s.ctx.sampleRate, frames: s.sent }));
+      // tela apagada corta o microfone de propósito (aviso `away`): o vigia só vale com a aba à vista
+      const p = s.proto;
+      s.dog.arm(!document.hidden && !!p && p.ready && (p.mode === 'open' || p.down));
+      if (s.dog.silent()) fail('mark_voice_mic_silent', null);
+    }, LEVEL_TICK_MS);
     holdWake();
     s.events = window.PanelStream ? window.PanelStream.open(EVENTS_URL) : new EventSource(EVENTS_URL);
     s.events.addEventListener('log', (event) => {
@@ -179,6 +211,7 @@ function useVoiceSession() {
     if (!s.proto || !!s.pressed === down) return;
     s.pressed = down;
     setPressed(down);
+    if (down) wakeAudio();
     s.proto.ptt(down);
     buzz(down ? VIBRATE_DOWN_MS : VIBRATE_UP_MS);
   };
@@ -186,10 +219,11 @@ function useVoiceSession() {
     const s = r.current;
     s.mode = next;
     setModeState(next);
+    if (next === 'open') wakeAudio();
     if (s.proto) s.proto.setMode(next);
   };
   const dismissAway = () => setAway(false);
-  return { phase, error, markState, mode, pressed, level, away, maxS, lines, start, stop: () => teardown(true), press, setMode, dismissAway };
+  return { phase, error, markState, mode, pressed, level, away, maxS, lines, diag, start, stop: () => teardown(true), press, setMode, dismissAway };
 }
 
 function Meter({ level, active }) {
@@ -264,6 +298,7 @@ function Sheet({ onClose }) {
         >
           {v.mode === 'open' ? <I.Mic className="size-12" /> : v.pressed ? <I.Mic className="size-12" /> : <I.MicOff className="size-12" />}
         </button>
+        {v.diag ? <div className="t-meta w-full break-words text-center text-muted-foreground" data-testid="voice-diag">{v.diag}</div> : null}
         <div className="t-meta text-muted-foreground" aria-hidden="true">{v.mode === 'open' ? 'Conversa aberta: fale à vontade' : 'Segure o botão (ou a barra de espaço) para falar'}</div>
       </div>
     </div>

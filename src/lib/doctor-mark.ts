@@ -50,3 +50,47 @@ export function judgeMark(read: BridgeRead, probe: MarkProbe | undefined): MarkV
 function assertNever(value: never): never {
   throw new Error(`caso não tratado: ${JSON.stringify(value)}`);
 }
+
+/** O que a sonda de voz achou: `ready` (o `/ws/voice` respondeu `ready` ao `hello`), `busy` (outro cliente tem a vaga) ou `failed`. */
+export type MarkVoiceProbe = "ready" | "busy" | "failed";
+export const MARK_VOICE_PROBES: readonly MarkVoiceProbe[] = ["ready", "busy", "failed"];
+
+/**
+ * Programa que o doctor roda em um `bun -e` à parte: abre `/ws/voice`, manda `hello`, espera `ready`, manda `bye` e fecha. Entra
+ * `{url, token, insecure, timeoutMs}` por stdin (o token nunca vai na linha de comando nem na saída) e sai uma palavra de
+ * `MARK_VOICE_PROBES`. Nenhum áudio é enviado.
+ */
+export const VOICE_PROBE_SCRIPT = `
+const input = JSON.parse(await Bun.stdin.text());
+const done = (word) => { console.log(word); process.exit(0); };
+const timer = setTimeout(() => done("failed"), input.timeoutMs);
+const ws = new WebSocket(input.url, { headers: { Authorization: "Bearer " + input.token }, tls: input.insecure ? { rejectUnauthorized: false } : undefined });
+ws.onopen = () => ws.send(JSON.stringify({ type: "hello", mode: "ptt" }));
+ws.onmessage = (event) => {
+  let body = null;
+  try { body = typeof event.data === "string" ? JSON.parse(event.data) : null; } catch { body = null; }
+  if (body && body.type === "ready") { ws.send(JSON.stringify({ type: "bye" })); clearTimeout(timer); setTimeout(() => done("ready"), 100); }
+  if (body && body.type === "busy") { clearTimeout(timer); done("busy"); }
+};
+ws.onerror = () => done("failed");
+ws.onclose = () => setTimeout(() => done("failed"), 200);
+`;
+
+/** Lê a saída da sonda; qualquer coisa fora da lista é falha (nunca um padrão em silêncio). */
+export const parseVoiceProbe = (stdout: string): MarkVoiceProbe => MARK_VOICE_PROBES.find((word) => word === stdout.trim()) ?? "failed";
+
+/** `probe` é `undefined` quando a ponte não respondeu ao estado ou no `--quick`: o item `mark-ponte` já diz o que falta. */
+export function judgeMarkVoice(probe: MarkVoiceProbe | undefined): MarkVerdict {
+  switch (probe) {
+    case undefined:
+      return { level: "ok", msg: "voz do Mark não conferida (Mark fechado ou --quick)" };
+    case "ready":
+      return { level: "ok", msg: "Mark aceita voz (`/ws/voice` respondeu `ready`)" };
+    case "busy":
+      return { level: "ok", msg: "voz do Mark em uso por outro cliente (a vaga é de um por vez)" };
+    case "failed":
+      return { level: "warn", msg: "o Mark responde ao estado, mas não abriu o `/ws/voice`", fix: "atualize o Mark-LVI para a versão com voz remota e abra de novo com `mark`" };
+    default:
+      return assertNever(probe);
+  }
+}

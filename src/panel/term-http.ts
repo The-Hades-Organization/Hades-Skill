@@ -32,16 +32,17 @@ export const termErrorResponse = (error: TermError): Response => {
   return body;
 };
 
+/** Origin aceito no upgrade: o próprio painel (local) ou o host do túnel (remoto). Sem Origin só passa no painel local. */
+export const originAllowedFor = (auth: Auth, port: number) => (req: Request, remote: boolean): boolean => {
+  const origin = req.headers.get("origin");
+  if (origin === null) return !remote;
+  const pub = auth.publicHost();
+  return [`http://127.0.0.1:${port}`, `http://localhost:${port}`, ...(pub && remote ? [`https://${pub}`] : [])].includes(origin);
+};
+
 export function createTermHttp(deps: TermHttpDeps) {
   const { term, auth, port } = deps;
-
-  /** Origin aceito no upgrade: o próprio painel (local) ou o host do túnel (remoto). Sem Origin só passa no painel local. */
-  function originAllowed(req: Request, remote: boolean): boolean {
-    const origin = req.headers.get("origin");
-    if (origin === null) return !remote;
-    const pub = auth.publicHost();
-    return [`http://127.0.0.1:${port}`, `http://localhost:${port}`, ...(pub && remote ? [`https://${pub}`] : [])].includes(origin);
-  }
+  const originAllowed = originAllowedFor(auth, port);
 
   const list = (): Response => send(200, term.list());
 

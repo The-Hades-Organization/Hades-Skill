@@ -36,6 +36,22 @@ const pushLine = (lines, line) => {
   return next.length > LOG_LINES ? next.slice(next.length - LOG_LINES) : next;
 };
 
+/* A vista de voz (voice.tsx) e as regras dela carregam sob demanda, na primeira vez que alguém pede para falar: quem só lê o log
+ * não paga o código de áudio. Uma promessa só por página; falha de carga solta a promessa para a próxima tentativa. */
+const VOICE_SCRIPTS = ['/ui/argos/voice-logic.js', '/ui/argos/voice.js'];
+let voiceLoad = null;
+const loadScript = (src) => new Promise((resolve, reject) => {
+  const el = document.createElement('script');
+  el.src = src;
+  el.onload = () => resolve();
+  el.onerror = () => reject(new Error(`não carregou ${src}`));
+  document.head.appendChild(el);
+});
+function openVoice() {
+  if (voiceLoad === null) voiceLoad = VOICE_SCRIPTS.reduce((chain, src) => chain.then(() => loadScript(src)), Promise.resolve());
+  return voiceLoad.then(() => { window.ArgosVoice.open(); }, (err) => { voiceLoad = null; throw err; });
+}
+
 const isOffline = (body) => !!body && body.online === false && !!body.explain;
 
 function openStream(url) {
@@ -219,6 +235,7 @@ function MarkNode() {
     setNotice('');
     try { await post(ROUTES.wake, {}); } catch (err) { setNotice((err && err.message) || 'Não consegui acordar o Mark.'); }
   };
+  const speak = () => { setNotice(''); openVoice().catch(() => setNotice('Não consegui carregar a voz. Recarregue a página.')); };
   const send = (textValue) => post(ROUTES.command, { text: textValue });
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden p-2 t-body">
@@ -227,6 +244,7 @@ function MarkNode() {
       {notice ? <div className="t-meta text-bad" role="alert">{notice}</div> : null}
       {reading ? null : (
         <div className="flex gap-1">
+          <Button size="sm" icon={I.Mic} disabled={!online} onClick={speak} className="max-md:min-h-11">Falar</Button>
           <Button size="sm" variant="outline" icon={I.Sun} disabled={!online} onClick={wake} className="max-md:min-h-11">Acordar</Button>
           <Button size="sm" variant="outline" icon={I.FileText} disabled={!online || !(state && state.last_report)} onClick={() => setReading(true)} className="max-md:min-h-11">Relatório</Button>
         </div>
@@ -236,5 +254,5 @@ function MarkNode() {
   );
 }
 
-window.ArgosNodeMark = { MarkNode, MARK_TYPE, MARK_SIZE, STATE_TONE, backoffMs, pushLine, isOffline, LOG_LINES, COMMAND_CHARS, ROUTES };
+window.ArgosNodeMark = { MarkNode, MARK_TYPE, MARK_SIZE, STATE_TONE, backoffMs, pushLine, isOffline, LOG_LINES, COMMAND_CHARS, ROUTES, openVoice, VOICE_SCRIPTS };
 })();

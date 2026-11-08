@@ -1132,4 +1132,90 @@ export const HUMAN_ERRORS: Readonly<Record<string, HumanError>> = {
     action: "Confira a pasta `reports` do Mark e rode `hades doctor`.",
     ref: `${ARGOS} §Mark`,
   },
+
+  // ------------------------------------------------------------------ Voz do Mark pelo painel (src/panel/mark-voice.ts)
+  mark_voice_hello_required: {
+    title: "A conversa de voz começou fora de ordem",
+    cause: "O primeiro aviso da conexão de voz não foi o `hello`, ou veio de uma aba com versão antiga da vista.",
+    action: "Recarregue a página do painel e abra a voz de novo.",
+    ref: `${ARGOS} §Voz`,
+  },
+  mark_voice_bad_mode: {
+    title: "Modo de voz desconhecido",
+    cause: "A conexão de voz pediu um modo que não é `ptt` (segurar para falar) nem `open` (conversa aberta).",
+    action: "Recarregue a página do painel. Se persistir, confira `HADES_MARK_VOICE_MODE` nas Configurações.",
+    ref: `${ARGOS} §Voz`,
+  },
+  mark_voice_bad_message: {
+    title: "Mensagem de voz inválida",
+    cause: "A mensagem de controle da voz veio fora do formato ou maior que o limite.",
+    action: "Recarregue a página do painel e abra a voz de novo.",
+    ref: `${ARGOS} §Voz`,
+  },
+  mark_voice_frame_too_large: {
+    title: "Quadro de áudio grande demais",
+    cause: "O navegador mandou um pedaço de áudio acima de 3200 bytes (100 ms), o teto do painel e do Mark.",
+    action: "Recarregue a página do painel: a vista manda quadros de 20 a 40 ms.",
+    ref: `${ARGOS} §Voz`,
+  },
+  mark_voice_bad_frame: {
+    title: "Quadro de áudio com tamanho ímpar",
+    cause: "O pedaço de áudio não tem um número par de bytes, então não é PCM de 16 bits.",
+    action: "Recarregue a página do painel. Se persistir com a mesma aba, o navegador não suporta o áudio da vista.",
+    ref: `${ARGOS} §Voz`,
+  },
+  mark_voice_rate_limit: {
+    title: "Áudio chegando rápido demais",
+    cause: "O navegador mandou mais de 100 quadros por segundo, depois de uma pausa na rede ou de um relógio de áudio errado.",
+    action: "Abra a voz de novo. Se repetir, troque de rede ou recarregue a página.",
+    ref: `${ARGOS} §Voz`,
+  },
+  mark_voice_idle_timeout: {
+    title: "A voz ficou em silêncio",
+    cause: "Na conversa aberta, ou com o botão apertado, nenhum áudio chegou por 5 segundos: a aba parou, a tela apagou ou a rede caiu.",
+    action: "Mantenha a tela acesa com a vista aberta e abra a voz de novo.",
+    ref: `${ARGOS} §Voz`,
+  },
+  mark_voice_busy: {
+    title: "Já há alguém falando com o Mark",
+    cause: "O Mark aceita um cliente de voz por vez (o painel de outra aba ou do celular está com a voz aberta).",
+    action: "Encerre a voz na outra aba e abra de novo.",
+    ref: `${ARGOS} §Voz`,
+  },
+  mark_voice_too_long: {
+    title: "A sessão de voz chegou ao tempo máximo",
+    cause: "O painel encerra a voz depois de `HADES_MARK_VOICE_MAX_S` segundos para o microfone não ficar aberto esquecido.",
+    action: "Abra a voz de novo. Para sessões mais longas, aumente `HADES_MARK_VOICE_MAX_S` nas Configurações.",
+    ref: `${ARGOS} §Voz`,
+  },
+  mark_voice_unavailable: {
+    title: "O Mark não atende voz",
+    cause: "O Mark está de pé, mas não abriu o canal de voz: a versão dele é anterior à voz remota.",
+    action: "Atualize o Mark-LVI para a versão com `/ws/voice` e abra de novo com `mark`. `hades doctor` mostra o item `mark-voz`.",
+    ref: `${ARGOS} §Voz`,
+  },
+  mark_voice_failed: {
+    title: "A voz do Mark falhou",
+    cause: "O Mark encerrou a voz com um motivo que esta versão do painel não conhece.",
+    action: "Abra a voz de novo. Se repetir, atualize a Hades e o Mark e rode `hades doctor`.",
+    ref: `${ARGOS} §Voz`,
+  },
+  mark_voice_mic_denied: {
+    title: "O navegador não liberou o microfone",
+    cause: "A permissão de microfone foi negada para este endereço, ou o sistema bloqueia o microfone do navegador.",
+    action: "Toque no cadeado ao lado do endereço, libere o microfone para este site e abra a voz de novo.",
+    ref: `${ARGOS} §Voz`,
+  },
+  mark_voice_mic_missing: {
+    title: "Nenhum microfone encontrado",
+    cause: "O aparelho não tem microfone disponível, ou outro app está usando todos.",
+    action: "Conecte um microfone, feche o app que o usa e abra a voz de novo.",
+    ref: `${ARGOS} §Voz`,
+  },
+  mark_voice_insecure_context: {
+    title: "O navegador só libera o microfone em endereço seguro",
+    cause: "A página foi aberta por `http` fora do próprio computador, e o navegador esconde o microfone nesse caso.",
+    action: "Abra o painel pelo endereço `https` do túnel, ou por `localhost` no computador.",
+    ref: `${ARGOS} §Voz`,
+  },
 };

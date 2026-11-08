@@ -3685,3 +3685,34 @@ O nó `mark` mostra o Mark-LVI (o assistente de voz do dono) no canvas: a orbe n
 | `mark_no_report`, `mark_report_unreadable` | o Mark não anunciou relatório, ou ele não pôde ser lido |
 
 O `hades doctor` confere a ponte no item `mark-ponte` (`reference/doctor.md`).
+
+### Voz
+
+Falar e ouvir o Mark pelo painel, com a mesma voz e o mesmo cérebro do desktop: o áudio vai pelo Gemini Live do Mark, sem transcrição nem voz do navegador. Caminho: microfone do navegador → `GET /api/mark/voice` (WebSocket do painel) → `/ws/voice` do Mark (loopback) → Live, e o áudio de resposta volta pelo mesmo caminho. O painel repassa sem olhar o áudio e **nada é gravado**: nem arquivo, nem log, nem auditoria (só o tamanho de cada quadro é lido). O token da ponte é lido do `bridge.json` a cada conexão e nunca chega ao navegador.
+
+**Guardas do upgrade** (as do terminal, antes de trocar de protocolo): host, chave remota (cookie), `Origin` da lista do painel e do túnel. Um `GET` sem upgrade na mesma rota devolve JSON com o modo padrão, o teto de duração, o teto de quadro e o texto dos erros que só o navegador conhece (microfone negado e afins).
+
+**Protocolo repassado.** Para cima, binário: PCM16 little-endian, 16 kHz, mono, quadros de 20 a 40 ms, no máximo 3200 bytes, tamanho par, até 100 quadros por segundo; o painel confere tamanho e taxa na entrada, na mesma ordem do Mark. Para baixo, binário: PCM16 24 kHz mono, já cadenciado pelo Mark (cerca de 0,4 s à frente; com o navegador atrás o painel descarta o quadro velho). Controle em JSON: do navegador `hello{mode}` (primeiro; sem `mode` vale `HADES_MARK_VOICE_MODE`), `ptt{down}`, `mode{mode}`, `bye`; o painel reconstrói cada mensagem só com os campos conhecidos e ignora tipo desconhecido. Do painel ao navegador: `ready{max_s}`, `state{...}` (o corpo do estado sem o caminho do relatório, mais `voice:{remote,mode}`), `interrupted`, `busy` e `error{code, explain}`.
+
+**Dois modos.** `ptt` (segurar para falar): o quadro só sobe com o botão apertado, mesmo com o Mark falando. `open` (conversa aberta): o microfone fica ligado e o quadro é descartado pelo Mark enquanto ele fala; o Mark encerra com `idle_timeout` após 5 s sem quadro.
+
+**Limites do painel.** Um cliente por vez (o segundo recebe `busy` e a conexão fecha antes de tocar no Mark). O Mark tem de abrir o `/ws/voice` dentro de `HADES_MARK_TIMEOUT_S`. A sessão acaba em `HADES_MARK_VOICE_MAX_S` (padrão 600 s) com `mark_voice_too_long`. Um lado que cai fecha o outro, e a vaga volta.
+
+| Código | Causa |
+|---|---|
+| `mark_bridge_missing`, `mark_bridge_invalid`, `mark_process_gone`, `mark_unreachable`, `mark_rejected` | o Mark está fora do ar (as causas da ponte, acima) |
+| `mark_voice_unavailable` | o Mark responde ao estado mas não abre o `/ws/voice` (versão sem voz remota) |
+| `mark_voice_busy` | outro cliente tem a voz |
+| `mark_voice_too_long` | a sessão passou de `HADES_MARK_VOICE_MAX_S` |
+| `mark_voice_hello_required`, `mark_voice_bad_mode`, `mark_voice_bad_message` | controle fora de ordem, modo ou mensagem inválidos |
+| `mark_voice_frame_too_large`, `mark_voice_bad_frame`, `mark_voice_rate_limit`, `mark_voice_idle_timeout` | os tetos de quadro, de paridade, de taxa e o silêncio de 5 s |
+| `mark_voice_failed` | o Mark mandou um motivo que o painel não conhece |
+| `mark_voice_mic_denied`, `mark_voice_mic_missing`, `mark_voice_insecure_context` | só do navegador: microfone negado, ausente, ou página fora de `https` |
+
+O `hades doctor` confere a voz no item `mark-voz` (`reference/doctor.md`).
+
+**Cliente** (`kit/panel/ui/argos/voice*`). Carrega sob demanda: o nó `mark` (botão *Falar*) ou o comando *Falar com o Mark* da paleta injeta `voice-logic.js` e `voice.js` na primeira vez; `index.html` não os conhece. A folha ocupa a tela toda: orbe com o estado do Mark, últimas falas (o evento `log` de `/api/mark/events`), medidor de nível, interruptor *Conversa aberta* e o botão grande de segurar (eventos de ponteiro, `touch-action: none`, sem menu de contexto, vibração curta ao apertar e ao soltar). No desktop, a barra de espaço segurada fala (nunca com o foco num campo de texto).
+- **Captura.** `getUserMedia` com `echoCancellation`, `noiseSuppression` e `autoGainControl`. O worklet `voice-capture-worklet.js` reamostra da taxa do `AudioContext` para 16 kHz por média de janela (filtra e mantém a amplitude) e posta quadros PCM16 de 30 ms (960 bytes). Em `ptt` o quadro só sobe com o botão apertado; em `open` sobe sempre, porque o Mark descarta sozinho o que chega enquanto fala e o silêncio de 5 s derrubaria a sessão.
+- **Reprodução.** `voice-play-worklet.js` toca o PCM16 de 24 kHz numa fila com 120 ms de buffer de jitter (silêncio em vez de estalo quando seca; teto de 3 s, o mais velho sai). `interrupted` esvazia a fila.
+- **Celular.** O `AudioContext` nasce no toque que abre a folha, e a voz só funciona em `https` (túnel) ou `localhost`; fora disso a vista mostra `mark_voice_insecure_context`. Enquanto a folha está aberta, o Wake Lock mantém a tela acesa. Tela apagada ou aba em segundo plano faz o Android cortar o microfone: ao voltar, a vista avisa, retoma o áudio e religa o WebSocket se ele caiu. Queda de rede religa com recuo de 1, 2, 4, 8 e 15 s, até 5 tentativas seguidas; busy, microfone negado e sessão longa não religam.
+- **Nada é gravado.** O áudio só passa pelos worklets e pelo socket: não há `MediaRecorder`, armazenamento, log nem transcrição no navegador (o teste `mark-voice-client` varre os arquivos por isso). Fora do escopo: iPhone e uso em segundo plano.

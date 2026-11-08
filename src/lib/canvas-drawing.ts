@@ -45,6 +45,7 @@ export const DRAWING_ERRORS = {
   invalidConnector: "drawing_invalid_connector",
   invalidNode: "drawing_invalid_node",
   invalidTitle: "drawing_invalid_title",
+  titleExists: "drawing_title_exists",
 } as const;
 export type DrawingErrorCode = (typeof DRAWING_ERRORS)[keyof typeof DRAWING_ERRORS];
 
@@ -583,6 +584,18 @@ export interface DrawingNodeInput {
   h?: number;
   title?: string;
   elements?: unknown[];
+}
+
+/** Dois títulos são o mesmo nome para `drawingOrFail` da CLI: sem distinguir caixa. */
+const sameTitle = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
+
+/** Recusa título que já é de outro desenho do documento (`drawing_title_exists`): a CLI acha o desenho por id ou título. */
+export function requireFreshDrawingTitle(doc: CanvasDoc, title: string): string {
+  const taken = doc.nodes.some((node) => {
+    const existing = sceneOfNodeSafe(node)?.title;
+    return existing !== undefined && sameTitle(existing, title);
+  });
+  return taken ? fail(DRAWING_ERRORS.titleExists, `já existe um desenho chamado "${title}"`) : title;
 }
 
 /** Cria um nó `drawing` (vazio ou com elementos): `create` do desfazer e o nó. Erros: `drawing_invalid_node`, `drawing_limit_exceeded` e os de dado. */

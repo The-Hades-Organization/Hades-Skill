@@ -214,3 +214,70 @@ describe("encaixe na página (pages/argos.tsx, index.html)", () => {
     expect(page).toContain("[M.note.NOTE_TYPE]: Object.freeze(['term:connections', 'tty:link', 'tty:close'])");
   });
 });
+
+describe("botão Mark da barra (canvas-toolbar.tsx)", () => {
+  const markButton = (tree: Dict): Dict | undefined => {
+    let found: Dict | undefined;
+    const walk = (node: unknown): void => {
+      if (Array.isArray(node)) { node.forEach(walk); return; }
+      if (!node || typeof node !== "object") return;
+      const el = node as Dict;
+      if (el.props?.label === "Mark") found = el.props;
+      walk(el.props?.children);
+    };
+    walk(tree);
+    return found;
+  };
+  const bar = async (mark?: Dict) => {
+    const { ArgosCanvasToolbar: TB } = await load();
+    return { TB, props: markButton(TB.CanvasToolbar({ armed: null, onArm: () => undefined, link: { active: false, onClick: () => undefined }, ...(mark && { mark }) })) };
+  };
+
+  test("dado ponte e nenhum nó, então o botão está habilitado e o clique cria", async () => {
+    let clicks = 0;
+    const { props } = await bar({ available: true, exists: false, onClick: () => { clicks += 1; } });
+    expect(props?.disabled).toBe(false);
+    expect(props?.title).toContain("cria o nó");
+    props?.onClick();
+    expect(clicks).toBe(1);
+  });
+
+  test("dado nó mark existente, então o título diz que leva até ele, mesmo com o Mark fora", async () => {
+    for (const available of [true, false]) {
+      const { props } = await bar({ available, exists: true, onClick: () => undefined });
+      expect(props?.disabled).toBe(false);
+      expect(props?.title).toContain("ir até ele");
+    }
+  });
+
+  test("dado sem bridge.json e sem nó, então o botão fica aria-disabled com causa e ação no título", async () => {
+    const { props } = await bar({ available: false, exists: false, onClick: () => undefined });
+    expect(props?.disabled).toBe(true);
+    expect(props?.title).toContain("O Mark não está rodando");
+    expect(props?.title).toContain("HADES_MARK_BRIDGE");
+  });
+
+  test("o botão Mark vem depois de Desenho e antes de Conexão; sem a prop, a barra não o mostra", async () => {
+    const { ArgosCanvasToolbar: TB } = await load();
+    const tree = TB.CanvasToolbar({ armed: null, onArm: () => undefined, link: { active: false, onClick: () => undefined }, mark: { available: true, exists: false, onClick: () => undefined } });
+    const labels: string[] = [];
+    const walk = (node: unknown): void => {
+      if (Array.isArray(node)) { node.forEach(walk); return; }
+      if (!node || typeof node !== "object") return;
+      const el = node as Dict;
+      if (el.props?.label) labels.push(el.props.label);
+      walk(el.props?.children);
+    };
+    walk(tree);
+    expect(labels.indexOf("Mark")).toBe(labels.indexOf("Desenho") + 1);
+    expect(labels.indexOf("Conexão")).toBe(labels.indexOf("Mark") + 1);
+    expect((await bar()).props).toBeUndefined();
+  });
+
+  test("a página liga o botão ao estado da ponte e reaproveita o mark:add", () => {
+    const page = readFileSync(join(uiDir, "pages/argos.tsx"), "utf8");
+    for (const mark of ["mark={{ available: markAvail, exists: markNodeId !== null, onClick: onMarkButton }}", "commands.get('mark:add')?.run(ctxFor(null))", "setMarkAvail"]) {
+      expect(page).toContain(mark);
+    }
+  });
+});

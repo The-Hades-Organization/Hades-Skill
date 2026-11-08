@@ -8,6 +8,7 @@ import { type AtomicOp, applyOp, type CanvasOp, opBatch, opCreate, opDelete, opM
 import { LAYOUT_GAP, Occupancy } from "./canvas-layout.ts";
 import { findFreeBox, type Point } from "./canvas-space.ts";
 import { opCreateLink } from "./canvas-links.ts";
+import { createDrawingNode, DRAWING_LIMITS, requireFreshDrawingTitle } from "./canvas-drawing.ts";
 import { createNoteNode, directNotesOf, hasNoteAccess, NOTE_READER_TYPES, NOTE_TYPE, requireNoteName } from "./canvas-note.ts";
 
 /** O nó que a ferramenta Terminal cria; só ele vira orquestrador ou recruta (tem processo que o canvas criou). */
@@ -334,6 +335,40 @@ export function planNewNote(doc: CanvasDoc, input: { callerId: string; name: str
   const recruits = [...new Map((input.linkTo ?? []).map((ref) => requireRecruit(doc, orchestrator.id, ref)).map((n) => [n.id, n])).values()];
   requireFreshNoteName(doc, input.name);
   const { ops, node } = planNoteNode(doc, orchestrator, input.name, [orchestrator.id, ...recruits.map((n) => n.id)]);
+  return { op: opBatch([...ops, ...dockOps(doc, ops, [node.id])]), node, recruits };
+}
+
+export interface NewDrawingInput {
+  callerId: string;
+  /** Título do desenho (a CLI o acha por ele ou pelo id); recusa o de outro desenho do documento. */
+  title: string;
+  linkTo?: readonly string[];
+  w?: number;
+  h?: number;
+  /** Elementos já validados pelo modelo do desenho (`createDrawingNode` os confere de novo). */
+  elements?: unknown[];
+}
+
+/**
+ * `drawing new`: o nó `drawing` perto do orquestrador (acima dele, sem encostar em outro nó), ligado a ele e aos recrutas
+ * dele em `linkTo` (`drawing-access`). Um lote só: desfazer tira o desenho e as ligações.
+ */
+export function planNewDrawing(doc: CanvasDoc, input: NewDrawingInput): { op: CanvasOp; node: CanvasNode; recruits: CanvasNode[] } {
+  const orchestrator = requireOrchestrator(doc, input.callerId);
+  const recruits = [...new Map((input.linkTo ?? []).map((ref) => requireRecruit(doc, orchestrator.id, ref)).map((n) => [n.id, n])).values()];
+  requireFreshDrawingTitle(doc, input.title);
+  const frame = { w: input.w ?? DRAWING_LIMITS.frameW, h: input.h ?? DRAWING_LIMITS.frameH };
+  const top = Math.min(CANVAS_LIMITS.layer - 1, doc.nodes.reduce((z, n) => Math.max(z, n.z), 0));
+  const { op, node } = createDrawingNode(doc, {
+    id: freshId(doc, "drawing-r"), title: input.title, ...noteSlot(doc, orchestrator, frame), ...frame, z: top + 1, ...(input.elements && { elements: input.elements }),
+  });
+  const ops: AtomicOp[] = [op];
+  let next = { ...doc, nodes: [...doc.nodes, node] };
+  for (const from of new Set([orchestrator.id, ...recruits.map((n) => n.id)])) {
+    const link = opCreateLink(next, { id: freshId(next, "link-r"), from, to: node.id });
+    ops.push(link);
+    if (link.kind === "edge-create") next = { ...next, edges: [...next.edges, link.edge.item] };
+  }
   return { op: opBatch([...ops, ...dockOps(doc, ops, [node.id])]), node, recruits };
 }
 

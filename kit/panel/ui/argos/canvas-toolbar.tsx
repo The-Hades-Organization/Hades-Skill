@@ -52,11 +52,24 @@ function rectToWorld(cam, rect, { size, min }) {
   return { x: p.x, y: p.y, w: Math.max(min.w, rect.w / cam.k), h: Math.max(min.h, rect.h / cam.k) };
 }
 
+/** Estados do botão Mark (reference/argos.md §Mark): criar o nó, ir até o que já existe, ou explicar por que não dá. */
+const MARK_BUTTON = Object.freeze({
+  create: Object.freeze({ state: 'create', disabled: false, title: 'Mark: cria o nó do assistente de voz no centro da vista' }),
+  reveal: Object.freeze({ state: 'reveal', disabled: false, title: 'Mark: já há um nó neste canvas; clique para ir até ele' }),
+  off: Object.freeze({ state: 'off', disabled: true, title: 'O Mark não está rodando: suba o Mark (a ponte grava ~/.config/mark-lvi/bridge.json, ou o caminho de HADES_MARK_BRIDGE)' }),
+});
+
+/** O estado do botão: nó que já existe vence a ponte (dá para ir até ele mesmo com o Mark fora); sem nó, a ponte decide. */
+function markButtonState({ available, exists }) {
+  if (exists) return MARK_BUTTON.reveal;
+  return available ? MARK_BUTTON.create : MARK_BUTTON.off;
+}
+
 /** Botão da barra: ícone com rótulo visível em tela larga e só ícone (com nome acessível) no estreito; vertical mostra o rótulo a partir de xl (1280 px) e é só ícone abaixo. */
-function ToolButton({ icon, label, title, pressed, onClick, style, vertical }) {
+function ToolButton({ icon, label, title, pressed, onClick, style, vertical, disabled }) {
   const Icon = I[icon] || I.Square;
-  return <button type="button" aria-pressed={pressed === undefined ? undefined : pressed} aria-label={label} title={title || label} onClick={onClick}
-    className={cn('inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 px-2 t-meta max-md:min-h-11 max-md:min-w-11 max-md:justify-center', vertical && 'w-8 justify-center px-0 max-md:w-11 xl:w-full xl:justify-start xl:px-2', RING, pressed ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground')}>
+  return <button type="button" aria-pressed={pressed === undefined ? undefined : pressed} aria-label={label} aria-disabled={disabled ? true : undefined} title={title || label} onClick={disabled ? undefined : onClick}
+    className={cn('inline-flex h-8 shrink-0 items-center gap-1.5 px-2 t-meta max-md:min-h-11 max-md:min-w-11 max-md:justify-center', vertical && 'w-8 justify-center px-0 max-md:w-11 xl:w-full xl:justify-start xl:px-2', RING, disabled ? 'cursor-not-allowed text-muted-foreground/60' : cn('cursor-pointer', pressed ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'))}>
     <Icon aria-hidden="true" className="size-4" style={style} /><span className={vertical ? 'max-md:sr-only max-xl:sr-only' : 'max-lg:sr-only'}>{label}</span>
   </button>;
 }
@@ -65,14 +78,15 @@ function ToolButton({ icon, label, title, pressed, onClick, style, vertical }) {
  * Barra de ferramentas. `armed` = id da ferramenta armada (ou `null`, Selecionar); `onArm(id | null)`. `quick` = botões de
  * início rápido (`{ key, label, icon?, color?, onClick }`), um por predefinição; `onRoles` abre a tela de papéis. `link` =
  * botão Conexão (`{ active, onClick }`): é ação, não retângulo (a linha nasce do nó selecionado), por isso fica fora de
- * `registerTool`; `active` acende o botão enquanto a conexão está armada no motor. `vertical` empilha os botões só com ícone
+ * `registerTool`; `mark` = botão Mark (`{ available, exists, onClick }`), ação de um clique e sempre visível (`markButtonState`); `active` acende o botão enquanto a conexão está armada no motor. `vertical` empilha os botões só com ícone
  * (borda esquerda do canvas); no celular a página usa a barra horizontal, embaixo.
  */
-function CanvasToolbar({ armed, onArm, quick = [], onRoles, link, className, vertical = false }) {
+function CanvasToolbar({ armed, onArm, quick = [], onRoles, link, mark, className, vertical = false }) {
   const sep = vertical ? 'my-1 h-px w-5' : 'mx-1 h-5 w-px';
   return <div role="toolbar" data-tour-step-id="argos-ferramentas" aria-label="Ferramentas do canvas" aria-orientation={vertical ? 'vertical' : 'horizontal'} className={cn('flex max-w-full items-center gap-0.5 elev-float bg-background p-0.5 scrollbar-thin', vertical ? 'flex-col overflow-y-auto' : 'overflow-x-auto', className)}>
     <ToolButton vertical={vertical} icon="MousePointer2" label="Selecionar" title="Selecionar (Esc)" pressed={armed === null} onClick={() => onArm(null)} />
     {tools.map((t) => <ToolButton vertical={vertical} key={t.id} icon={t.icon} label={t.label} title={t.hint ? `${t.label}: ${t.hint}` : t.label} pressed={armed === t.id} onClick={() => onArm(armed === t.id ? null : t.id)} />)}
+    {mark ? <ToolButton vertical={vertical} icon="Mic" label="Mark" title={markButtonState(mark).title} disabled={markButtonState(mark).disabled} onClick={mark.onClick} /> : null}
     {link ? <ToolButton vertical={vertical} icon="Cable" label="Conexão" title="Conexão: do terminal ou nota selecionado até outro (Ctrl+L); Esc cancela" pressed={link.active} onClick={link.onClick} /> : null}
     {quick.length ? <span aria-hidden="true" className={cn(sep, 'shrink-0 bg-border')} /> : null}
     {quick.map((q) => <ToolButton vertical={vertical} key={q.key} icon={q.icon || 'SquareTerminal'} label={q.label} title={`Novo terminal: ${q.label}`} onClick={q.onClick} style={q.color ? { color: q.color } : undefined} />)}
@@ -133,5 +147,5 @@ registerTool({ id: 'area', label: 'Área', icon: 'SquareDashed', hint: 'arraste 
 // ferramenta Desenho: o retângulo solto vira um nó `drawing` (pages/argos.tsx, toolRect.drawing)
 registerTool({ id: 'drawing', label: 'Desenho', icon: 'PenTool', hint: 'arraste um retângulo no canvas', order: 40 });
 
-window.ArgosCanvasToolbar = { CLICK_PX, TOOL_ERRORS, registerTool, listTools, dragRect, rectToWorld, CanvasToolbar, ToolDragLayer };
+window.ArgosCanvasToolbar = { CLICK_PX, TOOL_ERRORS, registerTool, listTools, markButtonState, dragRect, rectToWorld, CanvasToolbar, ToolDragLayer };
 })();

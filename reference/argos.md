@@ -1310,8 +1310,16 @@ um Hades antigo lê o nó como tipo desconhecido).
   painel local (403 remoto). As edições entram atomicamente (todas ou nenhuma). Erros com código estável: os `drawing_*` do modelo
   (`DRAWING_ERRORS`) e os da rota (`drawing_invalid_body`, `drawing_body_too_large`, `drawing_not_found`,
   `drawing_stale_revision`, `drawing_agent_local_only`, `drawing_unreadable`, `drawing_too_many_edits`).
-- **CLI**: `hades canvas drawing list|read <d> [--json]|add|move|remove|text|export <d> --svg` (detalhes em `reference/cli.md`);
+- **CLI**: `hades canvas drawing new|list|read <d> [--json]|add|move|remove|text|export <d> --svg` (detalhes em `reference/cli.md`);
   recusas `canvas_drawing_no_access`, `canvas_drawing_write_direct_only` e `canvas_drawing_conflict`, saída 1.
+- **Criar pela CLI.** `drawing new <nome> [--title t] [--w n --h n] [--link-to <recruta>]… [--from-json arq]` espelha o
+  `note new`: só o terminal com a caixa Orquestrador cria, e o nó nasce perto dele (acima, no `noteSlot`, deslocado até não
+  sobrepor outro nó), 480×320 por padrão, ligado ao chamador e aos recrutas citados (`drawing-access`), num lote só do
+  desfazer. O `<nome>` vira o título (`--title` o sobrepõe); título repetido, sem distinguir caixa, é `drawing_title_exists`,
+  porque o `drawing add` acha o desenho por id ou título. Imprime o id. `--from-json` lê um arquivo de até 1 MiB com a lista
+  de elementos (ou `{ "elements": [...] }`) e o modelo do desenho valida cada um com os tetos de `DRAWING_LIMITS`; arquivo
+  ilegível ou fora do formato é `canvas_from_json_invalid`. Canvas inexistente é `canvas_not_found` e recruta inexistente é
+  o erro de recruta do `note new`.
 
 ### Alinhar e distribuir (`canvas-align.ts`)
 
@@ -3373,6 +3381,11 @@ O que as seções Compositor, Notas e Conexões descrevem aparece no `#/argos` p
   e armar mostraria a camada de arrasto. O clique arma a linha a partir do terminal focado ou do nó selecionado sozinho
   (o mesmo que `mod+l`); aceso, o clique cancela. O botão acende enquanto o motor avisa origem pelo `onLinkState`
   (repassado pelo `CanvasPane`). Armar uma ferramenta de retângulo cancela a conexão armada.
+- **Mark** (botão depois de Desenho, sempre visível; `markButtonState` decide, a barra só desenha). Três estados: ponte
+  presente e sem nó `mark` → cria o nó (o mesmo `run` do comando `mark:add`, sem regra duplicada); já há nó `mark` → revela
+  o nó, mesmo com o Mark fora; sem `bridge.json` e sem nó → `aria-disabled` com `title` que diz a causa e a ação ("rode
+  `mark`"). Usa `aria-disabled` e não `disabled` para o botão seguir focável e o `title` aparecer. A disponibilidade vem de
+  `mark.available()` em estado e atualiza sem recarregar quando o Mark sobe ou cai. Paleta e menu de contexto não mudam.
 
 **Atalhos** (todos na paleta e na ajuda `?`; `mod` = Ctrl, ou ⌘ no Mac). Os três valem com o teclado no terminal: estão em
 `TTY_CANVAS_KEYS`, que o `NodeTty` não manda ao agente.

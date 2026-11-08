@@ -258,6 +258,18 @@ export const HUMAN_ERRORS: Readonly<Record<string, HumanError>> = {
     action: "Ligue o desenho direto ao seu terminal no Argos e repita a edição.",
     ref: "reference/argos.md §Desenho (`canvas-drawing.ts`)",
   },
+  canvas_from_json_invalid: {
+    title: "`--from-json` não leu o arquivo",
+    cause: "O arquivo não existe, passa de 1 MiB, não é JSON ou não é uma lista de elementos (ou `{ \"elements\": [...] }`).",
+    action: "Aponte para um arquivo JSON com a lista de elementos do desenho (cada um com `id`); o formato está em `reference/argos.md` §Desenho.",
+    ref: "reference/argos.md §Desenho (`canvas-drawing.ts`)",
+  },
+  drawing_title_exists: {
+    title: "Já existe um desenho com esse nome",
+    cause: "Outro desenho do canvas tem o mesmo título (a CLI acha o desenho por id ou título, sem distinguir caixa).",
+    action: "Escolha outro nome (ou `--title`) para o desenho novo, ou use o id do que já existe com `hades canvas drawing list`.",
+    ref: "reference/argos.md §Desenho (`canvas-drawing.ts`)",
+  },
   canvas_drawing_conflict: {
     title: "O desenho mudou enquanto você gravava",
     cause: "Outra origem editou o mesmo desenho no meio da gravação.",

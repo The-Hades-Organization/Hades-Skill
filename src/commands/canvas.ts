@@ -3,16 +3,17 @@
 // são do orquestrador (D7) sobre os recrutas dele; `notify` manda uma notificação ao dono. O nó de quem chama se resolve
 // pelo pane do herdr em que o processo roda (HERDR_PANE_ID e a sessão do socket). Tudo passa pelas rotas do painel: o
 // documento muda por `CanvasOp` (desfazer volta exatamente ao anterior) e a escrita na nota é conferida no servidor.
+import { readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { type CanvasDoc, type CanvasNode, readCanvasDoc } from "../lib/canvas-doc.ts";
 import { applyOp, type CanvasOp } from "../lib/canvas-history.ts";
 import { areaReport } from "../lib/canvas-areas.ts";
-import { canReadDrawing, canWriteDrawing, isDrawingNode, readableDrawingsOf, sceneOfNodeSafe } from "../lib/canvas-drawing.ts";
+import { canReadDrawing, canWriteDrawing, DrawingError, isDrawingNode, readableDrawingsOf, readDrawingTitle, sceneOfNodeSafe } from "../lib/canvas-drawing.ts";
 import { LinkError } from "../lib/canvas-links.ts";
 import { directNotesOf, hasNoteAccess, noteChainFrom, NoteError, readableNotesOf } from "../lib/canvas-note.ts";
 import {
   type AgentRecordView, concludedAgentAt, findNote, type HerdrTarget, identityPrompt, isOrchestrator, nodeName, nodesAtTarget, planConnect, planDismiss, planJoin, planLeave, planReassign,
-  planNewNote, planRecruit, RECRUIT_ERRORS, requireFreshNoteName, RecruitError, recruitsOf, requireOrchestrator, requireRecruit, requireSharedNote, terminalTargetOf,
+  planNewDrawing, planNewNote, planRecruit, RECRUIT_ERRORS, requireFreshNoteName, RecruitError, recruitsOf, requireOrchestrator, requireRecruit, requireSharedNote, terminalTargetOf,
 } from "../lib/canvas-recruit.ts";
 import { labelsText, opensPr, prReadyPromptBlock, prReadyValues, type PrReadyValues } from "../lib/brief-pr.ts";
 import { effectiveConfig } from "../lib/config.ts";
@@ -27,6 +28,8 @@ import { TERMINAL_NAME_MAX } from "../panel/argos-terminals.ts";
 import { exec } from "../panel/exec.ts";
 
 export const USAGE = `Uso: hades canvas <subcomando> [--canvas <id>]
+  drawing new <nome> [--title t] [--w n --h n] [--link-to <recruta>]… [--from-json arq]
+                                              cria o desenho perto do seu terminal, ligado a você e aos recrutas citados
   drawing list                                desenhos que o seu terminal lê (diretos e encadeados)
   drawing read <d> [--json]                   elementos, textos e ligações do desenho (d: id ou título)
   drawing add <d> <rect|ellipse> --x n --y n --w n --h n [--fill c] [--stroke c] [--width n]
@@ -75,6 +78,8 @@ export const CANVAS_CLI_ERRORS = {
   drawingNoAccess: "canvas_drawing_no_access",
   drawingWriteDirect: "canvas_drawing_write_direct_only",
   drawingConflict: "canvas_drawing_conflict",
+  canvasNotFound: "canvas_not_found",
+  fromJsonInvalid: "canvas_from_json_invalid",
 } as const;
 export type CanvasCliErrorCode = (typeof CANVAS_CLI_ERRORS)[keyof typeof CANVAS_CLI_ERRORS];
 
@@ -95,6 +100,8 @@ const ERROR_TEXT: Readonly<Record<CanvasCliErrorCode, string>> = {
   [CANVAS_CLI_ERRORS.drawingNoAccess]: "nenhuma conexão liga o seu terminal a esse desenho (nem pela cadeia)",
   [CANVAS_CLI_ERRORS.drawingWriteDirect]: "só se edita o desenho ligado direto ao seu terminal (a cadeia só se lê)",
   [CANVAS_CLI_ERRORS.drawingConflict]: "o desenho mudou enquanto você gravava: tente de novo",
+  [CANVAS_CLI_ERRORS.canvasNotFound]: "o painel não tem esse canvas",
+  [CANVAS_CLI_ERRORS.fromJsonInvalid]: "--from-json não leu o arquivo como lista de elementos",
   [CANVAS_CLI_ERRORS.noteFileExists]: "já existe um arquivo de nota com esse nome: escolha outro nome",
 };
 
@@ -136,6 +143,8 @@ export interface CanvasCliDeps {
   /** O pane do herdr deste processo, ou `undefined` fora do herdr. */
   caller(): Promise<HerdrTarget | undefined>;
   stdin(): Promise<string>;
+  /** O texto de um arquivo local (`--from-json`); o real recusa o que passa do teto. */
+  readText(path: string): string;
   /** A entrada padrão é um pipe ou arquivo (não o teclado)? Sem isso, `note new` não a lê. Ausente: lê. */
   stdinPiped?(): boolean;
   /** Assignee, labels e reviewers das Configurações (e do perfil do projeto) para o bloco "PR pronta" do recruta. */
@@ -153,7 +162,7 @@ interface Parsed {
   flags: Map<string, string[]>;
 }
 
-const VALUE_FLAGS = new Set(["canvas", "name", "role", "preset", "agent", "model", "effort", "cwd", "instructions", "note", "prompt", "pane", "to", "text", "title", "link-to", "new-note", "x", "y", "w", "h", "from", "to", "points", "fill", "stroke", "width", "size", "id"]);
+const VALUE_FLAGS = new Set(["canvas", "name", "role", "preset", "agent", "model", "effort", "cwd", "instructions", "note", "prompt", "pane", "to", "text", "title", "link-to", "new-note", "x", "y", "w", "h", "from", "to", "points", "fill", "stroke", "width", "size", "id", "from-json"]);
 const BOOL_FLAGS = new Set(["only", "append", "no-role", "no-instructions", "json", "svg"]);
 
 class UsageError extends Error {}
@@ -228,6 +237,7 @@ async function graphTargets(deps: CanvasCliDeps): Promise<Map<string, HerdrTarge
 
 async function loadDoc(deps: CanvasCliDeps, canvas: string): Promise<CanvasDoc> {
   const reply = await panelJson(deps, "GET", `/api/canvases/${encodeURIComponent(canvas)}`);
+  if (reply.status === STATUS.notFound) return failWith(CANVAS_CLI_ERRORS.canvasNotFound, canvas);
   if (reply.status !== STATUS.ok) return refused(reply);
   return readCanvasDoc(reply.body);
 }
@@ -860,9 +870,47 @@ async function drawingExport(deps: CanvasCliDeps, at: Located, p: Parsed): Promi
 // ---- entrada ----
 
 type Handler = (deps: CanvasCliDeps, at: Located, p: Parsed) => Promise<number>;
+/** Teto do arquivo de `--from-json`: o documento todo tem 1 MiB, e a cena de um desenho cabe folgada nele. */
+export const FROM_JSON_MAX_BYTES = 1_048_576;
+
+/** Os elementos do arquivo de `--from-json`: uma lista, ou `{ "elements": [...] }`. Cada um é conferido pelo modelo do desenho. */
+function elementsFromJson(deps: CanvasCliDeps, path: string): unknown[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(deps.readText(path));
+  } catch (error) {
+    if (error instanceof SyntaxError) return failWith(CANVAS_CLI_ERRORS.fromJsonInvalid, `${path}: JSON inválido`);
+    // falha de sistema de arquivos (ENOENT, EACCES, EISDIR…): o código do sistema é a causa que o dono entende
+    if (error instanceof Error && "code" in error && typeof error.code === "string") return failWith(CANVAS_CLI_ERRORS.fromJsonInvalid, `${path}: ${error.code}`);
+    throw error;
+  }
+  const list = Array.isArray(parsed) ? parsed : isDict(parsed) && Array.isArray(parsed.elements) ? parsed.elements : undefined;
+  return list ?? failWith(CANVAS_CLI_ERRORS.fromJsonInvalid, `${path}: esperava uma lista de elementos`);
+}
+
+async function drawingNew(deps: CanvasCliDeps, at: Located, p: Parsed): Promise<number> {
+  const name = p.positional[2] ?? fail(new UsageError("drawing new <nome> [--title t] [--w n --h n] [--link-to <recruta>]… [--from-json arq]"));
+  const orchestrator = orchestratorOf(at);
+  const title = readDrawingTitle(flag(p, "title") ?? name) ?? fail(new UsageError("o nome do desenho não pode ser vazio"));
+  const file = flag(p, "from-json");
+  const elements = file === undefined ? undefined : elementsFromJson(deps, file);
+  const w = numberFlag(p, "w");
+  const h = numberFlag(p, "h");
+  const { result } = await commit(deps, at, (doc) => {
+    const plan = planNewDrawing(doc, {
+      callerId: orchestrator.id, title, linkTo: p.flags.get("link-to") ?? [],
+      ...(w !== undefined && { w }), ...(h !== undefined && { h }), ...(elements !== undefined && { elements }),
+    });
+    return { op: plan.op, result: plan };
+  });
+  const linked = [nodeName(orchestrator), ...result.recruits.map(nodeName)].join(", ");
+  deps.out(`desenho ${result.node.id} "${title}": em (${result.node.x}, ${result.node.y}), ligado a ${linked}`);
+  return EXIT.ok;
+}
+
 const NOTE_HANDLERS: Readonly<Record<string, Handler>> = { list: noteList, read: noteRead, write: noteWrite, new: noteNew };
 const DRAWING_HANDLERS: Readonly<Record<string, Handler>> = {
-  list: drawingList, read: drawingRead, add: drawingAdd, move: drawingMove, remove: drawingRemove, text: drawingText, export: drawingExport,
+  new: drawingNew, list: drawingList, read: drawingRead, add: drawingAdd, move: drawingMove, remove: drawingRemove, text: drawingText, export: drawingExport,
 };
 const AREA_HANDLERS: Readonly<Record<string, Handler>> = { list: areaList };
 const HANDLERS: Readonly<Record<string, Handler>> = { recruit, connect, reassign, dismiss, notify: notifyOwner };
@@ -897,7 +945,7 @@ export async function runCanvas(args: readonly string[], deps: CanvasCliDeps): P
       deps.err(`hades canvas: uso: ${error.message}`);
       return EXIT.usage;
     }
-    const code = error instanceof CanvasCliError || error instanceof RecruitError || error instanceof LinkError || error instanceof NoteError ? error.code : undefined;
+    const code = error instanceof CanvasCliError || error instanceof RecruitError || error instanceof LinkError || error instanceof NoteError || error instanceof DrawingError ? error.code : undefined;
     if (code === undefined) throw error;
     deps.err(renderCli(`${error instanceof Error ? error.message : String(error)} (${code})`, code, "hades canvas"));
     return EXIT.fail;
@@ -976,6 +1024,11 @@ function realDeps(): CanvasCliDeps {
     },
     caller: () => callerTarget(process.env),
     prReady: () => prReadyValues(projectLabels()),
+    readText(path) {
+      const file = resolve(path);
+      if (statSync(file).size > FROM_JSON_MAX_BYTES) return failWith(CANVAS_CLI_ERRORS.fromJsonInvalid, `${path}: passa de ${FROM_JSON_MAX_BYTES} bytes`);
+      return readFileSync(file, "utf8");
+    },
     stdin: () => Bun.stdin.text(),
     stdinPiped: () => !process.stdin.isTTY,
     async notify(text, obj) {

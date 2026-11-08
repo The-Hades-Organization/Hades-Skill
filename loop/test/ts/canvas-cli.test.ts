@@ -113,7 +113,7 @@ async function rig(doc: CanvasDoc, managerText: () => string = () => MANAGER) {
   const out: string[] = [];
   const err: string[] = [];
   const notified: [string, string][] = [];
-  const io = { caller: { session: "default", pane: ORQ_PANE }, stdin: "" };
+  const io = { caller: { session: "default", pane: ORQ_PANE }, stdin: "", files: new Map<string, string>() };
   const deps: CanvasCliDeps = {
     async panel(method, path, body) {
       panelCalls.push(`${method} ${path}`);
@@ -145,6 +145,11 @@ async function rig(doc: CanvasDoc, managerText: () => string = () => MANAGER) {
     caller: async () => io.caller,
     prReady: () => ({ assignee: "dono-da-pr", labels: "fix,bug", reviewers: "revisora" }),
     stdin: async () => io.stdin,
+    readText(path) {
+      const text = io.files.get(path);
+      if (text === undefined) throw Object.assign(new Error("sem arquivo"), { code: "ENOENT" });
+      return text;
+    },
     async notify(text, obj) {
       notified.push([text, obj]);
       return { rc: 0, err: "" };
@@ -1039,5 +1044,119 @@ describe("canvas-cli: desenho", () => {
   test("subcomando desconhecido sai com uso", async () => {
     const r = await rig(drawingDoc());
     expect(await r.run("drawing", "apagar")).toBe(EXIT.usage);
+  });
+});
+
+describe("canvas-cli: drawing new", () => {
+  const drawingByTitle = (doc: CanvasDoc, title: string): CanvasNode =>
+    doc.nodes.find((n) => n.type === "drawing" && (n.data as Dict).title === title) as CanvasNode;
+  const linksTo = (doc: CanvasDoc, id: string): string[] => doc.edges.filter((e) => e.kind === LINK_EDGE_KIND && e.to === id).map((e) => e.from);
+  const overlap = (a: CanvasNode, b: CanvasNode): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+  test("cria 480x320 acima do orquestrador, ligado a ele, e imprime o id", async () => {
+    const r = await rig(baseDoc());
+    expect(await r.run("drawing", "new", "Integração")).toBe(EXIT.ok);
+    const doc = await r.current();
+    const node = drawingByTitle(doc, "Integração");
+    expect(node).toMatchObject({ w: 480, h: 320 });
+    expect(linksTo(doc, node.id)).toEqual(["term-orq"]);
+    const orq = doc.nodes.find((n) => n.id === "term-orq") as CanvasNode;
+    expect(node.y + node.h).toBeLessThan(orq.y);
+    expect(r.out).toEqual([`desenho ${node.id} "Integração": em (${node.x}, ${node.y}), ligado a Chefe`]);
+  });
+
+  test("o desenho nasce editável: drawing add logo em seguida grava, por título e por id", async () => {
+    const r = await rig(baseDoc());
+    expect(await r.run("drawing", "new", "fluxo")).toBe(EXIT.ok);
+    const id = drawingByTitle(await r.current(), "fluxo").id;
+    expect(await r.run("drawing", "add", "fluxo", "rect", "--x", "1", "--y", "2", "--w", "30", "--h", "20", "--id", "a")).toBe(EXIT.ok);
+    expect(await r.run("drawing", "add", id, "text", "--x", "5", "--y", "50", "--text", "oi", "--id", "t")).toBe(EXIT.ok);
+    expect(sceneOf(await r.current(), id).elements.map((e) => e.id)).toEqual(["a", "t"]);
+  });
+
+  test("--title, --w e --h valem; --link-to liga os recrutas (repetido vira uma ligação só)", async () => {
+    const r = await rig(baseDoc());
+    expect(await r.run("recruit")).toBe(EXIT.ok);
+    const [recruit] = (await r.current()).nodes.filter((n) => (n.data as Dict).recruiter === "term-orq") as [CanvasNode];
+    expect(await r.run("drawing", "new", "arq", "--title", "Arquitetura", "--w", "600", "--h", "400", "--link-to", "Chefe 1", "--link-to", recruit.id)).toBe(EXIT.ok);
+    const doc = await r.current();
+    const node = drawingByTitle(doc, "Arquitetura");
+    expect(node).toMatchObject({ w: 600, h: 400 });
+    expect(linksTo(doc, node.id)).toEqual(["term-orq", recruit.id]);
+    expect(r.out[0]).toContain("ligado a Chefe, Chefe 1");
+  });
+
+  test("desenhos em sequência não se sobrepõem entre si nem a outro nó", async () => {
+    const r = await rig(baseDoc());
+    for (const name of ["d1", "d2", "d3", "d4"]) expect(await r.run("drawing", "new", name)).toBe(EXIT.ok);
+    const doc = await r.current();
+    const boxes = ["d1", "d2", "d3", "d4"].map((t) => drawingByTitle(doc, t));
+    for (const [i, a] of boxes.entries()) {
+      for (const b of [...boxes.slice(i + 1), ...doc.nodes.filter((n) => n.type !== "drawing")]) expect(overlap(a, b)).toBe(false);
+    }
+  });
+
+  test("nó e ligações entram numa revisão só (um passo de desfazer)", async () => {
+    const r = await rig(baseDoc());
+    const before = (await r.current()).rev;
+    expect(await r.run("drawing", "new", "lote")).toBe(EXIT.ok);
+    expect((await r.current()).rev).toBe(before + 1);
+  });
+
+  test("recusas: nome repetido (sem distinguir caixa), recruta inexistente, quem não é orquestrador; nada grava", async () => {
+    const r = await rig(drawingDoc());
+    const before = await r.current();
+    expect(await r.run("drawing", "new", "arquitetura")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe("drawing_title_exists");
+    expect(await r.run("drawing", "new", "outro", "--link-to", "Fantasma")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(RECRUIT_ERRORS.notRecruit);
+    r.io.caller = { session: "default", pane: "w9:p1" };
+    expect(await r.run("drawing", "new", "outro")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(RECRUIT_ERRORS.notOrchestrator);
+    expect(await r.current()).toEqual(before);
+  });
+
+  test("canvas inexistente em --canvas é recusado com código próprio; sem nome e número ruim são uso", async () => {
+    const r = await rig(baseDoc());
+    expect(await r.run("drawing", "new", "x", "--canvas", "nao-existe")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe(CANVAS_CLI_ERRORS.canvasNotFound);
+    expect(await r.run("drawing", "new")).toBe(EXIT.usage);
+    expect(await r.run("drawing", "new", "x", "--w", "largo")).toBe(EXIT.usage);
+    expect(await r.run("drawing", "new", "   ")).toBe(EXIT.usage);
+  });
+
+  test("--from-json cria o desenho já com os elementos (lista ou { elements }), conector preso incluso", async () => {
+    const r = await rig(baseDoc());
+    const els = [
+      { id: "a", type: "rect", x: 0, y: 0, w: 80, h: 40 },
+      { id: "b", type: "ellipse", x: 200, y: 0, w: 60, h: 40 },
+      { id: "c", type: "arrow", from: { ref: "a" }, to: { ref: "b" } },
+      { id: "t", type: "text", x: 10, y: 80, text: "fila" },
+    ];
+    r.io.files.set("lista.json", JSON.stringify(els));
+    r.io.files.set("objeto.json", JSON.stringify({ elements: els.slice(0, 2) }));
+    expect(await r.run("drawing", "new", "da-lista", "--from-json", "lista.json")).toBe(EXIT.ok);
+    expect(await r.run("drawing", "new", "do-objeto", "--from-json", "objeto.json")).toBe(EXIT.ok);
+    const doc = await r.current();
+    expect(sceneOf(doc, drawingByTitle(doc, "da-lista").id).elements.length).toBe(4);
+    expect(sceneOf(doc, drawingByTitle(doc, "do-objeto").id).elements.length).toBe(2);
+  });
+
+  test("--from-json inválido: arquivo ausente, JSON quebrado, forma errada, elemento fora dos tetos; nada grava", async () => {
+    const r = await rig(baseDoc());
+    const before = await r.current();
+    r.io.files.set("quebrado.json", "{ nao");
+    r.io.files.set("forma.json", JSON.stringify({ outro: 1 }));
+    r.io.files.set("ruim.json", JSON.stringify([{ id: "a", type: "rect", x: 0, y: 0, w: -5, h: 10 }]));
+    r.io.files.set("muitos.json", JSON.stringify(Array.from({ length: 301 }, (_, i) => ({ id: `e${i}`, type: "rect", x: 0, y: 0, w: 1, h: 1 }))));
+    for (const file of ["ausente.json", "quebrado.json", "forma.json"]) {
+      expect(await r.run("drawing", "new", "x", "--from-json", file)).toBe(EXIT.fail);
+      expect(lastCode(r.err)).toBe(CANVAS_CLI_ERRORS.fromJsonInvalid);
+    }
+    expect(await r.run("drawing", "new", "x", "--from-json", "ruim.json")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe("drawing_invalid_element");
+    expect(await r.run("drawing", "new", "x", "--from-json", "muitos.json")).toBe(EXIT.fail);
+    expect(lastCode(r.err)).toBe("drawing_limit_exceeded");
+    expect(await r.current()).toEqual(before);
   });
 });

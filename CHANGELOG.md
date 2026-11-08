@@ -4,6 +4,24 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.35.0 — 2026-11-08
+
+Feature (#97 e #102, unidade canvas-criar): o agente cria desenho no canvas sem passo manual do dono, e o Mark ganha
+botão na barra do Argos.
+
+- `hades canvas drawing new <nome> [--title t] [--w n --h n] [--link-to <recruta>]… [--from-json arq]`: espelho do
+  `note new`. Cria o nó `drawing` (480×320) acima do orquestrador sem sobrepor outro nó, liga ao chamador e aos
+  recrutas citados num lote só do desfazer e imprime o id. O `<nome>` vira o título (o nó não tem campo `name`); a
+  unicidade é por título sem distinguir caixa, porque o `drawing add` acha o desenho por id ou título. `--from-json`
+  aceita até 1 MiB e valida os elementos com os tetos de `DRAWING_LIMITS`. Só o orquestrador cria, como no `note new`
+  (a issue previa recruta criando ligado a si). Erros novos: `drawing_title_exists`, `canvas_from_json_invalid`; o
+  404 do painel passa a ser `canvas_not_found`.
+- Botão **Mark** na barra de ferramentas do canvas, depois de Desenho, sempre visível: com nó `mark` revela o nó; com
+  a ponte presente e sem nó cria (o mesmo comando `mark:add` da paleta); sem `bridge.json` fica `aria-disabled`,
+  focável, com causa e ação no `title`. A disponibilidade muda sem recarregar.
+- Armadilha: qualquer edição em `kit/panel/` muda o hash do service worker, então o golden `painel-legado.json`
+  (linha `GET /sw.js`) se regrava junto.
+
 ## 6.34.0 — 2026-11-08
 
 Feature (#99, unidades mark-voz no fork do Mark e argos-voz na skill): falar e ouvir o Mark pelo Argos, no celular

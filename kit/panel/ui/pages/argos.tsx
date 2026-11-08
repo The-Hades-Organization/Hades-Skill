@@ -357,9 +357,12 @@ function Argos() {
   snapRef.current = snapOn;
   // "Mark" na paleta só quando o bridge.json existe: o servidor responde `available`; a rota nunca devolve o token
   const markAvailRef = useRef(false);
+  // a barra mostra o botão do Mark em qualquer estado, então a disponibilidade também é estado de tela (a ref serve aos comandos)
+  const [markAvail, setMarkAvail] = useState(false);
   useEffect(() => {
     let alive = true;
-    const probe = () => getJSON('/api/mark/state').then((s) => { if (alive) markAvailRef.current = !!(s && s.available); }).catch(() => { if (alive) markAvailRef.current = false; });
+    const setAvail = (on) => { markAvailRef.current = on; setMarkAvail(on); };
+    const probe = () => getJSON('/api/mark/state').then((s) => { if (alive) setAvail(!!(s && s.available)); }).catch(() => { if (alive) setAvail(false); });
     probe();
     const timer = setInterval(probe, MARK_PROBE_MS);
     return () => { alive = false; clearInterval(timer); };
@@ -1688,6 +1691,12 @@ function Argos() {
     }
     return api.startLink(fromTty);
   };
+  // botão Mark da barra: com nó no canvas leva a câmera até ele, sem nó roda o mesmo `mark:add` da paleta (a regra mora lá)
+  const markNodeId = cstate?.doc.nodes.find((n) => n.type === 'mark')?.id ?? null;
+  const onMarkButton = () => {
+    if (markNodeId !== null) { host.current.selectIds([markNodeId]); apiRef.current?.revealNode(markNodeId, true); return; }
+    commands.get('mark:add')?.run(ctxFor(null));
+  };
   const toggleLink = () => {
     if (linking) { apiRef.current?.cancelLink(); return; }
     commands.get('tty:link')?.run(ctxFor(null));
@@ -2163,7 +2172,7 @@ function Argos() {
             {/* grupo da câmera (histórico, zoom, enquadrar); acima do minimapa na mesa, acima das ferramentas no celular */}
             <CC.CanvasControls api={canvasApi} history={{ canUndo, canRedo, onUndo: () => stepHistory('undo'), onRedo: () => stepHistory('redo') }}
               className={cn('pointer-events-auto absolute right-2 z-10 flex items-center border border-border-strong bg-background', desk ? 'bottom-[8.5rem]' : 'bottom-[4.25rem]')} />
-            {termReady ? <window.ArgosCanvasToolbar.CanvasToolbar armed={termTool} onArm={armTool} link={{ active: linking, onClick: toggleLink }} onRoles={host.current.termRolesOpen}
+            {termReady ? <window.ArgosCanvasToolbar.CanvasToolbar armed={termTool} onArm={armTool} link={{ active: linking, onClick: toggleLink }} mark={{ available: markAvail, exists: markNodeId !== null, onClick: onMarkButton }} onRoles={host.current.termRolesOpen}
               quick={termPresets.map((p) => ({ key: p.slug, label: p.name, icon: p.icon, color: p.color, onClick: () => quickStart(p) }))}
               vertical={desk} className={cn('pointer-events-auto absolute z-10', desk ? 'top-24 left-2 max-h-[calc(100%-8rem)]' : 'bottom-2 left-2 right-2')} /> : null}
           </> : null}

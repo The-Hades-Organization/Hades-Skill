@@ -93,7 +93,7 @@ const HELP = `hades <subcomando> [argumentos]
   moirai history|estimate <plan.md>  histórico das unidades encerradas e estimativa de custo e duração por unidade do plano (hades moirai)
   caronte pack|unpack|brief      leva uma orquestração para outra sessão ou máquina: pacote cifrado com senha, abrir o pacote, ou o prompt de retomada (hades caronte)
   canvas note list|read|write | recruit|connect|reassign|dismiss|notify   o agente do terminal fala com o canvas: notas ligadas e equipe do orquestrador (hades canvas)
-  minos list|publish|link|open   publica as saídas da Hades fora do painel: página do modelo, Cerberus, link estável (hades minos, reference/minos.md)
+  minos list|schema|publish|link|open   publica as saídas da Hades fora do painel (orquestração, explicação de código, proposta): página do modelo, Cerberus, link estável (hades minos, reference/minos.md)
   contrib suggest|prepare|pr|html  devolve ao repo da skill a melhoria do núcleo: PR com confirmação ou .html sem acesso (hades contrib)
   plugins list|add|update|enable|disable|remove  pacotes de plugin: prévia, confirmação por commit, Cerberus
   project resolve|get|pack|ref|core-check|names|validate|stacks|step|detect   projeto ativo e perfil (hades project, hades project)

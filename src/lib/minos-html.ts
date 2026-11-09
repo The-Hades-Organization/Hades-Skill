@@ -1,12 +1,18 @@
-// Minos: a página do modelo `orquestracao`. O modelo (kit/minos/orquestracao.html) é estático; o corpo sai dos dados já
-// validados e tudo que é texto passa por `esc`. Sem script e sem recurso externo: serve ao Artifact e ao `--html` offline.
+// Minos: as páginas. O modelo (kit/minos/pagina.html) é estático e o mesmo para todos; o corpo sai dos dados já validados
+// e tudo que é texto passa por `esc`. Sem script e sem recurso externo: serve ao Artifact e ao `--html` offline. O corpo de
+// `orquestracao` mora aqui; o de `explicacao` e `proposta`, em minos-doc-html.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { skillRoot } from "./paths.ts";
+import { esc } from "./minos-esc.ts";
+import {
+  EXPLANATION_TITLE, explanationDescription, proposalDescription, proposalTitle, renderExplanationBody, renderProposalBody,
+} from "./minos-doc-html.ts";
+import type { ExplanationData, ProposalData } from "./minos-doc.ts";
 import type { AgentState, Confidence, OrchestrationData } from "./minos-model.ts";
 
-const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-export const esc = (value: string): string => value.replace(/[&<>"']/g, (c) => ESCAPES[c] as string);
+export { esc } from "./minos-esc.ts";
+export type MinosData = OrchestrationData | ExplanationData | ProposalData;
 
 const STATE_LABEL: Record<AgentState, [string, string]> = {
   working: ["trabalhando", "busy"], idle: ["ocioso", "ok"], blocked: ["espera por você", "warn"], unknown: ["sem sessão", ""],
@@ -30,7 +36,7 @@ export function pageDescription(data: OrchestrationData): string {
 }
 
 export function loadTemplate(): string {
-  return readFileSync(join(skillRoot, "kit", "minos", "orquestracao.html"), "utf8");
+  return readFileSync(join(skillRoot, "kit", "minos", "pagina.html"), "utf8");
 }
 
 function section(title: string, summary: string, inner: string): string {
@@ -92,14 +98,29 @@ export function renderOrchestrationBody(data: OrchestrationData): string {
   return [header, escalations(data), agents(data), prs(data), plan(data), consumption(data)].join("\n  ");
 }
 
-/** JSON dentro de <script>: `<` vira <, então nenhum dado fecha o bloco nem abre outro. */
-export const dataBlock = (data: OrchestrationData): string =>
+/** JSON dentro de <script>: `<` vira \\u003c, então nenhum dado fecha o bloco nem abre outro. */
+export const dataBlock = (data: MinosData): string =>
   JSON.stringify(data).replace(/</g, "\\u003c").replace(/[\u2028\u2029]/g, (c) => `\\u${c.charCodeAt(0).toString(16)}`);
 
-export function renderOrchestrationHtml(template: string, data: OrchestrationData): string {
-  const values: Record<string, string> = {
-    TITLE: esc(pageTitle(data)), DESCRIPTION: esc(pageDescription(data)), BODY: renderOrchestrationBody(data), DATA: dataBlock(data),
-  };
+export function titleOf(data: MinosData): string {
+  if (data.model === "orquestracao") return pageTitle(data);
+  return data.model === "explicacao" ? EXPLANATION_TITLE : proposalTitle(data);
+}
+
+export function descriptionOf(data: MinosData): string {
+  if (data.model === "orquestracao") return pageDescription(data);
+  return data.model === "explicacao" ? explanationDescription(data) : proposalDescription(data);
+}
+
+function bodyOf(data: MinosData): string {
+  if (data.model === "orquestracao") return renderOrchestrationBody(data);
+  return data.model === "explicacao" ? renderExplanationBody(data) : renderProposalBody(data);
+}
+
+export function renderPage(template: string, data: MinosData): string {
+  const values: Record<string, string> = { LAYOUT: data.model === "orquestracao" ? "ops" : "doc", TITLE: esc(titleOf(data)), DESCRIPTION: esc(descriptionOf(data)), BODY: bodyOf(data), DATA: dataBlock(data) };
   // uma passada só: o valor inserido nunca é relido como marcador
   return template.replace(/\{\{([A-Z]+)\}\}/g, (all, key: string) => values[key] ?? all);
 }
+
+export const renderOrchestrationHtml = (template: string, data: OrchestrationData): string => renderPage(template, data);

@@ -6,7 +6,7 @@
 <title>{{TITLE}}</title>
 <meta name="description" content="{{DESCRIPTION}}">
 <style>
-  /* tokens do painel (kit/panel/ui/index.html): Marfim no claro, Érebo no escuro, raio 0 */
+  /* modelo único das páginas do Minos; tokens do painel (kit/panel/ui/index.html): Marfim no claro, Érebo no escuro, raio 0 */
   :root {
     color-scheme: light dark;
     --background: oklch(0.965 0.012 70); --foreground: oklch(0.24 0.05 350); --card: oklch(0.985 0.008 70);
@@ -34,7 +34,8 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--background); color: var(--foreground); font: 0.9375rem/1.55 var(--font-sans); -webkit-font-smoothing: antialiased; }
-  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; display: grid; gap: 24px; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  section, figure, .option, .cols > * { min-width: 0; }
   h1 { font: 400 2rem/1.15 var(--font-display); margin: 0 0 6px; overflow-wrap: anywhere; }
   h2 { font-size: 1rem; font-weight: 600; margin: 0; }
   .meta, .muted { color: var(--muted-foreground); font-size: 0.8125rem; }
@@ -59,11 +60,37 @@
   .meter { height: 8px; background: var(--border-strong); margin: 6px 0 2px; }
   .meter > span { display: block; height: 100%; background: var(--vivo); }
   .tablewrap { overflow-x: auto; }
+  ol.steps { margin: 0; padding: 0; list-style: none; counter-reset: step; }
+  ol.steps > li { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: 2px 8px; }
+  ol.steps > li::before { content: counter(step); font: 500 0.8125rem/1.6 var(--font-mono); color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+  ol.steps > li > * { grid-column: 2; }
+  ul.bullets { list-style: disc; padding-left: 1.25rem; }
+  ul.bullets > li { border-bottom: 0; padding: 2px 0; }
+  figure { margin: 0; border: 1px solid var(--border); }
+  figcaption { padding: 6px 10px; border-bottom: 1px solid var(--border); font: 0.75rem/1.5 var(--font-mono); color: var(--muted-foreground); overflow-wrap: anywhere; }
+  pre { margin: 0; padding: 10px; overflow-x: auto; font: 0.8125rem/1.5 var(--font-mono); background: var(--background); }
+  p code, li code, td code { padding: 0 3px; background: var(--border); }
+  .prose { display: grid; gap: 8px; }
+  .badge { display: inline-block; padding: 0 6px; border: 1px solid var(--border-strong); font-size: 0.75rem; line-height: 1.6; }
+  .badge.ok { color: var(--ok); border-color: var(--ok); } .badge.warn { color: var(--warn); border-color: var(--warn); }
+  .badge.bad { color: var(--bad); border-color: var(--bad); } .badge.vivo { color: var(--vivo); border-color: var(--vivo); }
+  .option { border-top: 1px solid var(--border); padding: 14px 0 0; display: grid; gap: 8px; }
+  .option.chosen > .row h3 { color: var(--vivo); }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 8px 16px; }
+  h3 { font-size: 0.9375rem; font-weight: 600; margin: 0; }
+  .prose p, .lead, ul.bullets, .option > p { max-width: 70ch; }
+  ::selection { background: var(--primary); color: var(--primary-foreground); }
+  /* explicação e proposta são documento: seção separada por fio, sem caixa; a orquestração segue em cards */
+  main.doc { max-width: 56rem; gap: 36px; }
+  main.doc section { background: none; border: 0; border-top: 1px solid var(--border-strong); padding: 20px 0 0; gap: 14px; }
+  main.doc section > header { border-bottom: 0; padding-bottom: 0; }
+  main.doc h2 { font-size: 1.125rem; }
+  main.doc pre { background: var(--card); }
   footer { color: var(--muted-foreground); font-size: 0.75rem; }
 </style>
 </head>
 <body>
-<main>
+<main class="{{LAYOUT}}">
   {{BODY}}
   <footer>Gerado por <code>hades minos</code>. Os dados passaram pelo Cerberus antes de sair.</footer>
 </main>

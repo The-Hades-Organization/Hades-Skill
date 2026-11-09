@@ -25,9 +25,9 @@ export function isOutputId(id: string): boolean {
   return OUTPUT_ID.test(id);
 }
 
-/** `<modelo>-<plano>` (e `-team` na página do time): o mesmo plano e escopo caem sempre na mesma saída. */
+/** `<modelo>-<fonte>` (e `-team` na página do time): a mesma fonte (plano ou JSON) e escopo caem sempre na mesma saída. */
 export function outputId(model: ModelId, planPath: string, scope: Scope): string {
-  const base = (planPath.split("/").pop() ?? "").replace(/\.md$/i, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+  const base = (planPath.split("/").pop() ?? "").replace(/\.(?:md|json)$/i, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
   return `${model}-${base || "plano"}${scope === "team" ? "-team" : ""}`;
 }
 

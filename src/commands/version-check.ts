@@ -1,7 +1,7 @@
 // Checagem de versão do Hades pela linha de comando (hades version-check): status [--refresh] [--json] | doctor [--refresh].
 import { join } from "node:path";
 import { EXIT, out } from "../lib/output.ts";
-import { kitDir } from "../lib/kit.ts";
+import { findStateDir, kitDir } from "../lib/kit.ts";
 import { pyDumps } from "../lib/pyjson.ts";
 import { localVersion, refresh, settings, status } from "../lib/version-check.ts";
 
@@ -14,7 +14,7 @@ export async function versionCheckCommand(args: string[]): Promise<number> {
     process.stderr.write(`${USAGE}\n`);
     return EXIT.usage;
   }
-  const dir = process.env.HADES_DATA || kitDir();
+  const dir = findStateDir() ?? kitDir();
   const cache = join(dir, "version-check.json");
   const cfg = settings();
   if (args.includes("--refresh")) await refresh(cfg, cache);

@@ -1,18 +1,18 @@
 // Minos: contrato dos modelos de saída (reference/minos.md). Cada modelo declara um formato JSON validado na fronteira; a
-// sessão gera os dados, nunca o HTML. v1: `orquestracao`. Os próximos (lote-de-reviews, post-mortem) entram em MODELS.
+// sessão gera os dados, nunca o HTML. `orquestracao` sai do plano; `explicacao` e `proposta` (minos-doc.ts) saem de um
+// JSON que a sessão escreve.
+import { ContractError, SCOPES, type Scope, count, list, nullableNumber, obj, oneOf, text, utc } from "./minos-check.ts";
+import { EXPLICACAO_EXAMPLE, PROPOSTA_EXAMPLE, validateExplanation, validateProposal } from "./minos-doc.ts";
+
+export { ContractError, SCOPES, type Scope } from "./minos-check.ts";
 
 export const ORQUESTRACAO_SCHEMA = 1;
-export const SCOPES = ["personal", "team"] as const;
-export type Scope = (typeof SCOPES)[number];
 export const AGENT_STATES = ["working", "idle", "blocked", "unknown", "done", "archived"] as const;
 export type AgentState = (typeof AGENT_STATES)[number];
 export const CONFIDENCES = ["alta", "media", "baixa", "nenhuma"] as const;
 export type Confidence = (typeof CONFIDENCES)[number];
 
-const TEXT_MAX = 500;
-const LIST_MAX = 200;
 const PCT_MAX = 100;
-const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 
 export interface PlanUnitData { name: string; role: string; dependsOn: string[] }
 export interface AgentData {
@@ -32,58 +32,6 @@ export interface OrchestrationData {
   prs: PrData[];
   escalations: EscalationData[];
   consumption: { estimate: EstimateData[]; limits: { five: LimitData | null; seven: LimitData | null } };
-}
-
-/** Recusa do contrato: o caminho do campo e o motivo, nunca o valor (ele pode ser segredo). */
-export class ContractError extends Error {
-  readonly path: string;
-
-  constructor(path: string, reason: string) {
-    super(`${path}: ${reason}`);
-    this.path = path;
-    this.name = "ContractError";
-  }
-}
-
-type Obj = Record<string, unknown>;
-
-function obj(value: unknown, path: string): Obj {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new ContractError(path, "esperava um objeto");
-  return value as Obj;
-}
-
-function text(value: unknown, path: string): string {
-  if (typeof value !== "string") throw new ContractError(path, "esperava texto");
-  if (value.length > TEXT_MAX) throw new ContractError(path, `texto acima de ${TEXT_MAX} caracteres`);
-  return value;
-}
-
-function list(value: unknown, path: string): unknown[] {
-  if (!Array.isArray(value)) throw new ContractError(path, "esperava uma lista");
-  if (value.length > LIST_MAX) throw new ContractError(path, `lista acima de ${LIST_MAX} itens`);
-  return value;
-}
-
-function count(value: unknown, path: string): number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) throw new ContractError(path, "esperava inteiro não negativo");
-  return value;
-}
-
-function nullableNumber(value: unknown, path: string): number | null {
-  if (value === null) return null;
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) throw new ContractError(path, "esperava número finito não negativo ou null");
-  return value;
-}
-
-function oneOf<T extends string>(value: unknown, allowed: readonly T[], path: string): T {
-  if (typeof value !== "string" || !(allowed as readonly string[]).includes(value)) throw new ContractError(path, `esperava um de ${allowed.join(", ")}`);
-  return value as T;
-}
-
-function utc(value: unknown, path: string): string {
-  const t = text(value, path);
-  if (!ISO_UTC.test(t) || Number.isNaN(Date.parse(t))) throw new ContractError(path, "esperava instante ISO 8601 em UTC (com Z)");
-  return t;
 }
 
 function limit(value: unknown, path: string): LimitData | null {
@@ -150,9 +98,23 @@ export function validateOrchestration(input: unknown): OrchestrationData {
   };
 }
 
-/** Modelos publicáveis. Um modelo novo entra aqui com o validador; o renderizador e o coletor vivem em minos-html e minos-collect. */
+/**
+ * Modelos publicáveis. `source` diz de onde vêm os dados: `plan` é o plano da orquestração (o coletor monta), `json` é o
+ * arquivo de dados que a sessão escreve (o exemplo sai em `hades minos schema <modelo>`). O renderizador vive em minos-html.
+ */
 export const MODELS = {
-  orquestracao: { title: "Orquestração", describe: "acompanhamento da orquestração: plano, agentes, PRs, escalações e consumo", validate: validateOrchestration },
+  orquestracao: {
+    title: "Orquestração", source: "plan", example: null, validate: validateOrchestration,
+    describe: "acompanhamento da orquestração: plano, agentes, PRs, escalações e consumo",
+  },
+  explicacao: {
+    title: "Explicação de código", source: "json", example: EXPLICACAO_EXAMPLE, validate: validateExplanation,
+    describe: "explicação de código: resumo, fluxo passo a passo com arquivo:linha, trechos, arquivos, glossário e ressalvas",
+  },
+  proposta: {
+    title: "Proposta", source: "json", example: PROPOSTA_EXAMPLE, validate: validateProposal,
+    describe: "proposta ou discussão de implementação, correção, fluxo ou refatoração: problema, opções comparadas, recomendação, plano, riscos e perguntas",
+  },
 } as const;
 export type ModelId = keyof typeof MODELS;
 export const isModelId = (id: string): id is ModelId => Object.hasOwn(MODELS, id);

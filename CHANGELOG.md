@@ -4,6 +4,23 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.36.0 — 2026-11-08
+
+Capacidade (#106, unidade argos-zoom): zoom semântico no Argos. Afastando o zoom, o canvas perdia o significado antes do
+espaço: de longe só sobravam blocos de cor, e saber o que trabalha ou pede você exigia aproximar.
+
+- **Bem longe:** cada área e grupo mostra o nome e a contagem por estado (trabalhando, pede você, ocioso) em 11 px de
+  tela, sem sobrepor, as maiores primeiro. Clique ou toque sem arrasto no rótulo enquadra a área; Enter na área focada
+  faz o mesmo abaixo do nó completo.
+- **De longe e Médio:** uma linha de resumo por nó (agente: estado e fase; PR: número, estado e CI; nota: título ou
+  primeira linha), cortada por largura e só com bloco de 30 px de tela ou mais.
+- **De perto**, os limites de escala e o HTML do nó não mudam. O resumo e a contagem saem de um modelo puro
+  (`src/lib/canvas-semantic.ts`); o motor só desenha.
+- Limites: terminal sem resumo (a última linha só chega pelo fluxo do tty), nó com forma própria fica só com o rótulo,
+  grupo não tem foco de teclado, contagem longa corta sem tooltip.
+- Medido com 2000 nós: p50 por quadro igual (±0,2 ms) e 59,7 fps em todos os níveis; o p95 do zoom pela roda subiu
+  de 7,3 para 9,0 ms, porque os rótulos de área são recalculados a cada quadro.
+
 ## 6.35.1 — 2026-11-08
 
 Correção (#103, unidade voz-celular): a voz do Mark no Chrome do Android abria, mas o microfone não entregava áudio.

@@ -15,6 +15,9 @@ import type { SnapGuide, SnapMove, SnapOptions } from "../../../../src/lib/canva
 import type * as LinksModule from "../../../../src/lib/canvas-links.ts";
 import type { ClampHit, LinkStyle, Rope, RopePin } from "../../../../src/lib/canvas-links.ts";
 import type * as AreasModule from "../../../../src/lib/canvas-areas.ts";
+import type * as GroupsModule from "../../../../src/lib/canvas-groups.ts";
+import type * as SemanticModule from "../../../../src/lib/canvas-semantic.ts";
+import type { PlacedLabel, StateBucket } from "../../../../src/lib/canvas-semantic.ts";
 
 interface CanvasModelApi {
   doc: typeof DocModule;
@@ -27,6 +30,10 @@ interface CanvasModelApi {
   links?: typeof LinksModule;
   /** Áreas coloridas: encaixe ao soltar, membros que andam com a área e retângulo oco. Sem o módulo, a área é um nó comum. */
   areas?: typeof AreasModule;
+  /** Rótulo de área e grupo com a contagem por estado (Bem longe) e a linha de resumo do bloco. Sem o módulo, o zoom é o de antes. */
+  semantic?: typeof SemanticModule;
+  /** Retângulo do grupo, para o rótulo de longe. */
+  groups?: typeof GroupsModule;
 }
 
 /** Pedido de menu do nó (Enter, tecla de menu, Shift+F10). O menu em si é de quem usa o motor. */
@@ -61,6 +68,10 @@ interface CanvasEngineOptions {
   describeNode?(node: CanvasNode): string;
   /** Cor do nó (bloco de longe, faixa do cabeçalho de perto); padrão: uma cor da paleta por tipo. */
   nodeColor?(node: CanvasNode): string;
+  /** Linha de resumo do bloco (De longe e Médio); `undefined` deixa o bloco só com o rótulo. Exige `model.semantic`. */
+  summaryOf?(node: CanvasNode): string | undefined;
+  /** Estado do nó para a contagem do rótulo de área (Bem longe); `undefined` não conta (nó do usuário). Exige `model.semantic`. */
+  bucketOf?(node: CanvasNode): StateBucket | undefined;
   /** Se o nó tem conteúdo HTML (camada por cima); padrão: nenhum. */
   isRich?(node: CanvasNode): boolean;
   /** Escala a partir da qual o nó aparece completo (com o conteúdo HTML); padrão `DETAIL_THRESHOLDS.full`. */
@@ -172,7 +183,7 @@ interface CanvasViewProps extends CanvasEngineOptions {
 
 type Gesture =
   | { kind: "none" }
-  | { kind: "pan"; pointer: number; start: Vec; cam: Camera; moved: boolean; clearOnClick: boolean; onClick: readonly string[] | undefined; grab: boolean }
+  | { kind: "pan"; pointer: number; start: Vec; cam: Camera; moved: boolean; clearOnClick: boolean; onClick: readonly string[] | undefined; grab: boolean; fit?: Rect }
   | { kind: "pinch"; start: CameraModule.PinchStart; ids: [number, number] }
   | { kind: "marquee"; pointer: number; start: Vec; end: Vec; base: readonly string[]; additive: boolean; moved: boolean }
   | {
@@ -265,6 +276,8 @@ function makeArgosCanvas() {
   const H = model.history;
   const LINKS = model.links;
   const AREAS = model.areas;
+  const SEM = model.semantic;
+  const GROUPS = model.groups;
   /** Opacidades da área (interior, faixa do título e destaque de quem vai receber o nó solto). */
   const AREA_FILL_ALPHA = 0.1;
   const AREA_HEADER_ALPHA = 0.3;
@@ -289,6 +302,10 @@ function makeArgosCanvas() {
   const GRID_MAJOR = 5;
   /** Piso do rótulo em pixels de tela (`--fs-micro`): o bloco usa ele e o nó cheio nunca fica abaixo dele, então a troca de um para o outro não dá salto. */
   const MIN_LABEL_PX = 11;
+  /** Fundo do rótulo de área e de grupo de longe: o do tema, quase opaco, para o texto ler sobre a cor da área. */
+  const AREA_LABEL_BG_ALPHA = 0.88;
+  /** Entrelinha do resumo do bloco, em pixels de tela (a fonte é a do rótulo; cabe nos `SUMMARY_MIN_BLOCK_PX`). */
+  const SUMMARY_LINE_PX = MIN_LABEL_PX + 1;
   /** Largura máxima, em pixels de tela, do nome posto fora da forma. */
   const OUTSIDE_LABEL_PX = 240;
   /** Fonte do nó completo, em unidades de mundo (cresce com o zoom até passar do piso). */
@@ -416,12 +433,25 @@ function makeArgosCanvas() {
     let drawOrder: CanvasNode[] = [];
     let labels = new Map<string, string>();
     let fills = new Map<string, string>();
+    /** Resumo, balde e contagem por área/grupo, calculados uma vez por nó e refeitos quando o documento ou o leitor mudam. */
+    let summaries = new Map<string, string | null>();
+    let buckets = new Map<string, StateBucket | null>();
+    let areaCounts = new Map<string, string>();
+    /** Rótulos de área e de grupo postos no último quadro Bem longe (zona de clique) e o retângulo do mundo que cada um enquadra. */
+    let placedLabels: PlacedLabel[] = [];
+    let labelFits = new Map<string, Rect>();
+    const resetSemantic = (): void => {
+      summaries = new Map();
+      buckets = new Map();
+      areaCounts = new Map();
+    };
     const reindex = (): void => {
       byId = new Map(doc.nodes.map((n) => [n.id, n]));
       // z sobe, empate pela ordem do documento: o mesmo critério do hitTest (o de cima é o que recebe o clique)
       drawOrder = doc.nodes.map((n, i) => ({ n, i })).sort((a, b) => a.n.z - b.n.z || a.i - b.i).map((x) => x.n);
       labels = new Map();
       fills = new Map();
+      resetSemantic();
       orderStale = true;
       reindexLinks();
     };
@@ -446,6 +476,32 @@ function makeArgosCanvas() {
         labels.set(node.id, label);
       }
       return label;
+    };
+    const summaryFor = (node: CanvasNode): string | undefined => {
+      let summary = summaries.get(node.id);
+      if (summary === undefined) {
+        summary = opts.summaryOf?.(node) ?? null;
+        summaries.set(node.id, summary);
+      }
+      return summary ?? undefined;
+    };
+    const bucketFor = (node: CanvasNode): StateBucket | undefined => {
+      let bucket = buckets.get(node.id);
+      if (bucket === undefined) {
+        bucket = opts.bucketOf?.(node) ?? null;
+        buckets.set(node.id, bucket);
+      }
+      return bucket ?? undefined;
+    };
+    /** "1 pede você · 3 trabalhando" dos membros (texto vazio sem nó vivo); cacheado por área ou grupo. */
+    const countOf = (id: string, members: readonly string[]): string => {
+      let text = areaCounts.get(id);
+      if (text === undefined) {
+        const nodes = members.map((m) => byId.get(m));
+        text = SEM ? SEM.countText(SEM.countBuckets(nodes.map((m) => (m === undefined ? undefined : bucketFor(m))))) : "";
+        areaCounts.set(id, text);
+      }
+      return text;
     };
     const fillOf = (node: CanvasNode): string => {
       let fill = fills.get(node.id);
@@ -891,6 +947,64 @@ function makeArgosCanvas() {
       ctx.strokeStyle = colors.ring;
       for (const n of visible) if (selected.has(n.id)) ctx.strokeRect(n.x - ring, n.y - ring, n.w + 2 * ring, n.h + 2 * ring);
       drawOutsideLabels(ctx, visible);
+      drawAreaLabels(ctx);
+    }
+
+    /**
+     * Bem longe: o nome e a contagem por estado de cada área e grupo, em tamanho de tela fixo, sem cobrir outro rótulo.
+     * Desenha em pixels de tela; guarda a zona de cada rótulo (`placedLabels`) e o retângulo que o clique enquadra.
+     */
+    function drawAreaLabels(ctx: CanvasRenderingContext2D): void {
+      placedLabels = [];
+      labelFits = new Map();
+      if (!SEM) return;
+      const names = new Map<string, string>();
+      const counts = new Map<string, string>();
+      const candidates: { id: string; box: Rect; lines: number }[] = [];
+      const add = (id: string, world: Rect, name: string, count: string): void => {
+        const a = C.worldToScreen(cam, { x: world.x, y: world.y });
+        const box = { x: a.x, y: a.y, w: world.w * cam.k, h: world.h * cam.k };
+        if (box.x > view.w || box.y > view.h || box.x + box.w < 0 || box.y + box.h < 0) return;
+        names.set(id, name);
+        counts.set(id, count);
+        labelFits.set(id, world);
+        candidates.push({ id, box, lines: count === "" ? 1 : 2 });
+      };
+      for (const n of doc.nodes) {
+        if (!isAreaNode(n)) continue;
+        const members = (n.data as { members?: unknown }).members;
+        const ids = Array.isArray(members) ? (members as unknown[]).filter((m): m is string => typeof m === "string") : [];
+        add(n.id, placed(n), labelOf(n), countOf(n.id, ids));
+      }
+      if (GROUPS) {
+        for (const g of doc.groups) {
+          const box = GROUPS.groupBox(doc, g.id);
+          if (box) add(`group:${g.id}`, box, g.label, countOf(`group:${g.id}`, g.members));
+        }
+      }
+      placedLabels = SEM.placeLabels(candidates, MIN_LABEL_PX);
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.font = `${MIN_LABEL_PX}px ${fontFamily}`;
+      ctx.textBaseline = "middle";
+      const lineH = MIN_LABEL_PX + 2;
+      for (const label of placedLabels) {
+        const { rect } = label;
+        ctx.globalAlpha = AREA_LABEL_BG_ALPHA;
+        ctx.fillStyle = colors.background;
+        ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+        ctx.globalAlpha = 1;
+        const textW = rect.w - 2 * SEM.LABEL_PAD_PX;
+        const x = rect.x + SEM.LABEL_PAD_PX;
+        const y = rect.y + SEM.LABEL_PAD_PX + lineH / 2;
+        ctx.fillStyle = colors.fg;
+        ctx.fillText(C.shortLabel(names.get(label.id) ?? "", textW, MIN_LABEL_PX), x, y);
+        if (label.lines > 1) {
+          ctx.fillStyle = colors.muted;
+          ctx.fillText(C.shortLabel(counts.get(label.id) ?? "", textW, MIN_LABEL_PX), x, y + lineH);
+        }
+      }
+      ctx.restore();
     }
 
     /** De longe a forma é só cor: o nome do nó selecionado vai abaixo dela, em tamanho de tela fixo, sobre uma pastilha do fundo. */
@@ -971,6 +1085,7 @@ function makeArgosCanvas() {
     /** Bloco (rótulo curto, fonte fixa de tela) ou nó completo (cabeçalho, rótulo e tipo em escala de mundo). */
     function drawBlocks(ctx: CanvasRenderingContext2D, visible: readonly CanvasNode[], detail: Detail): void {
       const full = detail === "full";
+      placedLabels = [];
       const header = full ? S.SELECTION_LIMITS.header : 0;
       const fontScreen = full ? Math.max(FULL_FONT * cam.k, MIN_LABEL_PX) : MIN_LABEL_PX;
       const fontWorld = fontScreen / cam.k;
@@ -1005,6 +1120,14 @@ function makeArgosCanvas() {
         if (text && (full || n.h * cam.k >= fontScreen + 4)) {
           ctx.fillStyle = full ? colors.background : colors.fg;
           ctx.fillText(text, full ? n.x + pad : n.x + strip + pad, full ? n.y + Math.min(header, n.h) / 2 : n.y + Math.min(n.h / 2, pad + fontWorld / 2));
+          if (!full && SEM?.summaryFits(n.h * cam.k)) {
+            const summary = summaryFor(n);
+            const line = summary === undefined ? "" : C.shortLabel(summary, textW, fontScreen);
+            if (line) {
+              ctx.fillStyle = colors.muted;
+              ctx.fillText(line, n.x + strip + pad, n.y + pad + fontWorld / 2 + SUMMARY_LINE_PX / cam.k);
+            }
+          }
           if (full && !opts.isRich?.(n) && n.h > header + fontWorld + pad) {
             ctx.fillStyle = colors.muted;
             ctx.fillText(C.shortLabel(n.type, textW, fontScreen), n.x + pad, n.y + header + pad + fontWorld / 2);
@@ -1443,6 +1566,12 @@ function makeArgosCanvas() {
       }
       if (e.button !== 0) return;
       const world = C.screenToWorld(cam, p);
+      // Bem longe: o rótulo de uma área ou grupo enquadra a área no toque sem arrasto; arrastar por cima continua sendo pan
+      const labelHit = SEM && placedLabels.length > 0 ? SEM.labelAt(placedLabels, p) : undefined;
+      if (labelHit && !e.altKey) {
+        gesture = { kind: "pan", pointer: e.pointerId, start: p, cam, moved: false, clearOnClick: false, onClick: undefined, grab: false, fit: labelFits.get(labelHit.id) };
+        return;
+      }
       if (L && e.altKey) {
         gesture = { kind: "clamp-stroke", pointer: e.pointerId, start: p, from: world, end: world, moved: false };
         return;
@@ -1599,7 +1728,8 @@ function makeArgosCanvas() {
       }
       switch (g.kind) {
         case "pan":
-          if (!g.moved && g.clearOnClick) emitSelection(S.pressEmpty([...selected], e.shiftKey));
+          if (!g.moved && g.fit) moveCamera(C.fitRect(g.fit, view), true);
+          else if (!g.moved && g.clearOnClick) emitSelection(S.pressEmpty([...selected], e.shiftKey));
           else if (!g.moved && g.onClick) emitSelection(g.onClick);
           break;
         case "marquee":
@@ -1721,6 +1851,13 @@ function makeArgosCanvas() {
       }
       if (focusId !== undefined && byId.has(focusId)) {
         const node = byId.get(focusId) as CanvasNode;
+        if (key === "Enter" && isAreaNode(node) && detailOf(cam.k) !== "full") {
+          // de longe o Enter na área enquadra (o equivalente do clique no rótulo); o menu segue em ContextMenu e Shift+F10
+          e.preventDefault();
+          moveCamera(C.fitRect(node, view), true);
+          announce(`Área ${labelOf(node)} enquadrada.`);
+          return;
+        }
         if (key === "Enter" || key === "ContextMenu" || (key === "F10" && e.shiftKey)) {
           e.preventDefault();
           const s = C.worldToScreen(cam, { x: node.x + node.w / 2, y: node.y + node.h / 2 });
@@ -1932,9 +2069,10 @@ function makeArgosCanvas() {
         opts = { ...opts, ...next };
         if (shapeChanged) markContent();
         if (next.label !== undefined) applyLabel();
-        if (next.describeNode || next.nodeColor) {
+        if (next.describeNode || next.nodeColor || next.summaryOf || next.bucketOf) {
           labels = new Map();
           fills = new Map();
+          resetSemantic();
           markContent();
         }
         if (next.doc && next.doc !== prevDoc) {
@@ -2017,8 +2155,8 @@ function makeArgosCanvas() {
       engineRef.current?.update({ doc: props.doc, selection: props.selection });
     }, [props.doc, props.selection]);
     React.useEffect(() => {
-      engineRef.current?.update({ describeNode: props.describeNode, nodeColor: props.nodeColor, isRich: props.isRich, nodeShape: props.nodeShape, backgroundDrag: props.backgroundDrag, label: props.label });
-    }, [props.describeNode, props.nodeColor, props.isRich, props.nodeShape, props.backgroundDrag, props.label]);
+      engineRef.current?.update({ describeNode: props.describeNode, nodeColor: props.nodeColor, summaryOf: props.summaryOf, bucketOf: props.bucketOf, isRich: props.isRich, nodeShape: props.nodeShape, backgroundDrag: props.backgroundDrag, label: props.label });
+    }, [props.describeNode, props.nodeColor, props.summaryOf, props.bucketOf, props.isRich, props.nodeShape, props.backgroundDrag, props.label]);
     React.useEffect(() => {
       engineRef.current?.update({ fullDetail: props.fullDetail });
     }, [props.fullDetail]);

@@ -236,6 +236,9 @@ function CanvasPane({ doc, selection, onSelectionChange, onOp, graphById, types,
   const describeNode = useCallback((n) => (M.areas.isAreaNode(n) ? M.areas.areaLook(n).title || 'Área' : graphById.get(n.id)?.label || ownName(n) || n.id), [graphById]);
   const nodeColor = useCallback((n) => { const g = graphById.get(n.id); return g ? fillOf(g, now) : '#888'; }, [graphById, now, theme]);
   const isRich = useCallback((n) => types.get(n.type)?.draw.surface === 'html', [types]);
+  // zoom semântico: linha de resumo do bloco e balde de estado da contagem por área (modelo puro em canvas-semantic.ts)
+  const summaryOf = useCallback((n) => M.semantic.summaryOf({ type: n.type, live: graphById.get(n.id), data: n.data }), [graphById]);
+  const bucketOf = useCallback((n) => M.semantic.bucketOf(graphById.get(n.id)), [graphById]);
   const renderAt = useCallback((n, w, h) => types.get(n.type)?.draw.render({ id: n.id, type: n.type, w, h, selected: selected.has(n.id), data: n.data, live: graphById.get(n.id) }) ?? null,
     [types, graphById, selected]);
   const renderNode = useCallback((n) => renderAt(n, n.w, n.h), [renderAt]);
@@ -321,7 +324,7 @@ function CanvasPane({ doc, selection, onSelectionChange, onOp, graphById, types,
   const Tray = window.ArgosCanvasHidden?.HiddenTray;
   return <div ref={wrap} onContextMenu={contextMenu} onPointerDown={touchDown} onPointerMove={touchMove} onPointerUp={touchUp} onPointerCancel={touchUp}
     className="relative h-full min-h-64 bg-background">
-    <Engine doc={doc} selection={selection} onSelectionChange={onSelectionChange} onOp={onOp} onNodeMenu={nodeMenu} describeNode={describeNode} nodeColor={nodeColor}
+    <Engine doc={doc} selection={selection} onSelectionChange={onSelectionChange} onOp={onOp} onNodeMenu={nodeMenu} describeNode={describeNode} nodeColor={nodeColor} summaryOf={summaryOf} bucketOf={bucketOf}
       isRich={isRich} nodeShape={nodeShape} renderNode={renderNode} backgroundDrag="pan" onReady={ready} snap={snap} dock={dock} onLinkState={onLinkState} fullDetail={fullDetail}
       label="Canvas dos agentes: arraste o fundo para mover, role para ampliar" />
     {dockState && onDockState ? <DockLayer api={engineApi} state={dockState} onState={onDockState} doc={doc} renderAt={renderAt} describe={describeNode} /> : null}

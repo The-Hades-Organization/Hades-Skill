@@ -18,9 +18,59 @@ o que a sessão deve publicar, e só isso.
 
 ## Modelos
 
-v1: um modelo, `orquestracao` (o acompanhamento que `reference/loop/orchestrate.md` §6 pede). O contrato fica pronto para
-`lote-de-reviews` e `post-mortem` (próximos, não implementados): cada modelo é uma entrada em `MODELS`
-(`src/lib/minos-model.ts`) com id, validador do JSON e renderizador; `hades minos list` mostra os modelos e as saídas.
+| Modelo | Fonte | Para quê |
+|---|---|---|
+| `orquestracao` | o `plan.md` (o coletor monta os dados) | o acompanhamento que `reference/loop/orchestrate.md` §6 pede |
+| `explicacao` | JSON que a sessão escreve | explicar código: resumo, fluxo com `arquivo:linha`, trechos, arquivos, glossário, ressalvas |
+| `proposta` | JSON que a sessão escreve | propor ou discutir implementação, correção, fluxo ou refatoração: problema, opções comparadas, recomendação, plano, riscos, perguntas |
+
+Cada modelo é uma entrada em `MODELS` (`src/lib/minos-model.ts`) com id, fonte (`plan` ou `json`), validador e exemplo;
+o corpo da página sai de `minos-html.ts` (orquestração) e `minos-doc-html.ts` (documentos). `hades minos list` mostra
+os modelos e as saídas. Próximos, não implementados: `lote-de-reviews` e `post-mortem`.
+
+### Quando usar `explicacao` e `proposta`
+
+Pedidos do dono: "explica esse código numa página", "monta a proposta de implementação para o time discutir",
+"compara as opções de correção", "desenha o fluxo novo". A sessão:
+
+1. lê o código de verdade e anota o `arquivo:linha` de cada passo e de cada trecho citado;
+2. roda `hades minos schema <modelo>`, que imprime um exemplo completo; grava o JSON preenchido no scratchpad, fora do repo;
+3. roda `hades minos publish <modelo> <dados.json>` e segue o fluxo de publicação abaixo.
+
+A página está pronta quando um leitor que não viu a conversa entende o resumo sozinho e acha a fonte de cada
+afirmação.
+
+### Como escrever o conteúdo
+
+O exemplo do `schema` mostra o tom; estas regras dizem o porquê.
+
+- **Conclusão primeiro.** `summary` responde à pergunta (explicação) ou diz o que se propõe e por quê (proposta), em
+  duas ou três frases. O detalhe vem nas seções.
+- **Rastreável.** Toda afirmação sobre o código aponta `where` ou um trecho com `file` e `lines`. O trecho é cópia do
+  arquivo; o comentário da sessão vai em `note`. Número (contagem, duração, latência) cita a fonte, em `context` ou em
+  `references`.
+- **Lacuna nomeada.** O que a sessão não conferiu entra em `caveats` (explicação) ou em `questions` e `risks`
+  (proposta), dizendo o que falta conferir. Na página aparece separado do que foi verificado.
+- **Custo junto do ganho.** Cada opção da proposta tem `pros` e `cons`; a recomendação diz por que ganha das outras.
+  Numa discussão sem preferência, `recommendation.option` fica `null` e `why` explica o que falta para decidir.
+- **Texto simples.** Frase curta, voz ativa, sem travessão e sem adjetivo de venda ("robusto", "elegante"). Título em
+  caixa de frase. A crase marca identificador do código.
+
+A proposta acompanha a discussão: resposta recebida vira `status: "respondida"` com `answer`, decisão vira
+`status: "decidida"`, e a sessão republica no mesmo link. Os comentários do artifact (ferramenta `ArtifactComments`)
+são onde o time conversa sobre a página; o que eles decidirem entra nos dados antes de republicar.
+
+### Contrato de `explicacao` e `proposta` (`schema: 1`)
+
+O exemplo completo e válido é a saída de `hades minos schema explicacao|proposta` (`src/lib/minos-doc.ts`). Obrigatórios:
+`model`, `schema`, `title`, `summary` (e `kind` na proposta: `implementacao`, `correcao`, `fluxo`, `refatoracao`,
+`discussao`). Lista ausente vira `[]`, opcional ausente vira `null`, `status` ausente vira `rascunho` (proposta) e
+`aberta` (pergunta). `scope` **vem da invocação** (`--team`), nunca do arquivo; `generatedAt` ausente é o instante da
+publicação. Tetos: 500 caracteres em rótulos, 4000 em parágrafo, 12000 por trecho de código, 40 trechos por lista,
+200 itens por lista, 2 MB no arquivo. Só a crase tem marcação no texto (`` `x` `` vira `<code>`), aplicada depois do
+escape. Esforço e risco: `baixo`, `medio`, `alto`. A página tem título pelo tipo ("Explicação de código", "Proposta de
+implementação", "Discussão técnica" e os demais) e layout de documento (seções separadas por fio, texto com no
+máximo 70 caracteres por linha); a orquestração segue em cards.
 
 ### Contrato de `orquestracao` (`schema: 1`)
 
@@ -46,7 +96,7 @@ v1: um modelo, `orquestracao` (o acompanhamento que `reference/loop/orchestrate.
 
 ## Página
 
-`kit/minos/orquestracao.html` é estática e genérica: o Minos escreve nela o corpo (tudo passa por `esc`, nenhum HTML vindo
+`kit/minos/pagina.html` é estática, genérica e a mesma para todos os modelos: o Minos escreve nela o corpo (tudo passa por `esc`, nenhum HTML vindo
 de dado entra cru) e uma cópia legível dos dados num `<script type="application/json" id="minos-data">` (com `<` escapado).
 Visual do painel (`kit/panel/ui/index.html`: Marfim no claro, Érebo no escuro, Figtree/Marcellus/Geist Mono com a pilha de
 sistema como reserva, raio 0), tema pelo sistema e por `data-theme`. Sem script e sem recurso externo, então a mesma página
@@ -54,13 +104,14 @@ serve ao Artifact e ao `--html` offline.
 
 ## Fluxo de publicação (confira o que a ferramenta Artifact aceita)
 
-1. `hades minos publish orquestracao <plano.md> [--html <arquivo>] [--team]`
+1. `hades minos publish <modelo> <fonte> [--html <arquivo>] [--team]` (fonte: `plano.md` ou `dados.json`)
    - monta os dados, valida, roda o **Cerberus** (abaixo). Barrado: nada é gravado, a saída explica o que barrou, rc=1.
    - grava `$D/minos/<saída>/index.html` e `data.json`, atualiza o registro `$D/minos/outputs.json` e imprime o bloco
      "publique" (abaixo). Com `--html <arquivo>`, grava a página também ali (offline) e **não** pede publicação.
 2. A sessão publica com a ferramenta Artifact:
    - `file_path` = o `index.html` impresso; sem `url` na primeira vez, **`url` = o link registrado** nas seguintes (publica no
-     mesmo lugar; o link que o time recebeu não muda); `icon: "chart"` só na primeira; `description` de uma frase (impressa).
+     mesmo lugar; o link que o time recebeu não muda); `icon` só na primeira (`chart` na orquestração, `code` na
+     explicação, `document` na proposta); `description` de uma frase (impressa).
    - A ferramenta pede `<title>` de duas a quatro palavras (a página já traz "Orquestração Hades" / "Orquestração do time"),
      cores em tokens de `:root` com tema escuro, `body` com fundo explícito, 16 px de margem e nenhum script externo: a
      página gerada já cumpre. Nada de `capabilities` (a v1 não lê dado vivo; atualizar é republicar).
@@ -112,6 +163,8 @@ de publicação para copiar. Não há página nova.
 
 - Design System como artifact (cores, fontes e espaçamentos do painel como um artifact de tipo Design System para as
   páginas herdarem); hoje o visual é copiado do `index.html` do painel.
+- Proposta com perguntas respondidas pela própria página (capability de estado): hoje a resposta entra pelo JSON e a
+  página é republicada.
 - Modelos `lote-de-reviews` (dados do `hades review-record`) e `post-mortem` (Thanatos), e o botão nas páginas Reviews e
   Thanatos.
 - Comparar o visual da página com o do painel no `skill-release drift`.

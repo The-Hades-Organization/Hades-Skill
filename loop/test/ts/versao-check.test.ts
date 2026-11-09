@@ -205,3 +205,14 @@ describe("versao-check: GET anônimo (repo público)", () => {
     expect(`${row} ${settings({}).rawBase}`).toBe("https://raw.githubusercontent.com https://raw.githubusercontent.com");
   });
 });
+
+describe("versao-check: onde fica o cache", () => {
+  test("dado o $D vindo do shim (HADES_KIT_DIR) sem HADES_DATA, quando atualiza, então o cache vai para o $D e nunca para o kit da skill", () => {
+    reset();
+    const kitCache = `${KIT}/version-check.json`;
+    const before = existsSync(kitCache) ? readFileSync(kitCache, "utf8") : undefined;
+    vcp(["status", "--refresh"], { HADES_DATA: "", HADES_KIT_DIR: VD, FAKE_VC_VERSION: "4.7.0" });
+    expect(cache()).not.toBeNull();
+    expect(existsSync(kitCache) ? readFileSync(kitCache, "utf8") : undefined).toBe(before);
+  });
+});

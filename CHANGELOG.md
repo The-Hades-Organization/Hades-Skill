@@ -4,6 +4,45 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.37.0 — 2026-11-09
+
+Capacidade nova, pedida pelo dono: o Minos publica mais dois modelos de página, além do acompanhamento da orquestração.
+A sessão escreve um JSON e o Minos monta a página, passa o Cerberus e entrega o arquivo para a ferramenta Artifact.
+
+- **Explicação de código em página (`explicacao`).** Resumo que responde antes do detalhe, fluxo passo a passo com
+  `arquivo:linha`, seções com trechos copiados do arquivo, tabela de arquivos, glossário, ressalvas (o que não foi
+  conferido) e perguntas para investigar.
+- **Proposta ou discussão em página (`proposta`).** Cinco tipos (`implementacao`, `correcao`, `fluxo`, `refatoracao`,
+  `discussao`), cada um com o próprio título de página. Mostra contexto, problema, escopo, fluxo de hoje ao lado do
+  proposto, opções com prós, contras, esforço e risco, recomendação, plano, riscos e perguntas abertas ou respondidas.
+  A discussão segue pelos comentários do artifact; resposta e decisão entram no JSON e a página é republicada no mesmo
+  link.
+- **`hades minos schema <modelo>`** imprime um exemplo completo e válido. Os textos do exemplo mostram o tom esperado:
+  conclusão primeiro, afirmação com fonte e lacuna nomeada. As regras de conteúdo estão em `reference/minos.md`
+  §Como escrever o conteúdo.
+- **O escopo vem da invocação.** `publish` toma `scope` do `--team` e ignora o do arquivo, então um JSON não se
+  publica na página do time sozinho. `generatedAt` ausente vira o instante da publicação.
+- **Contrato na fronteira**, como na orquestração: tipo errado, enum desconhecido, id de opção repetido, recomendação
+  que não aponta opção e texto acima do teto são recusados com o caminho do campo. Tetos: 500 caracteres em rótulo,
+  4000 em parágrafo, 12000 por trecho, 2 MB no arquivo. Só a crase vira marcação, e depois do escape.
+- **Página de documento.** `kit/minos/orquestracao.html` virou `kit/minos/pagina.html`, o modelo dos três. Explicação
+  e proposta usam seções separadas por fio, sem cards aninhados, e linha de no máximo 70 caracteres. A orquestração
+  segue em cards. Conferido em 1000 px e em 390 px, sem rolagem lateral.
+- Os helpers de validação saíram de `minos-model.ts` para `minos-check.ts`, e o escape foi para `minos-esc.ts`. Os
+  dois módulos novos são `minos-doc.ts` (contrato e exemplos) e `minos-doc-html.ts` (corpo das páginas).
+
+Verificação: `bun test loop/test/ts/minos-*.test.ts` com 43 casos, 0 falhas. O grupo novo é `minos-documento`.
+
+Descoberto no caminho:
+
+- **Cache de versão nova gravado dentro da skill, corrigido.** Sem `HADES_DATA` no ambiente, `hades version-check`
+  caía no `kitDir()` e gravava `version-check.json` em `kit/`. O `install.sh` copiava esse arquivo para o `$D` como se
+  fosse do kit, e o golden `skill-release-cli.json` regravado o listava. Agora o comando resolve o `$D` por
+  `findStateDir()`, como o resto da CLI, e só usa o kit quando não há instalação. Teste novo em `versao-check`.
+  O golden regravado mostra só a troca de `minos/orquestracao.html` por `minos/pagina.html`.
+- **Regressão completa sob carga.** Numa máquina carregada, 12 casos estouraram o prazo de 5 s (install, launchd,
+  multi-instancia, plugins-painel, resolver, rtk-worktree). Rodados à parte, os 12 passaram.
+
 ## 6.36.0 — 2026-11-08
 
 Capacidade (#106, unidade argos-zoom): zoom semântico no Argos. Afastando o zoom, o canvas perdia o significado antes do

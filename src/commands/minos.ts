@@ -11,10 +11,12 @@ import { skillRoot } from "../lib/paths.ts";
 import { run, which } from "../lib/proc.ts";
 import { configValue } from "../lib/work.ts";
 
-export const USAGE = `hades minos list | publish <modelo> <plano.md> [--html <arquivo>] [--team] | link <saída> <url> | open <saída> [--print]
+export const USAGE = `hades minos list | schema <modelo> | publish <modelo> <fonte> [--html <arquivo>] [--team] | link <saída> <url> | open <saída> [--print]
   list      os modelos e as saídas já preparadas, com o link registrado de cada uma
+  schema    o esqueleto JSON de um modelo de documento (explicacao, proposta), para a sessão preencher
   publish   monta a página do modelo, passa o Cerberus e grava; devolve o arquivo que a sessão publica com a ferramenta
-            Artifact (e o link já registrado, para atualizar no mesmo lugar). --html grava só o arquivo offline.
+            Artifact (e o link já registrado, para atualizar no mesmo lugar). <fonte> é o plano.md (orquestracao) ou o
+            JSON de dados (explicacao, proposta). --html grava só o arquivo offline.
             --team é a página do time: recusa enquanto HADES_MINOS_TEAM=0
   link      grava o link devolvido pela ferramenta Artifact (https://${ARTIFACT_HOST}/…/artifact/<id>)
   open      abre o link registrado, ou a página local se não houver link (--print só mostra o destino)`;
@@ -28,10 +30,20 @@ const usage = (message: string): number => {
 
 function list(): number {
   out("modelos:");
-  for (const [id, m] of Object.entries(MODELS)) out(`  ${id}  ${m.describe}`);
+  for (const [id, m] of Object.entries(MODELS)) out(`  ${id}  ${m.source === "plan" ? "<plano.md>" : "<dados.json>"}  ${m.describe}`);
   const outputs = Object.entries(readOutputs(stateDir()));
   out(outputs.length ? "saídas:" : "saídas: nenhuma ainda (hades minos publish orquestracao <plano.md>)");
   for (const [id, o] of outputs) out(`  ${id}  ${o.scope === "team" ? "time" : "pessoal"}  ${o.url ?? "sem link (publique e rode hades minos link)"}  ${o.updatedAt}`);
+  return EXIT.ok;
+}
+
+function schema(args: string[]): number {
+  const [id, ...extra] = args;
+  if (id === undefined || extra.length) return usage("schema pede <modelo>");
+  if (!isModelId(id)) return usage(`modelo desconhecido: ${id} (${Object.keys(MODELS).join(", ")})`);
+  const example = MODELS[id].example;
+  if (example === null) return usage(`${id} não sai de JSON: a fonte é o plano.md (hades minos publish ${id} <plano.md>)`);
+  out(JSON.stringify(example, null, 2));
   return EXIT.ok;
 }
 
@@ -51,7 +63,7 @@ function parsePublish(args: string[]): PublishArgs | string {
     else positional.push(arg);
   }
   const [model, plan] = positional;
-  if (positional.length !== 2 || model === undefined || plan === undefined) return "publish pede <modelo> e <plano.md>";
+  if (positional.length !== 2 || model === undefined || plan === undefined) return "publish pede <modelo> e <fonte> (plano.md ou dados.json)";
   return { model, plan, html, team };
 }
 
@@ -112,6 +124,7 @@ export function minosCommand(args: string[]): number {
   const [sub, ...rest] = args;
   switch (sub) {
     case "list": return list();
+    case "schema": return schema(rest);
     case "publish": return publishCommand(rest);
     case "link": return link(rest);
     case "open": return open(rest);

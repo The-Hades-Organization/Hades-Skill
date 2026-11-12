@@ -81,6 +81,7 @@ Abra só o arquivo do assunto; o `SKILL.md` não repete o que está neles.
 | evoluir a própria skill | `reference/evolving.md`, `reference/loop/skill-dev-contract.md` |
 | perfil e pacote do projeto | `reference/projects.md` |
 | painel, configurações, doctor, CLI | `reference/panel.md` · `reference/config.md` · `reference/doctor.md` · `reference/cli.md` |
+| extensões: ferramentas externas (herdr, Mark) por manifesto, `hades ext` | `reference/extensoes.md` |
 
 ## Parte I — Ambiente local
 

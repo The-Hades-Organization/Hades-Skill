@@ -4,6 +4,24 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.39.0 — 2026-11-12
+
+Capacidade nova, pedida pelo dono (#113, fatia 1): Extensões, ferramentas externas da máquina que a Hades detecta e
+consome. Extensão não é plugin: plugin é código do pacote de um projeto que roda no painel; extensão tem binário
+próprio, fora da skill.
+
+- Manifesto `extensions/<nome>/extension.json` (herdr e Mark embutidos): binário, comando de versão e versão mínima,
+  capacidades (`canvas.terminal`, `voice`, `window`), texto de instalação, comando de saúde e chaves próprias.
+- Validação na fronteira com caminho do campo e código estável (`ext.manifest.*`, `ext.binary-missing`,
+  `ext.version-below-min`, …). Ler o manifesto não executa nada; versão e saúde são argv sem shell, e o comando de
+  instalação é só texto para o dono.
+- `hades ext list|info|enable|disable|doctor [<nome>] [--json]`; estado em `HADES_EXT_HERDR` e `HADES_EXT_MARK`
+  (padrão ligado: nada muda). O doctor ganha o grupo Extensões, uma linha por extensão; ausente é ok com o comando de
+  instalar.
+- O código que já usa herdr e Mark continua igual nesta fatia. A página do painel fica para a fatia 2.
+- Armadilhas: o Mark não tem comando de versão seguro (abriria a janela), então a versão sai "desconhecida"; o
+  ambiente vence o `config.env`, e o teste do `ext` tira as `HADES_EXT_*` herdadas da release.
+
 ## 6.38.0 — 2026-11-12
 
 Capacidade nova (#65): medir quanto contexto cada sessão já começa carregando, o piso que se paga em todo turno.

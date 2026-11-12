@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "name": "herdr",
+  "description": "Multiplexador de agentes: os terminais dos nós do canvas e as sessões dos agentes.",
+  "binary": { "names": ["herdr"], "configKey": "HADES_HERDR_BIN" },
+  "version": { "command": ["herdr", "--version"], "min": "0.9.0" },
+  "capabilities": ["canvas.terminal"],
+  "install": { "text": "Instale o herdr e deixe-o no PATH (ou aponte HADES_HERDR_BIN nas Configurações). Para o redimensionamento real do terminal do canvas, use o fork com pane.set_size." },
+  "health": { "command": ["herdr", "--version"] },
+  "configKeys": ["HADES_HERDR_BIN"],
+  "enableKey": "HADES_EXT_HERDR"
+}

@@ -99,6 +99,7 @@ Notas do `agent`:
 | `stack-add propose <repo> [--name N] [--stage DIR]`, `measure <rascunho> <repo> <etapa> [--project P] [--timeout S]`, `save <rascunho> --confirmed [--force]` | propõe, mede pela fila e grava o pacote de stack de um repo | — |
 | `project-init draft <repo> [--name N] [--slug o/r] [--gh-user U] [--stage DIR] [--dry-run]`, `save <rascunho> <repo> --confirmed [--force]` | rascunho do perfil de um repo e gravação com o ok do dono | — |
 | `plugins list\|add\|update\|enable\|disable\|remove …` | pacotes de plugin: prévia, confirmação por commit, Cerberus | `kit/plugins.sh` |
+| `ext list\|info\|enable\|disable\|doctor [<nome>] [--json]` | extensões: ferramentas externas (herdr, Mark) registradas por manifesto; estado ligado/desligado, versão e saúde (`reference/extensoes.md`) | `src/commands/ext.ts` |
 
 ### Evolução da skill
 

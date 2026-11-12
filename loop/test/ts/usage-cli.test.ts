@@ -75,8 +75,12 @@ function seed(home: string): void {
 
 const normalize = (text: string) => r.norm(text).replace(/"(generatedAt|savedAt)": ?"[^"]+"/g, '"$1": "<agora>"').replaceAll(today, "<hoje>").replace(/ desde \d{4}-\d\d-\d\d/g, " desde <inicio>").replace(/"since": "\d{4}-\d\d-\d\d"/g, '"since": "<inicio>"');
 const read = (path: string) => (existsSync(path) ? normalize(readFileSync(path, "utf8")) : "(ausente)");
+// SKILL.md de tamanho fixo: a decomposição em disco do contexto fixo não pode depender da skill instalada
+const fakeSkill = `${home}/skill`;
+mkdirSync(fakeSkill, { recursive: true });
+writeFileSync(`${fakeSkill}/SKILL.md`, "x".repeat(1024));
 const run = (args: string[]) => {
-  const o = r.X([BUN, `${SKILL}/src/cli.ts`, "usage", ...args], { env: { HOME: home, HADES_WORK_ROOT: WORK } });
+  const o = r.X([BUN, `${SKILL}/src/cli.ts`, "usage", ...args], { env: { HOME: home, HADES_WORK_ROOT: WORK, HADES_SKILL_DIR: fakeSkill } });
   return { out: normalize(o.out), err: o.err, rc: o.rc };
 };
 const state = () => ["latest", "baseline"].map((f) => read(`${home}/.claude/hades/usage/${f}.json`)).join("\n--\n");

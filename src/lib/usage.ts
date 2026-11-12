@@ -14,7 +14,7 @@ export { modelKey };
 
 export type Dict = Record<string, unknown>;
 
-export const CACHE_VERSION = 5;
+export const CACHE_VERSION = 6;
 const REWRITE_GAP_SECONDS = 3600;
 const REWRITE_MIN_TOKENS = 100_000;
 const CACHE_READ_PRICE_SHARE = 0.2e-6;
@@ -58,6 +58,8 @@ export interface Row {
   last: string;
   /** Tokens por modelo: [entrada, saída, escrita de cache, leitura de cache]. */
   tok: Record<string, Tok>;
+  /** Só na linha que contém a primeira resposta da sessão principal: o contexto fixo (entrada + leitura + escrita de cache). */
+  open?: { ctx: number; model: string };
 }
 
 export type Tok = readonly [number, number, number, number];
@@ -190,6 +192,7 @@ export function parseFileFull(path: string, rules: GuardRules, sinceMs = 0): { r
   const reqs: Req[] = [];
   const rows = new Map<string, Row>();
   const previous = new Map<string, number>();
+  const opened = new Set<string>();
   const ordered = requestsOf(path, rules).sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
   for (const request of ordered) {
     if (isEmpty(request.usage) || !request.model || !request.ts) continue;
@@ -200,6 +203,10 @@ export function parseFileFull(path: string, rules: GuardRules, sinceMs = 0): { r
     const key = JSON.stringify([request.sid, request.side, day]);
     const row = rows.get(key) ?? newRow(request, day);
     rows.set(key, row);
+    if (!request.side && !opened.has(request.sid)) {
+      opened.add(request.sid);
+      row.open = { ctx, model: request.model };
+    }
     row.cost += price;
     row.turns += 1;
     row.ctx_sum += ctx;

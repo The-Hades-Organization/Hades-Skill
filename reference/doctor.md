@@ -58,6 +58,14 @@ Quem chama: o `install.sh` (no fim, só informativo; `SKIP_DOCTOR=1` pula), o `r
 
 A versão da skill vem de `HADES_SKILL_DIR` (padrão `~/.claude/skills/hades`); rodando de dentro da skill, usa o `VERSION` dela.
 
+### Contexto fixo (`contexto-fixo`)
+
+Grupo `Limites`, id `contexto-fixo`: a mediana do contexto da primeira resposta das sessões (entrada + leitura + escrita de
+cache) dos últimos 7 dias contra os 7 anteriores (`reference/usage.md`). **Aviso** quando sobe mais que
+`HADES_USAGE_BASELINE_WARN_PCT` (padrão 15), dizendo qual parte em disco cresceu (CLAUDE.md, MEMORY.md, SKILL.md, brief.md) contra o
+retrato de uma semana atrás; sem retrato, diz que não identificou a parte. Com menos de 3 sessões em qualquer das janelas a
+linha fica ok e neutra, com o motivo (`sem dados suficientes`), nunca aviso. Lê transcrições: fora do `--quick`.
+
 ### Plugin
 
 Grupo `Plugin`, id `plugin`: a faixa `core` do perfil do projeto do worktree contra a `VERSION` do núcleo

@@ -27,6 +27,8 @@ import { judgeMark, judgeMarkVoice, parseVoiceProbe, VOICE_PROBE_SCRIPT, type Ma
 import { MARK_BRIDGE_KEY, bridgePathOf, markUrl, markWsUrl, parseState, readBridge, type Bridge } from "../lib/mark-bridge.ts";
 import { serviceManager } from "../lib/service-manager.ts";
 import { FILTERS_REL, planWorktree, policyAdvice, rtkBinary, rtkConfig, settingsFor, trustState } from "../lib/rtk-filters.ts";
+import { fixedContextNow } from "./usage.ts";
+import { judgeFixedContext } from "../lib/usage-fixo.ts";
 
 export const HELP = `Diagnóstico do Hades: pré-requisitos, máquina, instalação e painel, uma linha por item (ok / aviso / erro + o comando
 que corrige). Só diagnostica: nunca altera nada.
@@ -650,6 +652,21 @@ export function limitesItem(settingsText: string | undefined, janelasMedidas: nu
   };
 }
 
+const CTX_FIXED_DAYS = 14;
+const DEFAULT_BASELINE_WARN_PCT = 15;
+
+/** A linha `contexto-fixo`: a mediana do primeiro turno dos últimos 7 dias contra os 7 anteriores. Lê transcrições: fora do `--quick`. */
+function checkContextoFixo(r: Report, quick: boolean): void {
+  if (quick) return;
+  const configured = Number(env("HADES_USAGE_BASELINE_WARN_PCT", String(DEFAULT_BASELINE_WARN_PCT)));
+  const warnPct = Number.isFinite(configured) && configured >= 0 ? configured : DEFAULT_BASELINE_WARN_PCT;
+  const now = new Date();
+  const { openings, partsNow, history } = fixedContextNow(now, CTX_FIXED_DAYS);
+  const verdict = judgeFixedContext(openings, now.toISOString().slice(0, 10), warnPct, partsNow, history);
+  if (verdict.level === "ok") r.ok("Limites", "contexto-fixo", verdict.msg);
+  else r.warn("Limites", "contexto-fixo", verdict.msg, verdict.fix);
+}
+
 function checkLimites(r: Report): void {
   const item = limitesItem(readText(claudeSettingsPath()), Object.keys(medidas(new Date(), chaves()).atual).length);
   r.add(item.level, "Limites", "limites", item.msg, item.fix);
@@ -769,6 +786,7 @@ export function doctorCommand(args: string[]): number {
   checkCleaning(report, ctx);
   checkNotifications(report, ctx);
   checkLimites(report);
+  checkContextoFixo(report, quick);
   checkPlugin(report, ctx);
   checkProject(report, ctx);
   checkOnboarding(report, ctx);

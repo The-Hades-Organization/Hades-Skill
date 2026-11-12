@@ -81,6 +81,6 @@ describe("hades usage", () => {
     run();
     const again = run("--json");
     expect((JSON.parse(again.out) as { total: { turns: number } }).total.turns).toBe(1);
-    expect(JSON.parse(readFileSync(`${home}/.claude/hades/usage/cache.json`, "utf8")).v).toBe(5);
+    expect(JSON.parse(readFileSync(`${home}/.claude/hades/usage/cache.json`, "utf8")).v).toBe(6);
   });
 });

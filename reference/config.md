@@ -123,7 +123,7 @@ Os padrões são o comportamento de antes: 8 GB, um pesado por vez, FIFO.
 | Chaves | Aplicar |
 |---|---|
 | `HADES_CTX_GUARD`, `HADES_CTX_CAP_<PAPEL>` (e `HADES_CTX_CAP_INTERACTIVE`, `HADES_CTX_CAP_RECRUIT`: recruta do canvas, 200000, vale quando o papel do Argos do terminal não tem chave própria ou o terminal não tem papel), `HADES_CTX_REWARN`, `HADES_CTX_COMPACT_AT` (150000, 50000–1000000: o aviso do hook sugere `/compact` a partir daqui, uma vez por sessão, abaixo do teto do papel; teto menor ou igual a este valor, sem sugestão), `HADES_POLL_GUARD`, `HADES_POLL_REPEAT_MIN`, `HADES_POLL_LOG_SETTLE_S` (15; log parado há esse tempo deixa de contar como polling), `HADES_READ_WARN_KB` (aviso de leitura grande; 0 desliga) | na hora: o `hades guard` lê a cada chamada |
-| `HADES_PARK_GATE_WAIT_MIN`, `HADES_PLAN_REQUIRED`, `HADES_USAGE_DAYS` | próxima execução |
+| `HADES_PARK_GATE_WAIT_MIN`, `HADES_PLAN_REQUIRED`, `HADES_USAGE_DAYS`, `HADES_USAGE_BASELINE_WARN_PCT` (15, 1–500: a linha `contexto-fixo` do doctor avisa quando a mediana do contexto do primeiro turno dos últimos 7 dias sobe mais que isso contra os 7 anteriores; `reference/usage.md`) | próxima execução |
 | `HADES_JOURNAL` (1; 0 desliga a gravação), `HADES_JOURNAL_DAYS` (14, 1–3650), `HADES_JOURNAL_MAX_MB` (20, 1–1024; passou disso `<agente>.jsonl` vira `<agente>.1.jsonl`) | o teto e o liga/desliga na hora (o hook lê a cada chamada); os dias na próxima limpeza (`clean`, categoria `journal`). Ver `reference/journal.md` |
 
 ### Diagnóstico

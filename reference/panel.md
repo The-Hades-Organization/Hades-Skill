@@ -268,6 +268,11 @@ Sessões que passaram do teto de contexto do papel: o **Máximo** do agente em t
 
 Modelo real × configurado: a coluna **Modelos** da tabela Agentes mostra o modelo que cada agente rodou; quando difere do `HADES_MODEL_<PAPEL>`, fica em tom de aviso com a linha "diverge de <configurado>: +US$ N" (o custo da divergência) e, se o esforço observável também difere, "esforço X, configurado Y". Fonte: `byAgent[].divergence` do `latest.json` (regra: `reference/loop/tokens.md`). No Argos, o nó ganha o chip `model` enquanto a sessão diverge.
 
+Cartão **Contexto fixo** (`ContextoFixo`, de `fixedContext` do relatório; some sem sessão medida): mediana, p90, o piso do custo
+(contexto fixo × turnos, com o método escrito) e as sessões medidas; a mediana por dia em barras e uma lista por repositório,
+papel e modelo com as partes em disco, rotuladas como estimativa por tamanho. Grade de 2 colunas em 360 px e 4 a partir de `sm`; os
+grupos são lista, não tabela, para não rolar de lado. Regra: `reference/usage.md`.
+
 Tour da página (§Tour por página): nove passos (resumo, ações, janelas do plano, as quatro leituras, papel, dia, estimado × real e agentes); sem
 prévia, porque a leitura depende do cálculo real dos transcripts; passos de card condicional levam `fallback`. Código:
 `ui/pages/usage.tour.tsx`.

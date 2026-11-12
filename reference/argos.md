@@ -642,6 +642,50 @@ livre mais perto do orquestrador (`canvas-space`) quando a grade está ocupada, 
 equipe e cresce para caber. Travados e fixados ficam, nada se sobrepõe, o arranjo é um passo do desfazer (animação de
 250 ms) e a câmera enquadra ao fim.
 
+## Organizar em áreas
+
+`hades canvas organize [--canvas <id>] [--dry-run]` (`src/lib/canvas-organize.ts`; canvas padrão `default`) reorganiza o canvas em
+**áreas por orquestrador**. Modelo puro, determinístico e por id: o nome do nó é só rótulo, então dois terminais com o mesmo nome
+não se confundem. Não depende de quem chama ter nó no canvas. É diferente do **Organizar** do painel (`tidy:arrange`,
+§Layout): aquele arruma a equipe em torno do orquestrador na tela; este monta as áreas e grava.
+
+**Agrupamento (pelo grafo, sem lista de nomes):**
+- o recruta é o terminal ligado ao orquestrador pela aresta `recruit` (ou com `data.recruiter`) e vai para a área dele;
+- nota ligada (`link`) só a um recruta fica **ao lado** dele; ligada a vários recrutas do mesmo orquestrador, ou ao próprio
+  orquestrador, vai ao **cabeçalho**, ao lado do terminal dele; nó ligado só a outra nota segue a equipe dessa nota;
+- terminal que não é orquestrador nem recruta, com notas próprias, ganha **área própria**;
+- o resto (nota solta, terminal sem nota) vai para um **bloco no fim** do canvas, sem área, e entra em `FORA`;
+- nós vivos (`agent`, `unit`, `pr`, `gate`) não são tocados (o layout do grafo cuida deles) e valem como obstáculo.
+
+**Medidas** (`ORGANIZE_LAYOUT`): terminal 1340x800, nota 280x200 (o espaço de cada nó é o maior entre a medida e o tamanho dele),
+padding 48 dentro da área, 48 entre nós, 96 entre áreas e entre colunas. Cabeçalho: terminal e notas ao lado; abaixo, os
+recrutas em grade de 2 colunas, cada um com as suas notas ao lado. Cada equipe é uma coluna (área da equipe e, abaixo, as
+sub-áreas); as colunas seguem da esquerda para a direita a partir do canto das áreas que já existem. Nada se sobrepõe.
+
+**Estabilidade:** sem mudança no grafo, a segunda rodada não gera operação (o documento fica igual byte a byte). A ordem
+vem do que já está no canvas, não do nome: equipes com área seguem na ordem em que estão (por `x`), as novas entram no fim,
+e os nós de uma equipe seguem a ordem do documento (o recruta novo é o último). Nó travado ou fixado não se move e vira
+obstáculo (listado como `fixos`). As áreas criadas têm id `org:<id do dono>` (sub-área: `org:<id>:s-<título>`); título e cor que o
+dono mudou ficam. Nada é apagado: só move nós e cria ou atualiza nós `area` (`data.members`); o nó que sai de uma área do dono
+é tirado da lista dela. A gravação é um passo do desfazer e usa a revisão lida (conflito relê e refaz, como os outros
+subcomandos).
+
+**Sub-áreas (`canvas-areas.json` em `$D`, opcional):** regras por prefixo ou padrão do nome (`*` e `?`; o resto é literal).
+O recruta ou a nota do cabeçalho que casa vai para a sub-área; quem não casa fica na área do orquestrador; as notas ao lado
+de um recruta vão com ele. A primeira regra que casa vence. Sem o arquivo, nenhuma sub-área. Arquivo inválido: sai 1 com
+`organize_invalid_rules`, sem gravar.
+
+```json
+{ "areas": [
+  { "title": "Specs", "prefix": "spec-" },
+  { "title": "Núcleo", "pattern": "*-core", "orchestrator": "feed" }
+] }
+```
+
+**`--dry-run`** imprime `áreas`, `movidos`, `fixos` e `FORA`, uma linha por área (`id`, título, caixa `x,y WxH`, quantos
+membros) e uma por nó em `FORA`, sem gravar. O orquestrador roda o comando depois de recrutar ou dispensar
+(`reference/loop/roles/orchestrator.md`).
+
 ## Layout de forças
 
 `src/lib/canvas-force.ts` (id `force`, rótulo "Forças") e `src/lib/canvas-quadtree.ts`. Lógica pura, sem Node, testada em

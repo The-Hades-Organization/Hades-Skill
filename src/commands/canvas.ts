@@ -3,11 +3,12 @@
 // são do orquestrador (D7) sobre os recrutas dele; `notify` manda uma notificação ao dono. O nó de quem chama se resolve
 // pelo pane do herdr em que o processo roda (HERDR_PANE_ID e a sessão do socket). Tudo passa pelas rotas do painel: o
 // documento muda por `CanvasOp` (desfazer volta exatamente ao anterior) e a escrita na nota é conferida no servidor.
-import { readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { type CanvasDoc, type CanvasNode, readCanvasDoc } from "../lib/canvas-doc.ts";
 import { applyOp, type CanvasOp } from "../lib/canvas-history.ts";
 import { areaReport } from "../lib/canvas-areas.ts";
+import { OrganizeError, organizeCanvas, organizeOp, organizeSummary, parseAreaRules } from "../lib/canvas-organize.ts";
 import { canReadDrawing, canWriteDrawing, DrawingError, isDrawingNode, readableDrawingsOf, readDrawingTitle, sceneOfNodeSafe } from "../lib/canvas-drawing.ts";
 import { LinkError } from "../lib/canvas-links.ts";
 import { directNotesOf, hasNoteAccess, noteChainFrom, NoteError, readableNotesOf } from "../lib/canvas-note.ts";
@@ -42,6 +43,8 @@ export const USAGE = `Uso: hades canvas <subcomando> [--canvas <id>]
   drawing text <d> <elemento> <texto>         troca o texto de um elemento de texto
   drawing export <d> --svg                    imagem SVG do desenho na saída padrão
   area list                                   áreas do canvas e quem está em cada uma (somente leitura)
+  organize [--dry-run]                        reorganiza o canvas em áreas por orquestrador (--canvas: padrão "default";
+                                              --dry-run imprime áreas, medidas e FORA sem gravar)
   note list                                   notas que o seu terminal lê (diretas e encadeadas)
   note read <nota> [--only]                   texto da nota e da cadeia dela (--only: só ela)
   note write <nota> [--append] [texto]        grava a nota ligada direto a você (sem texto: entrada padrão)
@@ -149,6 +152,8 @@ export interface CanvasCliDeps {
   stdinPiped?(): boolean;
   /** Assignee, labels e reviewers das Configurações (e do perfil do projeto) para o bloco "PR pronta" do recruta. */
   prReady?(): PrReadyValues;
+  /** O texto do `canvas-areas.json` da instância (`$D`), ou `undefined` sem o arquivo (sem sub-áreas). */
+  areaRules?(): string | undefined;
   /** `notify.sh send agent info <texto> --obj <nome>` da instância. */
   notify(text: string, obj: string): Promise<{ rc: number; err: string }>;
   out(text: string): void;
@@ -163,7 +168,7 @@ interface Parsed {
 }
 
 const VALUE_FLAGS = new Set(["canvas", "name", "role", "preset", "agent", "model", "effort", "cwd", "instructions", "note", "prompt", "pane", "to", "text", "title", "link-to", "new-note", "x", "y", "w", "h", "from", "to", "points", "fill", "stroke", "width", "size", "id", "from-json"]);
-const BOOL_FLAGS = new Set(["only", "append", "no-role", "no-instructions", "json", "svg"]);
+const BOOL_FLAGS = new Set(["only", "append", "no-role", "no-instructions", "json", "svg", "dry-run"]);
 
 class UsageError extends Error {}
 
@@ -728,6 +733,28 @@ async function leave(deps: CanvasCliDeps, p: Parsed): Promise<number> {
   return EXIT.ok;
 }
 
+/** O arquivo de regras de sub-área em `$D`. */
+const AREA_RULES_FILE = "canvas-areas.json";
+
+/** `organize [--canvas <id>] [--dry-run]`: áreas por orquestrador (reference/argos.md §Organizar em áreas). Não depende de o chamador ter nó. */
+async function organize(deps: CanvasCliDeps, p: Parsed): Promise<number> {
+  const canvas = flag(p, "canvas") ?? DEFAULT_CANVAS;
+  const rulesText = deps.areaRules?.();
+  const rules = rulesText === undefined ? undefined : parseAreaRules(rulesText);
+  const at: Located = { canvas, doc: await loadDoc(deps, canvas), me: [] };
+  if (has(p, "dry-run")) {
+    for (const line of organizeSummary(at.doc, organizeCanvas(at.doc, { rules }))) deps.out(line);
+    deps.out("dry-run: nada foi gravado");
+    return EXIT.ok;
+  }
+  const done = await commit(deps, at, (doc) => {
+    const result = organizeCanvas(doc, { rules });
+    return { op: organizeOp(doc, result), result: organizeSummary(doc, result) };
+  });
+  for (const line of done.result) deps.out(line);
+  return EXIT.ok;
+}
+
 // ---- desenhos ----
 
 const drawingTitle = (doc: CanvasDoc, id: string): string => sceneOfNodeSafe(doc.nodes.find((n) => n.id === id))?.title ?? id;
@@ -916,7 +943,7 @@ const AREA_HANDLERS: Readonly<Record<string, Handler>> = { list: areaList };
 const HANDLERS: Readonly<Record<string, Handler>> = { recruit, connect, reassign, dismiss, notify: notifyOwner };
 
 /** Comandos que valem para um pane que ainda não é nó: não procuram o chamador no canvas. */
-const STANDALONE: Readonly<Record<string, (deps: CanvasCliDeps, p: Parsed) => Promise<number>>> = { join: joinCommand, leave };
+const STANDALONE: Readonly<Record<string, (deps: CanvasCliDeps, p: Parsed) => Promise<number>>> = { join: joinCommand, leave, organize };
 
 export async function runCanvas(args: readonly string[], deps: CanvasCliDeps): Promise<number> {
   let parsed: Parsed;
@@ -945,7 +972,7 @@ export async function runCanvas(args: readonly string[], deps: CanvasCliDeps): P
       deps.err(`hades canvas: uso: ${error.message}`);
       return EXIT.usage;
     }
-    const code = error instanceof CanvasCliError || error instanceof RecruitError || error instanceof LinkError || error instanceof NoteError || error instanceof DrawingError ? error.code : undefined;
+    const code = error instanceof CanvasCliError || error instanceof RecruitError || error instanceof LinkError || error instanceof NoteError || error instanceof DrawingError || error instanceof OrganizeError ? error.code : undefined;
     if (code === undefined) throw error;
     deps.err(renderCli(`${error instanceof Error ? error.message : String(error)} (${code})`, code, "hades canvas"));
     return EXIT.fail;
@@ -1024,6 +1051,10 @@ function realDeps(): CanvasCliDeps {
     },
     caller: () => callerTarget(process.env),
     prReady: () => prReadyValues(projectLabels()),
+    areaRules() {
+      const file = dir ? join(dir, AREA_RULES_FILE) : undefined;
+      return file !== undefined && existsSync(file) ? readFileSync(file, "utf8") : undefined;
+    },
     readText(path) {
       const file = resolve(path);
       if (statSync(file).size > FROM_JSON_MAX_BYTES) return failWith(CANVAS_CLI_ERRORS.fromJsonInvalid, `${path}: passa de ${FROM_JSON_MAX_BYTES} bytes`);

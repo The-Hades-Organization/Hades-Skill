@@ -75,11 +75,13 @@ describe("qualidade-pacotes", () => {
     const terms = [...new Set(col("names", true).split("\n").flatMap((l) => (l.includes("\t") ? l.split("\t").slice(1) : [])).filter(Boolean))].sort();
     const pats = [...new Set(col("patterns", true).split("\n").filter(Boolean))].sort();
     const files = readdirSync(`${SKILL}/quality`).filter((f) => f.endsWith(".json")).map((f) => `${SKILL}/quality/${f}`);
+    // como a guarda da release: o nome não pode ter letra colada dos dois lados (perfil de nome curto não acusa palavra comum)
+    const words = terms.map((t) => new RegExp(`(^|[^\\p{L}])${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^\\p{L}])`, "iu"));
     const count = (fs: string[]) => {
       let n = 0;
-      const lo = terms.map((t) => t.toLowerCase()), res = pats.map((p) => new RegExp(p, "i"));
+      const res = pats.map((p) => new RegExp(p, "i"));
       for (const f of fs) for (const l of readFileSync(f, "utf8").split("\n")) {
-        if (lo.some((t) => l.toLowerCase().includes(t))) n++;
+        if (words.some((w) => w.test(l))) n++;
         if (res.some((x) => x.test(l))) n++;
       }
       return n;
@@ -88,8 +90,7 @@ describe("qualidade-pacotes", () => {
     mkdirSync(`${r.T}/qp-cat`, { recursive: true });
     const b2 = readJson(`${SKILL}/quality/base.json`); b2.rules[0].text += ` ${terms[0]}`;
     writeJson(`${r.T}/qp-cat/base.json`, b2);
-    const lo = terms.map((t) => t.toLowerCase());
-    const planted = readFileSync(`${r.T}/qp-cat/base.json`, "utf8").split("\n").filter((l) => lo.some((t) => l.toLowerCase().includes(t))).length;
+    const planted = readFileSync(`${r.T}/qp-cat/base.json`, "utf8").split("\n").filter((l) => words.some((w) => w.test(l))).length;
     expect(planted, "a mesma checagem acusa um termo plantado").toBe(1);
   });
 });

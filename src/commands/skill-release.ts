@@ -379,11 +379,14 @@ function nameGuard(c: Context, root: string): boolean {
   const slug = skillRepoSlug([root, c.skill]);
   const tmp = mkdtempSync(join(tmpdir(), "skill-release-"));
   const lines: string[] = [];
-  for (const [flag, list] of [["-F", terms], ["-E", pats]] as const) {
+  // o nome não pode ter letra colada dos dois lados: perfil de nome curto não acusa palavra comum que o contém, e
+  // `nome_db` ou `NOME_URL` seguem acusados
+  const named = terms.map((t) => `(^|[^[:alpha:]])${t.replace(/[.[\]()*+?{}|^$\\]/g, "\\$&")}([^[:alpha:]]|$)`);
+  for (const [i, list] of [named, pats].entries()) {
     if (!list.length) continue;
-    const file = join(tmp, `pats${flag}`);
+    const file = join(tmp, `pats${i}`);
     writeFileSync(file, `${list.join("\n")}\n`);
-    lines.push(...grep(["-rniI" + flag.slice(1), "-f", file, root, ...GREP_EXCLUDES]));
+    lines.push(...grep(["-rniIE", "-f", file, root, ...GREP_EXCLUDES]));
   }
   rmSync(tmp, { recursive: true, force: true });
   const counts = new Map<string, number>();

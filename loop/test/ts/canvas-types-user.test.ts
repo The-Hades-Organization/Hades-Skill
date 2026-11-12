@@ -856,4 +856,79 @@ describe("desenho no motor", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]?.scene.elements).toEqual([]);
   });
+  const fire = (view: ReturnType<typeof mountEditable>, name: string, extra: Record<string, unknown> = {}) => {
+    (view.tree.props.onKeyDown as (e: unknown) => void)({ ...key(name), ...extra });
+    view.settle();
+  };
+  const pointer = (view: ReturnType<typeof mountEditable>, name: "onPointerDown" | "onPointerMove" | "onPointerUp", at: { x: number; y: number }, extra: Record<string, unknown> = {}) => {
+    (svgOf(view.tree).props[name] as (e: unknown) => void)({ ...down, clientX: at.x, clientY: at.y, ...extra });
+    view.settle();
+  };
+
+  test("dada uma tecla de ferramenta, então a ferramenta fica ativa (aria-pressed) e o campo de texto não a rouba", () => {
+    const view = mountEditable([]);
+    enter(view);
+    fire(view, "r");
+    expect(buttonWith(view.tree, "Retângulo").props["aria-pressed"]).toBe("true");
+    fire(view, "p");
+    expect(buttonWith(view.tree, "Traço").props["aria-pressed"]).toBe("true");
+    fire(view, "s", { target: { tagName: "INPUT" } });
+    expect(buttonWith(view.tree, "Traço").props["aria-pressed"]).toBe("true");
+  });
+
+  test("dado Esc em degraus, então volta a Selecionar, limpa a seleção e só então sai", () => {
+    const view = mountEditable([]);
+    enter(view);
+    fire(view, "r");
+    fire(view, "Escape");
+    expect(buttonWith(view.tree, "Selecionar").props["aria-pressed"]).toBe("true");
+    pointer(view, "onPointerDown", { x: 0, y: 0 });
+    pointer(view, "onPointerUp", { x: 0, y: 0 });
+    fire(view, "Escape");
+    expect(toolbar(view.tree)).toHaveLength(1);
+    fire(view, "Escape");
+    expect(toolbar(view.tree)).toHaveLength(0);
+  });
+
+  test("dado elemento selecionado, então Ctrl+D duplica deslocado em um passo só e a cópia fica selecionada", () => {
+    const calls: { id: string; scene: drawingLib.DrawingScene }[] = [];
+    const view = mountEditable(calls);
+    enter(view);
+    pointer(view, "onPointerDown", { x: 0, y: 0 });
+    pointer(view, "onPointerUp", { x: 0, y: 0 });
+    fire(view, "d", { ctrlKey: true });
+    expect(calls).toHaveLength(1);
+    const els = calls[0]?.scene.elements ?? [];
+    expect(els).toHaveLength(2);
+    expect(els[1]).toMatchObject({ type: "rect", x: 16, y: 16, w: 80, h: 40 });
+  });
+
+  test("dado o traço com amostras, então o desenho mostra um path enquanto arrasta e grava um traço simplificado, com pressão da caneta", () => {
+    const calls: { id: string; scene: drawingLib.DrawingScene }[] = [];
+    const view = mountEditable(calls);
+    enter(view);
+    fire(view, "p");
+    (svgOf(view.tree).props.ref as { current: unknown }).current = { getBoundingClientRect: () => ({ left: 0, top: 0, width: 480, height: 320 }) };
+    const pen = { pointerType: "pen", pressure: 0.8 };
+    pointer(view, "onPointerDown", { x: 100, y: 100 }, pen);
+    for (let i = 1; i <= 20; i++) pointer(view, "onPointerMove", { x: 100 + i * 5, y: 100 }, pen);
+    expect(findAll(view.tree, (el) => el.type === "path")).toHaveLength(1);
+    expect(findAll(view.tree, (el) => el.type === "polyline")).toHaveLength(0);
+    pointer(view, "onPointerUp", { x: 200, y: 100 }, pen);
+    expect(calls).toHaveLength(1);
+    const stroke = calls[0]?.scene.elements.find((el) => el.type === "stroke");
+    expect(stroke?.type === "stroke" && stroke.points.length).toBeLessThan(21);
+    expect(stroke?.type === "stroke" && stroke.pressure?.length).toBe(stroke?.type === "stroke" ? stroke.points.length : -1);
+  });
+
+  test("dado elemento selecionado, então Shift+PageDown grava um passo de camada (a ordem em si é testada no modelo)", () => {
+    const calls: { id: string; scene: drawingLib.DrawingScene }[] = [];
+    const view = mountEditable(calls);
+    enter(view);
+    pointer(view, "onPointerDown", { x: 0, y: 0 });
+    pointer(view, "onPointerUp", { x: 0, y: 0 });
+    fire(view, "PageDown", { shiftKey: true });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.scene.elements.map((el) => el.id)).toEqual(["a"]);
+  });
 });

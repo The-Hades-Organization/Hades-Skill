@@ -20,6 +20,8 @@ function CanvasLegend() {
   const root = useRef(null);
   const panel = useRef(null);
   const model = A.legendModel();
+  const drawing = window.CanvasModel.drawing;
+  const drawRows = drawing ? [...drawing.DRAW_SHORTCUTS.map((d) => ({ key: d.tool, label: d.label, keys: d.key.toUpperCase() })), ...drawing.DRAW_ACTION_KEYS.map((d) => ({ key: d.keys, label: d.label, keys: d.keys }))] : [];
   const createRows = window.CanvasModel.createKeys ? window.CanvasModel.createKeys.createLegendRows() : [];
   useEffect(() => { if (open) panel.current?.focus(); }, [open]);
   // o Button não repassa ref (React 18): o foco volta ao botão pelo contêiner
@@ -49,6 +51,9 @@ function CanvasLegend() {
       </Section>
       {createRows.length ? <Section title="Criar terminal (foco no canvas)">
         {createRows.map((r) => <li key={r.kind} className="flex items-center justify-between gap-2"><span>{r.label}</span><kbd className="border border-border-strong bg-muted px-1 font-mono t-micro">{r.keys}</kbd></li>)}
+      </Section> : null}
+      {drawRows.length ? <Section title="Desenho (editando)">
+        {drawRows.map((r) => <li key={r.key} className="flex items-center justify-between gap-2"><span>{r.label}</span><kbd className="border border-border-strong bg-muted px-1 font-mono t-micro">{r.keys}</kbd></li>)}
       </Section> : null}
       <p className="t-meta text-muted-foreground">Longe, só a cor aparece. Amplie para ver forma, ícone e indicadores.</p>
     </div> : null}

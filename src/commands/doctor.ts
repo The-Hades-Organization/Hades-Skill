@@ -26,6 +26,8 @@ import { configValue } from "../lib/work.ts";
 import { judgeMark, judgeMarkVoice, parseVoiceProbe, VOICE_PROBE_SCRIPT, type MarkProbe, type MarkVoiceProbe } from "../lib/doctor-mark.ts";
 import { extensionDoctorItems } from "../lib/doctor-ext.ts";
 import { MARK_BRIDGE_KEY, bridgePathOf, markUrl, markWsUrl, parseState, readBridge, type Bridge } from "../lib/mark-bridge.ts";
+import { doctorMemoriaItem } from "../lib/doctor-memoria.ts";
+import { diskProbe, findMemoryDir } from "../lib/memory-index.ts";
 import { serviceManager } from "../lib/service-manager.ts";
 import { FILTERS_REL, planWorktree, policyAdvice, rtkBinary, rtkConfig, settingsFor, trustState } from "../lib/rtk-filters.ts";
 import { fixedContextNow } from "./usage.ts";
@@ -673,6 +675,14 @@ function checkLimites(r: Report): void {
   r.add(item.level, "Limites", "limites", item.msg, item.fix);
 }
 
+/** Higiene do índice de memória do projeto (reference/memory.md): só avisa; o `hades memory tidy` corrige. */
+function checkMemoria(r: Report, ctx: Ctx): void {
+  const dir = findMemoryDir([process.cwd(), ctx.w].filter((p) => p !== ""), home());
+  const index = dir === undefined ? undefined : readText(join(dir, "MEMORY.md"));
+  const item = doctorMemoriaItem(index, dir === undefined ? { exists: () => false, meta: () => undefined } : diskProbe(dir), new Date());
+  r.add(item.level, "Memória", "memoria-indice", item.msg, item.fix);
+}
+
 /** Passos pendentes das features escolhidas e onboarding incompleto (definição única do onboard.ts): só aviso, nunca erro. */
 function checkOnboarding(r: Report, ctx: Ctx): void {
   const g = "Onboarding";
@@ -789,6 +799,7 @@ export function doctorCommand(args: string[]): number {
   checkNotifications(report, ctx);
   checkLimites(report);
   checkContextoFixo(report, quick);
+  checkMemoria(report, ctx);
   checkPlugin(report, ctx);
   checkProject(report, ctx);
   checkOnboarding(report, ctx);

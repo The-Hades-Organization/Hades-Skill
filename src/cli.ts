@@ -58,6 +58,7 @@ const commands: Record<string, () => Promise<Command>> = {
   canvas: async () => (await import("./commands/canvas.ts")).canvasCommand,
   minos: async () => (await import("./commands/minos.ts")).minosCommand,
   "write-check": async () => (await import("./commands/write-check.ts")).writeCheckCommand,
+  memory: async () => (await import("./commands/memory.ts")).memoryCommand,
   explain: async () => (await import("./commands/explain.ts")).explainCommand,
   ext: async () => (await import("./commands/ext.ts")).extCommandEntry,
 };
@@ -113,6 +114,7 @@ const HELP = `hades <subcomando> [argumentos]
   widget-apk [build|test|shots|list|new <id>|image|status]   APK do widget Android, num container Docker (kit/android/build.sh)
   ext list|info|enable|disable|doctor [<nome>] [--json]   extensões: ferramentas externas (herdr, Mark) por manifesto (reference/extensoes.md)
   explain [<código>]             o que um erro quer dizer, por quê e o que fazer (hades explain, reference/erros.md)
+  memory tidy [--dry-run|--apply] [--json]  higiene do índice de memória: encurta, tira duplicata e divide em MEMORY, ORQUESTRACAO e ARQUIVO (reference/memory.md)
   agent new|adopt|review|prompt|answer|phase|resume|park|escalate|status|list|done|plan-approve|plan-trim|start-cmd|decide|auto-start|skill-new|skill-clean …
                                  agentes do orquestrador (hades agent)`;
 

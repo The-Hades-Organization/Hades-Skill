@@ -82,6 +82,7 @@ Abra só o arquivo do assunto; o `SKILL.md` não repete o que está neles.
 | perfil e pacote do projeto | `reference/projects.md` |
 | painel, configurações, doctor, CLI | `reference/panel.md` · `reference/config.md` · `reference/doctor.md` · `reference/cli.md` |
 | extensões: ferramentas externas (herdr, Mark) por manifesto, `hades ext` | `reference/extensoes.md` |
+| índice de memória do projeto: linha `memoria` do doctor, `hades memory tidy`, os três índices | `reference/memory.md` |
 
 ## Parte I — Ambiente local
 

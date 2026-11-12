@@ -275,6 +275,10 @@ escale ao dono. Detalhes em `reference/autonomia.md`.
 Toda regra nova do dono e toda lição não óbvia vira memória (um arquivo por fato, `**Why:**` e `**How to apply:**`,
 uma linha no `MEMORY.md`).
 
+Memória de orquestração (regras do loop, espera de gate, alocação de agentes) vai para o `ORQUESTRACAO.md`, na mesma pasta do
+`MEMORY.md`, e não para o índice principal, que entra em toda sessão de agente. Leia o `ORQUESTRACAO.md` no início da
+orquestração. `hades memory tidy` mantém os três índices (`reference/memory.md`).
+
 ## 8. Erros que já aconteceram
 
 | Situação | O que fazer |

@@ -192,6 +192,40 @@ function cellSize(zoom, measured) {
   return { w: CELL_W * z, h: CELL_H * z };
 }
 
+/**
+ * Célula (1-based, como o `getCoords` do xterm) sob o ponteiro `x,y` (clientX/clientY). O xterm divide o deslocamento medido em
+ * `getBoundingClientRect` (já com a escala do quadro e o zoom do canvas) pela célula sem transformação; aqui o deslocamento é
+ * levado de volta ao layout pela razão `rect / layout` de cada eixo. `midCell` (seleção) vira a fronteira no meio da célula.
+ * Sem retângulo ou layout válido, `undefined`.
+ */
+function pointerCell({ x, y, rect, layout, cell, cols, rows, midCell }) {
+  const ok = (n) => typeof n === 'number' && Number.isFinite(n) && n > 0;
+  if (!rect || !layout || !cell || !ok(rect.width) || !ok(rect.height) || !ok(layout.w) || !ok(layout.h) || !ok(cell.w) || !ok(cell.h)) return undefined;
+  const px = ((x - rect.left) * layout.w) / rect.width;
+  const py = ((y - rect.top) * layout.h) / rect.height;
+  const col = Math.ceil((px + (midCell ? cell.w / 2 : 0)) / cell.w);
+  const row = Math.ceil(py / cell.h);
+  return [Math.min(Math.max(col, 1), cols + (midCell ? 1 : 0)), Math.min(Math.max(row, 1), rows)];
+}
+
+/**
+ * Faz o xterm converter o ponteiro com `pointerCell`: seleção, duplo clique e links usam o `getCoords` do serviço de mouse dele,
+ * que não conhece o transform do ancestral. API interna (a mesma de `measureCell`); ausente, o xterm segue com o dele.
+ */
+function fixMouseCoords(term) {
+  const core = term && term._core;
+  const service = core && core._mouseService;
+  const screen = term && term.element && term.element.querySelector('.xterm-screen');
+  if (!service || typeof service.getCoords !== 'function' || !screen) return;
+  const original = service.getCoords.bind(service);
+  service.getCoords = (event, element, cols, rows, midCell) => {
+    const target = element || screen;
+    const cell = measureCell(term);
+    const fixed = pointerCell({ x: event.clientX, y: event.clientY, rect: target.getBoundingClientRect(), layout: { w: target.clientWidth, h: target.clientHeight }, cell, cols, rows, midCell: !!midCell });
+    return fixed || original(event, element, cols, rows, midCell);
+  };
+}
+
 /** Célula medida pelo xterm (`dimensions.css.cell`, px de CSS, sem o zoom do canvas); `null` até ele desenhar a primeira vez. */
 function measureCell(term) {
   // API interna do xterm: sem outra forma de ler a métrica real da fonte; ausente, cellSize cai na estimativa
@@ -483,6 +517,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
       // o xterm só desenha: nenhuma tecla é dele, todas sobem ao nó (que as traduz) e ao canvas
       made.term.attachCustomKeyEventHandler(() => false);
       muteXtermWheel(made.term);
+      fixMouseCoords(made.term);
       if (extras()) made.term.registerLinkProvider(linkProviderOf(made.term, (link) => activateLink(link, live.current.onOpenPath)));
       // a métrica só existe depois do primeiro desenho: sem remedir, a grade fica na estimativa e sobra faixa à direita e embaixo
       made.term.onRender(() => live.current.measure());
@@ -771,5 +806,5 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   </div>;
 }
 
-window.ArgosNodeTty = { NodeTty, muteXtermWheel, frameCursor, setTermFocus, TTY_GLOBAL_KEYS, TTY_CANVAS_KEYS, minSize, translateKey, clipboardIntent, clipboardAction, selectedText, wheelIntent, touchWheel, historyLinesOf, historyWindow, clampOffset, wheelStep, scrollLive, wheelScroll, historyLoaded, ownsWheel, screenLinePx, createTextInput, isCompositionKey, fitScale, gridFor, cellSize, measureCell, sizeApplied, resizeDebounce, SIZE_LIMITS, RESIZE_DEBOUNCE_MS, areaBox, fitForNode, gridBox, SCALE_LIMITS, rowsToShow, cursorOf, screenOf, screenRows, ttyDrawing, oversize, selectionOf, linkProviderOf, activateLink, inSearchBar };
+window.ArgosNodeTty = { NodeTty, pointerCell, fixMouseCoords, muteXtermWheel, frameCursor, setTermFocus, TTY_GLOBAL_KEYS, TTY_CANVAS_KEYS, minSize, translateKey, clipboardIntent, clipboardAction, selectedText, wheelIntent, touchWheel, historyLinesOf, historyWindow, clampOffset, wheelStep, scrollLive, wheelScroll, historyLoaded, ownsWheel, screenLinePx, createTextInput, isCompositionKey, fitScale, gridFor, cellSize, measureCell, sizeApplied, resizeDebounce, SIZE_LIMITS, RESIZE_DEBOUNCE_MS, areaBox, fitForNode, gridBox, SCALE_LIMITS, rowsToShow, cursorOf, screenOf, screenRows, ttyDrawing, oversize, selectionOf, linkProviderOf, activateLink, inSearchBar };
 })();

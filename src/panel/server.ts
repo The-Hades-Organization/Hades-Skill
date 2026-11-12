@@ -467,6 +467,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
       if (path === "/api/cerberus") return send(200, { ...core.cerberusState(env), remote });
       if (path === "/api/config/export") return send(200, core.configExport(env, query, remote), "text/plain; charset=utf-8");
       if (path === "/api/doctor") return send(200, core.doctorState(env));
+      if (path === "/api/rtk-trust") return send(200, core.rtkTrustState(env));
       if (path === "/api/docs") return send(200, core.docsIndex(env));
       if (path === "/api/doc") return send(200, core.docText(env, query.id ?? ""));
     } catch (error) {

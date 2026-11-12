@@ -29,7 +29,8 @@ import { MARK_BRIDGE_KEY, bridgePathOf, markUrl, markWsUrl, parseState, readBrid
 import { doctorMemoriaItem } from "../lib/doctor-memoria.ts";
 import { diskProbe, findMemoryDir } from "../lib/memory-index.ts";
 import { serviceManager } from "../lib/service-manager.ts";
-import { FILTERS_REL, planWorktree, policyAdvice, rtkBinary, rtkConfig, settingsFor, trustState } from "../lib/rtk-filters.ts";
+import { FILTERS_REL, planWorktree, policyAdvice, rtkBinary, rtkConfig, settingsFor, trustState, type RtkBinary } from "../lib/rtk-filters.ts";
+import { registeredWorktrees, trustCommand, trustSummary, untrustedWorktrees } from "../lib/rtk-trust.ts";
 import { fixedContextNow } from "./usage.ts";
 import { judgeFixedContext } from "../lib/usage-fixo.ts";
 
@@ -458,6 +459,16 @@ function checkInstallation(r: Report, ctx: Ctx): void {
   checkNodeModules(r, ctx);
 }
 
+/** Worktrees de agente com filtro gerado e não confiado: o rtk as ignora em silêncio (reference/rtk.md §Confiança). */
+function checkRtkTrust(r: Report, ctx: Ctx, rtk: RtkBinary): void {
+  const g = "Resumidores (rtk)";
+  const { count, shown, more } = trustSummary(untrustedWorktrees(registeredWorktrees(ctx.w), rtk));
+  if (count === 0) return r.ok(g, "rtk-trust", "nenhuma worktree de agente com filtro do rtk sem confiança");
+  const names = `${shown.map((w) => w.dir).join(", ")}${more ? ` +${more}` : ""}`;
+  r.warn(g, "rtk-trust", `${count} worktree(s) de agente com filtro do rtk sem confiança (o rtk não o aplica): ${names}`,
+    `${shown.map((w) => `! ${trustCommand(w.dir)}`).join(" ; ")}${more ? " ; …" : ""}  (ou hades rtk apply <dir> --trust)`);
+}
+
 /** Resumidores do rtk (reference/rtk.md): presença, filtros que valem para o worktree, confiança, onde a saída inteira vai e a política recomendada (só lê). */
 function checkRtk(r: Report, ctx: Ctx): void {
   const g = "Resumidores (rtk)";
@@ -481,6 +492,7 @@ function checkRtk(r: Report, ctx: Ctx): void {
   const tee = process.env.RTK_TEE_DIR ?? "";
   if (db.startsWith(`${ctx.d}/`) && tee.startsWith(`${ctx.d}/`)) r.ok(g, "rtk-recall", `saída inteira em ${db} (rtk recall) e ${tee}`);
   else r.warn(g, "rtk-recall", "RTK_RECALL_DB/RTK_TEE_DIR não apontam para os dados da instância: a saída inteira que um filtro corta vai para o padrão do rtk", `reinstale o kit (o env.sh passa a exportar) e abra um shell novo; no agente, exporte RTK_RECALL_DB=${ctx.d}/rtk/recall.db RTK_TEE_DIR=${ctx.d}/rtk/tee`);
+  checkRtkTrust(r, ctx, rtk);
   const advice = policyAdvice(rtkConfig(home()), rtk.version);
   if (advice.length) r.warn(g, "rtk-politica", `política do rtk com ajuste recomendado: ${advice.join(" · ")}`, "edite o config.toml do rtk (rtk config); a Hades só recomenda, não grava");
   else r.ok(g, "rtk-politica", "política do rtk coerente com o recomendado");

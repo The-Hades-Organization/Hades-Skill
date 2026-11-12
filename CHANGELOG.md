@@ -4,6 +4,21 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.41.0 — 2026-11-12
+
+Capacidade nova (#59): avisar worktree de agente com filtro do rtk gerado e sem confiança. O rtk ignora esse filtro
+em silêncio, e a saída do build e dos testes chega crua ao contexto do agente.
+
+- `src/lib/rtk-trust.ts` lista, só lendo, as worktrees do registro dos agentes (inclusive as `skill-dev`) com filtro
+  gerado pela Hades e estado não confiado ou alterado.
+- Doctor: linha `rtk-trust` no grupo Resumidores (rtk), com a contagem, até 5 pastas e o comando de cada uma. Sem rtk,
+  a linha não aparece.
+- Painel: rota `GET /api/rtk-trust` (cache de 30 s) e card "Resumidores (rtk)" na página Consumo.
+- Start do agente: o comando do dono (`agent new`, `review`, `skill-new`, `start-cmd`) vira
+  `! (cd <pasta> && rtk trust) && herdr agent start …` quando a worktree tem filtro não confiado. O hook continua
+  barrando o trust vindo das ferramentas do Claude.
+- Armadilha: o rtk falso dos testes grava o `$PWD` no log, e um caminho com "trust" enganava um teste vizinho.
+
 ## 6.40.0 — 2026-11-12
 
 Capacidade nova (#66): higiene do índice de memória do projeto (`MEMORY.md`), que entra em toda sessão do repositório,

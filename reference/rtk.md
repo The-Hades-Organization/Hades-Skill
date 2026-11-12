@@ -73,6 +73,20 @@ O rtk **ignora em silêncio** um `.rtk/filters.toml` de projeto que não foi con
 - **Nunca o agente**: o hook barra `rtk trust`, `rtk untrust` e `hades rtk apply --trust`. Regerar o arquivo muda o SHA-256: o `doctor`
   mostra "ainda não confiado" ou "mudou depois de confiado" com o comando (`cd <worktree> && rtk trust`).
 
+**Aviso das worktrees dos agentes.** Toda worktree nova nasce com o filtro gerado e não confiado, e `rtk trust --list` só enxerga uma
+pasta por vez. O modelo `src/lib/rtk-trust.ts` junta as worktrees do registro dos agentes (as `skill-dev` entram) que têm
+`.rtk/filters.toml` com a marca da Hades e estado `nao-confiado` ou `alterado` (reusa `trustState`; arquivo do dono não conta). Só lê:
+nunca roda `rtk trust`. Três lugares usam a lista:
+
+- **`doctor`**: linha `rtk-trust` no grupo *Resumidores (rtk)* com a contagem, até 5 pastas (depois `+N`) e o comando de cada uma
+  (`! cd <pasta> && rtk trust`, ou `hades rtk apply <pasta> --trust`). Nenhuma: ok. Sem rtk, a linha não aparece.
+- **Painel**: card *Resumidores (rtk)* na página Consumo (`GET /api/rtk-trust`, cache de 30 s) com o número e o comando das primeiras 5.
+  Sem rtk, o card não aparece.
+- **Start do agente**: o comando que `agent new|review|skill-new|start-cmd` entrega ao dono vira
+  `! (cd <worktree> && rtk trust) && herdr agent start …` quando a worktree tem filtro gerado e não confiado. É texto: a sessão não
+  executa, e o hook continua barrando `rtk trust` e `--trust` das ferramentas do Claude. O comando do orquestrador (auto-alocação, sem
+  `! `) não leva o trust.
+
 ## Desligar e ajustar
 
 | Chave | Efeito |

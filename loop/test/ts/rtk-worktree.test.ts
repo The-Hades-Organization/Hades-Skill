@@ -5,8 +5,10 @@ import { existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync 
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { decide, type HookEnv } from "../../../src/lib/guard-hook";
-import { remoteConfigRefusal } from "../../../src/panel/routes-core";
+import { remoteConfigRefusal, rtkTrustState } from "../../../src/panel/routes-core";
 import { FILTERS_REL, GENERATED_MARK, applyWorktree, installForWorktree, planWorktree, rtkBinary, rtkSettings, trustState } from "../../../src/lib/rtk-filters";
+import { startForWorktree } from "../../../src/lib/rtk-trust";
+import { slugOfRemote } from "../../../src/lib/work";
 import { Rig, SKILL } from "./lib/rig";
 
 const r = new Rig().setup();
@@ -104,7 +106,7 @@ describe("rtk-worktree: geração do .rtk/filters.toml", () => {
     const wt = nxRepo();
     rmSync(LOG, { force: true });
     apply(wt, false);
-    expect(logText()).not.toContain("trust");
+    expect(logText()).not.toMatch(/ trust( --yes)?$/m);
   });
 
   test("existindo ~/.config/rtk/filters.toml a confiança é pulada (o trust --yes confiaria no global)", () => {
@@ -292,6 +294,74 @@ describe("rtk-worktree: painel remoto", () => {
   });
 });
 
+describe("rtk-worktree: rota do painel", () => {
+  const url = "git@github.com:org/painel.git";
+  const clone = nxRepo();
+  const panelEnv = { worktree: clone } as Parameters<typeof rtkTrustState>[0];
+  let at = 0;
+
+  test("conta as worktrees de agente sem confiança e traz o comando de cada uma; confiada, zero", () => {
+    r.sh(`git -C ${clone} remote add origin ${url}`);
+    const agents = join(r.T, "work", slugOfRemote(url), "orchestration", "agents");
+    mkdirSync(agents, { recursive: true });
+    const wt = nxRepo();
+    writeFileSync(join(agents, "ag.json"), JSON.stringify({ name: "ag", worktree: wt }));
+    apply(wt, false);
+    process.env.HADES_WORK_ROOT = join(r.T, "work");
+    try {
+      at += 60_000;
+      expect(rtkTrustState(panelEnv, at)).toEqual({ available: true, count: 1, more: 0, shown: [{ dir: wt, state: "nao-confiado", command: `cd ${wt} && rtk trust` }] });
+      apply(wt, true);
+      at += 60_000;
+      expect(rtkTrustState(panelEnv, at)).toMatchObject({ available: true, count: 0 });
+    } finally {
+      delete process.env.HADES_WORK_ROOT;
+    }
+  });
+
+  test("sem rtk: indisponível (o card não aparece)", () => {
+    withoutRtk();
+    try {
+      at += 60_000;
+      expect(rtkTrustState(panelEnv, at)).toMatchObject({ available: false, count: 0 });
+    } finally {
+      withRtk();
+    }
+  });
+});
+
+describe("rtk-worktree: start do agente", () => {
+  const OWNER = "! herdr agent start ag --kind claude --pane w1:p1";
+
+  test("worktree com filtro gerado e não confiado: o comando do dono leva o rtk trust antes, e a sessão não o executa", () => {
+    const wt = nxRepo();
+    apply(wt, false);
+    rmSync(LOG, { force: true });
+    expect(startForWorktree(OWNER, wt)).toBe(`! (cd ${wt} && rtk trust) && ${OWNER.slice(2)}`);
+    expect(logText()).not.toMatch(/ trust( --yes)?$/m);
+  });
+
+  test("confiada, sem filtro ou comando do orquestrador (sem `! `): o comando fica como veio", () => {
+    const trusted = nxRepo();
+    apply(trusted, true);
+    expect(startForWorktree(OWNER, trusted)).toBe(OWNER);
+    expect(startForWorktree(OWNER, nxRepo())).toBe(OWNER);
+    expect(startForWorktree(OWNER.slice(2), trusted)).toBe(OWNER.slice(2));
+    expect(startForWorktree(OWNER, "")).toBe(OWNER);
+  });
+
+  test("sem rtk no PATH, o comando fica como veio", () => {
+    const wt = nxRepo();
+    apply(wt, false);
+    withoutRtk();
+    try {
+      expect(startForWorktree(OWNER, wt)).toBe(OWNER);
+    } finally {
+      withRtk();
+    }
+  });
+});
+
 describe("rtk-worktree: doctor", () => {
   const wtDoctor = nxRepo();
   const doctor = (path: string, extra: Record<string, string> = {}) => {
@@ -325,6 +395,23 @@ describe("rtk-worktree: doctor", () => {
     expect(doctor(withBin)["rtk-filtros"]).toMatchObject({ level: "ok" });
     writeFileSync(join(wtDoctor, FILTERS_REL), `${filtersOf(wtDoctor)}# mexido\n`);
     expect(doctor(withBin)["rtk-filtros"]?.msg).toContain("mudou depois de confiado");
+  });
+
+  test("rtk-trust: worktree de agente com filtro gerado e não confiado é aviso com o comando; confiada, ok", () => {
+    const url = "git@github.com:org/proj.git";
+    r.sh(`git -C ${wtDoctor} remote add origin ${url}`);
+    const agents = join(r.T, "work", slugOfRemote(url), "orchestration", "agents");
+    mkdirSync(agents, { recursive: true });
+    const agentWt = nxRepo();
+    writeFileSync(join(agents, "ag.json"), JSON.stringify({ name: "ag", worktree: agentWt }));
+    apply(agentWt, false);
+    const aviso = doctor(withBin)["rtk-trust"];
+    expect(aviso).toMatchObject({ level: "warn" });
+    expect(aviso?.msg).toContain(agentWt);
+    expect(aviso?.fix).toContain(`cd ${agentWt} && rtk trust`);
+    apply(agentWt, true);
+    expect(doctor(withBin)["rtk-trust"]).toMatchObject({ level: "ok" });
+    rmSync(join(agents, "ag.json"));
   });
 
   test("HADES_RTK_FILTERS=off: com o arquivo ainda lá é aviso; sem ele, ok", () => {

@@ -9,6 +9,7 @@ import { die, out, warn } from "../lib/output.ts";
 import { run, which } from "../lib/proc.ts";
 import { hasSection } from "../lib/moirai.ts";
 import { regUpdate, startCommand } from "../lib/agent-registry.ts";
+import { startForWorktree } from "../lib/rtk-trust.ts";
 import { herdr, listPanes, paneFrom } from "../lib/herdr.ts";
 
 import { ExitWith } from "../lib/agent-project.ts";
@@ -127,7 +128,7 @@ function startCmd(args: string[], work: WorkEnv): number {
     regUpdate(work, name, (r) => ({ ...r, pane: fresh }));
     pane = fresh;
   }
-  out(startCommand(name, pane, regGet(work, name, "role")));
+  out(startForWorktree(startCommand(name, pane, regGet(work, name, "role")), regGet(work, name, "worktree")));
   return 0;
 }
 

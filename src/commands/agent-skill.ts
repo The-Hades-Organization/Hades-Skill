@@ -138,7 +138,7 @@ export function skillNew(args: string[], work: WorkEnv): number {
   out("");
   out(`unidade ${unit}: worktree ${worktree} · branch ${branch} (base ${base} em ${baseSha}) · porta de teste ${unitPort} · painel ${pane || "?"}`);
   out(`1. complete o brief (${brief}): Item, Docs e Prova`);
-  const start = dry ? { byOrchestrator: false, command: startCommand(unit, pane, role) } : startOrOwnerCommand(unit, pane, role);
+  const start = dry ? { byOrchestrator: false, command: startCommand(unit, pane, role) } : startOrOwnerCommand(unit, pane, role, worktree);
   if (start.byOrchestrator) {
     out(`2. o orquestrador inicia (auto-alocação: HADES_ORCH_AUTO_START + regra allow), como Bash, sem \`! \` — papel ${role}:`);
     out(`   ${start.command}`);

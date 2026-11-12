@@ -190,6 +190,9 @@ vale na próxima instalação ou criação de agente, ou na hora com `hades rtk 
 `POST /api/config` pelo acesso remoto responde 400 (`remoteConfigRefusal`). O estado (rtk presente, filtros ativos, confiança, saída
 inteira) está no grupo *Resumidores (rtk)* do `doctor` e em `hades rtk status [--json]`.
 
+O card **Resumidores (rtk)** da página Consumo (`GET /api/rtk-trust`, só lê) conta as worktrees de agente com filtro gerado e não
+confiado e mostra o comando do dono das 5 primeiras; sem rtk, não aparece (`reference/rtk.md` §Confiança).
+
 Página Orquestração: card **Decisões autônomas** (as 20 mais recentes do diário `kind: decision`, mais novas primeiro: nível,
 pergunta, opção tomada, alternativas). `GET /api/orchestration` ganha `autonomy: {level, label}` e `decisions: [{ts, level,
 needed, question, chosen, alternatives}]` (`reference/autonomia.md`).

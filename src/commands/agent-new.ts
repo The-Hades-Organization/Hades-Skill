@@ -13,6 +13,7 @@ import { CLI_ERRORS } from "../lib/human-errors.ts";
 import { EXIT, die, out } from "../lib/output.ts";
 import { labelsText, prReadyValues, renderPrReady } from "../lib/brief-pr.ts";
 import { dataDirOf, installForWorktree } from "../lib/rtk-filters.ts";
+import { startForWorktree } from "../lib/rtk-trust.ts";
 import { run } from "../lib/proc.ts";
 import { home, skillRoot } from "../lib/paths.ts";
 import { agentFiles, configValue, readJson, regGet, writeJsonAtomic, type WorkEnv } from "../lib/work.ts";
@@ -216,7 +217,7 @@ export async function newAgent(args: string[], work: WorkEnv): Promise<number> {
   out("");
   out(`agente ${name}: worktree ${worktree} · branch ${branch} · card ${card || "—"} · lock ${lock} · painel ${pane || "?"}`);
   out(`1. complete o brief (${worktree}/${work.reports}/brief.md): Item e Contexto`);
-  const start = o.dry ? { byOrchestrator: false, command: startCommand(name, pane, role) } : startOrOwnerCommand(name, pane, role);
+  const start = o.dry ? { byOrchestrator: false, command: startCommand(name, pane, role) } : startOrOwnerCommand(name, pane, role, worktree);
   if (start.byOrchestrator) {
     out(`2. o orquestrador inicia (auto-alocação: HADES_ORCH_AUTO_START + regra allow), como Bash, sem \`! \` — papel ${role}:`);
     out(`   ${start.command}`);
@@ -347,6 +348,6 @@ export function reviewAgent(args: string[], work: WorkEnv): number {
     regReplace(work, name, { name, mode: "review", role: "review", pr: Number(pr), branch: head, worktree, pane, state: "allocated", createdAt: isoNow(), ...orchestratorField(pane) });
   }
   out(`revisão só de leitura da #${pr} em ${worktree} (HEAD destacado). Achados em ${work.reports}/review-*.md; nada vai ao GitHub.`);
-  out(`   ${startCommand(name, pane, "review")}`);
+  out(`   ${startForWorktree(startCommand(name, pane, "review"), worktree)}`);
   return 0;
 }

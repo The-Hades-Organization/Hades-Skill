@@ -6,6 +6,7 @@ import {
   currentLevel, isNeverClass, judge, ownerConfig, setAutoStartRule, type NeverClass,
 } from "../lib/autonomy.ts";
 import { startCommand } from "../lib/agent-registry.ts";
+import { startForWorktree } from "../lib/rtk-trust.ts";
 import { emitJournal } from "../lib/journal.ts";
 import { kitDir, stateDir } from "../lib/kit.ts";
 import { NotifyContext, notify } from "../lib/notify.ts";
@@ -113,10 +114,11 @@ export function syncAutoStartRule(): string {
 
 /**
  * Com o toggle ligado e a regra presente, o comando de start sai sem o `! `: quem o roda é o orquestrador, como Bash, sob a
- * regra allow e o classificador (nunca um subprocesso do hades). Senão sai o comando do dono, como sempre.
+ * regra allow e o classificador (nunca um subprocesso do hades). Senão sai o comando do dono, como sempre, com o `rtk trust` da
+ * worktree na frente quando ela tem filtro gerado e não confiado (texto: a sessão não executa).
  */
-export function startOrOwnerCommand(name: string, pane: string, role: string): { byOrchestrator: boolean; command: string } {
+export function startOrOwnerCommand(name: string, pane: string, role: string, worktree = ""): { byOrchestrator: boolean; command: string } {
   const command = startCommand(name, pane, role);
-  if (!pane || !autoStartStatus().active) return { byOrchestrator: false, command };
+  if (!pane || !autoStartStatus().active) return { byOrchestrator: false, command: startForWorktree(command, worktree) };
   return { byOrchestrator: true, command: command.replace(/^! /, "") };
 }

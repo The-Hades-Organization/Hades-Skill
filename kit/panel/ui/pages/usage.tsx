@@ -280,6 +280,36 @@ function ContextoFixo({ d }) {
   </Card>;
 }
 
+// worktrees de agente com filtro do rtk gerado e não confiado: o rtk não o aplica e a saída do build chega crua ao agente
+function ResumidoresRtk() {
+  const [x, setX] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    // falha de leitura não é estado para mostrar: o card só some, o resto da página segue
+    const f = () => getJSON('/api/rtk-trust').then((r) => alive && setX(r)).catch(() => {});
+    f(); const t = setInterval(f, 60000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  if (!x || !x.available) return null;
+  return <Card>
+    <CardHeader title="Resumidores (rtk)" summary={x.count ? `${x.count} worktree${x.count > 1 ? 's' : ''} sem confiança` : 'todas as worktrees confiadas'} />
+    <CardContent className="grid gap-3">
+      {x.count ? <>
+        <p className="t-body text-muted-foreground">
+          O rtk ignora o <Mono>.rtk/filters.toml</Mono> até o dono rodar <Mono>rtk trust</Mono> na pasta: a saída do build e dos testes chega inteira ao agente.
+        </p>
+        <ul className="grid gap-2" aria-label="Worktrees com filtro do rtk sem confiança">
+          {x.shown.map((w) => <li key={w.dir} className="grid min-w-0 gap-1 border-t pt-2">
+            <Mono className="break-all">{w.command}</Mono>
+            <span className="t-micro text-muted-foreground">{w.state === 'alterado' ? 'filtro mudou depois de confiado' : 'filtro gerado, ainda não confiado'}</span>
+          </li>)}
+        </ul>
+        {x.more ? <p className="t-micro text-muted-foreground">+{x.more} outras; rode <Mono>hades rtk status</Mono> em cada pasta.</p> : null}
+      </> : <p className="t-body text-muted-foreground">Nenhuma worktree de agente com filtro gerado e não confiado.</p>}
+    </CardContent>
+  </Card>;
+}
+
 function Usage() {
   const run = useActions();
   const [x, setX] = useState(null);
@@ -407,6 +437,7 @@ function Usage() {
     </div>
     <Acompanhamento d={d} />
     <ContextoFixo d={d} />
+    <ResumidoresRtk />
     <Estimated />
     {d.overCap?.length ? <Card>
       <CardHeader title="Sessões acima do teto" summary={`contexto máximo contra o teto do papel · ${d.overCap.length}`} />

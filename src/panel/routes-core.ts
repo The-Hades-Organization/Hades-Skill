@@ -7,6 +7,8 @@ import { ConfigError, type ConfigStore, effective, exportText, plan, save } from
 import { readText } from "../lib/fs.ts";
 import * as quality from "../lib/quality.ts";
 import { run } from "../lib/proc.ts";
+import { rtkBinary } from "../lib/rtk-filters.ts";
+import { registeredWorktrees, trustCommand, trustSummary, untrustedWorktrees } from "../lib/rtk-trust.ts";
 import { BadRequest } from "./http.ts";
 import type { PanelEnv } from "./env.ts";
 
@@ -147,6 +149,23 @@ export function doctorState(env: PanelEnv): Json {
   const file = join(env.dir, "doctor.json");
   if (!existsSync(file)) return {};
   return { ...(JSON.parse(readFileSync(file, "utf8")) as Json), mtime: statSync(file).mtimeMs / 1000 };
+}
+
+// ---------------------------------------------------------------- rtk: filtros sem confiança
+
+const RTK_TRUST_TTL_MS = 30_000;
+let rtkTrustCache: { at: number; dir: string; body: Json } | undefined;
+
+/** Worktrees de agente com filtro do rtk gerado e não confiado (reference/rtk.md §Confiança). Só lê; o comando é do dono. */
+export function rtkTrustState(env: PanelEnv, now: number = Date.now()): Json {
+  if (rtkTrustCache && rtkTrustCache.dir === env.worktree && now - rtkTrustCache.at < RTK_TRUST_TTL_MS) return rtkTrustCache.body;
+  const rtk = rtkBinary();
+  const summary = rtk ? trustSummary(untrustedWorktrees(registeredWorktrees(env.worktree), rtk)) : undefined;
+  const body: Json = summary
+    ? { available: true, count: summary.count, more: summary.more, shown: summary.shown.map((w) => ({ ...w, command: trustCommand(w.dir) })) }
+    : { available: false, count: 0, more: 0, shown: [] };
+  rtkTrustCache = { at: now, dir: env.worktree, body };
+  return body;
 }
 
 const DOC_GROUPS: [string, string[]][] = [

@@ -20,8 +20,10 @@ import { home } from "../lib/paths.ts";
 import { pyDumps } from "../lib/pyjson.ts";
 import { roleModelDefaults } from "../lib/agent-registry.ts";
 import { configValue } from "../lib/work.ts";
+import { buildFixedContext, openingsOf, PART_LABEL, PARTS, type FixedContext, type Opening, type PartBytes, type PartsHistory } from "../lib/usage-fixo.ts";
+import { partsOf, readHistory, recordHistory, repoOf, sumParts } from "../lib/usage-fixo-io.ts";
 import {
-  baselineOf, buildReport, byRoles, CACHE_VERSION, fixed, gitKind, parseFileFull, plain, readFileOr, transcriptsIn, withBaseline,
+  baselineOf, buildReport, byRoles, CACHE_VERSION, classify, fixed, gitKind, parseFileFull, plain, readFileOr, transcriptsIn, withBaseline,
   type Agent, type CapOf, type Dict, type PctOf, type Report, type Req, type Row, type Tok,
 } from "../lib/usage.ts";
 
@@ -202,6 +204,75 @@ function reuseLines(reuse: { reused: Dict; fresh: Dict } | undefined): string[] 
   return ["", "sessões reaproveitadas × novas:", `  ${pad("", 16)}${pad("unidades", 9, true)}${pad("sessões", 9, true)}${pad("turnos", 9, true)}${pad("custo", 9, true)}`, row("reaproveitadas", reuse.reused), row("novas", reuse.fresh)];
 }
 
+/** Pasta de dados do Consumo; o doctor reusa a coleta com a janela dele. */
+const usageDir = (): string => join(home(), ".claude", "hades", "usage");
+const HISTORY_FILE = "partes.json";
+
+/** O bloco do contexto fixo das linhas da janela, com a decomposição em disco por grupo (a skill vem do próprio kit). */
+function fixedContextOf(rows: Row[], agents: Agent[]): FixedContext | undefined {
+  const skill = process.env.HADES_SKILL_DIR || join(import.meta.dirname, "..", "..");
+  return buildFixedContext(rows, {
+    roleOf: (cwd) => classify(cwd, agents, gitKind).role,
+    repoOf,
+    partsOf: (cwd, role) => partsOf(cwd, role, home(), skill),
+  });
+}
+
+/** Soma das partes de cada (repositório, papel) do bloco: o retrato que o doctor compara com o de uma semana atrás. */
+export function partsSnapshot(fixed: FixedContext): PartBytes {
+  const seen = new Set<string>();
+  const list: PartBytes[] = [];
+  for (const g of fixed.groups) {
+    const key = `${g.repo}\0${g.role}`;
+    if (g.parts === undefined || seen.has(key)) continue;
+    seen.add(key);
+    list.push(g.parts);
+  }
+  return sumParts(list);
+}
+
+export interface FixedNow {
+  openings: Opening[];
+  partsNow: PartBytes;
+  history: PartsHistory;
+}
+
+/** Aberturas das últimas `days` dias e o retrato atual das partes, para o doctor (grava o retrato do dia). */
+export function fixedContextNow(now: Date, days: number): FixedNow {
+  const since = new Date(now.getTime() - days * MS_PER_DAY).toISOString().slice(0, 10);
+  const outDir = usageDir();
+  mkdirSync(outDir, { recursive: true });
+  const { rows } = collectRows(join(home(), ".claude", "projects"), since, since, outDir, Date.parse(`${since}T00:00:00Z`));
+  const fixed = fixedContextOf(rows, registry());
+  const file = join(outDir, HISTORY_FILE);
+  const before = readHistory(file);
+  const partsNow = fixed ? partsSnapshot(fixed) : {};
+  if (fixed) recordHistory(file, before, now.toISOString().slice(0, 10), partsNow);
+  return { openings: openingsOf(rows), partsNow, history: before };
+}
+
+const KB = 1024;
+
+/** Contexto fixo por grupo: mediana e p90 do primeiro turno e as partes em disco (estimativa por tamanho). */
+function fixedLines(fixed: FixedContext | undefined): string[] {
+  if (fixed === undefined) return [];
+  const lines = ["", `contexto fixo (1ª resposta da sessão): mediana ${kilo(fixed.median)}, p90 ${kilo(fixed.p90)}, ${fixed.sessions} sessões`];
+  lines.push(`  ${pad("repositório", 24)}${pad("papel", 20)}${pad("modelo", 12)}${pad("sessões", 8, true)}${pad("mediana", 9, true)}${pad("p90", 7, true)}  partes em disco (estimativa)`);
+  for (const g of fixed.groups) {
+    const parts = PARTS.filter((part) => g.parts?.[part] !== undefined).map((part) => `${PART_LABEL[part]} ${fixed1((g.parts as PartBytes)[part] as number / KB)} KB`).join(" · ");
+    lines.push(`  ${pad(g.repo, 24)}${pad(g.role, 20)}${pad(g.model, 12)}${pad(String(g.sessions), 8, true)}${pad(kilo(g.median), 9, true)}${pad(kilo(g.p90), 7, true)}  ${parts}`);
+  }
+  const floor = fixed.floor;
+  lines.push(
+    "",
+    `contexto fixo × custo: US$ ${fixed1(floor.floorCost)} de US$ ${fixed1(floor.cost)} das sessões medidas${floor.share === undefined ? "" : ` (${fixed1(floor.share)}%)`} vêm só do piso`,
+    `  método: ${floor.method}`,
+  );
+  return lines;
+}
+
+const fixed1 = (value: number): string => fixed(value, 1);
+
 function printable(report: Report, limits: Limits | undefined): string[] {
   const total = report.total as Dict;
   const value = plain;
@@ -229,6 +300,7 @@ function printable(report: Report, limits: Limits | undefined): string[] {
   lines.push(...followupLines(roles));
   lines.push(...reuseLines(report.reuse as { reused: Dict; fresh: Dict } | undefined));
   lines.push(...overCapLines(report.overCap as Dict[] | undefined));
+  lines.push(...fixedLines(report.fixedContext as FixedContext | undefined));
   const days = report.byDay as Dict[];
   if (withPct && days.length) {
     lines.push("", `${pad("dia", 12)}${pad("custo", 9, true)}${pad("% 5h", 12, true)}${pad("% semana", 12, true)}`);
@@ -323,10 +395,17 @@ export function usageCommand(args: string[]): number {
   const loadSince = oldest && oldest.at.slice(0, 10) < since ? oldest.at.slice(0, 10) : since;
   const { rows, reqs } = collectRows(join(home(), ".claude", "projects"), since, loadSince, outDir, Date.parse(`${loadSince}T00:00:00Z`));
   const { limits, pctOf } = buildLimits(measured.amostras, measured.atual, reqs, k);
-  const roles = byRoles(rows, registry(), gitKind, roleModelDefaults);
+  const agents = registry();
+  const roles = byRoles(rows, agents, gitKind, roleModelDefaults);
   const capOf: CapOf = (role) => ctxCapOf(role, (key) => configValue(key, "") || undefined);
   const report = buildReport(rows, roles, days, since, `${now.toISOString().slice(0, 19)}+00:00`, pctOf, capOf);
   report.limits = limitsJson(limits);
+  const fixedContext = fixedContextOf(rows, agents);
+  if (fixedContext) {
+    report.fixedContext = fixedContext;
+    const today = now.toISOString().slice(0, 10);
+    recordHistory(join(outDir, HISTORY_FILE), readHistory(join(outDir, HISTORY_FILE)), today, partsSnapshot(fixedContext));
+  }
   const baselineFile = join(outDir, "baseline.json");
   if (baseline) writeFileSync(baselineFile, dumps(baselineOf(report, days), 1));
   withBaseline(report, readFileOr(baselineFile), days);

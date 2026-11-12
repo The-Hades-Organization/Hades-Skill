@@ -231,6 +231,55 @@ function Acompanhamento({ d }) {
   </Card>;
 }
 
+// Contexto fixo: o que a primeira resposta da sessão já carregava (o piso que todo turno relê). Partes em disco são estimativa por tamanho.
+const PART_LABEL = { claudeMd: 'CLAUDE.md (cadeia)', memory: 'MEMORY.md', skill: 'SKILL.md da Hades', brief: 'brief.md' };
+const kb = (bytes) => (bytes / 1024).toFixed(1).replace('.', ',') + ' KB';
+function ContextoFixo({ d }) {
+  const f = d.fixedContext;
+  if (!f) return null;
+  const peak = Math.max(1, ...f.byDay.map((y) => y.median));
+  const stat = (label, value, hint) => <div key={label} className="min-w-0">
+    <div className="t-micro text-muted-foreground">{label}</div>
+    <div className="text-lg font-medium tabular-nums">{value}</div>
+    {hint ? <div className="t-micro text-muted-foreground">{hint}</div> : null}
+  </div>;
+  return <Card>
+    <CardHeader title="Contexto fixo" summary={`${f.sessions.toLocaleString('pt-BR')} sessões em ${d.days} dias`}
+      description="Contexto da primeira resposta de cada sessão (entrada + leitura + escrita de cache): o piso que todo turno seguinte relê. As partes em disco são estimativa por tamanho de arquivo, não tokens medidos." />
+    <CardContent className="grid gap-6">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {stat('Mediana', ktok(f.median))}
+        {stat('p90', ktok(f.p90))}
+        {stat('Piso do custo', f.floor.share == null ? '—' : f.floor.share.toFixed(1).replace('.', ',') + '%', `${usd(f.floor.floorCost)} de ${usd(f.floor.cost)}`)}
+        {stat('Sessões medidas', f.floor.sessions.toLocaleString('pt-BR'), `${f.floor.turns.toLocaleString('pt-BR')} turnos`)}
+      </div>
+      <p className="t-micro text-muted-foreground">Contexto fixo × custo: {f.floor.method}.</p>
+      <div>
+        <div className="mb-2 t-micro text-muted-foreground">Mediana por dia (da primeira resposta)</div>
+        <ul className="grid gap-1" aria-label="Mediana do contexto fixo por dia">
+          {f.byDay.map((y) => <li key={y.day} className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2 t-micro tabular-nums">
+            <span className="text-muted-foreground">{ddmm(y.day)}</span>
+            <Medidor value={y.median} mark={peak} label={`${ddmm(y.day)}: mediana ${ktok(y.median)}, p90 ${ktok(y.p90)}, ${y.sessions} sessões`} />
+            <span className="text-right">{ktok(y.median)}</span>
+          </li>)}
+        </ul>
+      </div>
+      <ul className="grid gap-3" aria-label="Contexto fixo por repositório, papel e modelo">
+        {f.groups.map((g) => <li key={g.repo + g.role + g.model} className="grid gap-1 border-t pt-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+            <span className="min-w-0 font-medium"><Mono title={g.repo}>{g.repo}</Mono></span>
+            <span className="tabular-nums">{ktok(g.median)} <span className="text-muted-foreground">· p90 {ktok(g.p90)}</span></span>
+          </div>
+          <div className="t-micro text-muted-foreground">{roleLabel(g.role)} · {g.model} · {g.sessions.toLocaleString('pt-BR')} sessões</div>
+          {g.parts ? <div className="t-micro text-muted-foreground">
+            {Object.keys(PART_LABEL).filter((k) => g.parts[k] != null).map((k) => `${PART_LABEL[k]} ${kb(g.parts[k])}`).join(' · ')} (estimativa por tamanho)
+          </div> : null}
+        </li>)}
+      </ul>
+    </CardContent>
+  </Card>;
+}
+
 function Usage() {
   const run = useActions();
   const [x, setX] = useState(null);
@@ -357,6 +406,7 @@ function Usage() {
       </Card>
     </div>
     <Acompanhamento d={d} />
+    <ContextoFixo d={d} />
     <Estimated />
     {d.overCap?.length ? <Card>
       <CardHeader title="Sessões acima do teto" summary={`contexto máximo contra o teto do papel · ${d.overCap.length}`} />

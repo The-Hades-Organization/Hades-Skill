@@ -4,6 +4,23 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.38.0 — 2026-11-12
+
+Capacidade nova (#65): medir quanto contexto cada sessão já começa carregando, o piso que se paga em todo turno.
+
+- `hades usage` ganha o bloco "contexto fixo": o contexto da primeira resposta de cada sessão principal (entrada +
+  leitura + escrita de cache), com mediana, p90 e série diária por repositório, papel e modelo. `--json` ganha o campo
+  `fixedContext`; nada foi renomeado.
+- Decomposição em disco (estimativa por tamanho, dita no rótulo): cadeia de `CLAUDE.md`, `MEMORY.md`, `SKILL.md` e
+  `brief.md`. Retrato diário em `~/.claude/hades/usage/partes.json` (30 dias).
+- Linha "contexto fixo × custo": quanto do custo vem só do piso (contexto fixo × turnos), com o método escrito. Medido
+  nesta máquina em 7 dias: mediana 41k, p90 73k, piso ~24% do custo.
+- Página Consumo: cartão "Contexto fixo" (resumo, barras por dia, lista por grupo), sem rolagem lateral em 360 px.
+- Doctor: linha `contexto-fixo` avisa quando a mediana dos últimos 7 dias sobe mais que `HADES_USAGE_BASELINE_WARN_PCT`
+  (nova, padrão 15) contra os 7 anteriores e diz qual parte cresceu. Com menos de 3 sessões numa janela, fica neutra.
+- Armadilhas: o cache de transcrições sobe para a versão 6 (relido uma vez); a parte que cresceu só aparece depois de
+  uma semana de retratos; prompt de sistema, ferramentas e skills não têm arquivo e ficam fora da decomposição.
+
 ## 6.37.2 — 2026-11-12
 
 Correção (#112): no Argos, clique, seleção por arrasto, duplo clique e links do terminal do nó caíam deslocados do

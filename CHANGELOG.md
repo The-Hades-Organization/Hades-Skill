@@ -4,6 +4,18 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.43.1 — 2026-11-12
+
+Documentação (#17): ganho dos resumidores do rtk medido no que a ferramenta Bash devolve à sessão, não contra a
+saída bruta como o `rtk gain` faz. Tabela e método em `reference/rtk.md` §Ganho medido.
+
+- Em saída curta de gate verde o ganho é desprezível: 32% no `bun test`, uns 8 tokens por rodada.
+- O `tsc` com poucos erros fica 21 B maior com o rtk: o handler repete a mensagem e acrescenta a contagem.
+- O filtro do `bun test` esconde só o cabeçalho de versão e a contagem de `expect()`; contagem de testes, falhas e
+  duração ficam.
+- Pendente: a linha `node-nx` (`nx lint`/`nx test`), porque o clone medido não tem `node_modules`. O passo para
+  completar está na referência.
+
 ## 6.43.0 — 2026-11-12
 
 Capacidade nova (#77, #78): criar terminal pelo teclado no canvas do Argos.

@@ -4,6 +4,19 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.37.2 — 2026-11-12
+
+Correção (#112): no Argos, clique, seleção por arrasto, duplo clique e links do terminal do nó caíam deslocados do
+ponteiro, mais longe quanto mais longe da origem do terminal e diferente a cada zoom.
+
+- Causa: o `getCoords` do xterm divide `clientX - rect.left` (retângulo já com a escala do quadro × zoom do canvas)
+  pela célula sem transformação. O DPR não entra.
+- Correção: `pointerCell` (modelo puro em `node-tty.tsx`) leva o deslocamento de volta ao layout por `rect / clientWidth`
+  em cada eixo, e `fixMouseCoords` troca o `getCoords` do serviço de mouse do xterm por ele. Uma troca cobre arrasto,
+  duplo clique e links; sem a API interna, o xterm segue com o dele. O terminal do celular não usa esse caminho.
+- Teste: 9 casos do modelo (escalas 0,25–3,2, eixos distintos, fora da grade, meio da célula). Não houve prova no
+  navegador nesta rodada.
+
 ## 6.37.1 — 2026-11-11
 
 Correção (#109): o `hades minos publish explicacao|proposta` recusava toda página sobre o projeto ativo, porque a

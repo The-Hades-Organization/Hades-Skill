@@ -2761,6 +2761,11 @@ botão não é controle). Prova: `argos-abrir-terminal.test.ts`.
 
 ### Links, busca e mouse do terminal do nó
 
+**Ponteiro → célula.** O xterm do nó fica numa camada com `transform: scale` (quadro × zoom do canvas) e o `getCoords` dele
+divide o deslocamento medido na tela pela célula sem transformação, então clique, seleção, duplo clique e links caíam deslocados,
+mais longe quanto mais longe da origem. `fixMouseCoords` (`node-tty.tsx`) troca esse `getCoords` por `pointerCell`, que leva o
+deslocamento de volta ao layout pela razão `getBoundingClientRect / clientWidth` de cada eixo; a conversão não depende do DPR.
+
 Regra pura em `kit/panel/ui/argos/tty-extras.tsx` (`window.ArgosTtyExtras`), ligada pelo `node-tty.tsx`; sem dependência nova
 (sem addon do xterm).
 

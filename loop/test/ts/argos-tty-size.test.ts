@@ -288,3 +288,53 @@ describe("host: pedido de tamanho, queda sem suporte, liberação e reconexão",
     expect(r.host.textZoomOf("n1")).toBe(1);
   });
 });
+
+describe("pointerCell: ponteiro → célula com o quadro escalado e o canvas com zoom", () => {
+  const cell = { w: 8, h: 16 };
+  const layout = { w: 80, h: 64 }; // 10×4 células, tamanho de layout (sem transform)
+  // retângulo na tela: a grade escalada por `k` (quadro × zoom do canvas), com origem em (left, top)
+  const at = (k: number, left: number, top: number) => ({ left, top, width: layout.w * k, height: layout.h * k });
+  const click = (Tty: Dict, k: number, left: number, top: number, col: number, row: number, mid = false) => {
+    // centro da célula (col, row), base 0, em coordenadas de tela
+    const x = left + (col + 0.5) * cell.w * k;
+    const y = top + (row + 0.5) * cell.h * k;
+    return Tty.pointerCell({ x, y, rect: at(k, left, top), layout, cell, cols: 10, rows: 4, midCell: mid });
+  };
+
+  for (const k of [0.25, 0.5, 1, 2, 3.2]) {
+    test(`dada a escala total ${k} e a grade deslocada, então o clique cai na célula sob o ponteiro`, async () => {
+      const { ArgosNodeTty: Tty } = await load();
+      expect(click(Tty, k, 137, 59, 0, 0)).toEqual([1, 1]);
+      expect(click(Tty, k, 137, 59, 9, 3)).toEqual([10, 4]);
+      expect(click(Tty, k, 137, 59, 6, 2)).toEqual([7, 3]);
+    });
+  }
+
+  test("dada a escala distinta em x e y, então cada eixo usa a sua", async () => {
+    const { ArgosNodeTty: Tty } = await load();
+    const rect = { left: 0, top: 0, width: layout.w * 2, height: layout.h * 0.5 };
+    expect(Tty.pointerCell({ x: 5 * 8 * 2 + 1, y: 2 * 16 * 0.5 + 1, rect, layout, cell, cols: 10, rows: 4, midCell: false })).toEqual([6, 3]);
+  });
+
+  test("dado o ponteiro fora da grade, então a célula é a da borda mais próxima", async () => {
+    const { ArgosNodeTty: Tty } = await load();
+    const args = { rect: at(2, 100, 100), layout, cell, cols: 10, rows: 4, midCell: false };
+    expect(Tty.pointerCell({ ...args, x: -500, y: -500 })).toEqual([1, 1]);
+    expect(Tty.pointerCell({ ...args, x: 9000, y: 9000 })).toEqual([10, 4]);
+  });
+
+  test("dada a seleção (midCell), então o limite passa para a célula seguinte depois do meio, como no xterm", async () => {
+    const { ArgosNodeTty: Tty } = await load();
+    const rect = at(2, 0, 0);
+    const base = { rect, layout, cell, cols: 10, rows: 4, midCell: true };
+    expect(Tty.pointerCell({ ...base, x: 2 * 8 * 3 + 1, y: 1 })).toEqual([4, 1]);
+    expect(Tty.pointerCell({ ...base, x: 2 * 8 * 3 + 2 * 8 - 1, y: 1 })).toEqual([5, 1]);
+  });
+
+  test("dado o retângulo ou o layout inválido (zero, NaN), então não há célula", async () => {
+    const { ArgosNodeTty: Tty } = await load();
+    const base = { x: 5, y: 5, cell, cols: 10, rows: 4, midCell: false };
+    expect(Tty.pointerCell({ ...base, rect: { left: 0, top: 0, width: 0, height: 0 }, layout })).toBeUndefined();
+    expect(Tty.pointerCell({ ...base, rect: at(1, 0, 0), layout: { w: Number.NaN, h: 64 } })).toBeUndefined();
+  });
+});

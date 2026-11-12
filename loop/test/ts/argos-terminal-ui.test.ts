@@ -169,7 +169,9 @@ describe("terminal não corta as linhas de baixo (node-tty.tsx)", () => {
   test("a escala mede o tamanho de layout, não o da tela (que já vem com o zoom do canvas)", () => {
     const src = readFileSync(join(import.meta.dir, "../../../kit/panel/ui/argos/node-tty.tsx"), "utf8");
     // só a altura de linha da roda (screenLinePx) quer a medida da tela; a escala de encaixe nunca
-    expect(src.replace(/const screenLinePx = [^\n]*\n/, "")).not.toMatch(/\.getBoundingClientRect\(/);
+    // e a conversão ponteiro → célula (fixMouseCoords), que divide a medida da tela pelo layout de propósito
+    const fit = src.replace(/const screenLinePx = [^\n]*\n/, "").replace(/function fixMouseCoords[\s\S]*?\n}\n/, "");
+    expect(fit).not.toMatch(/\.getBoundingClientRect\(/);
     expect(src).toContain("areaBox(el.clientWidth, el.clientHeight)");
   });
 });

@@ -2459,6 +2459,17 @@ describe("orquestrador no modal e no nó terminal", () => {
     expect(TC.nodeDataOf(form, { herdr: PANE, agent: "claude" }).orchestrator).toBeUndefined();
   });
 
+  test("o shell sai sem agente, papel nem orquestrador e o nó leva a marca shell", async () => {
+    const { ArgosTerminalCreate: TC, ArgosNodeTerminal: NT } = await load();
+    const form = { ...TC.EMPTY_FORM, name: "shell", shell: true, agent: "claude", orchestrator: true };
+    expect(TC.createBody(form)).toEqual({ name: "shell", shell: true });
+    const data = TC.nodeDataOf(form, { herdr: PANE, agent: "shell", shell: true });
+    expect(data.shell).toBe(true);
+    expect(data.agent).toBeUndefined();
+    expect(NT.readTerminalData({ name: "s", shell: "sim" }).shell).toBeUndefined();
+    expect(NT.orphanNodeData({ ...PANE, name: "s", agent: "shell", shell: true, createdAt: "x" }).shell).toBe(true);
+  });
+
   test("o cliente repassa a confirmação do servidor ao criar e ao trocar o papel", async () => {
     const { ArgosTerminalCreate: TC } = await load();
     const created = replyWith({ herdr: PANE, agent: "claude", orchestrator: true });

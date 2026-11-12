@@ -92,6 +92,7 @@ const BATCH_ACTION_TIMEOUT_MS = 1230000;
 // o keepalive do fetch aceita corpo de até 64 KiB; maior que isso, a saída da aba grava sem ele
 const KEEPALIVE_MAX_BYTES = 60000;
 // teclas que o motor trata quando o foco está no canvas (docs: Teclado e leitor de tela): a página não as pega
+const CREATE_NAMES = Object.freeze({ agent: 'agente', orchestrator: 'orquestrador', shell: 'shell' });
 const ENGINE_KEYS = new Set(['Enter', 'Escape', ' ', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', '+', '-', '=', '0', 'ContextMenu']);
 const SUPPORTED_V = 1;
 const ALL = 'all';
@@ -393,6 +394,8 @@ function Argos() {
   const askRef = useRef(null);
   // camadas sobre o canvas: o quadro posicionado onde elas ficam, o balão aberto (id do agente) e os rascunhos por agente
   const stageRef = useRef(null);
+  // último ponto do ponteiro sobre o quadro (tela); `null` fora dele: onde o terminal criado por tecla nasce
+  const cursorRef = useRef(null);
   const [balloonId, setBalloonId] = useState(null);
   const [drafts, setDrafts] = useState(NO_DRAFTS);
   // painel do supervisor aberto ou fechado (a camada fica montada e observa os terminais mesmo fechada)
@@ -444,10 +447,14 @@ function Argos() {
     }
     // Organizar por equipes (src/lib/canvas-tidy.ts): sempre disponível; o layout de forças em curso é parado pelo próprio comando
     try {
-      made.commands.register({ id: 'tidy:arrange', label: 'Organizar o canvas por equipes', group: 'Canvas', shortcut: 'shift+o',
+      made.commands.register({ id: 'tidy:arrange', label: 'Organizar o canvas por equipes', group: 'Canvas', shortcut: 'shift+t',
         hint: 'orquestrador no centro, recrutas e notas em volta; trava e fixados ficam; desfaz num passo',
         surfaces: ['palette', 'canvas-menu'], run: () => host.current.tidyArrange() });
     } catch (e) { console.error('argos: comando de organizar recusado', e && e.code); }
+    // Shift+A/O/S: terminal de agente, de orquestrador e de shell (src/lib/canvas-create-keys.ts)
+    for (const def of M.createKeys.createCommandDefs((kind) => host.current.createTerminalKey(kind))) {
+      try { made.commands.register(def); } catch (e) { console.error('argos: comando de criar terminal recusado', def.id, e && e.code); }
+    }
     // Falar com o Mark: atalho para a folha de voz sem achar o nó; só com a ponte (o mesmo teste da paleta do nó)
     try {
       made.commands.register({ id: 'mark:voice', label: 'Falar com o Mark', group: 'Canvas',
@@ -1485,6 +1492,18 @@ function Argos() {
     const r = await placeTerminal(form, rect);
     if (r.ok) toast({ kind: 'ok', title: 'Terminal criado', desc: form.name }); else termFailed(r);
   });
+  // Shift+A, Shift+O e Shift+S (M.createKeys): nasce no cursor, se ele está sobre o canvas, senão no centro da vista
+  const createByKey = (kind) => termRun(async () => {
+    if (!termLoaded()) return;
+    const TC = window.ArgosTerminalCreate;
+    const box = stageRef.current?.getBoundingClientRect();
+    const p = cursorRef.current;
+    const cursor = p && box && apiRef.current ? M.camera.screenToWorld(apiRef.current.getCamera(), { x: p.x - box.left, y: p.y - box.top }) : null;
+    const rect = M.createKeys.createRect(cursor, host.current.viewCenter(), NT.TERMINAL_SIZE);
+    const form = { ...TC.EMPTY_FORM, name: TC.nextTerminalName(CREATE_NAMES[kind], terminalNames()), orchestrator: kind === 'orchestrator', shell: kind === 'shell' };
+    const r = await placeTerminal(form, rect);
+    if (r.ok) toast({ kind: 'ok', title: 'Terminal criado', desc: form.name }); else termFailed(r);
+  });
   const submitTerm = async (form) => {
     const d = termDialog;
     if (!d) return { ok: true };
@@ -1724,7 +1743,7 @@ function Argos() {
     && M.store.scopedCanvasId({ kind: 'worktree', key: `${n.registry}:${n.label}` }) === canvasIdRef.current)?.worktree || '';
   host.current = {
     setFocus, growNode, tidyArrange,
-    termRun, termTarget, termEdit, termRole, termClose, termRemoveEnded, termClosable,
+    createTerminalKey: createByKey, termRun, termTarget, termEdit, termRole, termClose, termRemoveEnded, termClosable,
     openLinks, linkStart, noteTarget, noteClose,
     composerToggle: () => setComposer((c) => (c !== null ? null : ttyHost.focused())),
     supervisorToggle: () => setSupOpen((o) => !o),
@@ -2121,7 +2140,8 @@ function Argos() {
       })() : null}
     </div>;
   return <div className="relative flex min-h-0 flex-1 flex-col">
-    <div ref={stageRef} data-argos-stage className="relative min-h-0 flex-1 overflow-hidden" onDragOver={onStageDragOver} onDrop={onStageDrop}>
+    <div ref={stageRef} data-argos-stage className="relative min-h-0 flex-1 overflow-hidden" onDragOver={onStageDragOver} onDrop={onStageDrop}
+      onPointerMove={(e) => { cursorRef.current = { x: e.clientX, y: e.clientY }; }} onPointerLeave={() => { cursorRef.current = null; }}>
       {canvasPane}
       {/* camadas, HUD e controles num quadro que encolhe à direita quando a gaveta abre na mesa; fora disso, o palco inteiro */}
       <div className="pointer-events-none absolute inset-y-0 left-0 right-0" style={focusShift ? { right: focusShift } : undefined}>
@@ -2161,7 +2181,7 @@ function Argos() {
             drafts={composerDrafts} onDrafts={setComposerDrafts} doc={cstate.doc} terminals={composerTerminals}
             sendInput={(id, input) => ttyHost.input(id, input)} fetch={tokenFetch} onFocusTerminal={(id) => ttyHost.focus(id)} onClose={() => setComposer(null)} /></div> : null}
           {SUP && canvasApi && cstate ? <div className="pointer-events-auto"><SUP.SupervisorLayer open={supOpen} onOpen={() => setSupOpen(true)} onClose={() => setSupOpen(false)}
-            host={ttyHost} terminals={cstate.doc.nodes.filter((n) => ttyHost.target(n.id)).map((n) => ({ id: n.id, label: nodeLabel(n.id) ?? n.id }))}
+            host={ttyHost} terminals={cstate.doc.nodes.filter((n) => ttyHost.target(n.id) && !(n.type === NT.TERMINAL_TYPE && NT.readTerminalData(n.data).shell)).map((n) => ({ id: n.id, label: nodeLabel(n.id) ?? n.id }))}
             doc={cstate.doc} canvasId={canvasIdRef.current} commit={termCommit} center={host.current.viewCenter}
             onJump={(id) => { host.current.selectIds([id]); apiRef.current?.revealNode(id, true); }} fetch={tokenFetch} /></div> : null}
           {linksFor && canvasApi && cstate ? <div className="pointer-events-auto"><LINKS.LinksPopover doc={cstate.doc} nodeId={linksFor.id} at={linksFor.at}
@@ -2173,7 +2193,7 @@ function Argos() {
             <CC.CanvasControls api={canvasApi} history={{ canUndo, canRedo, onUndo: () => stepHistory('undo'), onRedo: () => stepHistory('redo') }}
               className={cn('pointer-events-auto absolute right-2 z-10 flex items-center border border-border-strong bg-background', desk ? 'bottom-[8.5rem]' : 'bottom-[4.25rem]')} />
             {termReady ? <window.ArgosCanvasToolbar.CanvasToolbar armed={termTool} onArm={armTool} link={{ active: linking, onClick: toggleLink }} mark={{ available: markAvail, exists: markNodeId !== null, onClick: onMarkButton }} onRoles={host.current.termRolesOpen}
-              quick={termPresets.map((p) => ({ key: p.slug, label: p.name, icon: p.icon, color: p.color, onClick: () => quickStart(p) }))}
+              quick={[...termPresets.map((p) => ({ key: p.slug, label: p.name, icon: p.icon, color: p.color, onClick: () => quickStart(p) })), { key: 'shell', label: 'Shell', icon: 'SquareTerminal', onClick: () => createByKey('shell') }]}
               vertical={desk} className={cn('pointer-events-auto absolute z-10', desk ? 'top-24 left-2 max-h-[calc(100%-8rem)]' : 'bottom-2 left-2 right-2')} /> : null}
           </> : null}
           {termReady && termTool ? <window.ArgosCanvasToolbar.ToolDragLayer tool={window.ArgosCanvasToolbar.listTools().find((t) => t.id === termTool)}

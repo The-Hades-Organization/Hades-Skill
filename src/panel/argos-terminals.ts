@@ -63,6 +63,10 @@ export const TERMINAL_NAME_MAX = 40;
 /** O mesmo formato do nome de agente que o `herdr agent rename` aceita na página Herdr. */
 const TERMINAL_NAME = new RegExp(`^[A-Za-z0-9][\\w .-]{0,${TERMINAL_NAME_MAX - 1}}$`);
 const PATH_MAX = 4096;
+/** O que `agent` guarda no registro do terminal de shell; o herdr nunca o recebe. */
+const SHELL_AGENT = "shell";
+/** Campos de agente que o corpo de um shell não pode trazer: recusa, nunca ignora. */
+const SHELL_FORBIDDEN_FIELDS = ["preset", "role", "agent", "model", "effort", "orchestrator", "instructions"] as const;
 const DEFAULT_SESSION = "default";
 export const TERMINAL_LIMITS = { terminals: 64 } as const;
 export const TERMINAL_TIMEOUTS = {
@@ -131,6 +135,7 @@ export interface OrphanTerminal {
   effort?: string;
   role?: string;
   orchestrator?: boolean;
+  shell?: boolean;
   createdAt: string;
 }
 
@@ -161,6 +166,8 @@ interface TerminalRecord {
   orchestrator?: boolean;
   /** Instruções próprias do terminal (o orquestrador as dá ao recruta), somadas às do papel; nunca vão a log. */
   instructions?: string;
+  /** Pane com só o shell, sem `agent start`: `agent` guarda `shell` e papel, modelo e orquestrador não se aplicam. */
+  shell?: boolean;
 }
 
 const isTerminalRecord = (value: unknown): value is TerminalRecord => {
@@ -168,7 +175,7 @@ const isTerminalRecord = (value: unknown): value is TerminalRecord => {
   const r = value as Dict;
   const optionalText = (v: unknown): boolean => v === undefined || typeof v === "string";
   return [r.session, r.pane, r.name, r.agent, r.cwd, r.createdAt].every((v) => typeof v === "string") && [r.model, r.effort, r.role, r.instructions, r.herdrName].every(optionalText)
-    && (r.orchestrator === undefined || typeof r.orchestrator === "boolean");
+    && (r.orchestrator === undefined || typeof r.orchestrator === "boolean") && (r.shell === undefined || typeof r.shell === "boolean");
 };
 
 /** O que o terminal vai rodar: o corpo escolhe, senão a predefinição, senão o papel, senão o padrão global. */
@@ -532,10 +539,45 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
 
   // ---- terminais ----
 
+  /** `shell` do corpo: ausente ou `false` é o terminal de agente; `true` não combina com nenhum campo de agente. */
+  function shellOf(body: Dict): boolean {
+    if (body.shell === undefined || body.shell === false) return false;
+    if (body.shell !== true) throw invalid("shell é true ou false");
+    const agentField = SHELL_FORBIDDEN_FIELDS.find((field) => body[field] !== undefined);
+    if (agentField) throw invalid(`${agentField} não vale para o terminal de shell`);
+    return true;
+  }
+
+  /** Pane com só o shell na pasta escolhida: sem papel, sem predefinição e sem `agent start`. */
+  async function createShell(body: Dict, name: string, remote: boolean): Promise<Dict> {
+    const cwd = containedDir(body.cwd);
+    const alive = await aliveTerminals();
+    if (alive.some((t) => t.name === name)) throw invalid("já existe um terminal do canvas com esse nome");
+    if (alive.length >= TERMINAL_LIMITS.terminals) throw invalid(`limite de ${TERMINAL_LIMITS.terminals} terminais do canvas`);
+    const session = DEFAULT_SESSION;
+    const pane = paneFrom(await createWorkspace(session, ["workspace", "create", "--cwd", cwd, "--label", name, "--no-focus"]));
+    if (!PANE_ID.test(pane)) throw fail(ARGOS_ERROR_CODES.herdrFailed, "o herdr não devolveu o pane criado");
+    storeTerminals([...alive, { session, pane, name, agent: SHELL_AGENT, cwd, createdAt: new Date(deps.now()).toISOString(), shell: true }]);
+    deps.herdr.forget();
+    audit("terminal-criar", name, pane, remote);
+    return { herdr: { session, pane }, agent: SHELL_AGENT, shell: true };
+  }
+
+  /** Os terminais do registro cujo pane ainda existe; o que sumiu sai do registro de prompts. */
+  async function aliveTerminals(): Promise<TerminalRecord[]> {
+    const alive: TerminalRecord[] = [];
+    for (const t of terminals()) {
+      if ((await paneAlive(t.session, t.pane)) !== false) alive.push(t);
+      else removePrompt(t.session, t.pane);
+    }
+    return alive;
+  }
+
   async function create(body: Dict, remote: boolean): Promise<Dict> {
     throttle("criar", remote);
     const name = nameOf(body.name);
     requireConfirm(body, name, remote);
+    if (shellOf(body)) return createShell(body, name, remote);
     const preset = optional(body.preset, (slug) => {
       const found = presets.get(slugFormatOf(slug));
       if (!found) throw fail(ARGOS_ERROR_CODES.notFound, "predefinição inexistente");
@@ -551,11 +593,7 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
     agentArgs(choice); // recusa (modelo, esforço, papel) que o agente não aceita antes de abrir o pane
     const cwd = containedDir(body.cwd);
 
-    const alive: TerminalRecord[] = [];
-    for (const t of terminals()) {
-      if ((await paneAlive(t.session, t.pane)) !== false) alive.push(t);
-      else removePrompt(t.session, t.pane);
-    }
+    const alive = await aliveTerminals();
     if (alive.some((t) => t.name === name)) throw invalid("já existe um terminal do canvas com esse nome");
     if (alive.length >= TERMINAL_LIMITS.terminals) throw invalid(`limite de ${TERMINAL_LIMITS.terminals} terminais do canvas`);
 
@@ -611,6 +649,7 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
     const name = nameOf(body.name);
     requireConfirm(body, name, remote);
     const record = recordOf(body);
+    if (record.shell === true) throw invalid("o terminal de shell não tem agente nem papel");
     if (body.role === undefined) throw invalid("role é o slug do papel ou null");
     const role = body.role === null ? undefined : roleOf(body.role);
     // orquestrador e instruções próprias: ausente no corpo mantém o que o terminal tinha; `null` tira as instruções
@@ -787,7 +826,7 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
       found.push({
         session: t.session, pane: t.pane, name: t.name, agent: t.agent, createdAt: t.createdAt,
         ...(t.model !== undefined && { model: t.model }), ...(t.effort !== undefined && { effort: t.effort }),
-        ...(t.role !== undefined && { role: t.role }), ...(t.orchestrator === true && { orchestrator: true }),
+        ...(t.role !== undefined && { role: t.role }), ...(t.orchestrator === true && { orchestrator: true }), ...(t.shell === true && { shell: true }),
       });
     }
     const dead: DeadTerminalPane[] = [];

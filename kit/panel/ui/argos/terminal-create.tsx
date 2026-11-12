@@ -75,7 +75,7 @@ function createTerminalClient({ fetch, timeoutMs = TIMEOUT_MS, startTimeoutMs = 
     create: (body) => call(URL.create, body, (d) => {
       const herdr = herdrOf(d);
       // `orchestrator` só quando o servidor confirmou que as instruções de gerente entraram no papel do processo
-      return herdr && typeof d.agent === 'string' ? { herdr, agent: d.agent, model: d.model, effort: d.effort, role: d.role, ...(d.orchestrator === true && { orchestrator: true }) } : undefined;
+      return herdr && typeof d.agent === 'string' ? { herdr, agent: d.agent, model: d.model, effort: d.effort, role: d.role, ...(d.orchestrator === true && { orchestrator: true }), ...(d.shell === true && { shell: true }) } : undefined;
     }, startTimeoutMs),
     close: (body) => call(URL.close, body, okay),
     setRole: (body) => call(URL.role, body, (d) => { const herdr = herdrOf(d); return herdr ? { herdr, ...(d.orchestrator === true && { orchestrator: true }) } : undefined; }, startTimeoutMs),
@@ -85,7 +85,7 @@ function createTerminalClient({ fetch, timeoutMs = TIMEOUT_MS, startTimeoutMs = 
 /* ------------------------------------------------------------ formulário (regra pura) */
 // '' = não escolhido: o campo não vai ao corpo nem ao nó e segue a predefinição ou o padrão global
 // `orchestrator` é a caixa Orquestrador (D7): o único campo que não é texto
-const EMPTY_FORM = Object.freeze({ preset: '', name: '', icon: '', color: '', theme: '', themeBg: '', themeFg: '', font: '', role: '', agent: '', model: '', effort: '', cwd: '', orchestrator: false });
+const EMPTY_FORM = Object.freeze({ preset: '', name: '', icon: '', color: '', theme: '', themeBg: '', themeFg: '', font: '', role: '', agent: '', model: '', effort: '', cwd: '', orchestrator: false, shell: false });
 const APPEARANCE_KEYS = Object.freeze(['icon', 'color', 'theme', 'themeBg', 'themeFg', 'font']);
 const PRESET_KEYS = Object.freeze(['agent', 'model', 'effort', 'icon', 'color', 'theme', 'font', 'role']);
 
@@ -117,6 +117,8 @@ function formProblem(form) {
 
 /** Corpo do POST /api/argos/terminals: só o escolhido (campo vazio segue a predefinição e, sem ela, o padrão global). */
 function createBody(form) {
+  // shell: só o pane na pasta escolhida; a regra do corpo mora em src/lib/canvas-create-keys.ts
+  if (form.shell === true) return window.CanvasModel.createKeys.terminalCreateBody('shell', form);
   const body = { name: form.name.trim() };
   for (const k of ['cwd', 'preset', 'agent', 'model', 'effort', 'role']) if (form[k].trim()) body[k] = form[k].trim();
   if (form.orchestrator === true) body.orchestrator = true;
@@ -128,7 +130,8 @@ function nodeDataOf(form, created) {
   const raw = { name: form.name.trim(), preset: form.preset || undefined };
   for (const k of APPEARANCE_KEYS) if (form[k]) raw[k] = form[k];
   if (form.theme !== 'custom') { delete raw.themeBg; delete raw.themeFg; }
-  for (const k of ['agent', 'model', 'effort', 'role']) if (typeof created[k] === 'string' && created[k]) raw[k] = created[k];
+  if (created.shell === true) raw.shell = true;
+  else for (const k of ['agent', 'model', 'effort', 'role']) if (typeof created[k] === 'string' && created[k]) raw[k] = created[k];
   raw.herdr = created.herdr;
   // a caixa vale só se o servidor confirmou (as instruções de gerente entraram no papel do processo)
   if (created.orchestrator === true) raw.orchestrator = true;

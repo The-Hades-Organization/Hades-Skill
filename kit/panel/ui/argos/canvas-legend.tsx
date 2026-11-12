@@ -20,6 +20,7 @@ function CanvasLegend() {
   const root = useRef(null);
   const panel = useRef(null);
   const model = A.legendModel();
+  const createRows = window.CanvasModel.createKeys ? window.CanvasModel.createKeys.createLegendRows() : [];
   useEffect(() => { if (open) panel.current?.focus(); }, [open]);
   // o Button não repassa ref (React 18): o foco volta ao botão pelo contêiner
   const close = () => { setOpen(false); root.current?.querySelector('button')?.focus(); };
@@ -46,6 +47,9 @@ function CanvasLegend() {
           <span>{i.label}</span>
         </li>)}
       </Section>
+      {createRows.length ? <Section title="Criar terminal (foco no canvas)">
+        {createRows.map((r) => <li key={r.kind} className="flex items-center justify-between gap-2"><span>{r.label}</span><kbd className="border border-border-strong bg-muted px-1 font-mono t-micro">{r.keys}</kbd></li>)}
+      </Section> : null}
       <p className="t-meta text-muted-foreground">Longe, só a cor aparece. Amplie para ver forma, ícone e indicadores.</p>
     </div> : null}
     <Button size="sm" variant="outline" icon={I.Shapes} aria-expanded={open} aria-controls={open ? PANEL_ID : undefined}

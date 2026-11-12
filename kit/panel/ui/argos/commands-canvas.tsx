@@ -639,7 +639,7 @@ function makeArgosCanvasCommands() {
         }),
       });
       add("A4", { id: "batch:resume", label: "Retomar os selecionados", hint: "confirma antes de enviar", group: GROUP_OWNER, shortcut: "shift+r", surfaces: SURFACES_CANVAS, when: hasSelection(1), run: runBatch("resume") });
-      add("A4", { id: "batch:approve", label: "Aprovar as permissões dos selecionados", hint: "confirma antes de enviar", group: GROUP_OWNER, shortcut: "shift+a", surfaces: SURFACES_CANVAS, when: hasSelection(1), run: runBatch("approve_permission") });
+      add("A4", { id: "batch:approve", label: "Aprovar as permissões dos selecionados", hint: "confirma antes de enviar", group: GROUP_OWNER, shortcut: "shift+y", surfaces: SURFACES_CANVAS, when: hasSelection(1), run: runBatch("approve_permission") });
       add("A4", { id: "batch:deny", label: "Negar as permissões dos selecionados", hint: "confirma antes de enviar", group: GROUP_OWNER, shortcut: "shift+x", surfaces: SURFACES_CANVAS, when: hasSelection(1), run: runBatch("deny_permission") });
       add("A4", { id: "batch:park", label: "Estacionar os selecionados", hint: "pede o handoff a cada um; confirma antes de enviar", group: GROUP_OWNER, surfaces: SURFACES_CANVAS, when: hasSelection(1), run: runBatch("park") });
     }

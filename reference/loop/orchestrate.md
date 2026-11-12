@@ -194,6 +194,8 @@ Eventos: `QUESTION`, `PR-OPEN`, `DONE`, `DONE-HELD`, `DISMISSED`, `DISMISS-READY
   mostra `idle`/`done`. Nos modos `skill` e `review`, sem PR da unidade, valem o herdr e a auditoria do `agent done`.
   Correção depois disso abre agente novo na mesma worktree (`agent new --resume <worktree>`/`phase`), a partir do
   `handoff.md` e do `report.md`: `agent resume` e `canvas recruit --cwd` avisam disso (aviso, não recusa).
+- **Canvas depois de recrutar ou dispensar:** `hades canvas organize` (`--dry-run` antes, se quiser ver) devolve as áreas por
+  orquestrador sem mover o que já está arrumado (`reference/argos.md` §Organizar em áreas).
 - **`DISMISS-READY <agente>`**: tudo ok para fechar, mas a chave está desligada: o fechamento é seu (`hades agent done`).
 - **`DISMISS-HELD <agente> <motivo>`**: o `DONE` saiu, mas o fechamento não: `herdr-working`/`herdr-blocked` (sessão ainda
   ativa), `herdr-fora`, `herdr-desconhecido`, `sem-pr`, `pr-ilegivel`, `pr-head-diferente`, `auditoria` (git sujo ou commit

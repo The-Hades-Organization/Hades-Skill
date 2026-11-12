@@ -4,6 +4,23 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.45.0 — 2026-11-12
+
+Capacidade nova (#111): `hades canvas organize [--canvas <id>] [--dry-run]` reorganiza o canvas em áreas por
+orquestrador, sem a lista fixa de nomes que o script manual exigia.
+
+- Grupos pelo grafo, por id: recrutas pela aresta `recruit` (ou `data.recruiter`); nota ligada a um recruta fica ao
+  lado dele; nota ligada a vários recrutas ou ao orquestrador vai ao cabeçalho; terminal do dono com nota ganha área
+  própria; o resto vai a um bloco no fim e sai listado em `FORA`. Nome repetido não confunde.
+- Medidas em `ORGANIZE_LAYOUT` (terminal 1340x800, nota 280x200, padding 48), usando o maior entre a medida e o
+  tamanho real, então nada sobrepõe. Grava numa única op pelo mesmo `commit` dos outros subcomandos.
+- Idempotente: sem mudança no grafo não grava; equipe nova entra à direita sem mover as outras; nó travado, fixado ou
+  vivo não se move; título e cor de área editados pelo dono ficam.
+- Sub-áreas opcionais por `canvas-areas.json` em `$D` (regras `prefix` ou `pattern` com `*`/`?`); arquivo inválido
+  sai 1 com `organize_invalid_rules`.
+- Armadilha: o slug da sub-área tira acento, porque o id de nó só aceita ASCII.
+- Fica para depois: o botão "Organizar" no painel (o Shift+T atual roda o `tidyArrange`, com outra geometria).
+
 ## 6.44.0 — 2026-11-12
 
 Capacidade nova (#114, fatia 1): o desenho do Argos (nó `drawing`) ganhou fluidez, seleção e atalhos.

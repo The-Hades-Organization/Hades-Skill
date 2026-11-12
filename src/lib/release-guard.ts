@@ -3,7 +3,8 @@
 import { hostname, userInfo } from "node:os";
 import { join } from "node:path";
 import { readText } from "./fs.ts";
-import { domainTerms, nameTerms, vocabulary } from "./profile.ts";
+import { domainTerms, loadProfile, nameTerms, vocabulary } from "./profile.ts";
+import { resolveProject } from "./project.ts";
 
 // marcadores de segredo montados em partes: o pacote não pode conter o literal que a própria varredura procura
 const SECRET_PARTS = [
@@ -27,12 +28,25 @@ export interface GuardTerms {
   slug: string;
 }
 
-/** Os termos dos perfis instalados; `roots` são as pastas de onde ler o slug da skill (config.tsv do kit). */
-export function guardTerms(roots: string[]): GuardTerms {
+/** Nome e vocabulário (ERE) do projeto ativo em `cwd`; vazio sem perfil no diretório. */
+export function activeProjectTerms(cwd: string): { name: string; vocab: string[] } | undefined {
+  const resolution = resolveProject(cwd);
+  if (resolution.code !== 0 || !resolution.project) return undefined;
+  const identity = loadProfile(resolution).identity;
+  const vocab = typeof identity === "object" && identity !== null && !Array.isArray(identity) ? identity.vocabulary : undefined;
+  return { name: resolution.project, vocab: Array.isArray(vocab) ? vocab.filter((v): v is string => typeof v === "string") : [] };
+}
+
+/**
+ * Os termos dos perfis instalados; `roots` são as pastas de onde ler o slug da skill (config.tsv do kit). `except` tira
+ * o perfil do projeto ativo (nome e vocabulário): os termos dos outros perfis seguem valendo.
+ */
+export function guardTerms(roots: string[], except?: { name: string; vocab: string[] }): GuardTerms {
   const { terms: domain, allow } = domainTerms();
+  const dropped = new Set(except?.vocab);
   return {
-    names: [...new Set(nameTerms().flatMap((p) => p.terms))].sort(byCodepoint),
-    vocab: vocabulary().filter(Boolean),
+    names: [...new Set(nameTerms().filter((p) => p.name !== except?.name).flatMap((p) => p.terms))].sort(byCodepoint),
+    vocab: vocabulary().filter((v) => v && !dropped.has(v)),
     domain,
     allow: allow.filter(Boolean),
     slug: skillRepoSlug(roots),

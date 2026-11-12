@@ -65,13 +65,15 @@ export interface GuardRequest {
   credentials?: string;
   skillRoots: string[];
   cwd: string;
+  /** o projeto ativo, dispensado da varredura de nome (só página pessoal de explicação/proposta) */
+  exceptProject?: { name: string; vocab: string[] };
 }
 
 /** Camada 1 e depois 2. Lista vazia = liberado. */
 export function guardPublication(request: GuardRequest): string[] {
   const memory = scanOutput({
     texts: [{ label: "página", text: request.page }, { label: "dados", text: request.data }],
-    credentials: request.credentials, terms: guardTerms(request.skillRoots),
+    credentials: request.credentials, terms: guardTerms(request.skillRoots, request.exceptProject),
   });
   return memory.length ? memory : cerberusReasons(request.page, request.cwd);
 }

@@ -139,7 +139,7 @@ qualquer arquivo ficar no lugar:
 2. o momento `artefato` do Cerberus (`segredo-diff` com `--ctx arquivo=`), sobre a página em uma pasta de preparo.
 
 Acontece em toda chamada de `publish`, na primeira e nas atualizações, para a página pessoal e a do time. A recusa diz o
-motivo e onde (`campo` ou `linha`), nunca repete o valor. Segredo que já foi publicado é credencial queimada: reescrever a
+motivo e onde (`campo` ou `linha`), nunca repete o valor. Na página **pessoal** de `explicacao` e `proposta` (inclusive `--html`), a varredura dispensa só o nome e o vocabulário do perfil do projeto ativo (`hades project resolve` do cwd); credencial, caminho da máquina, e-mail, valores do `credenciais.md` e termos de **outros** perfis seguem barrando, e a página do time, a orquestração e o cwd sem perfil ficam com a guarda inteira. Segredo que já foi publicado é credencial queimada: reescrever a
 página não basta.
 
 ## Página do time

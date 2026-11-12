@@ -4,6 +4,7 @@ import { existsSync, statSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { collectOrchestration } from "./minos-collect.ts";
 import { guardPublication } from "./minos-guard.ts";
+import { activeProjectTerms } from "./release-guard.ts";
 import { readText } from "./fs.ts";
 import { descriptionOf, loadTemplate, renderPage, type MinosData } from "./minos-html.ts";
 import { ContractError, MODELS, type ModelId, type OrchestrationData, type Scope } from "./minos-model.ts";
@@ -76,7 +77,9 @@ export function publish(request: PublishRequest): Published | Refusal {
     return refuse("input", error instanceof Error ? error.message : String(error));
   }
   const page = renderPage(loadTemplate(), data);
-  const reasons = guardPublication({ page, data: JSON.stringify(data, null, 2), credentials: request.credentials, skillRoots: request.skillRoots, cwd: request.cwd });
+  // a página pessoal de explicação/proposta descreve o projeto do dono: o nome dele não é vazamento ali
+  const exceptProject = MODELS[request.model].source === "json" && request.scope === "personal" ? activeProjectTerms(request.cwd) : undefined;
+  const reasons = guardPublication({ page, data: JSON.stringify(data, null, 2), credentials: request.credentials, skillRoots: request.skillRoots, cwd: request.cwd, exceptProject });
   if (reasons.length) return refuse("guard", ...reasons);
 
   if (request.htmlFile !== undefined) {

@@ -4,6 +4,21 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.37.1 — 2026-11-11
+
+Correção (#109): o `hades minos publish explicacao|proposta` recusava toda página sobre o projeto ativo, porque a
+camada 1 da guarda varria os termos de todos os perfis instalados, inclusive o do cwd.
+
+- Na página pessoal (sem `--team`) dos modelos `explicacao` e `proposta`, a varredura de nome dispensa o perfil do
+  projeto do cwd (`activeProjectTerms` → `guardTerms(roots, except)`). Credencial, caminho da máquina, e-mail, valores
+  do `credenciais.md` e termos de outros perfis seguem barrados; página do time e modelo de orquestração não mudam.
+- Armadilha: o vocabulário é subtraído por igualdade de texto; um termo ERE idêntico em outro perfil também sai da
+  varredura dessa página.
+- Teste: `loop/test/ts/minos-guarda-projeto.test.ts` (7 casos).
+- Release: a guarda de nome da `skill-release` só acusa o nome do perfil sem letra colada dos dois lados. Um perfil de
+  nome curto contido numa palavra comum (como "credenciais") fazia a guarda barrar 83 arquivos; `nome_db` e `NOME_URL`
+  seguem acusados (por isso não é `grep -w`, que trata `_` como letra).
+
 ## 6.37.0 — 2026-11-09
 
 Capacidade nova, pedida pelo dono: o Minos publica mais dois modelos de página, além do acompanhamento da orquestração.

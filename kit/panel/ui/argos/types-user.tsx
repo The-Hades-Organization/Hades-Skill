@@ -687,24 +687,22 @@ function makeArgosTypesUser() {
     return undefined;
   }
 
-  /** Um elemento da cena como filho de `<svg>` (React, sem HTML cru). */
+  /** Um elemento da cena como filho de `<svg>` (React, sem HTML cru). Mesmo traçado do SVG da CLI (`strokePath`, `strokeWidth`, `arrowHead`). */
   function drawingShape(dm: DrawingModel, scene: Scene, el: SceneElement, preview = false): Tree {
     const stroke = el.stroke ?? "currentColor";
     const width = "width" in el && el.width !== undefined ? el.width : 2;
     const line = { stroke, strokeWidth: width, strokeLinecap: "round", strokeLinejoin: "round", opacity: preview ? 0.6 : 1 };
     switch (el.type) {
-      case "stroke": return h("polyline", { key: el.id, points: el.points.map(([x, y]) => `${x},${y}`).join(" "), fill: "none", ...line });
+      case "stroke": return h("path", { key: el.id, d: dm.strokePath(el.points), fill: "none", ...line, strokeWidth: dm.strokeWidth(el) });
       case "rect": return h("rect", { key: el.id, x: el.x, y: el.y, width: el.w, height: el.h, fill: el.fill ?? "none", ...line });
       case "ellipse": return h("ellipse", { key: el.id, cx: el.x + el.w / 2, cy: el.y + el.h / 2, rx: el.w / 2, ry: el.h / 2, fill: el.fill ?? "none", ...line });
       case "line":
       case "arrow": {
         const [a, b] = dm.connectorEnds(scene, el);
-        const angle = Math.atan2(b.y - a.y, b.x - a.x);
-        const size = 10 + width * 2;
-        const wing = (turn: number): string => `${b.x - size * Math.cos(angle + turn)},${b.y - size * Math.sin(angle + turn)}`;
+        const wings = el.type === "arrow" && (a.x !== b.x || a.y !== b.y) ? dm.arrowHead(a, b, width) : undefined;
         return h("g", { key: el.id },
           h("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, ...line }),
-          el.type === "arrow" && (a.x !== b.x || a.y !== b.y) ? h("polyline", { points: `${wing(Math.PI / 7)} ${b.x},${b.y} ${wing(-Math.PI / 7)}`, fill: "none", ...line }) : null);
+          wings ? h("polyline", { points: `${wings[0].x},${wings[0].y} ${b.x},${b.y} ${wings[1].x},${wings[1].y}`, fill: "none", ...line }) : null);
       }
       case "text": {
         const size = el.size ?? 16;
@@ -714,16 +712,54 @@ function makeArgosTypesUser() {
     }
   }
 
+  type ResizeHandle = Parameters<DrawingModel["resizeBox"]>[1];
+  type Box = { x: number; y: number; w: number; h: number };
+  type Gesture =
+    | { kind: "move"; from: Pt; dx: number; dy: number }
+    | { kind: "resize"; handle: ResizeHandle; from: Pt; dx: number; dy: number; box: Box }
+    | { kind: "marquee"; from: Pt; to: Pt };
+  const HANDLE_SIZE = 8;
+  const DUPLICATE_OFFSET = 16;
+  const MARQUEE_MIN = 3;
+  const HANDLE_CURSOR: Record<string, string> = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize", ne: "nesw-resize", sw: "nesw-resize", nw: "nwse-resize", se: "nwse-resize" };
+  const TOOL_BUTTON = "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center px-2 t-label text-foreground border border-border-strong outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-40 sm:min-h-8 sm:min-w-8";
+  const TOOL_CURSOR: Record<DrawTool, string> = { select: "cursor-default", rect: "cursor-crosshair", ellipse: "cursor-crosshair", line: "cursor-crosshair", arrow: "cursor-crosshair", stroke: "cursor-crosshair", text: "cursor-text" };
+
+  /** Cor de um token de tema (`--<token>`) como `#rrggbb[aa]`, resolvida pelo navegador (aceita oklch etc.) via canvas 1×1; vazio se não resolver. */
+  function tokenHex(dm: DrawingModel, token: string): string | undefined {
+    try {
+      const probe = document.createElement("span");
+      probe.style.color = `var(--${token})`;
+      document.body.appendChild(probe);
+      const resolved = getComputedStyle(probe).color;
+      probe.remove();
+      const canvas = document.createElement("canvas");
+      canvas.width = 1; canvas.height = 1;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context || !resolved) return undefined;
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = resolved;
+      context.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = context.getImageData(0, 0, 1, 1).data;
+      return dm.rgbaToHex(r, g, b, a / 255);
+    } catch {
+      return undefined;
+    }
+  }
+
   function DrawingBody(props: { id: string; w: number; h: number; data: Readonly<Record<string, unknown>>; dm: DrawingModel; deps: UserTypesDeps }): Tree {
     const { id, dm, deps } = props;
     const [editing, setEditing] = React.useState(false);
     const [tool, setTool] = React.useState<DrawTool>("select");
-    const [selected, setSelected] = React.useState<string | undefined>(undefined);
+    const [selected, setSelected] = React.useState<readonly string[]>([]);
     const [draft, setDraft] = React.useState<Draft | undefined>(undefined);
-    const [moving, setMoving] = React.useState<{ from: Pt; dx: number; dy: number } | undefined>(undefined);
+    const [gesture, setGesture] = React.useState<Gesture | undefined>(undefined);
     const [pendingText, setPendingText] = React.useState<{ at: Pt; id?: string; text: string } | undefined>(undefined);
+    const [color, setColor] = React.useState<string | undefined>(undefined);
+    const [lineWidth, setLineWidth] = React.useState<number>(2);
     const [error, setError] = React.useState<string | null>(null);
     const svgRef = React.useRef<SVGSVGElement | null>(null);
+    const pressures = React.useRef<number[]>([]);
     let scene: Scene | undefined;
     try {
       scene = dm.readDrawingData(props.data);
@@ -733,6 +769,7 @@ function makeArgosTypesUser() {
     if (!scene) return h("p", { role: "alert", className: "p-1 text-bad t-label" }, "Desenho inválido no documento.");
     const base: Scene = scene;
     const editable = deps.onDrawingChange !== undefined;
+    const live = selected.filter((sel) => base.elements.some((el) => el.id === sel));
     const apply = (next: () => Scene): boolean => {
       try {
         deps.onDrawingChange?.(id, next());
@@ -749,73 +786,126 @@ function makeArgosTypesUser() {
       if (!rect || rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
       return { x: ((event.clientX - rect.left) * props.w) / rect.width, y: ((event.clientY - rect.top) * props.h) / rect.height };
     };
-    const leave = (): void => { setEditing(false); setDraft(undefined); setMoving(undefined); setPendingText(undefined); setSelected(undefined); setError(null); };
+    const leave = (): void => { setEditing(false); setDraft(undefined); setGesture(undefined); setPendingText(undefined); setSelected([]); setError(null); setTool("select"); };
     const endOf = (at: Pt, ref: string | undefined): Record<string, unknown> => (ref !== undefined ? { ref } : { x: at.x, y: at.y });
+    const look = (): Record<string, unknown> => ({ ...(color !== undefined && { stroke: color }), ...(lineWidth !== 2 && { width: lineWidth }) });
+    const chooseTool = (next: DrawTool): void => { setTool(next); setPendingText(undefined); setDraft(undefined); setGesture(undefined); };
+    const pickColor = (token: string): void => {
+      const hex = token === "foreground" ? undefined : tokenHex(dm, token);
+      setColor(hex);
+    };
 
-    const onDown = (event: { clientX: number; clientY: number; button: number; pointerId: number; currentTarget: Element; stopPropagation(): void }): void => {
+    const onDown = (event: { clientX: number; clientY: number; button: number; pointerId: number; pointerType?: string; pressure?: number; shiftKey?: boolean; target: unknown; currentTarget: Element; stopPropagation(): void }): void => {
       if (!editing || event.button !== 0) return;
       event.stopPropagation();
       const at = pointOf(event);
       if (tool === "text") { setPendingText({ at, text: "" }); return; }
       (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
       if (tool === "select") {
+        const handle = (event.target as Element | null)?.getAttribute?.("data-handle") as ResizeHandle | null | undefined;
+        const bounds = live.length > 0 ? dm.selectionBounds(base, live) : undefined;
+        if (handle && bounds) { setGesture({ kind: "resize", handle, from: at, dx: 0, dy: 0, box: bounds }); return; }
         const hit = hitElement(dm, base, at);
-        setSelected(hit);
-        if (hit !== undefined) setMoving({ from: at, dx: 0, dy: 0 });
-      } else if (tool === "stroke") setDraft({ tool, points: [[at.x, at.y]] });
-      else setDraft({ tool, from: at, to: at, ...(tool === "line" || tool === "arrow" ? (() => { const ref = anchorAt(dm, base, at); return ref === undefined ? {} : { fromRef: ref }; })() : {}) });
+        if (hit === undefined) { if (!event.shiftKey) setSelected([]); setGesture({ kind: "marquee", from: at, to: at }); return; }
+        if (event.shiftKey) { setSelected(live.includes(hit) ? live.filter((sel) => sel !== hit) : [...live, hit]); return; }
+        if (!live.includes(hit)) setSelected([hit]);
+        setGesture({ kind: "move", from: at, dx: 0, dy: 0 });
+      } else if (tool === "stroke") {
+        pressures.current = [event.pointerType === "pen" ? (event.pressure ?? 0.5) : -1];
+        setDraft({ tool, points: [[at.x, at.y]] });
+      } else setDraft({ tool, from: at, to: at, ...(tool === "line" || tool === "arrow" ? (() => { const ref = anchorAt(dm, base, at); return ref === undefined ? {} : { fromRef: ref }; })() : {}) });
     };
-    const onMove = (event: { clientX: number; clientY: number }): void => {
+    const onMove = (event: { clientX: number; clientY: number; pointerType?: string; pressure?: number }): void => {
       if (!editing) return;
       const at = pointOf(event);
-      if (moving) setMoving({ ...moving, dx: at.x - moving.from.x, dy: at.y - moving.from.y });
+      if (gesture?.kind === "move" || gesture?.kind === "resize") setGesture({ ...gesture, dx: at.x - gesture.from.x, dy: at.y - gesture.from.y });
+      else if (gesture?.kind === "marquee") setGesture({ ...gesture, to: at });
       else if (draft?.tool === "stroke") {
         const last = draft.points.at(-1) as [number, number];
-        if (draft.points.length < dm.DRAWING_LIMITS.strokePoints && Math.hypot(at.x - last[0], at.y - last[1]) >= STROKE_MIN_STEP) setDraft({ tool: "stroke", points: [...draft.points, [at.x, at.y]] });
+        if (draft.points.length < dm.DRAWING_LIMITS.strokePoints && Math.hypot(at.x - last[0], at.y - last[1]) >= STROKE_MIN_STEP) {
+          pressures.current.push(event.pointerType === "pen" ? (event.pressure ?? 0.5) : -1);
+          setDraft({ tool: "stroke", points: [...draft.points, [at.x, at.y]] });
+        }
       } else if (draft) setDraft({ ...draft, to: at });
     };
-    const onUp = (event: { clientX: number; clientY: number }): void => {
+    const onUp = (event: { clientX: number; clientY: number; shiftKey?: boolean }): void => {
       if (!editing) return;
       const at = pointOf(event);
-      if (moving && selected !== undefined) {
-        const { dx, dy } = moving;
-        setMoving(undefined);
-        if (Math.abs(dx) + Math.abs(dy) >= 1) apply(() => dm.moveElement(base, selected, dx, dy));
+      if (gesture) {
+        setGesture(undefined);
+        if (gesture.kind === "move") {
+          if (Math.abs(gesture.dx) + Math.abs(gesture.dy) >= 1) apply(() => dm.moveElements(base, live, gesture.dx, gesture.dy));
+        } else if (gesture.kind === "resize") {
+          if (Math.abs(gesture.dx) + Math.abs(gesture.dy) >= 1) apply(() => dm.scaleElements(base, live, gesture.box, dm.resizeBox(gesture.box, gesture.handle, gesture.dx, gesture.dy)));
+        } else {
+          const rect = { x: Math.min(gesture.from.x, at.x), y: Math.min(gesture.from.y, at.y), w: Math.abs(at.x - gesture.from.x), h: Math.abs(at.y - gesture.from.y) };
+          if (rect.w >= MARQUEE_MIN || rect.h >= MARQUEE_MIN) {
+            const inside = dm.elementsInRect(base, rect);
+            setSelected(event.shiftKey ? [...new Set([...live, ...inside])] : inside);
+          }
+        }
         return;
       }
       if (!draft) return;
       setDraft(undefined);
       if (draft.tool === "stroke") {
-        if (draft.points.length >= 2) apply(() => dm.addElement(base, { type: "stroke", points: draft.points }).scene);
+        if (draft.points.length >= 2) {
+          const samples = pressures.current;
+          const pressure = samples.length === draft.points.length && samples.every((value) => value >= 0) ? samples : undefined;
+          apply(() => dm.addStroke(base, { points: draft.points, ...(pressure && { pressure }), ...look() }).scene);
+        }
         return;
       }
       if (draft.tool === "line" || draft.tool === "arrow") {
         const toRef = anchorAt(dm, base, at);
         if (Math.hypot(at.x - draft.from.x, at.y - draft.from.y) < MIN_SHAPE) return;
-        apply(() => dm.addElement(base, { type: draft.tool, from: endOf(draft.from, draft.fromRef), to: endOf(at, toRef) }).scene);
+        apply(() => dm.addElement(base, { type: draft.tool, from: endOf(draft.from, draft.fromRef), to: endOf(at, toRef), ...look() }).scene);
         return;
       }
       const box = { x: Math.min(draft.from.x, at.x), y: Math.min(draft.from.y, at.y), w: Math.abs(at.x - draft.from.x), h: Math.abs(at.y - draft.from.y) };
       if (box.w < MIN_SHAPE || box.h < MIN_SHAPE) return;
-      apply(() => dm.addElement(base, { type: draft.tool, ...box }).scene);
+      apply(() => dm.addElement(base, { type: draft.tool, ...box, ...look() }).scene);
     };
-    const onKey = (event: { key: string; preventDefault(): void; stopPropagation(): void; target: unknown }): void => {
+    const onKey = (event: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; shiftKey?: boolean; preventDefault(): void; stopPropagation(): void; target: unknown }): void => {
       if (!editing) { if (event.key === "Enter" && editable) { event.preventDefault(); setEditing(true); } return; }
       const inField = (event.target as { tagName?: string } | null)?.tagName === "INPUT";
-      if (event.key === "Escape") { event.stopPropagation(); if (pendingText) setPendingText(undefined); else if (draft || moving) { setDraft(undefined); setMoving(undefined); } else leave(); return; }
-      if (inField) return;
-      if ((event.key === "Delete" || event.key === "Backspace") && selected !== undefined) {
-        event.preventDefault();
-        const target = selected;
-        if (apply(() => dm.removeElement(base, target))) setSelected(undefined);
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        if (pendingText) setPendingText(undefined);
+        else if (draft || gesture) { setDraft(undefined); setGesture(undefined); }
+        else if (tool !== "select") setTool("select");
+        else if (live.length > 0) setSelected([]);
+        else leave();
+        return;
       }
+      if (inField) return;
+      const mod = event.ctrlKey === true || event.metaKey === true;
+      if (mod && event.key.toLowerCase() === "d") {
+        event.preventDefault(); event.stopPropagation();
+        if (live.length > 0) { let fresh: string[] = []; if (apply(() => { const out = dm.duplicateElements(base, live, DUPLICATE_OFFSET, DUPLICATE_OFFSET); fresh = out.ids; return out.scene; })) setSelected(fresh); }
+        return;
+      }
+      if (mod || event.altKey) return;
+      if ((event.key === "Delete" || event.key === "Backspace") && live.length > 0) {
+        event.preventDefault();
+        if (apply(() => dm.removeElements(base, live))) setSelected([]);
+        return;
+      }
+      if ((event.key === "PageUp" || event.key === "PageDown") && live.length > 0) {
+        event.preventDefault(); event.stopPropagation();
+        const up = event.key === "PageUp";
+        apply(() => dm.reorderElements(base, live, event.shiftKey ? (up ? "front" : "back") : (up ? "forward" : "backward")));
+        return;
+      }
+      const entry = dm.DRAW_SHORTCUTS.find((candidate) => candidate.key === event.key.toLowerCase());
+      if (entry && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); chooseTool(entry.tool); }
     };
     const commitText = (): void => {
       if (!pendingText) return;
       const { at, id: elementId, text } = pendingText;
       setPendingText(undefined);
       if (text.trim() === "") return;
-      apply(() => (elementId !== undefined ? dm.setElementText(base, elementId, text) : dm.addElement(base, { type: "text", x: at.x, y: at.y, text }).scene));
+      apply(() => (elementId !== undefined ? dm.setElementText(base, elementId, text) : dm.addElement(base, { type: "text", x: at.x, y: at.y, text, ...(color !== undefined && { stroke: color }) }).scene));
     };
     const onDouble = (event: { clientX: number; clientY: number; stopPropagation(): void }): void => {
       if (!editing) { if (editable) setEditing(true); return; }
@@ -826,36 +916,59 @@ function makeArgosTypesUser() {
     };
 
     const shown: Scene = (() => {
-      if (!moving || selected === undefined) return base;
-      try { return dm.moveElement(base, selected, moving.dx, moving.dy); } catch (caught) { if (caught instanceof dm.DrawingError) return base; throw caught; }
+      if (!gesture || gesture.kind === "marquee" || live.length === 0) return base;
+      try {
+        if (gesture.kind === "move") return dm.moveElements(base, live, gesture.dx, gesture.dy);
+        return dm.scaleElements(base, live, gesture.box, dm.resizeBox(gesture.box, gesture.handle, gesture.dx, gesture.dy));
+      } catch (caught) { if (caught instanceof dm.DrawingError) return base; throw caught; }
     })();
+    const previewLook = { ...(color !== undefined && { stroke: color }), ...(lineWidth !== 2 && { width: lineWidth }) };
     const previewEl = ((): SceneElement | undefined => {
       if (!draft) return undefined;
-      if (draft.tool === "stroke") return draft.points.length >= 2 ? { id: "preview", type: "stroke", points: draft.points } : undefined;
-      if (draft.tool === "line" || draft.tool === "arrow") return { id: "preview", type: draft.tool, from: { x: draft.from.x, y: draft.from.y }, to: { x: draft.to.x, y: draft.to.y } };
-      return { id: "preview", type: draft.tool, x: Math.min(draft.from.x, draft.to.x), y: Math.min(draft.from.y, draft.to.y), w: Math.abs(draft.to.x - draft.from.x), h: Math.abs(draft.to.y - draft.from.y) };
+      if (draft.tool === "stroke") return draft.points.length >= 2 ? { id: "preview", type: "stroke", points: draft.points, ...previewLook } : undefined;
+      if (draft.tool === "line" || draft.tool === "arrow") return { id: "preview", type: draft.tool, from: { x: draft.from.x, y: draft.from.y }, to: { x: draft.to.x, y: draft.to.y }, ...previewLook };
+      return { id: "preview", type: draft.tool, x: Math.min(draft.from.x, draft.to.x), y: Math.min(draft.from.y, draft.to.y), w: Math.abs(draft.to.x - draft.from.x), h: Math.abs(draft.to.y - draft.from.y), ...previewLook };
     })();
-    const selBox = selected !== undefined && editing ? (() => { const el = shown.elements.find((c) => c.id === selected); return el ? dm.elementBox(shown, el) : undefined; })() : undefined;
+    const selBox: Box | undefined = editing && live.length > 0 ? dm.selectionBounds(shown, live) : undefined;
+    const marquee = gesture?.kind === "marquee" ? { x: Math.min(gesture.from.x, gesture.to.x), y: Math.min(gesture.from.y, gesture.to.y), w: Math.abs(gesture.to.x - gesture.from.x), h: Math.abs(gesture.to.y - gesture.from.y) } : undefined;
+    const handles = selBox && tool === "select" ? dm.RESIZE_HANDLES.map((handle) => {
+      const cx = selBox.x + (handle.includes("w") ? 0 : handle.includes("e") ? selBox.w : selBox.w / 2);
+      const cy = selBox.y + (handle.includes("n") ? 0 : handle.includes("s") ? selBox.h : selBox.h / 2);
+      return h("rect", { key: handle, "data-handle": handle, x: cx - HANDLE_SIZE / 2, y: cy - HANDLE_SIZE / 2, width: HANDLE_SIZE, height: HANDLE_SIZE, fill: "var(--background)", stroke: "currentColor", style: { cursor: HANDLE_CURSOR[handle] } });
+    }) : [];
 
-    return h("div", { className: "flex h-full flex-col", onKeyDown: onKey },
+    return h("div", { className: "flex h-full flex-col", onKeyDown: onKey, ...(editing ? { "data-draw-keys": "" } : {}) },
       editing ? h("div", { className: "flex flex-wrap items-center gap-1 border-b border-border p-1", role: "toolbar", "aria-label": "Ferramentas do desenho" },
-        ...DRAW_TOOLS.map((entry) => h("button", { key: entry.id, type: "button", className: `${BUTTON} ${tool === entry.id ? "bg-accent" : ""}`, "aria-pressed": tool === entry.id ? "true" : "false",
-          onClick: () => { setTool(entry.id); setPendingText(undefined); } }, entry.label)),
-        h("button", { type: "button", className: BUTTON, disabled: selected === undefined, onClick: () => { if (selected !== undefined && apply(() => dm.removeElement(base, selected))) setSelected(undefined); } }, "Apagar"),
-        h("button", { type: "button", className: BUTTON, onClick: () => { exportDrawingPng(dm, base, base.title ?? id).catch(() => setError("Não deu para exportar o PNG.")); } }, "PNG"),
-        h("button", { type: "button", className: BUTTON, onClick: leave }, "Sair"),
+        ...DRAW_TOOLS.map((entry) => {
+          const key = dm.DRAW_SHORTCUTS.find((candidate) => candidate.tool === entry.id)?.key;
+          return h("button", { key: entry.id, type: "button", className: `${TOOL_BUTTON} ${tool === entry.id ? "bg-accent" : ""}`, "aria-pressed": tool === entry.id ? "true" : "false",
+            title: key ? `${entry.label} (${key.toUpperCase()})` : entry.label, "aria-keyshortcuts": key?.toUpperCase(), onClick: () => chooseTool(entry.id) }, entry.label);
+        }),
+        h("span", { className: "flex flex-wrap items-center gap-1", role: "group", "aria-label": "Cor" },
+          ...dm.DRAW_PALETTE.map((entry) => h("button", { key: entry.token, type: "button", title: entry.label, "aria-label": entry.label, "aria-pressed": (entry.token === "foreground" ? color === undefined : false) ? "true" : "false",
+            className: `${TOOL_BUTTON} ${entry.token === "foreground" && color === undefined ? "bg-accent" : ""}`, onClick: () => pickColor(entry.token) },
+            h("span", { "aria-hidden": "true", className: "block size-4 border border-border-strong", style: { backgroundColor: `var(--${entry.token})` } })))),
+        h("span", { className: "flex flex-wrap items-center gap-1", role: "group", "aria-label": "Espessura" },
+          ...dm.DRAW_WIDTHS.map((value) => h("button", { key: value, type: "button", title: `Espessura ${value}`, "aria-label": `Espessura ${value}`, "aria-pressed": lineWidth === value ? "true" : "false",
+            className: `${TOOL_BUTTON} ${lineWidth === value ? "bg-accent" : ""}`, onClick: () => setLineWidth(value) },
+            h("span", { "aria-hidden": "true", className: "block w-4 bg-foreground", style: { height: value } })))),
+        h("button", { type: "button", className: TOOL_BUTTON, disabled: live.length === 0, onClick: () => { if (apply(() => dm.removeElements(base, live))) setSelected([]); } }, "Apagar"),
+        h("button", { type: "button", className: TOOL_BUTTON, onClick: () => { exportDrawingPng(dm, base, base.title ?? id).catch(() => setError("Não deu para exportar o PNG.")); } }, "PNG"),
+        h("button", { type: "button", className: TOOL_BUTTON, onClick: leave }, "Sair"),
         pendingText ? h("input", { className: "h-7 min-w-24 flex-1 border border-border-strong bg-background px-1 t-label", autoFocus: true, value: pendingText.text, "aria-label": "Texto do desenho", maxLength: dm.DRAWING_LIMITS.textChars,
           onChange: (event: { target: { value: string } }) => setPendingText({ ...pendingText, text: event.target.value }),
           onKeyDown: (event: { key: string }) => { if (event.key === "Enter") commitText(); } }) : null)
         : null,
       h("svg", {
-        ref: svgRef, viewBox: `0 0 ${props.w} ${props.h}`, width: "100%", height: "100%", role: "img", tabIndex: 0, className: `block min-h-0 flex-1 text-foreground ${editing ? "cursor-crosshair touch-none" : ""}`,
+        ref: svgRef, viewBox: `0 0 ${props.w} ${props.h}`, width: "100%", height: "100%", role: "img", tabIndex: 0, className: `block min-h-0 flex-1 text-foreground ${editing ? `${TOOL_CURSOR[tool]} touch-none` : ""}`,
         "aria-label": editable && !editing ? `Desenho ${base.title ?? ""}: duplo clique ou Enter para editar` : `Desenho ${base.title ?? ""}`.trim(),
         onPointerDown: onDown, onPointerMove: onMove, onPointerUp: onUp, onDoubleClick: onDouble,
       },
         ...shown.elements.map((el) => drawingShape(dm, shown, el)),
         previewEl ? drawingShape(dm, shown, previewEl, true) : null,
-        selBox ? h("rect", { x: selBox.x - SELECTION_PAD, y: selBox.y - SELECTION_PAD, width: selBox.w + 2 * SELECTION_PAD, height: selBox.h + 2 * SELECTION_PAD, fill: "none", stroke: "currentColor", strokeDasharray: "4 3", pointerEvents: "none" }) : null),
+        selBox ? h("rect", { x: selBox.x - SELECTION_PAD, y: selBox.y - SELECTION_PAD, width: selBox.w + 2 * SELECTION_PAD, height: selBox.h + 2 * SELECTION_PAD, fill: "none", stroke: "currentColor", strokeDasharray: "4 3", pointerEvents: "none" }) : null,
+        marquee ? h("rect", { x: marquee.x, y: marquee.y, width: marquee.w, height: marquee.h, fill: "currentColor", fillOpacity: 0.08, stroke: "currentColor", strokeDasharray: "4 3", pointerEvents: "none" }) : null,
+        ...handles),
       error ? h("span", { role: "alert", className: "text-bad t-label" }, error) : null);
   }
 

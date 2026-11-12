@@ -86,7 +86,8 @@ interface Look {
   width?: number;
 }
 
-export type StrokeElement = { id: string; type: "stroke"; points: [number, number][] } & Pick<Look, "stroke" | "width">;
+/** `pressure` (opcional, aditivo): uma pressão de 0 a 1 por ponto, na mesma ordem; ausente, a espessura é a do `width`. */
+export type StrokeElement = { id: string; type: "stroke"; points: [number, number][]; pressure?: number[] } & Pick<Look, "stroke" | "width">;
 export type ShapeElement = { id: string; type: "rect" | "ellipse"; x: number; y: number; w: number; h: number } & Look;
 export type ConnectorElement = { id: string; type: "line" | "arrow"; from: ConnectorEnd; to: ConnectorEnd } & Pick<Look, "stroke" | "width">;
 export type TextElement = { id: string; type: "text"; x: number; y: number; text: string; size?: number; stroke?: string };
@@ -148,6 +149,11 @@ function sizeOf(value: unknown): number {
   return value;
 }
 
+function pressureOf(value: unknown, count: number): number[] {
+  if (!Array.isArray(value) || value.length !== count) return fail(DRAWING_ERRORS.invalidElement, "pressão precisa ter um valor por ponto");
+  return value.map((p): number => (typeof p === "number" && Number.isFinite(p) && p >= 0 && p <= 1 ? p : fail(DRAWING_ERRORS.invalidElement, "pressão fora de 0 a 1")));
+}
+
 function endOf(value: unknown, what: string): ConnectorEnd {
   if (!isDict(value)) return fail(DRAWING_ERRORS.invalidConnector, `${what}: ponta precisa ser objeto`);
   if (value.ref !== undefined) {
@@ -176,14 +182,15 @@ function readElement(raw: unknown): DrawingElement {
   if (type === undefined) return fail(DRAWING_ERRORS.invalidElement, "tipo de elemento desconhecido");
   switch (type) {
     case "stroke": {
-      onlyKeys(raw, ["id", "type", "points", "stroke", "width"], type);
+      onlyKeys(raw, ["id", "type", "points", "pressure", "stroke", "width"], type);
       if (!Array.isArray(raw.points) || raw.points.length === 0) return fail(DRAWING_ERRORS.invalidElement, "traço sem pontos");
       if (raw.points.length > DRAWING_LIMITS.strokePoints) return fail(DRAWING_ERRORS.limitExceeded, "traço com pontos demais");
       const points = raw.points.map((p): [number, number] => {
         if (!Array.isArray(p) || p.length !== 2) return fail(DRAWING_ERRORS.invalidElement, "ponto do traço precisa ser [x, y]");
         return [coord(p[0], "ponto"), coord(p[1], "ponto")];
       });
-      return { id, type, points, ...lookOf(raw, ["stroke", "width"]) };
+      const pressure = raw.pressure === undefined ? undefined : pressureOf(raw.pressure, points.length);
+      return { id, type, points, ...(pressure !== undefined && { pressure }), ...lookOf(raw, ["stroke", "width"]) };
     }
     case "rect":
     case "ellipse": {
@@ -452,6 +459,243 @@ export function removeElement(scene: DrawingScene, id: string): DrawingScene {
   return checked({ ...scene, elements });
 }
 
+// ---- traço à mão: ajuste das amostras do ponteiro ----
+
+export const STROKE_FIT = {
+  /** Desvio máximo, em unidades do desenho, entre qualquer amostra e o traço guardado. */
+  tolerance: 0.8,
+  /** Amostras aceitas de entrada: acima disso é recusado antes de qualquer cálculo (o laço do ponteiro limita antes). */
+  inputMax: 20_000,
+  /** Folga que a gravação com 2 casas decimais pode somar ao desvio. */
+  roundingSlack: 0.01,
+} as const;
+
+export interface FittedStroke {
+  points: [number, number][];
+  pressure?: number[];
+}
+
+type Pair = readonly [number, number];
+
+function pairDistance(p: Pair, a: Pair, b: Pair): number {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2));
+  return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+}
+
+/** Índices que sobram de Ramer–Douglas–Peucker (iterativo, sem recursão sobre entrada externa); as pontas ficam sempre. */
+function keptIndices(points: readonly Pair[], tolerance: number): number[] {
+  const last = points.length - 1;
+  const keep = new Array<boolean>(points.length).fill(false);
+  keep[0] = true;
+  keep[last] = true;
+  const stack: [number, number][] = [[0, last]];
+  while (stack.length > 0) {
+    const [lo, hi] = stack.pop() as [number, number];
+    let worst = -1;
+    let at = -1;
+    for (let i = lo + 1; i < hi; i++) {
+      const d = pairDistance(points[i] as Pair, points[lo] as Pair, points[hi] as Pair);
+      if (d > worst) { worst = d; at = i; }
+    }
+    if (at >= 0 && worst > tolerance) {
+      keep[at] = true;
+      stack.push([lo, at], [at, hi]);
+    }
+  }
+  return keep.flatMap((kept, i) => (kept ? [i] : []));
+}
+
+/**
+ * Amostras do ponteiro → traço guardado: tira repetidos, simplifica (nenhuma amostra fica além de `tolerance` do traço) e, se
+ * ainda passar de `strokePoints`, reamostra por igual mantendo as pontas. A pressão, se vier, acompanha os pontos que sobram.
+ * Erros: `drawing_limit_exceeded` (entrada acima de `STROKE_FIT.inputMax`) e `drawing_invalid_element`.
+ */
+export function fitStroke(raw: readonly (readonly [number, number])[], pressure?: readonly number[], tolerance: number = STROKE_FIT.tolerance): FittedStroke {
+  if (!Array.isArray(raw) || raw.length === 0) return fail(DRAWING_ERRORS.invalidElement, "traço sem pontos");
+  if (raw.length > STROKE_FIT.inputMax) return fail(DRAWING_ERRORS.limitExceeded, "traço com amostras demais");
+  if (pressure !== undefined) pressureOf(pressure, raw.length);
+  if (typeof tolerance !== "number" || !Number.isFinite(tolerance) || tolerance < 0) return fail(DRAWING_ERRORS.invalidElement, "tolerância inválida");
+  const points: Pair[] = [];
+  const source: number[] = [];
+  raw.forEach((candidate, i) => {
+    if (!Array.isArray(candidate) || candidate.length !== 2) return fail(DRAWING_ERRORS.invalidElement, "amostra do traço precisa ser [x, y]");
+    const p: Pair = [coord(candidate[0], "ponto"), coord(candidate[1], "ponto")];
+    const before = points[points.length - 1];
+    if (before && before[0] === p[0] && before[1] === p[1]) return;
+    points.push(p);
+    source.push(i);
+  });
+  let picked = keptIndices(points, Math.max(0, tolerance - STROKE_FIT.roundingSlack));
+  if (picked.length > DRAWING_LIMITS.strokePoints) {
+    const last = picked.length - 1;
+    picked = Array.from({ length: DRAWING_LIMITS.strokePoints }, (_, i) => picked[Math.round((i * last) / (DRAWING_LIMITS.strokePoints - 1))] as number);
+  }
+  const out: FittedStroke = { points: picked.map((i): [number, number] => [round2((points[i] as Pair)[0]), round2((points[i] as Pair)[1])]) };
+  if (pressure !== undefined) out.pressure = picked.map((i) => round2(pressure[source[i] as number] as number));
+  return out;
+}
+
+export interface StrokeInput {
+  points: readonly (readonly [number, number])[];
+  pressure?: readonly number[];
+  stroke?: string;
+  width?: number;
+  id?: string;
+}
+
+/** Acrescenta um traço a partir das amostras cruas (`fitStroke`): é o que o gesto do ponteiro chama ao soltar. */
+export function addStroke(scene: DrawingScene, input: StrokeInput): { scene: DrawingScene; id: string } {
+  const fitted = fitStroke(input.points, input.pressure);
+  return addElement(scene, {
+    type: "stroke", points: fitted.points,
+    ...(fitted.pressure !== undefined && { pressure: fitted.pressure }),
+    ...(input.stroke !== undefined && { stroke: input.stroke }),
+    ...(input.width !== undefined && { width: input.width }),
+    ...(input.id !== undefined && { id: input.id }),
+  });
+}
+
+// ---- seleção de vários, redimensionar, duplicar e camadas (cada função devolve a cena nova; o gesto vira UM passo do desfazer) ----
+
+const requireAll = (scene: DrawingScene, ids: readonly string[]): ReadonlySet<string> => {
+  const set = new Set(ids);
+  for (const id of set) requireElement(scene, id);
+  return set;
+};
+
+/** Ids dos elementos inteiramente dentro da caixa (arrastar a caixa de seleção), na ordem da cena. Tocar a borda não conta. */
+export function elementsInRect(scene: DrawingScene, rect: Box): string[] {
+  const right = rect.x + rect.w;
+  const bottom = rect.y + rect.h;
+  return scene.elements.flatMap((el) => {
+    const box = elementBox(scene, el);
+    return box.x >= rect.x && box.y >= rect.y && box.x + box.w <= right && box.y + box.h <= bottom ? [el.id] : [];
+  });
+}
+
+/** Caixa que envolve os elementos de `ids` que existem; `undefined` sem nenhum. */
+export function selectionBounds(scene: DrawingScene, ids: readonly string[]): Box | undefined {
+  const wanted = new Set(ids);
+  const corners = scene.elements.filter((el) => wanted.has(el.id)).flatMap((el) => {
+    const box = elementBox(scene, el);
+    return [{ x: box.x, y: box.y }, { x: box.x + box.w, y: box.y + box.h }];
+  });
+  return corners.length === 0 ? undefined : pointsBox(corners);
+}
+
+/** Todos andam o mesmo delta; ponta presa segue o alvo (se o alvo também anda, ela acompanha). `drawing_missing_element` se algum id não existe. */
+export function moveElements(scene: DrawingScene, ids: readonly string[], dx: number, dy: number): DrawingScene {
+  if (typeof dx !== "number" || typeof dy !== "number" || !Number.isFinite(dx) || !Number.isFinite(dy)) return fail(DRAWING_ERRORS.invalidElement, "deslocamento inválido");
+  const set = requireAll(scene, ids);
+  return checked({ ...scene, elements: scene.elements.map((el) => (set.has(el.id) ? shifted(el, dx, dy) : el)) });
+}
+
+function shifted(el: DrawingElement, dx: number, dy: number): DrawingElement {
+  const end = (e: ConnectorEnd): ConnectorEnd => (isRef(e) ? e : { x: round2(e.x + dx), y: round2(e.y + dy) });
+  switch (el.type) {
+    case "stroke": return { ...el, points: el.points.map(([x, y]): [number, number] => [round2(x + dx), round2(y + dy)]) };
+    case "rect":
+    case "ellipse":
+    case "text": return { ...el, x: round2(el.x + dx), y: round2(el.y + dy) };
+    case "line":
+    case "arrow": return { ...el, from: end(el.from), to: end(el.to) };
+  }
+}
+
+export type ResizeHandle = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
+export const RESIZE_HANDLES: readonly ResizeHandle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+export const RESIZE_MIN = 4;
+
+/**
+ * Caixa depois de arrastar a alça por (dx, dy) **medidos a partir do ponto de agarre**: a borda oposta nunca sai do lugar e
+ * delta zero devolve a mesma caixa (sem salto ao pegar ou soltar). Passando do mínimo, trava nele sem inverter.
+ */
+export function resizeBox(box: Box, handle: ResizeHandle, dx: number, dy: number, min: number = RESIZE_MIN): Box {
+  const axis = (start: number, size: number, delta: number, low: boolean, high: boolean): [number, number] => {
+    if (high) return [start, Math.max(min, size + delta)];
+    if (!low) return [start, size];
+    return size - delta >= min ? [start + delta, size - delta] : [start + size - min, min];
+  };
+  const [x, w] = axis(box.x, box.w, dx, handle.includes("w"), handle.includes("e"));
+  const [y, h] = axis(box.y, box.h, dy, handle.includes("n"), handle.includes("s"));
+  return { x, y, w, h };
+}
+
+/** Leva os elementos de `ids` da caixa `from` para a caixa `to` (escala por eixo; o texto escala pelo menor fator, dentro dos limites do formato). */
+export function scaleElements(scene: DrawingScene, ids: readonly string[], from: Box, to: Box): DrawingScene {
+  const set = requireAll(scene, ids);
+  const sx = to.w / from.w;
+  const sy = to.h / from.h;
+  if (!Number.isFinite(sx) || !Number.isFinite(sy) || sx <= 0 || sy <= 0) return fail(DRAWING_ERRORS.invalidElement, "escala inválida");
+  const px = (x: number): number => round2(to.x + (x - from.x) * sx);
+  const py = (y: number): number => round2(to.y + (y - from.y) * sy);
+  const end = (e: ConnectorEnd): ConnectorEnd => (isRef(e) ? e : { x: px(e.x), y: py(e.y) });
+  const scale = (el: DrawingElement): DrawingElement => {
+    switch (el.type) {
+      case "stroke": return { ...el, points: el.points.map(([x, y]): [number, number] => [px(x), py(y)]) };
+      case "rect":
+      case "ellipse": return { ...el, x: px(el.x), y: py(el.y), w: Math.max(0.01, round2(el.w * sx)), h: Math.max(0.01, round2(el.h * sy)) };
+      case "text": {
+        const size = Math.min(DRAWING_LIMITS.sizeMax, Math.max(DRAWING_LIMITS.sizeMin, Math.round((el.size ?? DRAWING_DEFAULTS.textSize) * Math.min(sx, sy))));
+        return { ...el, x: px(el.x), y: py(el.y), size };
+      }
+      case "line":
+      case "arrow": return { ...el, from: end(el.from), to: end(el.to) };
+    }
+  };
+  return checked({ ...scene, elements: scene.elements.map((el) => (set.has(el.id) ? scale(el) : el)) });
+}
+
+/**
+ * Copia os elementos de `ids` deslocados por (dx, dy), no topo e na ordem da cena, com ids novos. Conector copiado liga as
+ * cópias quando o alvo também foi copiado; senão continua preso ao alvo original. Devolve a cena e os ids novos.
+ */
+export function duplicateElements(scene: DrawingScene, ids: readonly string[], dx: number, dy: number): { scene: DrawingScene; ids: string[] } {
+  const set = requireAll(scene, ids);
+  const picked = scene.elements.filter((el) => set.has(el.id));
+  let working = scene;
+  const renamed = new Map<string, string>();
+  for (const el of picked) {
+    const id = freshElementId(working);
+    renamed.set(el.id, id);
+    working = { ...working, elements: [...working.elements, { ...el, id }] };
+  }
+  const retarget = (e: ConnectorEnd): ConnectorEnd => (isRef(e) ? { ref: renamed.get(e.ref) ?? e.ref } : e);
+  const copies = picked.map((el): DrawingElement => {
+    const copy = { ...shifted(el, dx, dy), id: renamed.get(el.id) as string };
+    return isConnector(copy) ? { ...copy, from: retarget(copy.from), to: retarget(copy.to) } : copy;
+  });
+  return { scene: checked({ ...scene, elements: [...scene.elements, ...copies] }), ids: copies.map((el) => el.id) };
+}
+
+export type LayerMove = "front" | "back" | "forward" | "backward";
+
+/** Camada = posição na lista (o último fica por cima). `forward` e `backward` andam um degrau por cima dos não selecionados. Sem mudança, devolve a mesma ordem. */
+export function reorderElements(scene: DrawingScene, ids: readonly string[], to: LayerMove): DrawingScene {
+  const set = requireAll(scene, ids);
+  const list = [...scene.elements];
+  if (to === "front" || to === "back") {
+    const chosen = list.filter((el) => set.has(el.id));
+    const rest = list.filter((el) => !set.has(el.id));
+    return checked({ ...scene, elements: to === "front" ? [...rest, ...chosen] : [...chosen, ...rest] });
+  }
+  if (to === "forward") {
+    for (let i = list.length - 2; i >= 0; i--) if (set.has((list[i] as DrawingElement).id) && !set.has((list[i + 1] as DrawingElement).id)) [list[i], list[i + 1]] = [list[i + 1] as DrawingElement, list[i] as DrawingElement];
+  } else {
+    for (let i = 1; i < list.length; i++) if (set.has((list[i] as DrawingElement).id) && !set.has((list[i - 1] as DrawingElement).id)) [list[i], list[i - 1]] = [list[i - 1] as DrawingElement, list[i] as DrawingElement];
+  }
+  return checked({ ...scene, elements: list });
+}
+
+/** Apaga vários de uma vez (um passo do desfazer); conector preso a um deles fica no lugar, como em `removeElement`. */
+export function removeElements(scene: DrawingScene, ids: readonly string[]): DrawingScene {
+  requireAll(scene, ids);
+  return [...new Set(ids)].reduce(removeElement, scene);
+}
+
 // ---- leitura estruturada (o que o agente lê, sem precisar de imagem) ----
 
 export interface DescribedElement {
@@ -507,13 +751,44 @@ export function describeDrawing(scene: DrawingScene): DescribedDrawing {
 // ---- exportação em SVG (função pura) ----
 
 const SVG_PADDING = 16;
+const PRESSURE_FLOOR = 0.5;
 const ARROW_HEAD = 10;
 const ARROW_SPREAD = Math.PI / 7;
 
 const num = (n: number): string => String(round2(n));
 const escapeXml = (text: string): string => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-function arrowHead(from: DrawingPoint, to: DrawingPoint, width: number): [DrawingPoint, DrawingPoint] {
+/**
+ * Caminho SVG do traço: Catmull–Rom convertida em Bézier cúbica, que passa por todos os pontos guardados. A tela e a exportação
+ * usam este mesmo texto, então o que se vê é o que se salva. Um ponto vira um ponto redondo; dois, uma reta.
+ */
+export function strokePath(points: readonly (readonly [number, number])[]): string {
+  const at = (i: number): readonly [number, number] => points[Math.max(0, Math.min(points.length - 1, i))] as readonly [number, number];
+  const pair = (p: readonly [number, number]): string => `${num(p[0])},${num(p[1])}`;
+  const first = at(0);
+  if (points.length <= 2) return `M${pair(first)}L${pair(at(points.length - 1))}`;
+  const parts = [`M${pair(first)}`];
+  for (let i = 0; i < points.length - 1; i++) {
+    const [p0, p1, p2, p3] = [at(i - 1), at(i), at(i + 1), at(i + 2)];
+    const c1: [number, number] = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+    const c2: [number, number] = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    parts.push(`C${pair(c1)} ${pair(c2)} ${pair(p2)}`);
+  }
+  return parts.join("");
+}
+
+/** Espessura com que o traço é desenhado: a do `width`, ou ela vezes (0,5 + pressão média) quando o ponteiro trouxe pressão. */
+export function strokeWidth(el: StrokeElement): number {
+  const width = el.width ?? DRAWING_DEFAULTS.width;
+  if (!el.pressure || el.pressure.length === 0) return width;
+  const mean = el.pressure.reduce((sum, p) => sum + p, 0) / el.pressure.length;
+  return round2(Math.min(DRAWING_LIMITS.widthMax, Math.max(WIDTH_MIN, width * (PRESSURE_FLOOR + mean))));
+}
+
+const lineWith = (stroke: string, width: number): string => `stroke="${stroke}" stroke-width="${num(width)}" stroke-linecap="round" stroke-linejoin="round"`;
+
+/** Os dois pés da ponta da seta que chega em `to` vindo de `from` (a tela e o SVG desenham a mesma). */
+export function arrowHead(from: DrawingPoint, to: DrawingPoint, width: number): [DrawingPoint, DrawingPoint] {
   const angle = Math.atan2(to.y - from.y, to.x - from.x);
   const len = ARROW_HEAD + width * 2;
   return [
@@ -525,9 +800,9 @@ function arrowHead(from: DrawingPoint, to: DrawingPoint, width: number): [Drawin
 function svgElement(scene: DrawingScene, el: DrawingElement): string {
   const stroke = el.stroke ?? DRAWING_DEFAULTS.stroke;
   const width = "width" in el && el.width !== undefined ? el.width : DRAWING_DEFAULTS.width;
-  const line = `stroke="${stroke}" stroke-width="${num(width)}" stroke-linecap="round" stroke-linejoin="round"`;
+  const line = lineWith(stroke, width);
   switch (el.type) {
-    case "stroke": return `<polyline points="${el.points.map(([x, y]) => `${num(x)},${num(y)}`).join(" ")}" fill="none" ${line}/>`;
+    case "stroke": return `<path d="${strokePath(el.points)}" fill="none" ${lineWith(stroke, strokeWidth(el))}/>`;
     case "rect": return `<rect x="${num(el.x)}" y="${num(el.y)}" width="${num(el.w)}" height="${num(el.h)}" fill="${el.fill ?? "none"}" ${line}/>`;
     case "ellipse": return `<ellipse cx="${num(el.x + el.w / 2)}" cy="${num(el.y + el.h / 2)}" rx="${num(el.w / 2)}" ry="${num(el.h / 2)}" fill="${el.fill ?? "none"}" ${line}/>`;
     case "line":
@@ -685,3 +960,41 @@ export function canWriteDrawing(doc: CanvasDoc, drawingId: string, writer: NoteW
 
 /** O agente lê o desenho: ligado direto ou pela cadeia. */
 export const canReadDrawing = (doc: CanvasDoc, drawingId: string, readerId: string): boolean => readableDrawingsOf(doc, readerId).some((entry) => entry.id === drawingId);
+
+// ---- apresentação do editor: paleta, espessuras e teclas (dados puros; a tela só os desenha) ----
+
+/** Cores do desenho: o token de tema que a tela resolve (`--<token>`), claro e escuro. `foreground` é a tinta padrão (sem `stroke`, segue o tema). */
+export const DRAW_PALETTE: readonly { token: string; label: string }[] = [
+  { token: "foreground", label: "Tinta" }, { token: "vivo", label: "Vivo" }, { token: "info", label: "Azul" },
+  { token: "ok", label: "Verde" }, { token: "warn", label: "Âmbar" }, { token: "bad", label: "Vermelho" },
+];
+
+/** Espessuras oferecidas (a padrão do formato, 2, é a segunda). */
+export const DRAW_WIDTHS: readonly number[] = [1, 2, 4, 8];
+
+const BYTE = 255;
+const hex2 = (n: number): string => Math.min(BYTE, Math.max(0, Math.round(n))).toString(16).padStart(2, "0");
+
+/** Cor resolvida pelo navegador (canais 0–255 e alfa 0–1) → `#rrggbb` ou `#rrggbbaa`, o formato que o desenho guarda. */
+export function rgbaToHex(r: number, g: number, b: number, a: number = 1): string {
+  const alpha = Math.min(1, Math.max(0, a));
+  return `#${hex2(r)}${hex2(g)}${hex2(b)}${alpha < 1 ? hex2(alpha * BYTE) : ""}`;
+}
+
+export type DrawTool = "select" | "rect" | "ellipse" | "line" | "arrow" | "stroke" | "text";
+
+/**
+ * Uma tecla por ferramenta (só com o foco no desenho em edição). Letras que o canvas e a página ainda não usam: z c v b n e f l j k
+ * já são deles, e as de Shift (a o s y t g m f l p n r x b e) criam e organizam nós.
+ */
+export const DRAW_SHORTCUTS: readonly { tool: DrawTool; key: string; label: string }[] = [
+  { tool: "select", key: "s", label: "Selecionar" }, { tool: "rect", key: "r", label: "Retângulo" }, { tool: "ellipse", key: "o", label: "Elipse" },
+  { tool: "line", key: "i", label: "Linha" }, { tool: "arrow", key: "a", label: "Seta" }, { tool: "stroke", key: "p", label: "Traço" }, { tool: "text", key: "t", label: "Texto" },
+];
+
+/** Teclas de ação do desenho em edição, para a legenda (`keys` já escrito para a tela). */
+export const DRAW_ACTION_KEYS: readonly { keys: string; label: string }[] = [
+  { keys: "Ctrl+D", label: "Duplicar a seleção" }, { keys: "Delete", label: "Apagar a seleção" },
+  { keys: "PgUp / PgDn", label: "Camada: um degrau acima / abaixo" }, { keys: "Shift+PgUp / PgDn", label: "Camada: frente / trás" },
+  { keys: "Esc", label: "Cancela o gesto, volta a Selecionar, sai do desenho" },
+];

@@ -1305,10 +1305,31 @@ um Hades antigo lê o nó como tipo desconhecido).
 - **Limites** (`DRAWING_LIMITS`, conferidos na rota e no modelo): 300 elementos, 500 pontos por traço e 6000 no total, texto de 1000
   caracteres, título de 80, ids de 40, coordenada até 1 000 000, largura até 64, tamanho do texto de 8 a 200. Estouro é erro
   (`drawing_limit_exceeded`), nunca truncamento.
-- **Edição no painel.** Duplo clique ou Enter no desenho entra; Esc sai. A barra traz Selecionar, Retângulo, Elipse, Linha, Seta,
-  Traço e Texto, mais Apagar, **PNG** e Sair. Seta ou linha que começa ou termina sobre uma forma prende nela. Duplo clique no texto
-  o edita; Delete apaga o selecionado. **Cada edição é um passo do desfazer** (`opSetDrawing` troca o `data` do nó, então o
-  Ctrl+Z do canvas cobre o desenho). Sem `onDrawingChange` do host o desenho é só leitura.
+- **Edição no painel.** Duplo clique ou Enter no desenho entra. A barra traz as sete ferramentas (a ativa fica marcada,
+  `aria-pressed`), a **paleta** (`DRAW_PALETTE`: Tinta e cinco tokens de tema), as **espessuras** (`DRAW_WIDTHS`: 1, 2, 4, 8),
+  Apagar, **PNG** e Sair; os botões têm 44 px de lado até 640 px de tela. A cor escolhida vale para o que se desenha a seguir:
+  "Tinta" não grava `stroke` e acompanha o tema; as outras são resolvidas no tema do momento e gravadas em `#rrggbb`. O cursor
+  muda por ferramenta. Seta ou linha que começa ou termina sobre uma forma prende nela. Duplo clique no texto o edita.
+- **Traço.** Cada amostra do ponteiro entra no gesto; ao soltar, `addStroke` simplifica (RDP, desvio máximo `STROKE_FIT.tolerance`,
+  0,8) e a tela e o SVG desenham a mesma curva (`strokePath`, Catmull-Rom → Bézier). Com caneta, `pressure` (0–1 por ponto,
+  campo aditivo) é guardado e a espessura é a do traço vezes a pressão média (`strokeWidth`). Limite assumido: espessura única
+  por traço; largura variável ao longo do traço fica para a fatia 2. Desenho antigo (sem `pressure`) abre igual.
+- **Seleção.** Clique seleciona; Shift+clique soma ou tira; arrastar o vazio faz a **caixa de seleção** (só pega elementos
+  **inteiros** dentro; Shift soma). Arrastar um selecionado move o conjunto, e as oito alças do conjunto redimensionam
+  (`resizeBox` + `scaleElements`, com o delta medido do ponto de agarre, então pegar e soltar sem mexer não muda nada).
+  Texto escala pelo menor fator, dentro dos limites do formato.
+- **Teclas** (só com o foco no desenho em edição, fora de campo de texto; estão na Legenda, seção "Desenho (editando)"):
+  `S` selecionar, `R` retângulo, `O` elipse, `I` linha, `A` seta, `P` traço, `T` texto; `Ctrl+D` duplica a seleção (16 de
+  deslocamento, no topo, e a cópia fica selecionada; o `Ctrl+D` do nó passa só quando o foco está dentro de `[data-draw-keys]`);
+  `Delete`/`Backspace` apaga; `PgUp`/`PgDn` sobem e descem um degrau e com Shift vão à frente ou ao fundo. **Esc** age em
+  degraus: cancela o gesto, depois o texto pendente, volta a Selecionar, limpa a seleção e por fim sai. As letras foram
+  escolhidas contra a lista em uso no canvas: `z c v b n e f l j k [ ] ?`; Shift+`a o s y t g m f l p n r x b e`;
+  `mod+d/c/v/a/g/z/l`; `Esc Enter Tab` espaço, setas, `+ - = 0`.
+- **Desfazer.** Um gesto é um passo: mover, redimensionar, duplicar, reordenar, apagar e cada traço chamam `onDrawingChange` uma
+  vez (`opSetDrawing`, então o Ctrl+Z do canvas cobre o desenho). Os eventos de ponteiro intermediários só mexem no estado local
+  da tela. Sem `onDrawingChange` do host o desenho é só leitura.
+- **Fatia 2 (não feito).** Girar, guias de alinhamento e conectores que seguem elementos ao redimensionar (hoje a ponta presa
+  segue a caixa do alvo; a ponta livre só escala com a seleção); largura variável do traço.
 - **Barra de ferramentas.** Botão **Desenho** (`registerTool` id `drawing`, ícone `PenTool`, ao lado de Área): arrastar um
   retângulo cria o nó nesse tamanho (`toolRect.drawing` em `pages/argos.tsx`).
 - **Exportar.** `drawingToSvg(cena, { background? })` é função pura (também `hades canvas drawing export <d> --svg` e

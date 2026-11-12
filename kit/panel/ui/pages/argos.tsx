@@ -1935,6 +1935,7 @@ function Argos() {
       if (!inTty && plain && ENGINE_KEYS.has(e.key) && e.target.closest && e.target.closest('[role=application]')) return;
       // Esc e Enter da busca e do nome da vista são deles (limpar, reenquadrar, cancelar)
       if ((e.key === 'Escape' || e.key === 'Enter') && e.target.closest && e.target.closest('[data-own-keys]')) return;
+      if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'd' && e.target.closest && e.target.closest('[data-draw-keys]')) return;
       const input = NT.ttyKeyInput(e), editable = isEditable(e.target);
       const cmd = commands.resolveKey(input, { editable, ctx: ctxRef.current(selectedRef.current) });
       if (!cmd) {

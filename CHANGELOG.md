@@ -4,6 +4,22 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.44.0 — 2026-11-12
+
+Capacidade nova (#114, fatia 1): o desenho do Argos (nó `drawing`) ganhou fluidez, seleção e atalhos.
+
+- Traço livre simplificado e suavizado (curva sobre os pontos), com a pressão da caneta quando o evento a traz; a tela
+  e o SVG da CLI desenham o mesmo `path`.
+- Seleção por caixa e com Shift, oito alças para redimensionar o conjunto (delta a partir do ponto de agarre),
+  Ctrl+D duplica, PgUp/PgDn mudam a camada (com Shift, frente e fundo), Delete apaga.
+- Uma tecla por ferramenta (S R O I A P T), só com o desenho em edição e fora de campo de texto; Esc em degraus
+  (gesto, volta a Selecionar, limpa a seleção, sai). Teclas na Legenda.
+- Barra compacta com a ferramenta ativa visível, paleta pelos tokens do tema (gravada em hex; "Tinta" não grava cor),
+  espessuras fixas, cursor por ferramenta, botões de 44 px no celular.
+- Um gesto é um passo do desfazer. Desenho antigo abre igual (o campo de pressão é aditivo).
+- Não visto: o harness de escala não rodou (nenhum arquivo que ele carrega mudou) e não há capturas em 360/768 px.
+- Fica para a fatia 2: girar, guias de alinhamento e conectores que seguem os elementos.
+
 ## 6.43.1 — 2026-11-12
 
 Documentação (#17): ganho dos resumidores do rtk medido no que a ferramenta Bash devolve à sessão, não contra a

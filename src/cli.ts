@@ -59,6 +59,7 @@ const commands: Record<string, () => Promise<Command>> = {
   minos: async () => (await import("./commands/minos.ts")).minosCommand,
   "write-check": async () => (await import("./commands/write-check.ts")).writeCheckCommand,
   explain: async () => (await import("./commands/explain.ts")).explainCommand,
+  ext: async () => (await import("./commands/ext.ts")).extCommandEntry,
 };
 
 const HELP = `hades <subcomando> [argumentos]
@@ -110,6 +111,7 @@ const HELP = `hades <subcomando> [argumentos]
   stack-add propose|measure|save  propõe, mede e grava o pacote de stack de um repo (hades stack-add)
   project-init draft|save        rascunho e gravação do perfil de um repo (hades project-init)
   widget-apk [build|test|shots|list|new <id>|image|status]   APK do widget Android, num container Docker (kit/android/build.sh)
+  ext list|info|enable|disable|doctor [<nome>] [--json]   extensões: ferramentas externas (herdr, Mark) por manifesto (reference/extensoes.md)
   explain [<código>]             o que um erro quer dizer, por quê e o que fazer (hades explain, reference/erros.md)
   agent new|adopt|review|prompt|answer|phase|resume|park|escalate|status|list|done|plan-approve|plan-trim|start-cmd|decide|auto-start|skill-new|skill-clean …
                                  agentes do orquestrador (hades agent)`;

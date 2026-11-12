@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "name": "mark",
+  "description": "Mark-LVI: assistente de voz e janela do desktop, ligado ao painel pela ponte bridge.json.",
+  "binary": { "names": ["mark", "mark-lvi"] },
+  "version": null,
+  "capabilities": ["voice", "window"],
+  "install": { "text": "Instale o Mark-LVI e crie o comando `mark` (ou `mark-lvi`) no PATH; abrir o Mark recria o bridge.json que a Hades lê." },
+  "health": null,
+  "configKeys": ["HADES_MARK_BRIDGE", "HADES_MARK_TIMEOUT_S", "HADES_MARK_VOICE_MAX_S", "HADES_MARK_VOICE_MODE"],
+  "enableKey": "HADES_EXT_MARK"
+}

@@ -24,6 +24,7 @@ import { belongsTo, otherInstances, type InstanceIdentity } from "../lib/doctor-
 import { inheritedDefault, judgeSettings, readSettings, recentModelIds, roleSettings } from "../lib/settings-default.ts";
 import { configValue } from "../lib/work.ts";
 import { judgeMark, judgeMarkVoice, parseVoiceProbe, VOICE_PROBE_SCRIPT, type MarkProbe, type MarkVoiceProbe } from "../lib/doctor-mark.ts";
+import { extensionDoctorItems } from "../lib/doctor-ext.ts";
 import { MARK_BRIDGE_KEY, bridgePathOf, markUrl, markWsUrl, parseState, readBridge, type Bridge } from "../lib/mark-bridge.ts";
 import { serviceManager } from "../lib/service-manager.ts";
 import { FILTERS_REL, planWorktree, policyAdvice, rtkBinary, rtkConfig, settingsFor, trustState } from "../lib/rtk-filters.ts";
@@ -782,6 +783,7 @@ export function doctorCommand(args: string[]): number {
   checkSettingsDefault(report);
   checkPanel(report, ctx);
   checkMark(report, ctx);
+  for (const e of extensionDoctorItems()) report.add(e.level, "Extensões", e.id, e.msg, e.fix);
   checkBoot(report, ctx);
   checkCleaning(report, ctx);
   checkNotifications(report, ctx);

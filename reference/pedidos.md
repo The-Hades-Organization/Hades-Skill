@@ -72,6 +72,7 @@ Pedido do dono → comando e referência, por tema. Na dúvida entre duas linhas
 | "adiciona a stack do projeto X" · "o hook barra o comando do meu repo" · "mede o gate" | `/hades stack add`: lê manifests e CI, propõe o pacote, mede o pico pela fila e grava só com o ok do dono (`hades stack-add`, `reference/stacks.md`) |
 | "instala/atualiza o plugin do projeto X" · "o plugin pede outro núcleo" | página Plugins do painel, ou `$D/plugins.sh add <url>` / `update <nome>`: prévia do commit e do que executa antes de ativar; a faixa `core` do perfil e a recusa do `install.sh` (`reference/projects.md` §Plugin do Hades) |
 | "desliga/remove o plugin" · "religa o plugin" | página Plugins, ou `$D/plugins.sh disable <nome>` / `enable <nome>` / `remove <nome> --confirm <nome>`: desligado sobrevive à reinstalação e mantém as chaves; remover recusa commit não publicado (`reference/projects.md` §Plugin do Hades) |
+| "quais extensões tenho" · "o herdr/o Mark está instalado e saudável?" · "liga/desliga a extensão X" · "instala a extensão X" | `hades ext list` / `info <nome>` / `doctor [<nome>]`; `hades ext enable <nome>` / `disable <nome>` grava `HADES_EXT_<NOME>`. Instalar é passo do dono: `info` mostra o comando, a sessão não o executa (`reference/extensoes.md`) |
 
 ### Orquestração e agentes
 

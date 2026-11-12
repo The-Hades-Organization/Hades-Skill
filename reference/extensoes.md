@@ -4,7 +4,7 @@ Uma extensão é uma ferramenta externa da máquina, com binário próprio (herd
 é código do pacote de um projeto que roda no painel (`reference/projects.md` §Plugin do Hades); os dois não se misturam: a
 extensão não traz código para a Hades executar, só o manifesto que descreve o binário.
 
-Nesta fatia: manifesto, carregador, estado ligado/desligado, CLI e linha do doctor. A página do painel fica para a próxima.
+Manifesto, carregador, estado ligado/desligado, CLI e linha do doctor, mais a página Extensões do painel (§Página do painel).
 
 ## Manifesto
 
@@ -48,6 +48,29 @@ hades ext doctor [<nome>] [--json] linha de saúde; sai 1 se uma extensão ligad
 
 `--json` devolve `{version: 1, extensions: [...]}`; erro devolve `{version: 1, ok: false, code, error}` com `ext.unknown`,
 `ext.usage`, `ext.no-instance` ou `ext.config-invalid`.
+
+## Página do painel
+
+`#/extensoes`, no grupo Sistema. Consome o mesmo carregador do `hades ext`, sem lógica duplicada.
+
+- **Mostra**, por extensão: nome, descrição, instalada, versão (ou "desconhecida"), versão mínima, ligada, saúde, capacidades e os
+  `problems` com o código estável. As chaves próprias (`configKeys`) saem com o valor efetivo e um link para Configurações, onde
+  se edita.
+- **Liga e desliga** pelo interruptor: grava `HADES_EXT_<NOME>` em `config.env`, como `hades ext enable|disable`. Religar volta ao
+  padrão e a chave sai do arquivo (o `config.env` guarda só o que difere do catálogo). Desligar pede confirmação. Pelo acesso
+  remoto a página é só leitura.
+- **Nunca executa** a instalação: o texto de `install.text` aparece copiável, com a frase de que a Hades não o executa. A página
+  só roda o que o carregador já roda (comando de versão e de saúde do manifesto, argv sem shell, tempo limite de 5 s).
+
+Rotas (`src/panel/routes-ext.ts`):
+
+| Rota | Corpo | Resposta |
+|---|---|---|
+| `GET /api/extensions` | | o mesmo JSON do `hades ext list --json`: `{version: 1, extensions: [...]}`. Guarda o resultado por 10 s, porque versão e saúde rodam binários de forma síncrona; ligar ou desligar o descarta |
+| `POST /api/extensions` | `{op: "enable"\|"disable", name}` | `{version: 1, ok: true, name, enabled}` |
+
+O POST exige o token da sessão e o painel local. Recusas, com código estável: `ext.local-only` (403, acesso remoto),
+`ext.bad-request` (400, operação ou nome inválido), `ext.unknown` (404), `ext.config-invalid` (400, a configuração recusou o valor).
 
 ## Extensão mínima de exemplo
 

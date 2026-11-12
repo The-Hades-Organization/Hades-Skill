@@ -140,7 +140,35 @@ Versão do rtk conferida: **1.1.0** (a issue de origem foi escrita contra a 0.43
 | `[hooks] exclude_commands`, `[limits] grep_max_results` / `grep_max_per_file`, `[display] max_width`, `[retriever] mode` / `tee_on_success`, `RTK_RECALL_DB`, `RTK_TEE_DIR` | `docs/guide/getting-started/configuration.md` e `src/core/config.rs` |
 | `[tee] mode` (0.x) | documentação do rtk 0.x citada na issue; só entra na recomendação quando a versão detectada é 0.x |
 
-## Medição
+## Ganho medido
 
-Tokens que entram no contexto com e sem os filtros, numa rodada real de gate, contados depois do corte do próprio Claude Code, saem
-**com o rtk real instalado** (`rtk gain` e a comparação por rodada). Não há número aqui sem essa medição.
+Medido em 2026-11-12 com o rtk 1.1.0, **no que a ferramenta Bash devolve à sessão**, e não contra a saída bruta como o `rtk gain` faz.
+
+**Método.** Cada comando rodou pela fila (`gate-lock.sh run test --label rtk-ganho-<caso> -- …`), três vezes: sem rtk (bruto), `rtk <cmd>`
+(o que o hook do rtk faz com `HADES_RTK_FILTERS=auto`) e `rtk proxy <cmd>` (sem resumo, o caso `off`). A saída foi para um arquivo dentro do
+comando da fila; contei `wc -c` e estimei tokens como bytes/4. O Claude Code corta a saída do Bash em 30000 caracteres: nenhum caso chegou
+perto, então o corte dele não mudou nada. O que o rtk entrega é a saída inteira dele, sem passar pelo corte.
+
+| Data | rtk | Projeto | Comando | Bruto (B / tokens) | Com filtro | Sem filtro (`proxy`) | Poupado |
+|---|---|---|---|---|---|---|---|
+| 2026-11-12 | 1.1.0 | skill Hades | `bun test loop/test/ts/rtk-filters.test.ts` (31 testes) | 103 / 26 | 70 / 18 | 103 / 26 | 32% |
+| 2026-11-12 | 1.1.0 | skill Hades | `bun test rtk` (100 testes, 4 arquivos) | 105 / 26 | 71 / 18 | 105 / 26 | 32% |
+| 2026-11-12 | 1.1.0 | skill Hades | `bun x tsc --noEmit` (rc=1: falta `@types/bun`, sem `node_modules`) | 163 / 41 | 184 / 46 | 163 / 41 | -13% |
+| | 1.1.0 | node-nx | `nx lint` / `nx test` de um lib pequeno | pendente: clone sem `node_modules` | | | |
+
+O que a tabela diz:
+
+- **Ganho desprezível em valor absoluto.** As saídas já eram curtas (uma passagem verde de `bun test` tem 6 linhas). Os 32% são 8 tokens por
+  rodada; um gate verde não paga a pena do resumo, e a economia real do rtk está nas saídas longas (falha com pilha, lint com centenas de achados).
+- **`tsc` ficou maior** (+21 B): o handler do rtk repete a mensagem e acrescenta `TypeScript: 1 errors`. Com poucos erros o resumo custa mais
+  que poupa; só compensa quando os erros se agrupam por arquivo.
+- **O que o filtro esconde no `bun test`:** o cabeçalho com a versão do bun e a linha `N expect() calls`. Contagem de testes, falhas e duração
+  ficam. Nada que decida se o gate passou.
+- **Os filtros TOML da Hades não entraram.** Nenhum dos comandos casa `node-nx-nx` ou `node-nx-jest` (os de `bun` e `tsc` têm handler Rust
+  no rtk, e o TOML só é o fallback). Por isso não ajustei `stacks/node-nx/rtk-filters.toml`: sem dado do `nx`/`jest`, ajuste seria palpite.
+
+**Pendente: node-nx.** O clone `node-nx` usado (o do projeto ativo) tem `node_modules` apontando para uma pasta que não existe, e instalar
+dependência não é permitido ao agente. Para completar: o dono roda `npm ci` no clone (`! cd <clone> && npm ci`) e alguém reroda a medição
+pelo mesmo método num lib pequeno, `nx lint <lib>` e `nx test <lib>` (com `NX_SKIP_NX_CACHE=true`, para o nx não repetir saída do cache),
+nos casos bruto, `rtk` e `rtk proxy`, e preenche a linha acima. Se o filtro esconder algo útil ou o ganho for desprezível, ajustar
+`stacks/node-nx/rtk-filters.toml` com teste que prove o que passou a aparecer.

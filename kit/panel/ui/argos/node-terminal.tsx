@@ -842,6 +842,8 @@ function readTerminalData(data) {
   if (herdr) out.herdr = herdr;
   // orquestrador (D7): a caixa do modal; recruta: o id do nó do orquestrador que o criou (a CLI grava)
   if (d.orchestrator === true) out.orchestrator = true;
+  // shell: pane sem agente (`agent start`); o servidor confirma e o nó só ganha a marca visual e sai das listas de agentes
+  if (d.shell === true) out.shell = true;
   if (typeof d.recruiter === 'string' && TERMINAL_NODE_ID.test(d.recruiter)) out.recruiter = d.recruiter;
   return out;
 }
@@ -903,7 +905,7 @@ function orphanNodeData(orphan) {
   const o = orphan && typeof orphan === 'object' ? orphan : {};
   return readTerminalData({
     name: o.name, agent: o.agent, model: o.model, effort: o.effort, role: o.role,
-    orchestrator: o.orchestrator, herdr: { session: o.session, pane: o.pane },
+    orchestrator: o.orchestrator, shell: o.shell, herdr: { session: o.session, pane: o.pane },
   });
 }
 
@@ -992,21 +994,23 @@ function TerminalNode({ input, host, deps }) {
   const jump = target && host.alt() ? host.jumpNumbers().get(input.id) : undefined;
   const inputError = target ? host.inputErrorOf(input.id) : null;
   const word = window.CanvasModel.argos.stateLook(target ? host.statusOf(input.id) : 'unknown').word;
-  return <div className="flex h-full min-h-0 flex-col bg-card" data-terminal-node={input.id} style={terminalThemeStyle(input.data, dark)}>
+  return <div className={cn('flex h-full min-h-0 flex-col bg-card', d.shell && 'border-2 border-info')} data-terminal-node={input.id} data-terminal-shell={d.shell ? 'true' : undefined} style={terminalThemeStyle(input.data, dark)}>
     <div className="flex shrink-0 items-center gap-1.5 border-b px-2 t-meta max-lg:h-11!" style={{ height: TTY_HEADER_PX, boxShadow: d.color ? `inset 0 3px 0 ${d.color}` : undefined }}>
       {jump ? <kbd aria-label={`Alt+${jump} foca este terminal`} className="inline-flex h-5 min-w-5 items-center justify-center border border-border-strong bg-muted px-1 font-mono t-micro text-foreground">{jump}</kbd> : null}
       <Icon aria-hidden="true" className="size-3.5 shrink-0" style={d.color ? { color: d.color } : undefined} />
       <span className="min-w-0 flex-1 truncate t-body-strong" title={name}>{name}</span>
+      {d.shell ? <span title="Shell: terminal comum, sem agente" data-terminal-shell-mark className="inline-flex shrink-0 items-center gap-0.5 border border-info px-1 t-micro text-info">
+        <I.SquareTerminal aria-hidden="true" className="size-3" />shell</span> : null}
       {d.orchestrator ? <span title="Orquestrador: comanda recrutas pelo hades canvas" className="inline-flex shrink-0 items-center gap-0.5 border border-primary px-1 t-micro text-primary">
         <I.Network aria-hidden="true" className="size-3" />Orquestrador</span> : null}
       {d.role ? <span title={`Papel: ${role ? role.name : d.role}`} className="max-w-28 shrink-0 truncate t-micro text-muted-foreground">{role ? role.name : d.role}</span> : null}
-      <span title={modelLabel.title} data-terminal-model className="max-w-32 shrink-0 truncate t-micro text-muted-foreground">{modelLabel.text}</span>
+      {d.shell ? null : <span title={modelLabel.title} data-terminal-model className="max-w-32 shrink-0 truncate t-micro text-muted-foreground">{modelLabel.text}</span>}
       {links ? <button type="button" aria-label={`${links} ${links === 1 ? 'conexão' : 'conexões'}`} title="Conexões" onClick={() => deps.onConnections(input.id)}
         className="inline-flex h-5 shrink-0 items-center justify-center gap-0.5 px-1 text-muted-foreground outline-none max-lg:h-11 max-lg:min-w-11! hover:bg-accent/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
         <I.Cable aria-hidden="true" className="size-3" />{links}
       </button> : null}
-      <span className="shrink-0 text-muted-foreground">{target ? word : 'sem pane'}</span>
-      {attention ? <span role="img" aria-label="pede atenção" title="pede atenção" className="size-2 shrink-0 rounded-full bg-bad" /> : null}
+      {d.shell ? (target ? null : <span className="shrink-0 text-muted-foreground">sem pane</span>) : <span className="shrink-0 text-muted-foreground">{target ? word : 'sem pane'}</span>}
+      {attention && !d.shell ? <span role="img" aria-label="pede atenção" title="pede atenção" className="size-2 shrink-0 rounded-full bg-bad" /> : null}
       {NodeActions ? <NodeActions id={input.id} /> : null}
     </div>
     {inputError ? <span role="status" className="shrink-0 truncate px-2 t-meta text-bad">O herdr não aceitou: {inputError}</span> : null}

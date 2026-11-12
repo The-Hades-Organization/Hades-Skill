@@ -4,6 +4,16 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.43.0 — 2026-11-12
+
+Capacidade nova (#77, #78): criar terminal pelo teclado no canvas do Argos.
+
+- Shift+A cria um terminal de agente, Shift+O um de orquestrador e Shift+S um de shell, na posição do cursor.
+- O nó de shell (`shell: true` em `POST /api/argos/terminals`) tem borda própria e fica fora do supervisor: não conta
+  como agente nem recebe prompt.
+- Teclas que mudaram de lugar: aprovar permissões em lote passou de Shift+A para Shift+Y, e organizar por equipes de
+  Shift+O para Shift+T.
+
 ## 6.42.0 — 2026-11-12
 
 Capacidade nova (#113, fatia 2, fecha a issue): página Extensões no painel (`#/extensoes`, grupo Sistema), sobre o

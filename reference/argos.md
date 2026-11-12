@@ -638,7 +638,7 @@ grade evita varrer todos os nós a cada candidato.
 **Vaga livre e organizar por equipes.** Recrutar, trazer terminal (join), nota nova e a sincronia de agentes procuram a vaga
 livre mais perto do orquestrador (`canvas-space`) quando a grade está ocupada, então nenhum nó novo cai sobre outro nó ou
 área. Orquestrador dentro de uma área mantém a equipe nela, e os nós novos entram nos membros no mesmo lote (um desfazer).
-**Organizar** (`tidy:arrange`, Shift+O) põe o orquestrador no centro, notas acima e recrutas abaixo; a área acompanha a
+**Organizar** (`tidy:arrange`, Shift+T; era Shift+O) põe o orquestrador no centro, notas acima e recrutas abaixo; a área acompanha a
 equipe e cresce para caber. Travados e fixados ficam, nada se sobrepõe, o arranjo é um passo do desfazer (animação de
 250 ms) e a câmera enquadra ao fim.
 
@@ -2193,7 +2193,8 @@ comando. Chamar de novo não repete nem lança.
 | `walk:next` · `walk:previous` | `Ctrl+Alt+→`/`↓` · `Ctrl+Alt+←`/`↑` | N4 |
 | `owner:next` · `owner:previous` | `N` · `Shift+N` | N5 |
 | `batch:select-filtered` Selecionar o filtrado | `Ctrl+Alt+A` | A4 |
-| `batch:resume` · `batch:approve` · `batch:deny` | `Shift+R` · `Shift+A` · `Shift+X` | A4 |
+| `batch:resume` · `batch:approve` · `batch:deny` | `Shift+R` · `Shift+Y` · `Shift+X` | A4 |
+| `create:agent` · `create:orchestrator` · `create:shell` | `Shift+A` · `Shift+O` · `Shift+S` | Criar terminal |
 | `blur:toggle` Desfocar/revelar o conteúdo | `Shift+B` | O6 |
 | `dock:elevate` · `dock:undock` | `E` · `Shift+E` | O7 |
 | `dock:left` · `dock:right` | `[` · `]` | O7 |
@@ -3754,3 +3755,14 @@ O `hades doctor` confere a voz no item `mark-voz` (`reference/doctor.md`).
 - **Reprodução.** `voice-play-worklet.js` toca o PCM16 de 24 kHz numa fila com 120 ms de buffer de jitter (silêncio em vez de estalo quando seca; teto de 3 s, o mais velho sai). `interrupted` esvazia a fila.
 - **Celular.** O `AudioContext` nasce no toque que abre a folha, e a voz só funciona em `https` (túnel) ou `localhost`; fora disso a vista mostra `mark_voice_insecure_context`. Enquanto a folha está aberta, o Wake Lock mantém a tela acesa. Tela apagada ou aba em segundo plano faz o Android cortar o microfone: ao voltar, a vista avisa, retoma o áudio e religa o WebSocket se ele caiu. Queda de rede religa com recuo de 1, 2, 4, 8 e 15 s, até 5 tentativas seguidas; busy, microfone negado e sessão longa não religam.
 - **Nada é gravado.** O áudio só passa pelos worklets e pelo socket: não há `MediaRecorder`, armazenamento, log nem transcrição no navegador (o teste `mark-voice-client` varre os arquivos por isso). Fora do escopo: iPhone e uso em segundo plano.
+
+### Criar terminal por tecla e nó de shell
+
+`Shift+A` cria um terminal de agente comum, `Shift+O` um de orquestrador e `Shift+S` um shell, com os padrões do menu de
+criação (predefinição, papel e pasta vazios seguem o padrão global). O nó nasce centrado no cursor quando ele está sobre o
+canvas, senão no centro da vista. As teclas só valem com o foco no canvas: terminal, nota e campo de texto ficam com a
+tecla. `Shift+Y` (aprovar permissões em lote) e `Shift+T` (organizar) são as antigas `Shift+A` e `Shift+O`, que mudaram de lugar.
+
+O nó de shell (`shell: true` no `POST /api/argos/terminals`) é um terminal do herdr sem `agent start`: só o shell na pasta
+do projeto. Leva o rótulo "shell" e borda `border-info`, não tem papel, modelo nem estado de agente, não entra no supervisor
+nem na atenção, e fechar o nó fecha o pane. Também sai pelo botão Shell da barra e pela paleta.

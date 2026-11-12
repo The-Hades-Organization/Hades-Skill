@@ -73,6 +73,7 @@ export const CANVAS_UI_MODULES = {
   draw: "canvas-draw.ts",
   drawing: "canvas-drawing.ts",
   create: "canvas-create.ts",
+  createKeys: "canvas-create-keys.ts",
   bands: "canvas-bands.ts",
   portal: "canvas-portal.ts",
   conversation: "canvas-conversation.ts",

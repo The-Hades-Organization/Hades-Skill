@@ -52,9 +52,9 @@ HadesCore.registerTour('argos', {
     {
       id: 'argos-organizar',
       title: 'Organizar o canvas',
-      body: 'Shift+O arruma tudo por equipes: cada orquestrador com as notas em cima e os recrutas embaixo, sem nada sobreposto, e a câmera enquadra o resultado. Um Ctrl+Z desfaz o arranjo inteiro. O botão direito no fundo do canvas abre um menu curto com o que mais se faz ali (criar aqui, arrumar, enquadrar) e "Mais comandos…" para a paleta.',
+      body: 'Shift+T arruma tudo por equipes: cada orquestrador com as notas em cima e os recrutas embaixo, sem nada sobreposto, e a câmera enquadra o resultado. Um Ctrl+Z desfaz o arranjo inteiro. O botão direito no fundo do canvas abre um menu curto com o que mais se faz ali (criar aqui, arrumar, enquadrar) e "Mais comandos…" para a paleta.',
       ref: 'argos.md › Layout',
-      fallback: 'Organizar e o menu do fundo valem com o canvas carregado: Shift+O, ou Ctrl+K e "Organizar".',
+      fallback: 'Organizar e o menu do fundo valem com o canvas carregado: Shift+T, ou Ctrl+K e "Organizar".',
       side: 'bottom',
     },
     {

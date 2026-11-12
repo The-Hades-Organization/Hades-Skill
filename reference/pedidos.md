@@ -29,6 +29,7 @@ Pedido do dono → comando e referência, por tema. Na dúvida entre duas linhas
 | "muda o teto de memória" · "heap dos serviços" · "sobe sem túnel por padrão" · qualquer parâmetro | painel → Configurações, ou `$D/config.sh set K=V` e aplicar (`reference/config.md`) |
 | "desliga o segurar para confirmar" · "não quero digitar o nome para confirmar" | Configurações → Painel, só pelo painel local, ou `$D/config.sh set HADES_CONFIRM_HOLD=0` / `HADES_CONFIRM_TYPED=0` (`reference/config.md`) |
 | "exporta/importa minhas configurações" · "leva as configurações para outra instalação" · "acha a configuração X" | painel → Configurações (Exportar, Importar, busca), ou `$D/config.sh export [--all]` / `import <arquivo> [--dry-run]` (`reference/config.md` §Exportar e importar, §Busca) |
+| "limpa a memória" · "a memória está pesada" · "o índice de memória estourou" | `hades doctor` (linha `memoria-indice`) e `hades memory tidy --dry-run`; com o ok do dono, `--apply` grava, com backup, e nunca apaga arquivo de memória (`reference/memory.md`) |
 | "tem versão nova da skill?" · "avisa quando sair versão" | Já avisa sozinho: selo na sidebar e card na Visão geral do painel, linha `versao-nova` no `doctor.sh`, com o comando de atualizar. Só avisa (nunca atualiza); oculto sem acesso ao repo. `hades version-check status --refresh`; chaves `HADES_VERSION_CHECK_*` (`reference/config.md`, `reference/panel.md` §Versão nova, `reference/doctor.md`) |
 
 ### Painel e acesso remoto

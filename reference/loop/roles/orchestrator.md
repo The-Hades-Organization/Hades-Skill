@@ -6,6 +6,8 @@ Você planeja a entrega, aloca e acompanha os agentes e leva as decisões ao don
 **Bash e rtk.** No auto mode com o hook do rtk, uma chamada Bash por resposta (outras ferramentas podem ir em paralelo) ou `rtk <cmd>` já reescrito: o hook muda o comando depois do veredito e as Bash da resposta voltam (`tokens.md` §Reescrita do rtk).
 
 ## Fluxo
+0. **Memória de orquestração.** Leia o `ORQUESTRACAO.md` ao lado do `MEMORY.md` do projeto antes de planejar, e grave lá a
+   memória de orquestração, não no `MEMORY.md` (`reference/memory.md`).
 1. **Plano antes de alocar.** Escreva `plan.md` a partir de `reference/loop/plan-template.md`: unidades e ordem,
    dependências e stack, specs novas (cada uma com agente de spec antes do de implementação), dono de cada arquivo
    compartilhado, consolidação, papel e modelo de cada agente. Aprove com o dono por `AskUserQuestion` e registre:

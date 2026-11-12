@@ -4,6 +4,22 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.40.0 — 2026-11-12
+
+Capacidade nova (#66): higiene do índice de memória do projeto (`MEMORY.md`), que entra em toda sessão do repositório,
+inclusive nas worktrees de agente. Numa instalação real ele chegou a 36,4 KB: o que passa de 24,4 KB é cortado em
+silêncio, e o resto custa contexto em todo turno.
+
+- Doctor: linha `memoria-indice` (grupo Memória) com o tamanho contra o limite de carregamento, linhas acima de 150
+  caracteres, entradas duplicadas, links para arquivo inexistente e entradas com cara de histórico encerrado. Sem
+  índice, ok com o motivo.
+- `hades memory tidy [--dry-run|--apply] [--json]`: encurta linhas, remove duplicatas e propõe a divisão em
+  `MEMORY.md` (regras duráveis), `ORQUESTRACAO.md` e `ARQUIVO.md`, mostrando o diff. Dry-run por padrão; `--apply`
+  grava com backup `.bak-<data>` e nunca apaga nem move arquivo de memória.
+- O orquestrador grava e lê a memória de orquestração no `ORQUESTRACAO.md` (cartão e `orchestrate.md`).
+- Armadilhas: o id `memoria` do doctor já era a checagem de RAM, daí `memoria-indice`; o histórico encerrado é
+  heurística (60 dias ou "mergeada/entregue/concluída" no texto), por isso o `tidy` mostra o diff antes de gravar.
+
 ## 6.39.0 — 2026-11-12
 
 Capacidade nova, pedida pelo dono (#113, fatia 1): Extensões, ferramentas externas da máquina que a Hades detecta e

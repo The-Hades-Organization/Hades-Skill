@@ -76,6 +76,7 @@ Notas do `agent`:
 | `env-watch` | plantão: `HEADS-CHANGED`, `CEDE` e `GATES-CLEAR`, uma linha por evento, sem parar | `kit/watch.sh` |
 | `doctor [--quick] [--json]` | diagnóstico: ferramentas, máquina, instalação, painel, plugin e onboarding; o `doctor.sh` do plugin roda num shim de bash | `kit/doctor.sh` |
 | `config show\|get\|set\|unset\|export\|import` | configurações do dono (`reference/config.md`) | `kit/config.sh` (§Shims) |
+| `memory tidy [--dry-run\|--apply] [--json]` | higiene do índice de memória: encurta linhas, tira duplicata e divide em `MEMORY.md`, `ORQUESTRACAO.md` e `ARQUIVO.md`; grava só com `--apply` | — |
 | `version-check status\|doctor [--refresh] [--json]` | checagem de versão da skill | — |
 
 ### Painel

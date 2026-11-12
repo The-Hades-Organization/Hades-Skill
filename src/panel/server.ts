@@ -48,6 +48,7 @@ import { createThanatosRoutes } from "./thanatos.ts";
 import { loadPlugin, readManifest, routeKey, unitNamePattern } from "./plugin.ts";
 import { PluginError, PluginRefused, type PluginState, startPluginHost } from "./plugin-host.ts";
 import { PluginsRefused, createPluginsPage } from "./plugins-page.ts";
+import { ExtPanelRefused, createExtensionsRoutes } from "./routes-ext.ts";
 import { createMisc } from "./routes-misc.ts";
 import { createSampler } from "./sampler.ts";
 import { BadRequest, CTYPES, readForm, readJsonBody, queryOf, send } from "./http.ts";
@@ -345,6 +346,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     }
   }
 
+  const extensions = createExtensionsRoutes({ env });
   const refusedPlugins = (error: PluginsRefused): Response => send(error.status, { error: error.message, code: error.code });
 
   async function pluginsList(remote: boolean): Promise<Response> {
@@ -452,6 +454,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     }
     if (path === "/api/plugin") return send(200, plugin.public());
     if (path === "/api/plugins") return pluginsList(remote);
+    if (path === "/api/extensions") return send(200, extensions.list());
     if (path.startsWith("/api/plugin/")) return pluginRoute("GET", path.slice("/api/plugin/".length), query, remote);
     try {
       if (path === "/api/thanatos") return send(200, thanatos.list());
@@ -734,6 +737,14 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     if (path === "/api/onboard") return send(200, await misc.onboardApply(body, remote));
     if (path === "/api/config/preview") return send(200, core.configPreview(env, body, remote));
     if (path === "/api/plugins") return pluginsAct(body, remote);
+    if (path === "/api/extensions") {
+      try {
+        return send(200, extensions.act(body, remote));
+      } catch (error) {
+        if (error instanceof ExtPanelRefused) return send(error.status, { error: error.message, code: error.code });
+        throw error;
+      }
+    }
     if (path.startsWith("/api/plugin/")) return pluginRoute("POST", path.slice("/api/plugin/".length), body, remote);
     return send(404, { error: "not found", code: PANEL_ERRORS.notFound });
   }

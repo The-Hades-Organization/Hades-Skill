@@ -302,7 +302,7 @@ describe("guarda: toda página do núcleo tem tour", () => {
   const core = join(UI, "pages");
   const pages = readdirSync(core).filter((n) => n.endsWith(".tsx") && !n.endsWith(".tour.tsx")).map((n) => n.slice(0, -4)).sort();
   test("dado o kit, então TOUR_PENDING só lista páginas sem tour e a Thanatos tem tour", () => {
-    expect(pages).toHaveLength(22);
+    expect(pages).toHaveLength(23);
     const withTour = new Set(readdirSync(core).filter((n) => n.endsWith(".tour.tsx")).map((n) => n.slice(0, -".tour.tsx".length)));
     expect(withTour.has("thanatos")).toBe(true);
     expect(TOUR_PENDING.filter((p) => withTour.has(p))).toEqual([]);

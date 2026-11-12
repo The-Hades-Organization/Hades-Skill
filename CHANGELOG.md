@@ -4,6 +4,21 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.42.0 — 2026-11-12
+
+Capacidade nova (#113, fatia 2, fecha a issue): página Extensões no painel (`#/extensoes`, grupo Sistema), sobre o
+carregador da fatia 1.
+
+- Lista as extensões (herdr, Mark) com instalada, versão (ou "desconhecida"), mínima, saúde, capacidades, problemas
+  com código estável e chaves próprias com o valor efetivo e link para Configurações.
+- Liga e desliga pelo painel local (`HADES_EXT_<NOME>`). `GET /api/extensions` devolve o mesmo JSON do
+  `hades ext list --json`; `POST /api/extensions` exige o token da sessão e é recusado pelo acesso remoto
+  (`ext.local-only`).
+- O comando de instalação aparece como texto copiável que a Hades não executa. Tour de oito passos; sem rolagem
+  lateral em 360 e 768 px.
+- Armadilhas: religar apaga a chave do `config.env` (volta ao padrão); a lista fica guardada por 10 s porque versão e
+  saúde rodam binários de forma síncrona (até 5 s cada).
+
 ## 6.41.0 — 2026-11-12
 
 Capacidade nova (#59): avisar worktree de agente com filtro do rtk gerado e sem confiança. O rtk ignora esse filtro

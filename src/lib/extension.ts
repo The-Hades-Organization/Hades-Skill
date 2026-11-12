@@ -148,15 +148,15 @@ function configStore(): ConfigStore {
 }
 
 /** Configuração efetiva (ambiente > config.env > padrão do kit) das chaves que as extensões usam. */
-export function readExtensionConfig(env: NodeJS.ProcessEnv = process.env): Map<string, string> {
+export function readExtensionConfig(env: NodeJS.ProcessEnv = process.env, store: ConfigStore = configStore()): Map<string, string> {
   const values = new Map<string, string>();
-  for (const item of effective(configStore())) values.set(item.key, env[item.key] ?? item.value);
+  for (const item of effective(store)) values.set(item.key, env[item.key] ?? item.value);
   return values;
 }
 
-export function realDeps(env: NodeJS.ProcessEnv = process.env): ExtensionDeps {
+export function realDeps(env: NodeJS.ProcessEnv = process.env, store?: ConfigStore): ExtensionDeps {
   return {
-    config: readExtensionConfig(env),
+    config: readExtensionConfig(env, store),
     which: (command) => which(command),
     run: (command, args) => run(command, args, { timeoutMs: PROBE_TIMEOUT_MS }),
   };

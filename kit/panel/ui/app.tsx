@@ -560,6 +560,7 @@ const CORE_NAV = [
   { id: 'notify', label: 'Notificações', icon: I.Bell, desc: 'Canais (desktop e ntfy), vigia e as últimas 50 notificações' },
   { id: 'onboard', label: 'Onboarding', icon: I.ListChecks, desc: 'Escolha os recursos a preparar e veja estado e passos de cada uma' },
   { id: 'plugins', label: 'Plugins', icon: I.Puzzle, desc: 'Adicionar por URL, atualizar, ligar, desligar e remover (só leitura pelo acesso remoto)' },
+  { id: 'extensoes', label: 'Extensões', icon: I.Plug, desc: 'Ferramentas externas (herdr, Mark): instalada, versão, saúde, ligar e desligar' },
   { id: 'quality', label: 'Qualidade', icon: I.ShieldCheck, desc: 'Regras de qualidade: ligue e desligue o que entra nos briefs, na entrega, no inbox e na revisão' },
   { id: 'thanatos', label: 'Thanatos', sub: 'post-mortems', icon: I.Skull, desc: 'Post-mortems de incidentes e bugs em produção: linha do tempo, causa, correção e lacunas' },
   { id: 'cerberus', label: 'Cerberus', sub: 'guarda de entrada e saída', icon: I.Cerberus, desc: 'Porta, Limiar e Vigília: modos, guardas, vereditos, o que barrou e exceções' },
@@ -571,7 +572,7 @@ const CORE_GROUPS = [
   { id: 'loop', label: 'Loop', items: ['loop', 'orchestration', 'reviews', 'queue', 'usage'] },
   { id: 'operacao', label: 'Operação', items: ['claude', 'herdr', 'jobs', 'logs', 'notify', 'remote'] },
   { id: 'hades', label: 'Hades', items: ['argos', 'cerberus', 'thanatos', 'caronte'] },
-  { id: 'sistema', label: 'Sistema', items: ['onboard', 'plugins', 'quality', 'config', 'docs'] },
+  { id: 'sistema', label: 'Sistema', items: ['onboard', 'plugins', 'extensoes', 'quality', 'config', 'docs'] },
 ];
 // páginas do plugin entram no grupo que declaram (id ou rótulo; grupo desconhecido vira grupo novo antes de Sistema),
 // depois do item `after` quando ele existe. Só entra página cujo script registrou o componente.

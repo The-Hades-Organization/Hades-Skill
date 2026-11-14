@@ -4,6 +4,25 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.46.0 — 2026-11-13
+
+Capacidade nova (#114, fatia 2, pedida pelo dono): o desenho do Argos gira, encaixa em guias e prende conectores.
+
+- Girar: campo aditivo `rotation` (graus, [0,360)) em retângulo, elipse e texto; alça acima da seleção, Shift trava
+  em 15°, teclas Q/W (−/+15°). Traço gira gravando os pontos. A tela e o SVG da CLI (`hades canvas drawing export`)
+  usam a mesma `rotateTransform`. Desenho antigo, sem o campo, abre igual.
+- Guias: mover e redimensionar encaixam nas bordas e centros dos outros elementos (limiar 6), com linha tracejada
+  visível; Alt desliga o encaixe.
+- Conectores que seguem: soltar a ponta de seta/linha sobre um elemento prende (`{ ref }`) e a ponta acompanha mover,
+  redimensionar e girar; soltar longe desancora. Alças nas pontas do conector selecionado.
+- Correção achada nas capturas: o ponteiro do editor (fatia 1) esticava o SVG sobre a caixa, mas em edição o SVG usa
+  `meet` e a cena fica centrada com faixas; em 768 px o clique no elemento caía fora dele. Agora passa pela matriz de
+  tela do SVG (`getScreenCTM`).
+- Medido: harness de escala (`/dev/canvas?n=1000&bench=1`) antes e depois equivalentes, ~59 fps em pan e arrasto,
+  variação dentro do ruído entre rodadas. Capturas em desktop, 768 e 360 px, claro e escuro.
+- Fica para depois: traço de largura variável, seleção por caixa que pega elemento parcial, e a alça de giro cortada
+  quando o desenho encosta no topo do nó.
+
 ## 6.45.0 — 2026-11-12
 
 Capacidade nova (#111): `hades canvas organize [--canvas <id>] [--dry-run]` reorganiza o canvas em áreas por

@@ -931,4 +931,33 @@ describe("desenho no motor", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]?.scene.elements.map((el) => el.id)).toEqual(["a"]);
   });
+
+  test("dado elemento selecionado, então W gira 15° em um passo só, gravando o ângulo no elemento, e Q desfaz esse giro", () => {
+    const calls: { id: string; scene: drawingLib.DrawingScene }[] = [];
+    const view = mountEditable(calls);
+    enter(view);
+    pointer(view, "onPointerDown", { x: 0, y: 0 });
+    pointer(view, "onPointerUp", { x: 0, y: 0 });
+    fire(view, "w");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.scene.elements[0]).toMatchObject({ id: "a", rotation: 15 });
+  });
+
+  test("dado elemento selecionado, então a alça de giro aparece e a de redimensionar continua", () => {
+    const view = mountEditable([]);
+    enter(view);
+    pointer(view, "onPointerDown", { x: 0, y: 0 });
+    pointer(view, "onPointerUp", { x: 0, y: 0 });
+    expect(findAll(view.tree, (el) => el.props["data-rotate"] !== undefined)).toHaveLength(1);
+    expect(findAll(view.tree, (el) => el.props["data-handle"] !== undefined)).toHaveLength(8);
+  });
+
+  test("dado desenho sem selecionar nada, então Q e W não gravam nada", () => {
+    const calls: { id: string; scene: drawingLib.DrawingScene }[] = [];
+    const view = mountEditable(calls);
+    enter(view);
+    fire(view, "q");
+    fire(view, "w");
+    expect(calls).toHaveLength(0);
+  });
 });

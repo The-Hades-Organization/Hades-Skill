@@ -1363,7 +1363,7 @@ um Hades antigo lê o nó como tipo desconhecido).
   (`resizeBox` + `scaleElements`, com o delta medido do ponto de agarre, então pegar e soltar sem mexer não muda nada).
   Texto escala pelo menor fator, dentro dos limites do formato.
 - **Teclas** (só com o foco no desenho em edição, fora de campo de texto; estão na Legenda, seção "Desenho (editando)"):
-  `S` selecionar, `R` retângulo, `O` elipse, `I` linha, `A` seta, `P` traço, `T` texto; `Ctrl+D` duplica a seleção (16 de
+  `S` selecionar, `R` retângulo, `O` elipse, `I` linha, `A` seta, `P` traço, `T` texto; `Q`/`W` giram a seleção −15°/+15°; `Ctrl+D` duplica a seleção (16 de
   deslocamento, no topo, e a cópia fica selecionada; o `Ctrl+D` do nó passa só quando o foco está dentro de `[data-draw-keys]`);
   `Delete`/`Backspace` apaga; `PgUp`/`PgDn` sobem e descem um degrau e com Shift vão à frente ou ao fundo. **Esc** age em
   degraus: cancela o gesto, depois o texto pendente, volta a Selecionar, limpa a seleção e por fim sai. As letras foram
@@ -1372,8 +1372,23 @@ um Hades antigo lê o nó como tipo desconhecido).
 - **Desfazer.** Um gesto é um passo: mover, redimensionar, duplicar, reordenar, apagar e cada traço chamam `onDrawingChange` uma
   vez (`opSetDrawing`, então o Ctrl+Z do canvas cobre o desenho). Os eventos de ponteiro intermediários só mexem no estado local
   da tela. Sem `onDrawingChange` do host o desenho é só leitura.
-- **Fatia 2 (não feito).** Girar, guias de alinhamento e conectores que seguem elementos ao redimensionar (hoje a ponta presa
-  segue a caixa do alvo; a ponta livre só escala com a seleção); largura variável do traço.
+- **Girar.** Com seleção, uma alça redonda acima da caixa gira o conjunto em torno do centro dela; **Shift** trava o ângulo final
+  em múltiplos de 15° (`ROTATE_STEP`, contando o ângulo que o elemento já tinha); `Q` e `W` giram 15° para a esquerda e a direita.
+  Retângulo, elipse e texto guardam `rotation` (graus, horário, `[0, 360)`, em torno do centro do elemento; campo aditivo: sem
+  ele o desenho abre igual, e giro completo apaga o campo). Traço e pontas livres de conector giram os pontos (não há campo).
+  `elementBox` devolve a caixa que envolve o elemento girado, então seleção e guias a usam sem saber do ângulo. Redimensionar
+  um elemento girado escala o centro e projeta os fatores nos eixos do próprio elemento. O SVG da CLI (e o PNG) grava o mesmo
+  `transform="rotate(a cx cy)"` (`rotateTransform`); `describeDrawing` lista `rotation` e a caixa envolvente.
+- **Guias de alinhamento.** Ao mover, as bordas e o centro da seleção encaixam nas bordas e centros dos outros elementos (não os
+  da seleção, nem conectores) a até `SNAP_THRESHOLD` (6 unidades); ao redimensionar, só a borda que a alça move encaixa. Uma linha
+  tracejada marca cada alinhamento (`snapMove`, `snapResize` → `GuideLine`). **Alt** ao arrastar desliga o encaixe. A tela mostra
+  o que será gravado (o encaixe vale no gesto e na gravação).
+- **Conectores que seguem.** A ponta presa (`{ ref }`) é resolvida pela caixa do alvo a cada leitura e pela borda do alvo
+  girado, então acompanha mover, redimensionar e girar o alvo. Com um conector selecionado, as pontas ganham alças (cheia =
+  presa, vazia = livre; as oito de redimensionar saem, porque o conector é definido pelas pontas). Soltar a ponta sobre
+  retângulo, elipse ou texto prende nele (`moveConnectorEnd`); soltar longe de todos solta a ponta no ponto (desancora).
+  Traço e outro conector nunca são alvo. Um passo do desfazer por gesto.
+- **Fatia 3 (não feito).** Largura variável ao longo do traço; seleção por caixa que pega elementos parcialmente dentro.
 - **Barra de ferramentas.** Botão **Desenho** (`registerTool` id `drawing`, ícone `PenTool`, ao lado de Área): arrastar um
   retângulo cria o nó nesse tamanho (`toolRect.drawing` em `pages/argos.tsx`).
 - **Exportar.** `drawingToSvg(cena, { background? })` é função pura (também `hades canvas drawing export <d> --svg` e

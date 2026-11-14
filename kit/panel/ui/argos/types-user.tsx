@@ -668,14 +668,7 @@ function makeArgosTypesUser() {
   type Draft = { tool: "rect" | "ellipse" | "line" | "arrow"; from: Pt; to: Pt; fromRef?: string } | { tool: "stroke"; points: [number, number][] };
 
   /** O elemento (que não é conector) sob o ponto, o de cima primeiro: é a ponta presa de um conector novo. */
-  function anchorAt(dm: DrawingModel, scene: Scene, at: Pt): string | undefined {
-    for (const el of [...scene.elements].reverse()) {
-      if (el.type === "stroke" || dm.isConnector(el)) continue;
-      const box = dm.elementBox(scene, el);
-      if (at.x >= box.x && at.x <= box.x + box.w && at.y >= box.y && at.y <= box.y + box.h) return el.id;
-    }
-    return undefined;
-  }
+  const anchorAt = (dm: DrawingModel, scene: Scene, at: Pt): string | undefined => dm.anchorTarget(scene, at);
 
   /** Elemento sob o ponto para selecionar: o de cima; traço e conector contam pela caixa com folga. */
   function hitElement(dm: DrawingModel, scene: Scene, at: Pt): string | undefined {
@@ -694,8 +687,8 @@ function makeArgosTypesUser() {
     const line = { stroke, strokeWidth: width, strokeLinecap: "round", strokeLinejoin: "round", opacity: preview ? 0.6 : 1 };
     switch (el.type) {
       case "stroke": return h("path", { key: el.id, d: dm.strokePath(el.points), fill: "none", ...line, strokeWidth: dm.strokeWidth(el) });
-      case "rect": return h("rect", { key: el.id, x: el.x, y: el.y, width: el.w, height: el.h, fill: el.fill ?? "none", ...line });
-      case "ellipse": return h("ellipse", { key: el.id, cx: el.x + el.w / 2, cy: el.y + el.h / 2, rx: el.w / 2, ry: el.h / 2, fill: el.fill ?? "none", ...line });
+      case "rect": return h("rect", { key: el.id, x: el.x, y: el.y, width: el.w, height: el.h, fill: el.fill ?? "none", transform: dm.rotateTransform(el), ...line });
+      case "ellipse": return h("ellipse", { key: el.id, cx: el.x + el.w / 2, cy: el.y + el.h / 2, rx: el.w / 2, ry: el.h / 2, fill: el.fill ?? "none", transform: dm.rotateTransform(el), ...line });
       case "line":
       case "arrow": {
         const [a, b] = dm.connectorEnds(scene, el);
@@ -706,7 +699,7 @@ function makeArgosTypesUser() {
       }
       case "text": {
         const size = el.size ?? 16;
-        return h("text", { key: el.id, x: el.x, y: el.y + size, fontSize: size, fill: stroke, fontFamily: "sans-serif", style: { whiteSpace: "pre" }, opacity: preview ? 0.6 : 1 },
+        return h("text", { key: el.id, x: el.x, y: el.y + size, fontSize: size, fill: stroke, fontFamily: "sans-serif", style: { whiteSpace: "pre" }, transform: dm.rotateTransform(el), opacity: preview ? 0.6 : 1 },
           ...el.text.split("\n").map((part, i) => h("tspan", { key: i, x: el.x, dy: i === 0 ? 0 : size * 1.25 }, part)));
       }
     }
@@ -715,10 +708,16 @@ function makeArgosTypesUser() {
   type ResizeHandle = Parameters<DrawingModel["resizeBox"]>[1];
   type Box = { x: number; y: number; w: number; h: number };
   type Gesture =
-    | { kind: "move"; from: Pt; dx: number; dy: number }
-    | { kind: "resize"; handle: ResizeHandle; from: Pt; dx: number; dy: number; box: Box }
+    | { kind: "move"; from: Pt; dx: number; dy: number; alt?: boolean }
+    | { kind: "resize"; handle: ResizeHandle; from: Pt; dx: number; dy: number; box: Box; alt?: boolean }
+    | { kind: "rotate"; from: Pt; to: Pt; pivot: Pt; base: number; shift: boolean }
+    | { kind: "end"; which: "from" | "to"; to: Pt }
     | { kind: "marquee"; from: Pt; to: Pt };
+  /** Move e redimensionar carregam se o Alt está apertado (sem encaixe nas guias). */
   const HANDLE_SIZE = 8;
+  const ROTATE_MIN = 0.5;
+  const ROTATE_OFFSET = 20;
+  const GUIDE_STROKE = "var(--vivo, currentColor)";
   const DUPLICATE_OFFSET = 16;
   const MARQUEE_MIN = 3;
   const HANDLE_CURSOR: Record<string, string> = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize", ne: "nesw-resize", sw: "nesw-resize", nw: "nwse-resize", se: "nwse-resize" };
@@ -782,7 +781,15 @@ function makeArgosTypesUser() {
       }
     };
     const pointOf = (event: { clientX: number; clientY: number }): Pt => {
-      const rect = svgRef.current?.getBoundingClientRect();
+      // o SVG de edição usa `meet`: com a barra de ferramentas a caixa deixa de ter a proporção da cena e a cena fica
+      // centrada com faixas; a matriz de tela do próprio SVG já desconta isso
+      const svg = svgRef.current as (SVGSVGElement | null);
+      const ctm = svg?.getScreenCTM?.();
+      if (svg && ctm && typeof svg.createSVGPoint === "function") {
+        const mapped = Object.assign(svg.createSVGPoint(), { x: event.clientX, y: event.clientY }).matrixTransform(ctm.inverse());
+        return { x: mapped.x, y: mapped.y };
+      }
+      const rect = svg?.getBoundingClientRect();
       if (!rect || rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
       return { x: ((event.clientX - rect.left) * props.w) / rect.width, y: ((event.clientY - rect.top) * props.h) / rect.height };
     };
@@ -795,6 +802,13 @@ function makeArgosTypesUser() {
       setColor(hex);
     };
 
+    /** Deslocamento do gesto de mover ou redimensionar, com o encaixe nas guias (Alt desliga). */
+    const snapped = (g: Extract<Gesture, { kind: "move" | "resize" }>, alt: boolean = g.alt === true): [number, number] => {
+      if (alt || live.length === 0) return [g.dx, g.dy];
+      const out = g.kind === "move" ? dm.snapMove(base, live, g.dx, g.dy) : dm.snapResize(base, live, g.box, g.handle, g.dx, g.dy);
+      return [out.dx, out.dy];
+    };
+    const turnOf = (g: Extract<Gesture, { kind: "rotate" }>): number => dm.rotationDelta(g.pivot, g.from, g.to, g.base, g.shift ? dm.ROTATE_STEP : undefined);
     const onDown = (event: { clientX: number; clientY: number; button: number; pointerId: number; pointerType?: string; pressure?: number; shiftKey?: boolean; target: unknown; currentTarget: Element; stopPropagation(): void }): void => {
       if (!editing || event.button !== 0) return;
       event.stopPropagation();
@@ -804,6 +818,14 @@ function makeArgosTypesUser() {
       if (tool === "select") {
         const handle = (event.target as Element | null)?.getAttribute?.("data-handle") as ResizeHandle | null | undefined;
         const bounds = live.length > 0 ? dm.selectionBounds(base, live) : undefined;
+        const target = event.target as Element | null;
+        const endHandle = target?.getAttribute?.("data-end") as "from" | "to" | null | undefined;
+        if (endHandle) { setGesture({ kind: "end", which: endHandle, to: at }); return; }
+        if (target?.getAttribute?.("data-rotate") !== null && target?.getAttribute?.("data-rotate") !== undefined && bounds) {
+          const only = live.length === 1 ? base.elements.find((el) => el.id === live[0]) : undefined;
+          setGesture({ kind: "rotate", from: at, to: at, pivot: { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 }, base: only ? dm.rotationDegrees(only) : 0, shift: event.shiftKey === true });
+          return;
+        }
         if (handle && bounds) { setGesture({ kind: "resize", handle, from: at, dx: 0, dy: 0, box: bounds }); return; }
         const hit = hitElement(dm, base, at);
         if (hit === undefined) { if (!event.shiftKey) setSelected([]); setGesture({ kind: "marquee", from: at, to: at }); return; }
@@ -815,10 +837,12 @@ function makeArgosTypesUser() {
         setDraft({ tool, points: [[at.x, at.y]] });
       } else setDraft({ tool, from: at, to: at, ...(tool === "line" || tool === "arrow" ? (() => { const ref = anchorAt(dm, base, at); return ref === undefined ? {} : { fromRef: ref }; })() : {}) });
     };
-    const onMove = (event: { clientX: number; clientY: number; pointerType?: string; pressure?: number }): void => {
+    const onMove = (event: { clientX: number; clientY: number; pointerType?: string; pressure?: number; shiftKey?: boolean; altKey?: boolean }): void => {
       if (!editing) return;
       const at = pointOf(event);
-      if (gesture?.kind === "move" || gesture?.kind === "resize") setGesture({ ...gesture, dx: at.x - gesture.from.x, dy: at.y - gesture.from.y });
+      if (gesture?.kind === "move" || gesture?.kind === "resize") setGesture({ ...gesture, dx: at.x - gesture.from.x, dy: at.y - gesture.from.y, alt: event.altKey === true });
+      else if (gesture?.kind === "rotate") setGesture({ ...gesture, to: at, shift: event.shiftKey === true });
+      else if (gesture?.kind === "end") setGesture({ ...gesture, to: at });
       else if (gesture?.kind === "marquee") setGesture({ ...gesture, to: at });
       else if (draft?.tool === "stroke") {
         const last = draft.points.at(-1) as [number, number];
@@ -828,15 +852,20 @@ function makeArgosTypesUser() {
         }
       } else if (draft) setDraft({ ...draft, to: at });
     };
-    const onUp = (event: { clientX: number; clientY: number; shiftKey?: boolean }): void => {
+    const onUp = (event: { clientX: number; clientY: number; shiftKey?: boolean; altKey?: boolean }): void => {
       if (!editing) return;
       const at = pointOf(event);
       if (gesture) {
         setGesture(undefined);
         if (gesture.kind === "move") {
-          if (Math.abs(gesture.dx) + Math.abs(gesture.dy) >= 1) apply(() => dm.moveElements(base, live, gesture.dx, gesture.dy));
+          if (Math.abs(gesture.dx) + Math.abs(gesture.dy) >= 1) apply(() => dm.moveElements(base, live, ...snapped(gesture, event.altKey === true)));
         } else if (gesture.kind === "resize") {
-          if (Math.abs(gesture.dx) + Math.abs(gesture.dy) >= 1) apply(() => dm.scaleElements(base, live, gesture.box, dm.resizeBox(gesture.box, gesture.handle, gesture.dx, gesture.dy)));
+          if (Math.abs(gesture.dx) + Math.abs(gesture.dy) >= 1) apply(() => { const [dx, dy] = snapped(gesture, event.altKey === true); return dm.scaleElements(base, live, gesture.box, dm.resizeBox(gesture.box, gesture.handle, dx, dy)); });
+        } else if (gesture.kind === "rotate") {
+          const delta = turnOf({ ...gesture, to: at, shift: event.shiftKey === true });
+          if (Math.abs(delta) >= ROTATE_MIN) apply(() => dm.rotateElements(base, live, delta, gesture.pivot));
+        } else if (gesture.kind === "end") {
+          if (live[0] !== undefined) apply(() => dm.moveConnectorEnd(base, live[0] as string, gesture.which, at));
         } else {
           const rect = { x: Math.min(gesture.from.x, at.x), y: Math.min(gesture.from.y, at.y), w: Math.abs(at.x - gesture.from.x), h: Math.abs(at.y - gesture.from.y) };
           if (rect.w >= MARQUEE_MIN || rect.h >= MARQUEE_MIN) {
@@ -897,6 +926,8 @@ function makeArgosTypesUser() {
         apply(() => dm.reorderElements(base, live, event.shiftKey ? (up ? "front" : "back") : (up ? "forward" : "backward")));
         return;
       }
+      const spin = dm.DRAW_ROTATE_KEYS.find((candidate) => candidate.key === event.key.toLowerCase());
+      if (spin && !event.shiftKey && live.length > 0) { event.preventDefault(); event.stopPropagation(); apply(() => dm.rotateElements(base, live, spin.delta)); return; }
       const entry = dm.DRAW_SHORTCUTS.find((candidate) => candidate.key === event.key.toLowerCase());
       if (entry && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); chooseTool(entry.tool); }
     };
@@ -918,8 +949,11 @@ function makeArgosTypesUser() {
     const shown: Scene = (() => {
       if (!gesture || gesture.kind === "marquee" || live.length === 0) return base;
       try {
-        if (gesture.kind === "move") return dm.moveElements(base, live, gesture.dx, gesture.dy);
-        return dm.scaleElements(base, live, gesture.box, dm.resizeBox(gesture.box, gesture.handle, gesture.dx, gesture.dy));
+        if (gesture.kind === "move") return dm.moveElements(base, live, ...snapped(gesture));
+        if (gesture.kind === "rotate") return dm.rotateElements(base, live, turnOf(gesture), gesture.pivot);
+        if (gesture.kind === "end") return dm.moveConnectorEnd(base, live[0] as string, gesture.which, gesture.to);
+        const [dx, dy] = snapped(gesture);
+        return dm.scaleElements(base, live, gesture.box, dm.resizeBox(gesture.box, gesture.handle, dx, dy));
       } catch (caught) { if (caught instanceof dm.DrawingError) return base; throw caught; }
     })();
     const previewLook = { ...(color !== undefined && { stroke: color }), ...(lineWidth !== 2 && { width: lineWidth }) };
@@ -931,7 +965,25 @@ function makeArgosTypesUser() {
     })();
     const selBox: Box | undefined = editing && live.length > 0 ? dm.selectionBounds(shown, live) : undefined;
     const marquee = gesture?.kind === "marquee" ? { x: Math.min(gesture.from.x, gesture.to.x), y: Math.min(gesture.from.y, gesture.to.y), w: Math.abs(gesture.to.x - gesture.from.x), h: Math.abs(gesture.to.y - gesture.from.y) } : undefined;
-    const handles = selBox && tool === "select" ? dm.RESIZE_HANDLES.map((handle) => {
+    const guides = gesture?.kind === "move" || gesture?.kind === "resize"
+      ? (() => {
+        if (gesture.alt === true || live.length === 0) return [];
+        return (gesture.kind === "move" ? dm.snapMove(base, live, gesture.dx, gesture.dy) : dm.snapResize(base, live, gesture.box, gesture.handle, gesture.dx, gesture.dy)).guides;
+      })()
+      : [];
+    const sole = live.length === 1 ? shown.elements.find((el) => el.id === live[0]) : undefined;
+    const endHandles = editing && tool === "select" && sole && dm.isConnector(sole)
+      ? (["from", "to"] as const).map((which, i) => {
+        const point = dm.connectorEnds(shown, sole)[i] as Pt;
+        const anchored = "ref" in sole[which];
+        return h("circle", { key: `end-${which}`, "data-end": which, cx: point.x, cy: point.y, r: HANDLE_SIZE / 2 + 1, fill: anchored ? "currentColor" : "var(--background)", stroke: "currentColor", style: { cursor: "crosshair" } });
+      })
+      : [];
+    const rotateHandle = selBox && tool === "select" && !(sole && dm.isConnector(sole))
+      ? [h("line", { key: "rot-stem", x1: selBox.x + selBox.w / 2, y1: selBox.y - SELECTION_PAD, x2: selBox.x + selBox.w / 2, y2: selBox.y - ROTATE_OFFSET, stroke: "currentColor", pointerEvents: "none" }),
+        h("circle", { key: "rot", "data-rotate": "", "aria-label": "Girar", cx: selBox.x + selBox.w / 2, cy: selBox.y - ROTATE_OFFSET, r: HANDLE_SIZE / 2 + 1, fill: "var(--background)", stroke: "currentColor", style: { cursor: "grab" } })]
+      : [];
+    const handles = selBox && tool === "select" && !(sole && dm.isConnector(sole)) ? dm.RESIZE_HANDLES.map((handle) => {
       const cx = selBox.x + (handle.includes("w") ? 0 : handle.includes("e") ? selBox.w : selBox.w / 2);
       const cy = selBox.y + (handle.includes("n") ? 0 : handle.includes("s") ? selBox.h : selBox.h / 2);
       return h("rect", { key: handle, "data-handle": handle, x: cx - HANDLE_SIZE / 2, y: cy - HANDLE_SIZE / 2, width: HANDLE_SIZE, height: HANDLE_SIZE, fill: "var(--background)", stroke: "currentColor", style: { cursor: HANDLE_CURSOR[handle] } });
@@ -968,7 +1020,10 @@ function makeArgosTypesUser() {
         previewEl ? drawingShape(dm, shown, previewEl, true) : null,
         selBox ? h("rect", { x: selBox.x - SELECTION_PAD, y: selBox.y - SELECTION_PAD, width: selBox.w + 2 * SELECTION_PAD, height: selBox.h + 2 * SELECTION_PAD, fill: "none", stroke: "currentColor", strokeDasharray: "4 3", pointerEvents: "none" }) : null,
         marquee ? h("rect", { x: marquee.x, y: marquee.y, width: marquee.w, height: marquee.h, fill: "currentColor", fillOpacity: 0.08, stroke: "currentColor", strokeDasharray: "4 3", pointerEvents: "none" }) : null,
-        ...handles),
+        ...handles, ...rotateHandle, ...endHandles,
+        ...guides.map((line, i) => (line.axis === "x"
+          ? h("line", { key: `guide-${i}`, x1: line.at, y1: line.from, x2: line.at, y2: line.to, stroke: GUIDE_STROKE, strokeDasharray: "3 3", pointerEvents: "none", "data-guide": "x" })
+          : h("line", { key: `guide-${i}`, x1: line.from, y1: line.at, x2: line.to, y2: line.at, stroke: GUIDE_STROKE, strokeDasharray: "3 3", pointerEvents: "none", "data-guide": "y" })))),
       error ? h("span", { role: "alert", className: "text-bad t-label" }, error) : null);
   }
 

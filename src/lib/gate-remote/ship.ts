@@ -51,3 +51,9 @@ export function pushSnapshot(root: string, host: string, mirror: string, sha: st
   });
   if (r.status !== 0) throw new ShipError(`push ao espelho de ${host}: ${(r.stderr || r.error?.message || "falhou").trim().split("\n").at(-1)}`);
 }
+
+/** HEAD do worktree no momento do envio: é o que o marcador de "construído" do chamador compara (o commit do envio é sintético). */
+export function headSha(root: string): string {
+  const r = spawnSync("git", ["-C", root, "rev-parse", "-q", "--verify", "HEAD"], { encoding: "utf8" });
+  return r.status === 0 ? r.stdout.trim() : "";
+}

@@ -7,14 +7,17 @@ import { join } from "node:path";
 import { pidAlive } from "../proc.ts";
 import { isObject, type JsonObject } from "../profile.ts";
 import type { Affinity, WarmState } from "./dispatch.ts";
+import { ENV_NAME_PATTERN, isSecretName } from "./protocol.ts";
 
 export interface RemoteSpec {
   /** arquivos cujo conteúdo define "o mesmo ambiente" (lockfile, versão do toolchain) */
   key: string[];
   /** comandos de preparação, em ordem, rodados no worktree */
   prepare: string[];
-  /** variáveis do worker; `{cache}`, `{repo}` e `{slot}` são expandidos (ex.: CARGO_TARGET_DIR por repo e por slot) */
+  /** variáveis do worker; `{cache}`, `{repo}`, `{slot}` e `{key}` são expandidos (ex.: CARGO_TARGET_DIR por repo e por slot; o cache do nx por repo, chave e slot) */
   env: Record<string, string>;
+  /** nomes das variáveis do chamador que atravessam para o build (lista de permitidos; nunca segredo) */
+  passEnv: string[];
 }
 
 function strings(value: unknown): string[] {
@@ -27,7 +30,12 @@ export function remoteSpecOf(stack: JsonObject | undefined): RemoteSpec | undefi
   if (!isObject(remote)) return undefined;
   const env: Record<string, string> = {};
   if (isObject(remote.env)) for (const [name, value] of Object.entries(remote.env)) if (typeof value === "string" && /^[A-Z_][A-Z0-9_]*$/.test(name)) env[name] = value;
-  return { key: strings(remote.key), prepare: strings(remote.prepare), env };
+  return { key: strings(remote.key), prepare: strings(remote.prepare), env, passEnv: strings(remote.passEnv) };
+}
+
+/** Primeiro nome de `passEnv` que não pode atravessar (forma inválida ou cara de segredo); undefined = a lista serve. */
+export function badPassEnv(names: readonly string[]): string | undefined {
+  return names.find((name) => !ENV_NAME_PATTERN.test(name) || isSecretName(name));
 }
 
 /** Afinidade da etapa (`steps.<etapa>.remote.labels` e `minMemGb`); sem declaração, nenhuma exigência. */
@@ -71,12 +79,14 @@ export interface Placeholders {
   cache: string;
   repo: string;
   slot: string;
+  /** chave de aquecimento: separa o cache por conteúdo do lockfile e do toolchain */
+  key?: string;
 }
 
 export function expandEnv(env: Readonly<Record<string, string>>, vars: Placeholders): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [name, value] of Object.entries(env)) {
-    out[name] = value.replaceAll("{cache}", vars.cache).replaceAll("{repo}", vars.repo).replaceAll("{slot}", vars.slot);
+    out[name] = value.replaceAll("{cache}", vars.cache).replaceAll("{repo}", vars.repo).replaceAll("{slot}", vars.slot).replaceAll("{key}", vars.key ?? "nokey");
   }
   return out;
 }

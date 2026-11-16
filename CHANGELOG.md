@@ -4,6 +4,24 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.48.0 — 2026-11-16
+
+Capacidade nova (#126, fatia 2, pedida pelo dono): o build do front roda no worker e o diretório volta para esta máquina.
+
+- **O quê (motor).** `gate-lock run --out <dir>` traz um diretório por tar com manifesto sha256, staging, promoção por
+  rename e rollback. Novos: `--fresh`, `--post-local` (roda aqui depois da promoção, por exemplo reiniciar o nginx),
+  `sha=` e `snapshot=` no `HADES_GATE_RESULT_FILE`, `minMemGb` no `--where <host>` e `remote.passEnv` com recusa de nome
+  de segredo. A stack node-nx ganha cache do nx por repo, chave e slot (`NX_CACHE_DIRECTORY`), `NX_DAEMON=false`,
+  `nx.json` na chave e build com `minMemGb` 3.
+- **O quê (pacote do projeto).** `env/web-build-run.sh` apaga `web-dispatched.sha` antes de cada build; `build-web.sh` chama o
+  gate-lock com `--where` quando `HADES_GATE_WHERE` não é `local` nem `auto`; `web-built.sha` lê `web-dispatched.sha`.
+  Com `local` o caminho é o de antes (`gl_run`, build local).
+- **Desvios do contrato.** `remote.env` já existia (variáveis do worker): as entradas de build que atravessam são
+  `remote.passEnv`. `sha=` é o HEAD do worktree no envio; `snapshot=` é o commit sintético. Falha de promoção ou
+  validação sai 75 só quando o rc remoto era 0. `auto` no pacote ainda builda local (`--where auto` não existe na linha
+  de comando). `web-dispatched.sha` só é gravado com rc 0.
+- **Limite.** Worker real não provado: o transporte e a promoção foram testados com stub e transporte local.
+
 ## 6.47.0 — 2026-11-15
 
 Capacidade nova (#126, fatia 1, pedida pelo dono): a fila de gates pode rodar um gate em outra máquina dele, por SSH.

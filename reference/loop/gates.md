@@ -225,7 +225,7 @@ Espera e cessão do tick:
 
 #### Despacho remoto (`--where`)
 
-`run … --where local|<host> [--out <arquivo>]… -- <cmd…>` manda o item para um worker por SSH. O padrão vem de
+`run … --where local|<host> [--out <arquivo|dir>]… [--fresh <arq>] [--post-local <cmd>] -- <cmd…>` manda o item para um worker por SSH. O padrão vem de
 `HADES_GATE_WHERE` (`local`); `auto` só existe pela chave, nunca na linha de comando.
 
 - **`--where <host>`**: o item roda no worker, sempre. O código do worktree (incluindo mudança não commitada e arquivo
@@ -241,6 +241,18 @@ Espera e cessão do tick:
   resposta ou envio que falhou saem `75` com o motivo `remoto perdido` (ou `envio falhou`), **nunca `0`**: rc só vale com o
   trailer do worker. O `done` do journal leva `host=<host>` e o `peak=` medido lá (`gate-lock peak <label>` segue
   funcionando). `--out` traz de volta os arquivos declarados (sumário, junit); falha na volta também sai `75`.
+- **Build do front (`--out <dir>`)**: o diretório volta por tar sobre o ssh para um staging ao lado
+  (`<dir>.hades-in-<id>`). O worker gera um manifesto (arquivos e sha256) e o local o confere antes de promover por
+  `rename`; o diretório antigo vira `<dir>.hades-old-<id>` e só é removido depois. Falha em qualquer ponto deixa o
+  anterior intocado e sai `75` (só quando o rc remoto era `0`; rc remoto diferente passa direto e o diretório nem
+  viaja). `--fresh <arq>` (relativo ao diretório, ex.: `index.html`) tem de ser mais novo que o início do job, medido
+  no relógio do worker; sem isso o `0` remoto vira falha. `--post-local <cmd>` roda aqui depois da promoção, só com
+  sucesso, e o rc dele entra no resultado. Só valem com `--where <host>`; no local são ignorados com aviso.
+- **Resultado para o chamador**: `HADES_GATE_RESULT_FILE` ganha `sha=` (HEAD do worktree no envio, o que o marcador de
+  "construído" compara com `git rev-parse HEAD`) e `snapshot=` (o commit sintético que viajou).
+- **Entradas e memória**: `remote.passEnv` da stack lista as variáveis que atravessam para o job (sem segredo: nome que
+  case com o filtro de segredo é recusado). `steps.<etapa>.remote.minMemGb` vale também no `--where <host>`: o worker
+  sem a memória livre é recusado com mensagem. oom no worker volta `137`/`143`.
 - **Ticket**: `state=remote:<host>` (mais `where=remote` e `remote=<host>`), fora do orçamento local; `host=` continua o
   da máquina que enfileirou, para o órfão (§3.3).
 - **Segurança**: a chave SSH do worker é dedicada, com `command="hades worker exec"` forçado e sem agent forwarding. O

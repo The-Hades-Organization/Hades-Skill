@@ -20,10 +20,11 @@ import { MIN_FREE_KILL_MB, OOM_EXIT, MemWatch, type KillReason } from "../lib/me
 import { memAvailableMb, pidAlive, procStartTime, run as runSync, sameProcess, which } from "../lib/proc.ts";
 import { installedStacks, pyRepr, stepOf } from "../lib/profile.ts";
 import { slugOfRemote } from "../lib/work.ts";
-import { runRemote, warmWorker } from "../lib/gate-remote/client.ts";
+import { probeWorker, runRemote, warmWorker } from "../lib/gate-remote/client.ts";
 import { decide, shouldProbe, type Where } from "../lib/gate-remote/dispatch.ts";
 import { WHERE_LOCAL, checkOut, parseWhere, planOf, probeAll, type RemotePlan } from "../lib/gate-remote/plan.ts";
-import { ProtocolError, parseWorkers, type WorkerSpec } from "../lib/gate-remote/protocol.ts";
+import { ProtocolError, REASON_MEM, parseWorkers, safeRelative, type WorkerSpec } from "../lib/gate-remote/protocol.ts";
+import { badPassEnv } from "../lib/gate-remote/warm.ts";
 import { sshCommand } from "../lib/gate-remote/transport.ts";
 
 const DEFAULT_TIMEOUT_SECONDS = 3600;
@@ -53,7 +54,7 @@ Politica v2 (proposta de 2026-09-22, ver ~/.claude/hades/docs/lock-policy/REPORT
   - No maximo UM gate pesado (test, test:integration, gate) por vez na maquina.
   - O comando roda num scope systemd com MemoryMax: estourou, morre o gate, nao a maquina.
 
-  gate-lock.sh run <kind> [--label L] [--timeout S] [--cost-gb N] [--step S:E] [--priority N] [--where local|<host>] [--out F]... -- <cmd...>
+  gate-lock.sh run <kind> [--label L] [--timeout S] [--cost-gb N] [--step S:E] [--priority N] [--where local|<host>] [--out F|DIR]... [--fresh ARQ] [--post-local CMD] -- <cmd...>
   gate-lock.sh run --step <stack>:<etapa> [...] -- <cmd...>     kind e custo vem da etapa da stack (stacks/<n>/stack.json)
   gate-lock.sh status`;
 
@@ -370,8 +371,12 @@ interface RunOptions {
   priority: string;
   /** `--where`: vazio = o que a configuração diz. */
   where: string;
-  /** `--out`, repetível: arquivos que o worker devolve (caminho dentro de $HOME). */
+  /** `--out`, repetível: arquivos ou diretórios que o worker devolve (caminho dentro de $HOME). */
   out: string[];
+  /** `--fresh`: arquivo (relativo a cada diretório de `--out`) que o build remoto tem de ter regravado. */
+  fresh: string;
+  /** `--post-local`: comando que roda aqui, depois da promoção do que voltou, só com sucesso. */
+  postLocal: string;
 }
 
 class Gate {
@@ -484,7 +489,9 @@ class Gate {
     try {
       const where = parseWhere(options.where !== "" ? options.where : this.config.where, options.where !== "");
       if (where.mode !== "local") checkOut(options.out, home(), process.cwd());
-      else if (options.out.length > 0) note("--out só vale fora da máquina (--where <host>): ignorado");
+      else if (options.out.length > 0 || options.fresh !== "" || options.postLocal !== "") note("--out, --fresh e --post-local só valem fora da máquina (--where <host>): ignorados");
+      if (options.fresh !== "" && !safeRelative(options.fresh)) gateDie("--fresh exige caminho relativo, sem ..");
+      if (options.fresh !== "" && options.out.length === 0) gateDie("--fresh precisa de --out <dir>");
       if (where.mode === "auto" && this.config.workers.length === 0) note("HADES_GATE_WORKERS vazio: o auto roda tudo local");
       return where;
     } catch (error) {
@@ -546,20 +553,51 @@ class Gate {
     this.journalGate("admit", kind, options.label, clone, `waited=${waited}s host=${host}`);
     const started = Date.now();
     const explicit = this.where.mode === "host";
+    const ssh = sshCommand(this.env);
+    const plan = this.remotePlan(clone, options.step);
+    const refusal = await this.refuseWorker(host, plan, ssh);
+    if (refusal !== undefined) {
+      note(`rc 75: ${refusal} (${host})`);
+      return this.finish(options, kind, cost, clone, command, 0, started, EX_TEMPFAIL, undefined, { host, reason: refusal });
+    }
     const result = await runRemote(
       {
         host, home: home(), repo: projectSlug(), clone, subdir: relative(clone, process.cwd()), kind, label: options.label, cost,
-        timeout: Number(options.timeout), priority: Number(options.priority), step: options.step, stack: this.remotePlan(clone, options.step).stack,
-        argv: command, out: checkOut(options.out, home(), process.cwd()), warmInline: explicit,
+        timeout: Number(options.timeout), priority: Number(options.priority), step: options.step, stack: plan.stack,
+        argv: command, out: checkOut(options.out, home(), process.cwd()), warmInline: explicit, fresh: options.fresh, env: this.passEnv(plan),
+        postLocal: options.postLocal,
       },
-      sshCommand(this.env),
+      ssh,
       (child) => {
         this.child = child;
         appendFileSync(this.ticket, `child=${child.pid ?? ""}\nchildstart=${child.pid === undefined ? "" : (procStartTime(child.pid) ?? "")}\n`);
       },
       note,
     );
-    return this.finish(options, kind, cost, clone, command, 0, started, result.rc, result.peakMb, { host: result.host ?? host, reason: result.reason });
+    return this.finish(options, kind, cost, clone, command, 0, started, result.rc, result.peakMb, { host: result.host ?? host, reason: result.reason }, result.sha === "" ? undefined : { sha: result.sha, snapshot: result.snapshot });
+  }
+
+  /**
+   * `--where <host>` não passa pelo `eligible` do auto: aqui a memória livre mínima da etapa (`remote.minMemGb`) é conferida
+   * antes de enviar. Worker que não responde segue: o envio falha com rc 75 e o motivo certo.
+   */
+  private async refuseWorker(host: string, plan: RemotePlan, ssh: ReturnType<typeof sshCommand>): Promise<string | undefined> {
+    if (plan.affinity.minMemGb <= 0) return undefined;
+    const status = await probeWorker(ssh, host);
+    if (status === undefined || status.memFreeGb >= plan.affinity.minMemGb) return undefined;
+    return `${REASON_MEM}: ${status.memFreeGb} GB livres, a etapa pede ${plan.affinity.minMemGb} GB`;
+  }
+
+  /** Entradas de build declaradas na stack (`remote.passEnv`): o valor vem do ambiente de quem chamou; sem segredo. */
+  private passEnv(plan: RemotePlan): Record<string, string> {
+    const bad = badPassEnv(plan.passEnv);
+    if (bad !== undefined) gateDie(`remote.passEnv da stack traz ${bad}: nome inválido ou de segredo não atravessa`);
+    const env: Record<string, string> = {};
+    for (const name of plan.passEnv) {
+      const value = this.env[name];
+      if (value !== undefined) env[name] = value;
+    }
+    return env;
   }
 
   private remotePlan(clone: string, step: string): RemotePlan {
@@ -678,11 +716,16 @@ class Gate {
   private finish(
     options: RunOptions, kind: string, cost: number, clone: string, command: readonly string[], cap: number, started: number, rc: number, peak: number | undefined,
     remote?: { host: string; reason: string | undefined },
+    dispatched?: { sha: string; snapshot: string },
   ): number {
     if (peak !== undefined) writeFileSync(`${this.ticket}.peak`, `${peak}\n`);
     const resultFile = this.env[RESULT_FILE_ENV];
     // O worker lê o pico daqui: é como o `gate-lock` dele devolve ao `hades worker exec` o que mediu (ver worker.ts).
-    if (resultFile && peak !== undefined) writeFileSync(resultFile, `peak=${peak}\n`);
+    // `sha=` é o HEAD do worktree no envio (marcador de "construído" do chamador); `snapshot=` o commit que viajou.
+    if (resultFile) {
+      const lines = [...(peak !== undefined ? [`peak=${peak}`] : []), ...(dispatched === undefined ? [] : [`sha=${dispatched.sha}`, `snapshot=${dispatched.snapshot}`])];
+      if (lines.length > 0) writeFileSync(resultFile, `${lines.join("\n")}\n`);
+    }
     const seconds = Math.floor((Date.now() - started) / 1000);
     // No remoto quem viu o estouro foi o worker (a mensagem dele já veio no stderr); o teto local não é o que valeu.
     if (remote === undefined && OOM_SIGNALS.includes(rc) && !this.watchKilled) this.explainOom(rc, cap, seconds);
@@ -690,6 +733,7 @@ class Gate {
       ...(options.step !== "" ? [`step=${options.step}`] : []),
       ...(peak !== undefined ? [`peak=${peak}MB`] : []),
       ...(remote === undefined ? [] : [`host=${remote.host}`, ...(remote.reason === undefined ? [] : [`reason=${remote.reason}`])]),
+      ...(dispatched === undefined ? [] : [`sha=${dispatched.sha.slice(0, 12)}`]),
     ];
     this.queue.journal("done", kind, options.label, String(cost), clone, `rc=${rc}`, `dur=${seconds}s`, `cmd=${normalizeCommand(command)}`, ...extra);
     this.journalGate("done", kind, options.label, clone, `rc=${rc} dur=${seconds}s cmd=${normalizeCommand(command)}${remote === undefined ? "" : ` host=${remote.host}`}`);
@@ -768,7 +812,7 @@ function peak(queue: Queue, label: string): number {
 }
 
 function parseRun(args: readonly string[], defaultPriority: number): { options: RunOptions; command: string[] } {
-  const options: RunOptions = { kind: "", label: "-", timeout: String(DEFAULT_TIMEOUT_SECONDS), cost: "", step: "", priority: String(defaultPriority), where: "", out: [] };
+  const options: RunOptions = { kind: "", label: "-", timeout: String(DEFAULT_TIMEOUT_SECONDS), cost: "", step: "", priority: String(defaultPriority), where: "", out: [], fresh: "", postLocal: "" };
   let rest = [...args];
   const first = rest[0] ?? "";
   if (!first.startsWith("--")) {
@@ -791,6 +835,8 @@ function parseRun(args: readonly string[], defaultPriority: number): { options: 
     else if (flag === "--priority") options.priority = valueOf(flag, value);
     else if (flag === "--where") options.where = valueOf(flag, value, "--where exige local ou <host>");
     else if (flag === "--out") options.out.push(valueOf(flag, value, "--out exige um caminho"));
+    else if (flag === "--fresh") options.fresh = valueOf(flag, value, "--fresh exige um arquivo relativo ao diretório de --out");
+    else if (flag === "--post-local") options.postLocal = valueOf(flag, value, "--post-local exige um comando");
     else gateDie(`argumento inesperado: ${flag}`);
     rest = rest.slice(2);
   }

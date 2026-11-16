@@ -18,7 +18,10 @@
     "build": {
       "cmd": "npm run build -- {project}",
       "kind": "build",
-      "costGb": 3
+      "costGb": 3,
+      "remote": {
+        "minMemGb": 3
+      }
     },
     "test": {
       "cmd": "npm run test -- {project}",
@@ -44,12 +47,18 @@
   "remote": {
     "key": [
       "package-lock.json",
-      ".nvmrc"
+      ".nvmrc",
+      "nx.json"
     ],
     "prepare": [
       "npm ci",
       "npm run codegen --if-present"
-    ]
+    ],
+    "env": {
+      "NX_CACHE_DIRECTORY": "{cache}/nx/{repo}/{key}/{slot}",
+      "NX_DAEMON": "false"
+    },
+    "passEnv": []
   },
   "guard": {
     "patterns": [

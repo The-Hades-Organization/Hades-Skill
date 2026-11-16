@@ -64,6 +64,14 @@ de gates:
 | `remote:<host>` no item | o gate roda no worker; o item não entra na soma de memória local |
 | `remoto perdido (75)` no histórico | o worker sumiu no meio do gate; o gate terminou com saída 75 |
 
+## Build remoto do front
+
+`gate-lock run build --where <host> --out dist/apps/web --fresh index.html --post-local "<restart>" -- <cmd>` constrói no
+worker e traz o diretório de volta. O worker gera o manifesto (lista e sha256); o local confere, promove por `rename` e só
+então remove o diretório anterior. Manifesto adulterado, `--fresh` velho, transporte morto ou oom (`143`) deixam o
+diretório anterior intacto. `--post-local` roda só depois da promoção. `HADES_GATE_RESULT_FILE` traz `sha=` para o
+marcador de "construído". O retorno é tar completo na v1.
+
 ## Problemas comuns
 
 - `Permission denied (publickey)`: a chave não está no `authorized_keys` do usuário certo, ou o `IdentityFile` do `~/.ssh/config`

@@ -11,7 +11,7 @@ import { withFlockAsync } from "../lib/flock.ts";
 import { JOB_REF_PREFIX } from "../lib/gate-remote/ship.ts";
 import type { WorkerStatus } from "../lib/gate-remote/dispatch.ts";
 import {
-  PROTOCOL_VERSION, ProtocolError, RC_NOT_RUN, decodePayload, formatTrailer, mirrorPath, parseWorkerCommand, workerHeadroomGb, type Job, type OutRequest, type WarmRequest,
+  PROTOCOL_VERSION, ProtocolError, RC_NOT_RUN, REASON_TOOL, decodePayload, formatTrailer, mirrorPath, parseWorkerCommand, workerHeadroomGb, type Job, type OutRequest, type WarmRequest,
 } from "../lib/gate-remote/protocol.ts";
 import { MANIFEST_NAME, MANIFEST_VERSION, ManifestError, hashTree, type Manifest, type ManifestDir } from "../lib/gate-remote/manifest.ts";
 import { badPassEnv, claimSlot, expandEnv, readKeyFiles, readWarm, remoteSpecOf, warmKey, warmStates, writeWarm, type RemoteSpec } from "../lib/gate-remote/warm.ts";
@@ -20,6 +20,7 @@ import { journalWorkRoot } from "../lib/journal.ts";
 import { memAvailableMb, which } from "../lib/proc.ts";
 import { installedStacks } from "../lib/profile.ts";
 import { selfCli } from "../lib/paths.ts";
+import { missingTools, pathWithToolchain, probeTools, toolchainDirs, type ToolReport } from "../lib/gate-remote/toolchain.ts";
 
 const FS_ROOT_ENV = "HADES_WORKER_FS_ROOT";
 const LABELS_ENV = "HADES_WORKER_LABELS";
@@ -30,6 +31,28 @@ const KILL_GRACE_MS = 3000;
 const OUT_EXIT_FAIL = 1;
 const START_SUFFIX = ".start";
 const START_KEEP_MS = 24 * 60 * 60 * 1000;
+
+/** PATH que o ssh entregou, antes de a toolchain do usuário entrar (a montagem parte sempre dele: chamar de novo não acumula). */
+const SSH_PATH = process.env.PATH ?? "";
+
+/** Põe nvm/fnm/volta/asdf/mise/bun no PATH deste processo (e dos filhos); `repoDir` escolhe a versão pelo `.nvmrc`. */
+function loadToolchain(repoDir?: string): void {
+  process.env.PATH = pathWithToolchain(SSH_PATH, toolchainDirs({ home: home(), env: process.env, repoDir }));
+}
+
+/** Mensagem de recusa quando a stack exige ferramenta que o PATH montado não acha; undefined = tudo presente. */
+function toolsRefusal(spec: RemoteSpec | undefined): string | undefined {
+  if (spec === undefined || spec.requires.length === 0) return undefined;
+  const missing = missingTools(probeTools(spec.requires, process.env.PATH ?? ""), spec.requires);
+  return missing.length === 0 ? undefined : `${REASON_TOOL}: falta ${missing.join(", ")}; veja reference/gate-remoto-worker.md §Toolchain`;
+}
+
+/** Ferramentas que as stacks instaladas neste worker exigem (`remote.requires`), sem repetir. */
+function requiredTools(): string[] {
+  const names = new Set<string>();
+  for (const stack of installedStacks().values()) for (const name of remoteSpecOf(stack)?.requires ?? []) names.add(name);
+  return [...names].sort();
+}
 
 const home = (): string => process.env.HOME || homedir();
 /** Teste/jaula: prefixo físico dos caminhos do job. Vazio em produção (o caminho do job é o caminho real). */
@@ -68,10 +91,11 @@ function listSafe(dir: string): string[] {
 }
 
 export function workerStatus(): WorkerStatus {
+  loadToolchain();
   const oneDecimal = (n: number): number => Math.round(n * 10) / 10;
   return {
     host: hostname(), labels: detectLabels(), memFreeGb: oneDecimal(memAvailableMb() / MB_PER_GB), memTotalGb: oneDecimal(totalmem() / MB_PER_GB ** 3),
-    cpus: cpus().length, queue: queueLength(), warm: warmStates(physical(baseDir())),
+    cpus: cpus().length, queue: queueLength(), warm: warmStates(physical(baseDir())), tools: probeTools(requiredTools(), process.env.PATH ?? ""),
   };
 }
 
@@ -144,6 +168,9 @@ async function warmRequestRun(request: WarmRequest, foreground: boolean): Promis
   mkdirSync(dirname(lock), { recursive: true });
   return withFlockAsync(lock, async () => {
     syncWorktree(mirror, request.cwd, request.sha);
+    loadToolchain(physical(request.cwd));
+    const lacking = toolsRefusal(spec);
+    if (lacking !== undefined) die(`warm: ${lacking}`, RC_NOT_RUN);
     const key = keyOf(request.stack, spec, request.cwd);
     const base = physical(baseDir());
     if (readWarm(base, key)?.state === "ready") return 0;
@@ -175,7 +202,10 @@ async function warmRun(encoded: string): Promise<number> {
   if (spec === undefined) return 1;
   const mirror = physical(mirrorPath(home(), raw.request.repo));
   const lock = join(mirror, "hades-worktrees", `${worktreeId(raw.request.cwd)}.lock`);
-  return withFlockAsync(lock, async () => prepareAndRecord(raw.request, spec, raw.key));
+  return withFlockAsync(lock, async () => {
+    loadToolchain(physical(raw.request.cwd));
+    return prepareAndRecord(raw.request, spec, raw.key);
+  });
 }
 
 // --- job ---
@@ -215,6 +245,9 @@ async function execJob(job: Job): Promise<number> {
       return refuse(job, error instanceof Error ? error.message : String(error), started);
     }
     const spec = specOfStack(job.stack);
+    loadToolchain(physical(job.cwd));
+    const lacking = toolsRefusal(spec);
+    if (lacking !== undefined) return refuse(job, lacking, started);
     const notAllowed = Object.keys(job.env).find((name) => !(spec?.passEnv ?? []).includes(name));
     if (notAllowed !== undefined) return refuse(job, `variável ${notAllowed} não está em remote.passEnv da stack deste worker`, started);
     const badName = badPassEnv(spec?.passEnv ?? []);

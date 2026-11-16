@@ -281,6 +281,7 @@ function Worker({ w }) {
   const st = w.status, free = st ? st.memFreeGb : 0, total = st ? st.memTotalGb : 0;
   const labels = st ? st.labels : w.labels;
   const warm = st ? Object.entries(st.warm || {}) : [];
+  const tools = st && st.tools ? Object.entries(st.tools) : [];
   return <li>
     <Card variant="object" className="min-w-0 gap-3">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -318,6 +319,16 @@ function Worker({ w }) {
           <span>{'fila '}<b className="font-mono font-medium text-foreground">{st.queue}</b></span>
           <span>{'CPUs '}<b className="font-mono font-medium text-foreground">{st.cpus}</b></span>
         </div>
+        {tools.length ? <div className="grid gap-1.5">
+          <span className="t-meta text-muted-foreground">ferramentas no PATH do ssh</span>
+          <ul className="flex flex-wrap gap-2">
+            {tools.map(([k, v]) => <li key={k} className="flex min-h-7 max-w-full items-center gap-1.5 border px-2 t-meta">
+              <Dot kind={v === null ? 'bad' : 'ok'} />
+              <span className="min-w-0 break-all font-mono">{k}</span>
+              <span className={v === null ? 'font-medium text-bad' : 'min-w-0 break-all text-muted-foreground'}>{v === null ? 'ausente' : v || 'achada'}</span>
+            </li>)}
+          </ul>
+        </div> : null}
         <div className="grid gap-1.5">
           <span className="t-meta text-muted-foreground">aquecimento por chave</span>
           {warm.length ? <ul className="flex flex-wrap gap-2">

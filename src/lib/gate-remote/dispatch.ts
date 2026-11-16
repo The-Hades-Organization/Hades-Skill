@@ -1,6 +1,7 @@
 // Política de despacho do `gate-lock run`: local ou worker, e quais workers aquecer. Pura: quem consulta a rede e o
 // relógio é o cliente (client.ts); aqui entra o que foi observado e sai a decisão.
 import type { WorkerSpec } from "./protocol.ts";
+import { missingTools } from "./toolchain.ts";
 
 export type WarmState = "ready" | "warming" | "failed";
 
@@ -13,12 +14,18 @@ export interface WorkerStatus {
   cpus: number;
   queue: number;
   warm: Record<string, WarmState>;
+  /**
+   * Aditivo: ferramentas que o worker procurou no PATH do ssh não interativo (já com a toolchain do usuário carregada).
+   * Valor = versão achada; null = ausente. Sem o campo (worker antigo) ou sem a chave, o cliente não sabe e não recusa.
+   */
+  tools?: Record<string, string | null>;
 }
 
-/** O que a etapa exige de quem a roda fora: rótulos (`docker`) e memória livre mínima. */
+/** O que a etapa exige de quem a roda fora: rótulos (`docker`), memória livre mínima e ferramentas no PATH. */
 export interface Affinity {
   labels: string[];
   minMemGb: number;
+  requires: string[];
 }
 
 export type Where = { mode: "local" } | { mode: "auto" } | { mode: "host"; host: string };
@@ -57,7 +64,8 @@ export function labelsOf(candidate: Candidate): string[] {
 function eligible(candidate: Candidate, affinity: Affinity): candidate is Candidate & { status: WorkerStatus } {
   if (candidate.status === undefined) return false;
   const labels = labelsOf(candidate);
-  return affinity.labels.every((label) => labels.includes(label)) && candidate.status.memFreeGb >= affinity.minMemGb;
+  const toolsOk = missingTools(candidate.status.tools, affinity.requires).length === 0;
+  return toolsOk && affinity.labels.every((label) => labels.includes(label)) && candidate.status.memFreeGb >= affinity.minMemGb;
 }
 
 function betterThan(a: WorkerStatus, hostA: string, b: WorkerStatus, hostB: string): boolean {

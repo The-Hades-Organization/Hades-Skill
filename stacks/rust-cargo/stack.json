@@ -35,6 +35,9 @@
       "rust-toolchain",
       "rust-toolchain.toml"
     ],
+    "requires": [
+      "cargo"
+    ],
     "prepare": [
       "cargo fetch --locked"
     ],

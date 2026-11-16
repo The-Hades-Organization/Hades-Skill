@@ -34,7 +34,7 @@ export interface RemotePlan {
   passEnv: string[];
 }
 
-const NO_AFFINITY: Affinity = { labels: [], minMemGb: 0 };
+const NO_AFFINITY: Affinity = { labels: [], minMemGb: 0, requires: [] };
 
 /** Plano da etapa `<stack>:<etapa>` (vazio quando o item não vem de uma etapa). */
 export function planOf(step: string, clone: string, stacks: ReadonlyMap<string, JsonObject>): RemotePlan {

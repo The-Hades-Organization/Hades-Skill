@@ -4,6 +4,22 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.48.2 — 2026-11-16
+
+Correção (#126, piloto real no Dell): o gate remoto falhou com `npm: command not found` depois de 160 s, porque o ssh
+não interativo não carrega nvm nem login shell.
+
+- **Toolchain do worker.** O worker monta o PATH da toolchain do usuário sem shell de login: nvm (`.nvmrc`/default), fnm,
+  volta, asdf, mise, `~/.bun/bin`, `~/.local/bin` e `HADES_WORKER_PATH_PREPEND` (só caminho absoluto e existente).
+- **`status --json`.** Ganha `tools` (aditivo): a versão achada de cada ferramenta ou `null` quando falta. Worker antigo
+  não manda o campo e o painel segue lendo.
+- **Recusa antes do envio.** A etapa declara `remote.requires` (stacks node-nx e rust-cargo). Se o worker não tem a
+  ferramenta, o gate sai 75 com o nome do que falta, antes de enviar o código.
+- **Painel.** O cartão Workers mostra as ferramentas no PATH do ssh e marca a ausente em vermelho. Capturas em 360 e
+  768 px, sem rolagem horizontal.
+- **Guia.** `reference/gate-remoto-worker.md` ganha a seção Toolchain.
+- **Limite.** A #126 segue aberta até o piloto real no Dell passar.
+
 ## 6.48.1 — 2026-11-16
 
 Correção (#126, piloto em loopback): defeitos que o primeiro build do front no worker expôs.

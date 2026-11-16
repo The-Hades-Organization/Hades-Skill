@@ -30,6 +30,16 @@
         "affected": {"$ref": "#/$defs/step"}
       }
     },
+    "remote": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "aquecimento do ambiente no worker do gate remoto (reference/stacks.md §remote)",
+      "properties": {
+        "key": {"type": "array", "items": {"type": "string"}, "description": "arquivos (relativos à raiz) cujo conteúdo define o mesmo ambiente: lockfile, versão do toolchain"},
+        "prepare": {"type": "array", "items": {"type": "string"}, "description": "comandos de preparo, em ordem, rodados no worktree do worker"},
+        "env": {"type": "object", "additionalProperties": {"type": "string"}, "description": "variáveis do job no worker; {cache} {repo} {slot} são expandidos"}
+      }
+    },
     "guard": {
       "type": "object",
       "additionalProperties": false,
@@ -48,7 +58,16 @@
         "kind": {"enum": ["lint", "build", "test", "test:integration", "gate"], "description": "kind do gate-lock.sh"},
         "costGb": {"type": "integer", "description": "pico de memória medido (GB), o custo na fila"},
         "measuredAt": {"type": "string", "description": "AAAA-MM-DD da medição; vazio = estimado"},
-        "parallel": {"type": "integer", "description": "quantos deste passo a fila admite ao mesmo tempo"}
+        "parallel": {"type": "integer", "description": "quantos deste passo a fila admite ao mesmo tempo"},
+        "remote": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "afinidade do passo no despacho para worker",
+          "properties": {
+            "labels": {"type": "array", "items": {"type": "string"}, "description": "rótulos que o worker precisa ter (ex.: docker)"},
+            "minMemGb": {"type": "number", "description": "memória livre mínima do worker (GB)"}
+          }
+        }
       }
     }
   }

@@ -40,7 +40,7 @@ function NotifyTools() {
   </div>;
 }
 // texto livre longo (caminho, repo, lista) ganha campo largo; número e tamanho cabem no estreito
-const CFG_WIDE = new Set(['path', 'relpath', 'repo', 'url', 'emails', 'globs', 'logins', 'login', 'tags', 'modelmap', 'cidr', 'id']);
+const CFG_WIDE = new Set(['path', 'relpath', 'repo', 'url', 'emails', 'globs', 'logins', 'login', 'tags', 'modelmap', 'cidr', 'id', 'where', 'workers']);
 const ENUM_NOTIFY_EV = { off: 'Desligado', desktop: 'Só desktop', phone: 'Só celular', both: 'Desktop e celular' };
 const ENUM_NOTIFY_CI = { pr: 'Igual ao review', ...ENUM_NOTIFY_EV };
 const ENUM_CERBERUS = { off: 'Desligado', avisa: 'Avisa', barra: 'Barra' };

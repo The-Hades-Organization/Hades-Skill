@@ -223,6 +223,30 @@ Espera e cessão do tick:
 - Cada entrada/saída vai para `<work>/locks/gate-journal.tsv` (`enqueue`, `admit` com a espera,
   `done` com rc e duração, `timeout`, `orphan`). É a evidência de fila.
 
+#### Despacho remoto (`--where`)
+
+`run … --where local|<host> [--out <arquivo>]… -- <cmd…>` manda o item para um worker por SSH. O padrão vem de
+`HADES_GATE_WHERE` (`local`); `auto` só existe pela chave, nunca na linha de comando.
+
+- **`--where <host>`**: o item roda no worker, sempre. O código do worktree (incluindo mudança não commitada e arquivo
+  novo, sem os ignorados) vai num commit montado com um índice temporário (`GIT_INDEX_FILE`), então stash e índice do
+  worktree ficam como estavam. O worker faz checkout no mesmo caminho absoluto, roda o próprio `gate-lock` (admissão,
+  teto systemd, pico, journal) e devolve stdout/stderr em streaming. Ambiente frio: o worker aquece na hora.
+- **`auto`** (`HADES_GATE_WORKERS`, `HADES_GATE_AUTO_AFTER_S`): o item entra na fila local; depois de
+  `AUTO_AFTER_S` sem admissão, a cada 15 s os workers são consultados (`hades worker status --json`). Vai para o que
+  tiver os rótulos da etapa (`steps.<etapa>.remote.labels`, ex.: `docker`), memória livre mínima e o ambiente
+  **quente** para a chave do item, escolhendo o de menor fila. **Worker frio nunca recebe item**: o item segue local e o
+  aquecimento começa em segundo plano. Admissão local antes disso vence. A concessão `gate` não vai no `auto`.
+- **Retorno**: o rc é o do worker (`137`/`143` = teto, como no local). `75` = não rodou. Conexão perdida, worker sem
+  resposta ou envio que falhou saem `75` com o motivo `remoto perdido` (ou `envio falhou`), **nunca `0`**: rc só vale com o
+  trailer do worker. O `done` do journal leva `host=<host>` e o `peak=` medido lá (`gate-lock peak <label>` segue
+  funcionando). `--out` traz de volta os arquivos declarados (sumário, junit); falha na volta também sai `75`.
+- **Ticket**: `state=remote:<host>` (mais `where=remote` e `remote=<host>`), fora do orçamento local; `host=` continua o
+  da máquina que enfileirou, para o órfão (§3.3).
+- **Segurança**: a chave SSH do worker é dedicada, com `command="hades worker exec"` forçado e sem agent forwarding. O
+  que o cliente pede chega em `SSH_ORIGINAL_COMMAND`, de uma lista fechada de subcomandos; o job é validado campo a
+  campo e todo caminho fica contido em `$HOME`. Nenhum argumento do job vira shell. Nenhum segredo local vai ao worker.
+
 ### 3.3 Lock órfão — qual sinal vale
 
 O `pid` gravado no lock **só** tem valor quando o processo que o gravou vive enquanto o lock existe:
@@ -238,6 +262,9 @@ O `pid` gravado no lock **só** tem valor quando o processo que o gravou vive en
   ticket sozinho na próxima avaliação, anunciando no stderr e no journal. Wrapper morto por `SIGKILL`
   com o gate ainda vivo **não** é órfão: o ticket fica, porque a memória continua em uso. Não há
   decisão humana nesse caso e não se remove ticket a mão.
+  Ticket remoto (`state=remote:<host>`): o `host=` do ticket é a máquina que o enfileirou, e é ele que se confere antes
+  do pid (outra máquina nunca é julgada pelo `/proc` daqui). O `child` é o ssh local, que não prova o job: só o wrapper
+  conta. Wrapper morto, o ssh cai com ele e o worker derruba o job, então o ticket é órfão e sai.
 - **Slot antigo** (`gate-<recurso>.slot-<n>`, só na transição): conta como ocupado e recicla com `runner=wrapper`, mesmo
   host, pid morto.
 

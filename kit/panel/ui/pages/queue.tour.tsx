@@ -84,6 +84,14 @@ HadesCore.registerTour('queue', {
       side: 'left',
     },
     {
+      id: 'queue-workers',
+      title: 'Workers',
+      body: 'As outras máquinas que rodam gates por ssh: rótulos, memória livre, fila e o aquecimento por chave. Worker fora do ar aparece como inacessível, com a última leitura em cache, e não trava a página. Item rodando lá fica na faixa Em worker remoto e não entra na memória local.',
+      ref: 'panel.md › Fila de gates',
+      fallback: 'O card só aparece com HADES_GATE_WORKERS preenchida. Sem worker configurado, todo gate roda local e não há o que mostrar.',
+      side: 'top',
+    },
+    {
       id: 'queue-sem-amostrador',
       title: 'Amostrador indisponível',
       body: 'Quando o amostrador da fila não responde, a página cai para a lista crua dos tickets do gate-lock, só com estado e custo.',

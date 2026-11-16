@@ -10,10 +10,18 @@ const secs = (s) => parseFloat(s) || 0;
 const DONE_SHOWN = 4;
 // 137 (SIGKILL) e 143 (SIGTERM) num gate: o teto de memória (MemoryMax) cortou o processo, não o teste quebrou (gates.md)
 const exitText = (rc) => rc === '137' || rc === '143' ? `estourou a memória (${rc})` : `falhou (saída ${rc})`;
+// item que roda em outra máquina: o ticket diz `remote:<host>` e o gate local só espera o ssh (não conta na memória local)
+const remoteHost = (g) => (g.state || '').startsWith('remote:') ? g.state.slice(7) : null;
+const isRemote = (g) => remoteHost(g) !== null;
+const isRunning = (g) => g.state !== 'waiting' && !isRemote(g);
+// `host=` do journal; ausente = local. `remoto perdido` (rc 75) é o worker que sumiu no meio do gate
+const hostOf = (e) => (typeof e.host === 'string' ? e.host : null);
+const lostOf = (row) => row.some((f) => typeof f === 'string' && f.includes('remoto perdido'));
+const where = (g) => isRemote(g) ? g.state : g.where === 'remote' && g.host ? `remote:${g.host}` : 'local';
 
 // o que acabou: o journal guarda `done` com rc e dur; o corte é a duração sobre a mediana das ok do mesmo gate
 function doneGates(journal) {
-  const done = journal.filter((r) => r[1] === 'done').map((r) => ({ ts: r[0], kind: r[2], label: r[3], clone: r[5], ...kv(r) }));
+  const done = journal.filter((r) => r[1] === 'done').map((r) => ({ ts: r[0], kind: r[2], label: r[3], clone: r[5], lost: lostOf(r), ...kv(r) }));
   const okDur = (label) => done.filter((x) => x.label === label && x.rc === '0').map((x) => secs(x.dur)).sort((a, b) => a - b);
   return done.slice(-DONE_SHOWN).reverse().map((x) => {
     if (x.rc === '0') return { ...x, fio: { s: 'medido', nos: [0, 100] } };
@@ -22,11 +30,12 @@ function doneGates(journal) {
   });
 }
 const tail = (p) => (p || '').split('/').pop();
-const gateMeta = (g) => [g.kind, tail(g.clone), (g.label || '').startsWith('hades-') ? 'Hades' : null, g.machine ? 'fila da máquina' : null].filter(Boolean).join(' · ');
+const gateMeta = (g) => [g.kind, tail(g.clone), (g.label || '').startsWith('hades-') ? 'Hades' : null, g.machine ? 'fila da máquina' : null, where(g)].filter(Boolean).join(' · ');
 
 function GateCard({ g }) {
-  const running = g.state !== 'waiting';
-  const s = running ? 'fiando' : 'frouxo';
+  const remote = isRemote(g);
+  const running = isRunning(g);
+  const s = running || remote ? 'fiando' : 'frouxo';
   return <li>
     <Card variant="object" className="gap-3">
       <div className="flex items-baseline gap-2">
@@ -42,10 +51,13 @@ function GateCard({ g }) {
           {dur(running ? g.runningFor : g.age)}
         </span>
       </div>
-      <Fio s={s} label={`${g.label}: ${running ? 'rodando há ' + dur(g.runningFor) : 'na fila há ' + dur(g.age)}`} />
+      <Fio s={s} label={`${g.label}: ${remote ? 'rodando em ' + remoteHost(g) + ' há ' + dur(g.age) : running ? 'rodando há ' + dur(g.runningFor) : 'na fila há ' + dur(g.age)}`} />
       <div className="line-clamp-2 font-mono t-micro break-all text-muted-foreground" title={g.cmd}>
         {g.cmd}
       </div>
+      {remote ? <div className="t-meta text-muted-foreground">
+        {'memória e CPU ficam em ' + remoteHost(g) + '; não entram na conta local'}
+      </div> : null}
       {running ? <div className="flex gap-4 t-meta text-muted-foreground tnum">
         <span>
           {'memória '}
@@ -74,6 +86,7 @@ function GateCard({ g }) {
 }
 function DoneRow({ x }) {
   const bad = x.rc !== '0';
+  const host = hostOf(x);
   return <li className="grid gap-2 border-b py-3 last:border-b-0">
     <div className="flex items-baseline gap-2">
       <span className={cn('min-w-0 flex-1 truncate t-label', bad && 'text-bad')} title={x.cmd || ''}>
@@ -85,7 +98,7 @@ function DoneRow({ x }) {
     </div>
     <Fio s={x.fio.s} nos={x.fio.nos} corte={x.fio.corte} label={`${x.label}: ${FIO_ESTADO[x.fio.s]}`} />
     <span className="truncate t-meta text-muted-foreground">
-      {[x.kind, bad ? exitText(x.rc) : 'ok', x.dur ? dur(secs(x.dur)) : null, x.peak ? `pico ${x.peak.replace('MB', ' MB')}` : null].filter(Boolean).join(' · ')}
+      {[x.kind, host ? `remote:${host}` : 'local', bad ? (x.lost ? `remoto perdido (${x.rc})` : exitText(x.rc)) : 'ok', x.dur ? dur(secs(x.dur)) : null, x.peak ? `pico ${x.peak.replace('MB', ' MB')}${host ? ' em ' + host : ''}` : null].filter(Boolean).join(' · ')}
     </span>
   </li>;
 }
@@ -104,14 +117,17 @@ function Lane({ title, count, empty, className, children }) {
     </p>}
   </section>;
 }
-function Rio({ running, waiting, done }) {
-  return <div className="grid gap-6 lg:grid-cols-3">
+function Rio({ running, waiting, remote, done }) {
+  return <div className={cn('grid gap-6 lg:grid-cols-3', remote.length > 0 && 'xl:grid-cols-4')}>
     <Lane title="Esperando" count={waiting.length} empty="Ninguém na fila.">
       {waiting.map((g) => <GateCard key={g.pid} g={g} />)}
     </Lane>
     <Lane title="Rodando" count={running.length} empty="Nenhum gate rodando." className="max-lg:order-first">
       {running.map((g) => <GateCard key={g.pid} g={g} />)}
     </Lane>
+    {remote.length ? <Lane title="Em worker remoto" count={remote.length} empty="">
+      {remote.map((g) => <GateCard key={g.pid} g={g} />)}
+    </Lane> : null}
     <section className="grid content-start gap-3" aria-label="Concluídos">
       <h3 className="t-label">
         Concluídos
@@ -128,6 +144,7 @@ function Lista({ gates }) {
       <tr className="border-b">
         <Th>Gate</Th>
         <Th>Estado</Th>
+        <Th>Onde</Th>
         <Th className="text-right">Tempo</Th>
         <Th className="text-right">Memória</Th>
         <Th className="text-right">CPU</Th>
@@ -135,14 +152,15 @@ function Lista({ gates }) {
       </tr>
     </thead>
     <tbody>
-      {gates.map((g) => { const running = g.state !== 'waiting'; return <Tr key={g.pid}>
+      {gates.map((g) => { const running = isRunning(g); const remote = isRemote(g); return <Tr key={g.pid}>
         <Td>
           <div className="max-w-72">
             <div className="truncate font-medium" title={g.label}>{g.label}</div>
             <div className="truncate t-meta text-muted-foreground">{gateMeta(g)}</div>
           </div>
         </Td>
-        <Td className={running ? '' : 'text-muted-foreground'}>{running ? 'rodando' : 'na fila'}</Td>
+        <Td className={running || remote ? '' : 'text-muted-foreground'}>{remote ? 'rodando' : running ? 'rodando' : 'na fila'}</Td>
+        <Td className="t-data text-muted-foreground">{where(g)}</Td>
         <Td className="text-right t-data">{dur(running ? g.runningFor : g.age)}</Td>
         <Td className="text-right t-data">{running ? mb(g.rss) : '—'}</Td>
         <Td className="text-right t-data">{running ? Math.round(g.cpu) + '%' : '—'}</Td>
@@ -238,7 +256,7 @@ function Journal({ journal }) {
                     {label}
                   </div>
                   <div className="truncate t-meta text-muted-foreground" title={e.cmd || ''}>
-                    {kind + ' · ' + tail(clone)}
+                    {kind + ' · ' + tail(clone) + (hostOf(e) ? ' · remote:' + hostOf(e) : '')}
                   </div>
                 </div>
               </Td>
@@ -247,7 +265,7 @@ function Journal({ journal }) {
               </Td>
               <Td>
                 {ev === 'done' ? <span className={cn('t-data', bad ? 'text-bad' : 'text-muted-foreground')}>
-                  {`${bad ? exitText(e.rc) : 'ok'} · ${e.dur || ''}`}
+                  {`${bad ? (lostOf(r) ? `remoto perdido (${e.rc})` : exitText(e.rc)) : 'ok'} · ${e.dur || ''}`}
                 </span> : <span className="t-meta text-muted-foreground">
                   {e.waited ? 'esperou ' + e.waited : ''}
                 </span>}
@@ -255,6 +273,76 @@ function Journal({ journal }) {
             </Tr>; })}
         </tbody>
       </Table>
+    </CardContent>
+  </Card>;
+}
+const WARM = { ready: ['pronto', 'ok'], warming: ['aquecendo', 'warn'], failed: ['falhou', 'bad'] };
+function Worker({ w }) {
+  const st = w.status, free = st ? st.memFreeGb : 0, total = st ? st.memTotalGb : 0;
+  const labels = st ? st.labels : w.labels;
+  const warm = st ? Object.entries(st.warm || {}) : [];
+  return <li>
+    <Card variant="object" className="min-w-0 gap-3">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <Dot kind={w.reachable ? 'ok' : 'bad'} />
+        <span className="min-w-0 break-all font-medium">
+          {w.target}
+        </span>
+        <span className={cn('t-meta', w.reachable ? 'text-muted-foreground' : 'font-medium text-bad')}>
+          {w.reachable ? 'acessível' : 'inacessível'}
+        </span>
+        {labels.length ? <span className="ml-auto flex flex-wrap gap-1.5">
+          {labels.map((l) => <span key={l} className="border px-1.5 t-micro font-mono text-muted-foreground">{l}</span>)}
+        </span> : null}
+      </div>
+      {w.reachable ? null : <div className="grid gap-1 t-meta text-muted-foreground">
+        <span className="break-words">
+          {w.error || 'sem resposta'}
+        </span>
+        <span>
+          {w.stale && w.okAt ? `última leitura boa ${ago(w.okAt)} (em cache)` : 'nenhuma leitura boa ainda'}
+        </span>
+      </div>}
+      {st ? <div className={cn('grid gap-3', w.stale && 'opacity-60')}>
+        <div className="grid gap-1.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-2 t-meta text-muted-foreground tnum">
+            <span>memória livre</span>
+            <span>
+              <b className="font-mono font-medium text-foreground">{free.toFixed(1).replace('.', ',')}</b>
+              {` de ${total.toFixed(1).replace('.', ',')} GB`}
+            </span>
+          </div>
+          <Progress value={total ? Math.round((1 - free / total) * 100) : 0} kind={total && free / total < 0.15 ? 'warn' : 'ok'} />
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 t-meta text-muted-foreground tnum">
+          <span>{'fila '}<b className="font-mono font-medium text-foreground">{st.queue}</b></span>
+          <span>{'CPUs '}<b className="font-mono font-medium text-foreground">{st.cpus}</b></span>
+        </div>
+        <div className="grid gap-1.5">
+          <span className="t-meta text-muted-foreground">aquecimento por chave</span>
+          {warm.length ? <ul className="flex flex-wrap gap-2">
+            {warm.map(([k, v]) => { const [l, kind] = WARM[v] || [v, 'idle']; return <li key={k} className="flex min-h-7 max-w-full items-center gap-1.5 border px-2 t-meta">
+              <Dot kind={kind} />
+              <span className="min-w-0 break-all font-mono">{k}</span>
+              <span className="text-muted-foreground">{l}</span>
+            </li>; })}
+          </ul> : <span className="t-meta text-muted-foreground">nenhuma chave aquecida</span>}
+        </div>
+      </div> : null}
+    </Card>
+  </li>;
+}
+function Workers({ remote }) {
+  const ws = remote?.workers || [];
+  if (!ws.length) return null;
+  const down = ws.filter((w) => !w.reachable).length;
+  return <Card data-tour-step-id="queue-workers">
+    <CardHeader title="Workers" summary={`${ws.length} configurado${ws.length > 1 ? 's' : ''}${down ? ` · ${down} inacessível${down > 1 ? 'is' : ''}` : ''} · onde: ${remote.where}`}
+      description="Máquinas que executam gates por ssh. Leitura em segundo plano a cada 15 s; um worker fora do ar não trava a fila." />
+    <CardContent>
+      <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {ws.map((w) => <Worker key={w.target} w={w} />)}
+      </ul>
     </CardContent>
   </Card>;
 }
@@ -343,7 +431,7 @@ function Queue() {
   }, []);
   if (!x) return <Loading />;
   if (!x.available) return <Raw x={x} />;
-  const running = x.gates.filter((g) => g.state !== 'waiting'), waiting = x.gates.filter((g) => g.state === 'waiting');
+  const running = x.gates.filter(isRunning), waiting = x.gates.filter((g) => g.state === 'waiting'), remote = x.gates.filter(isRemote);
   const gateMem = running.reduce((a, g) => a + (g.rss || 0), 0);
   const reserveGb = x.budget?.reserveGb || 2;
   const low = (x.host.memAvailable || 0) < (reserveGb + 2) * GB;
@@ -356,6 +444,7 @@ function Queue() {
     <div data-tour-step-id="queue-estado">
     <LinhaDeEstado main={running.length ? `${running.length} rodando` : 'nada rodando'}
       rest={[waiting.length ? `${waiting.length} esperando, o mais antigo há ${dur(oldest)}` : 'ninguém na fila',
+        ...(remote.length ? [`${remote.length} em worker remoto (fora da conta de memória)`] : []),
         `gates usam ${gb(gateMem)}` + (x.budget?.budgetGb ? ` de ${x.budget.budgetGb} GB de orçamento` : ''),
         <span key="livre" className={cn(low && 'text-bad')}>{`livre ${gb(x.host.memAvailable)} · reserva ${reserveGb} GB` + (low ? ' · abaixo do mínimo para admitir gates' : '')}</span>,
         `carga ${(x.host.load || [0])[0].toFixed(1).replace('.', ',')} (média de 1 min)`]} />
@@ -364,10 +453,11 @@ function Queue() {
       <CardHeader title="Fila agora" description="gate = checagem pesada antes da PR: build, lint, testes"
         action={<span data-tour-step-id="queue-visao"><Segmented value={view} onChange={setView} items={[{ value: 'rio', label: 'Rio' }, { value: 'lista', label: 'Lista', count: x.gates.length }]} /></span>} />
       <CardContent>
-        {view === 'lista' ? x.gates.length ? <Lista gates={[...running, ...waiting]} /> : <Empty icon={I.CircleCheckBig} title="Fila vazia" />
-          : <Rio running={running} waiting={waiting} done={done} />}
+        {view === 'lista' ? x.gates.length ? <Lista gates={[...running, ...remote, ...waiting]} /> : <Empty icon={I.CircleCheckBig} title="Fila vazia" />
+          : <Rio running={running} waiting={waiting} remote={remote} done={done} />}
       </CardContent>
     </Card>
+    <Workers remote={x.remote} />
     <Card data-tour-step-id="queue-memoria">
       <CardHeader title="Memória da máquina" summary={`livre ${gb(x.host.memAvailable)} de ${gb(x.host.memTotal)}${x.host.swapUsed ? ` · swap ${gb(x.host.swapUsed)}` : ''}`} />
       <CardContent>

@@ -324,3 +324,132 @@ export async function infraUsage(table: ProcTable, hostPattern: RegExp, names: D
   items.sort((a, b) => b.rss - a.rss);
   return { total: items.reduce((acc, i) => acc + i.rss, 0), items };
 }
+
+// ---------------------------------------------------------------- workers remotos (leitura do `hades worker status --json`)
+
+export type WarmState = "ready" | "warming" | "failed";
+export interface WorkerStatus {
+  host: string;
+  labels: string[];
+  memFreeGb: number;
+  memTotalGb: number;
+  cpus: number;
+  queue: number;
+  warm: Record<string, WarmState>;
+}
+export interface WorkerView {
+  /** o alvo como veio de HADES_GATE_WORKERS (user@host ou host) */
+  target: string;
+  /** rótulos declarados na configuração; os do status, quando há, valem mais */
+  labels: string[];
+  reachable: boolean;
+  /** última leitura boa foi há mais que o ciclo: mostrada como em cache */
+  stale: boolean;
+  checkedAt: number | null;
+  okAt: number | null;
+  error: string | null;
+  status: WorkerStatus | null;
+}
+export interface WorkerSpec {
+  target: string;
+  labels: string[];
+}
+
+const WORKER_TARGET_RE = /^[A-Za-z0-9_][A-Za-z0-9_.@-]{0,127}$/;
+const WORKER_LABEL_RE = /^[A-Za-z0-9_.-]{1,32}$/;
+const WORKER_TIMEOUT_MS = 4000;
+const WORKER_EVERY_S = 15;
+const WORKER_ERROR_MAX = 160;
+const WARM_STATES: readonly string[] = ["ready", "warming", "failed"];
+/** argumento que o `command="hades worker exec"` forçado recebe em SSH_ORIGINAL_COMMAND */
+export const WORKER_STATUS_ARGS = ["worker", "status", "--json"];
+
+/** `host[:rótulo,…]` separados por vírgula de fora, espaço ou `;`; alvo fora do padrão é descartado (vai a argv do ssh). */
+export function parseWorkers(spec: string | undefined): WorkerSpec[] {
+  const out: WorkerSpec[] = [];
+  for (const raw of (spec ?? "").split(/[\s;]+/)) {
+    if (!raw) continue;
+    const i = raw.indexOf(":");
+    const target = i < 0 ? raw : raw.slice(0, i);
+    if (!WORKER_TARGET_RE.test(target) || out.some((w) => w.target === target)) continue;
+    const labels = i < 0 ? [] : raw.slice(i + 1).split(",").filter((l) => WORKER_LABEL_RE.test(l));
+    out.push({ target, labels });
+  }
+  return out;
+}
+
+const finite = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : undefined);
+
+/** Valida o contrato do `worker status --json`; devolve undefined quando falta campo (o painel não inventa número). */
+export function parseWorkerStatus(text: string): WorkerStatus | undefined {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const o = raw as Record<string, unknown>;
+  const memFreeGb = finite(o.memFreeGb);
+  const memTotalGb = finite(o.memTotalGb);
+  const cpus = finite(o.cpus);
+  const queue = finite(o.queue);
+  if (typeof o.host !== "string" || memFreeGb === undefined || memTotalGb === undefined || cpus === undefined || queue === undefined) return undefined;
+  const labels = Array.isArray(o.labels) ? o.labels.filter((l): l is string => typeof l === "string") : [];
+  const warm: Record<string, WarmState> = {};
+  if (o.warm !== null && typeof o.warm === "object" && !Array.isArray(o.warm)) {
+    for (const [k, v] of Object.entries(o.warm)) if (typeof v === "string" && WARM_STATES.includes(v)) warm[k] = v as WarmState;
+  }
+  return { host: o.host, labels, memFreeGb, memTotalGb, cpus, queue, warm };
+}
+
+export type WorkerRunner = (argv: string[], timeoutMs: number) => Promise<{ status: number; stdout: string; stderr: string; timedOut: boolean }>;
+
+/** Uma leitura de um worker. `--` fecha as opções do ssh: o alvo nunca é lido como opção. BatchMode: sem pergunta de senha. */
+export async function readWorker(target: string, run: WorkerRunner = (argv, ms) => exec(argv, { timeoutMs: ms })): Promise<{ status: WorkerStatus } | { error: string }> {
+  const argv = [
+    "ssh", "-o", "BatchMode=yes", "-o", `ConnectTimeout=${Math.ceil(WORKER_TIMEOUT_MS / 1000) - 1}`, "-o", "ServerAliveInterval=2", "-o", "ServerAliveCountMax=1",
+    "--", target, ...WORKER_STATUS_ARGS,
+  ];
+  const r = await run(argv, WORKER_TIMEOUT_MS);
+  if (r.timedOut) return { error: "sem resposta no tempo (inacessível)" };
+  if (r.status !== 0) return { error: (r.stderr.trim().split("\n").pop() || `ssh saiu com ${r.status}`).slice(0, WORKER_ERROR_MAX) };
+  const status = parseWorkerStatus(r.stdout);
+  return status ? { status } : { error: "resposta fora do contrato do worker status --json" };
+}
+
+/**
+ * Leitura em segundo plano com cache: `view()` nunca espera a rede. Worker que cai mantém a última leitura boa marcada
+ * como em cache (`stale`) e o erro; um que nunca respondeu aparece só com o erro.
+ */
+export function createWorkerWatch(opts: { specs: () => WorkerSpec[]; now: () => number; run?: WorkerRunner }): { refresh(): Promise<void>; view(): WorkerView[] } {
+  const views = new Map<string, WorkerView>();
+  let inflight: Promise<void> | undefined;
+  let lastAt = Number.NEGATIVE_INFINITY;
+
+  async function readAll(): Promise<void> {
+    const specs = opts.specs();
+    for (const key of [...views.keys()]) if (!specs.some((s) => s.target === key)) views.delete(key);
+    await Promise.all(specs.map(async (s) => {
+      const r = await readWorker(s.target, opts.run);
+      const at = opts.now();
+      const before = views.get(s.target);
+      views.set(s.target, "status" in r
+        ? { target: s.target, labels: s.labels, reachable: true, stale: false, checkedAt: at, okAt: at, error: null, status: r.status }
+        : { target: s.target, labels: s.labels, reachable: false, stale: before?.status != null, checkedAt: at, okAt: before?.okAt ?? null, error: r.error, status: before?.status ?? null });
+    }));
+  }
+
+  return {
+    refresh(): Promise<void> {
+      const at = opts.now();
+      if (inflight || at - lastAt < WORKER_EVERY_S) return inflight ?? Promise.resolve();
+      lastAt = at;
+      inflight = readAll().finally(() => { inflight = undefined; });
+      return inflight;
+    },
+    view(): WorkerView[] {
+      return opts.specs().map((s) => views.get(s.target) ?? { target: s.target, labels: s.labels, reachable: false, stale: false, checkedAt: null, okAt: null, error: "ainda não consultado", status: null });
+    },
+  };
+}

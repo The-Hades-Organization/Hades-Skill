@@ -7,8 +7,9 @@ import { readText } from "../lib/fs.ts";
 import { log } from "./log.ts";
 import {
   DAEMON_RE, HEAVY_RE, type InfraItem, type Proc, type ProcTable, allGateScopes, ancestors, cgroupUsage, descendants, dockerNames, gateScope,
-  infraHostPattern, infraUsage, meminfo, pluginInfraDaemons, pressure, scanProcs,
+  createWorkerWatch, infraHostPattern, infraUsage, meminfo, parseWorkers, pluginInfraDaemons, pressure, scanProcs,
 } from "./gatewatch-proc.ts";
+import { readConfigEnv } from "../lib/config.ts";
 import { bootEpoch, fields, loadAverage } from "./system.ts";
 
 type Dict = Record<string, unknown>;
@@ -123,7 +124,15 @@ export interface GateWatchOptions {
   /** fila crua do amostrador do painel, usada quando este não está disponível */
   fallbackGates: () => Dict[];
   now?: () => number;
+  /** valor de uma chave de Configurações (ambiente > config.env); padrão: lê do `dir` */
+  setting?: (key: string) => string | undefined;
+  /** leitor do status dos workers, para teste */
+  workerRun?: Parameters<typeof createWorkerWatch>[0]["run"];
 }
+
+/** Item que roda fora: o ticket diz `state=remote:<host>` enquanto dura (reference/gate-remoto-worker.md). */
+const REMOTE_PREFIX = "remote:";
+export const remoteHostOf = (state: string | undefined): string | undefined => (state?.startsWith(REMOTE_PREFIX) && state.length > REMOTE_PREFIX.length ? state.slice(REMOTE_PREFIX.length) : undefined);
 
 export interface GateWatch {
   start(): void;
@@ -141,6 +150,8 @@ export function createGateWatch(opts: GateWatchOptions): GateWatch {
   const bootTime = bootEpoch() || Math.floor(now());
   const ncpu = navigator.hardwareConcurrency || 1;
   const host = hostname();
+  const setting = opts.setting ?? ((key: string): string | undefined => process.env[key] ?? readConfigEnv(opts.dir).get(key));
+  const workerWatch = createWorkerWatch({ specs: () => parseWorkers(setting("HADES_GATE_WORKERS")), now, run: opts.workerRun });
   const history: Dict[] = [];
   let snapshot: Dict = {};
   let prevCpu = new Map<number, number>();
@@ -333,6 +344,7 @@ export function createGateWatch(opts: GateWatchOptions): GateWatch {
     let gateRssTotal = 0;
     let runningTotal = 0;
     let waitingTotal = 0;
+    let remoteTotal = 0;
     const allRepos = repos();
     const namedRepos = allRepos.filter((r) => r !== MACHINE);
     for (const repoName of allRepos) {
@@ -361,7 +373,10 @@ export function createGateWatch(opts: GateWatchOptions): GateWatch {
         if (!belongs(p.cwd, repoName, own, namedRepos)) continue;
         wrappers.add(p.pid);
         let state: string;
-        if (admitted(own)) state = "running";
+        const remoteHost = remoteHostOf(own?.state);
+        // o wrapper local só espera o ssh: a memória e a CPU dele não são do orçamento local
+        if (remoteHost !== undefined) state = `${REMOTE_PREFIX}${remoteHost}`;
+        else if (admitted(own)) state = "running";
         else if (ancestors(p.ppid, procs).some((a) => admitted(slotOwner.get(a)))) state = "lease";
         else state = "waiting";
         const usage = state === "running" ? gateUsage(p.pid) : { rss: 0, cpu: 0 };
@@ -384,12 +399,14 @@ export function createGateWatch(opts: GateWatchOptions): GateWatch {
         gates.push({
           pid: p.pid, kind: m[1], label: label ? (label[1] as string) : "-", state, clone: p.cwd, cmd: (m[3] as string).slice(0, GATE_CMD_MAX),
           age: ageOf(p), rss: usage.rss, cpu: usage.cpu, runningFor: since ? at - since : null, slot: own?.slot ?? null,
-          step, stepAge, stepMedian, stepPct,
+          step, stepAge, stepMedian, stepPct, where: remoteHost !== undefined || own?.where === "remote" ? "remote" : "local",
+          host: remoteHost ?? own?.remote ?? null,
         });
         if (state === "running") {
           gateRssTotal += usage.rss;
           runningTotal += 1;
-        } else if (state === "waiting") waitingTotal += 1;
+        } else if (remoteHost !== undefined) remoteTotal += 1;
+        else if (state === "waiting") waitingTotal += 1;
       }
       gates.sort((a, b) => Number(a.state !== "running") - Number(b.state !== "running") || b.age - a.age);
 
@@ -439,7 +456,7 @@ export function createGateWatch(opts: GateWatchOptions): GateWatch {
     };
     history.push({
       t: at, avail: hostInfo.memAvailable, swap: hostInfo.swapUsed, gateRss: gateRssTotal, leftoverRss, infraRss: infra.total,
-      running: runningTotal, waiting: waitingTotal, bypass: bypass.length, psi: hostInfo.psiSome, load: hostInfo.load[0],
+      running: runningTotal, waiting: waitingTotal, remote: remoteTotal, bypass: bypass.length, psi: hostInfo.psiSome, load: hostInfo.load[0],
     });
     if (history.length > HISTORY) history.shift();
     // só o que foi lido nesta amostra: cgroup de gate que terminou não vira base velha para um scope futuro que reuse o caminho
@@ -469,6 +486,8 @@ export function createGateWatch(opts: GateWatchOptions): GateWatch {
   }
 
   function detail(): Dict {
+    // workers: só enquanto alguém olha a página; leitura em segundo plano com cache, a resposta nunca espera a rede
+    void workerWatch.refresh();
     if (!opts.locks) return { available: false, gates: opts.fallbackGates() };
     const s = snapshot;
     const all = (s.repos as Dict[] | undefined) ?? [];
@@ -493,8 +512,9 @@ export function createGateWatch(opts: GateWatchOptions): GateWatch {
       recent, journal: journal.slice(-DETAIL_JOURNAL), bypass: s.bypass ?? [],
       loop: repo.state ?? {}, agents: s.agents ?? [],
       host: { memTotal: h.memTotal, memAvailable: h.memAvailable, leftoverRss: h.leftoverRss, infraRss: h.infraRss, swapUsed: h.swapUsed, psiSome: h.psiSome, load: h.load },
-      history: points.filter((_, i) => i % DETAIL_HISTORY_STRIDE === 0).map((p) => ({ t: p.t, running: p.running, waiting: p.waiting, gateRss: p.gateRss, avail: p.avail })),
+      history: points.filter((_, i) => i % DETAIL_HISTORY_STRIDE === 0).map((p) => ({ t: p.t, running: p.running, waiting: p.waiting, remote: p.remote, gateRss: p.gateRss, avail: p.avail })),
       budget: budget(),
+      remote: { where: setting("HADES_GATE_WHERE") ?? "local", autoAfterS: setting("HADES_GATE_AUTO_AFTER_S") ?? null, workers: workerWatch.view() },
     };
   }
 

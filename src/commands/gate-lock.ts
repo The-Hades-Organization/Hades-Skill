@@ -4,7 +4,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { constants, hostname } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { effectiveConfig } from "../lib/config.ts";
 import { need } from "../lib/deps.ts";
 import { FlockTimeoutError, withFlockAsync } from "../lib/flock.ts";
@@ -18,8 +18,13 @@ import { emitJournal } from "../lib/journal.ts";
 import { hadesHome, home, selfCli, skillRoot } from "../lib/paths.ts";
 import { MIN_FREE_KILL_MB, OOM_EXIT, MemWatch, type KillReason } from "../lib/mem-watch.ts";
 import { memAvailableMb, pidAlive, procStartTime, run as runSync, sameProcess, which } from "../lib/proc.ts";
-import { pyRepr, stepOf } from "../lib/profile.ts";
+import { installedStacks, pyRepr, stepOf } from "../lib/profile.ts";
 import { slugOfRemote } from "../lib/work.ts";
+import { runRemote, warmWorker } from "../lib/gate-remote/client.ts";
+import { decide, shouldProbe, type Where } from "../lib/gate-remote/dispatch.ts";
+import { WHERE_LOCAL, checkOut, parseWhere, planOf, probeAll, type RemotePlan } from "../lib/gate-remote/plan.ts";
+import { ProtocolError, parseWorkers, type WorkerSpec } from "../lib/gate-remote/protocol.ts";
+import { sshCommand } from "../lib/gate-remote/transport.ts";
 
 const DEFAULT_TIMEOUT_SECONDS = 3600;
 const POLL_SECONDS = 5;
@@ -32,6 +37,11 @@ const MACHINE_SLUG = "_maquina";
 const MEM_WATCH_ENV = "HADES_MEM_WATCH";
 const MEM_WATCH_FLOOR_ENV = "HADES_MEM_WATCH_FLOOR_MB";
 const SIGNAL_EXIT = { SIGINT: 130, SIGTERM: 143 } as const;
+const DEFAULT_AUTO_AFTER_S = 120;
+/** Intervalo entre consultas aos workers depois do transbordo: cada uma é uma ida ao ssh por worker. */
+const PROBE_EVERY_S = 15;
+const RESULT_FILE_ENV = "HADES_GATE_RESULT_FILE";
+const REMOTE_STATE_PREFIX = "remote:";
 
 /** Linhas 4–15 do script original, sem o `# ` (o uso do original imprime este trecho; mantido como está). */
 const USAGE = `Fonte unica: ~/.claude/skills/hades/kit/gate/gate-lock.sh (o loop chama esta; o install copia para $D/gate/).
@@ -43,7 +53,7 @@ Politica v2 (proposta de 2026-09-22, ver ~/.claude/hades/docs/lock-policy/REPORT
   - No maximo UM gate pesado (test, test:integration, gate) por vez na maquina.
   - O comando roda num scope systemd com MemoryMax: estourou, morre o gate, nao a maquina.
 
-  gate-lock.sh run <kind> [--label L] [--timeout S] [--cost-gb N] [--step S:E] [--priority N] -- <cmd...>
+  gate-lock.sh run <kind> [--label L] [--timeout S] [--cost-gb N] [--step S:E] [--priority N] [--where local|<host>] [--out F]... -- <cmd...>
   gate-lock.sh run --step <stack>:<etapa> [...] -- <cmd...>     kind e custo vem da etapa da stack (stacks/<n>/stack.json)
   gate-lock.sh status`;
 
@@ -83,6 +93,11 @@ interface GateConfig {
   overrunMin: number;
   overrunFactor: number;
   scope: string;
+  /** HADES_GATE_WHERE: onde os itens rodam quando a linha de comando não diz (local | <host> | auto). */
+  where: string;
+  workers: WorkerSpec[];
+  /** Segundos esperando a admissão local antes de o `auto` olhar os workers. */
+  autoAfterS: number;
   /** Todas as chaves do catálogo: o config.sh as exporta, então o comando do gate as herda. */
   exported: Map<string, string>;
 }
@@ -97,6 +112,15 @@ function integer(config: ReadonlyMap<string, string>, key: string, fallback: num
   if (raw === undefined || raw === "") return fallback;
   if (!/^-?[0-9]+$/.test(raw)) gateDie(`${key} exige inteiro: '${raw}'`);
   return Number(raw);
+}
+
+function workersOf(raw: string): WorkerSpec[] {
+  try {
+    return parseWorkers(raw);
+  } catch (error) {
+    if (error instanceof ProtocolError) gateDie(error.message);
+    throw error;
+  }
 }
 
 function loadConfig(env: NodeJS.ProcessEnv): GateConfig {
@@ -122,6 +146,9 @@ function loadConfig(env: NodeJS.ProcessEnv): GateConfig {
     priority: integer(value, "HADES_GATE_PRIORITY", 0),
     costMeasured: (value.get("HADES_GATE_COST_MEASURED") ?? "0") === "1",
     scope: value.get("HADES_GATE_SCOPE") || "projeto",
+    where: value.get("HADES_GATE_WHERE") || WHERE_LOCAL,
+    workers: workersOf(value.get("HADES_GATE_WORKERS") ?? ""),
+    autoAfterS: integer(value, "HADES_GATE_AUTO_AFTER_S", DEFAULT_AUTO_AFTER_S),
     overrunMin: integer(value, "HADES_GATE_OVERRUN_MIN", 90),
     overrunFactor: integer(value, "HADES_GATE_OVERRUN_FACTOR", 5),
     exported,
@@ -239,12 +266,20 @@ class Queue {
     renameSync(tmp, path);
   }
 
+  /** O item saiu da fila local: roda no worker `host`, fora do orçamento daqui (`state=remote:<host>`). */
+  markRemote(path: string, host: string): void {
+    this.setState(path, `${REMOTE_STATE_PREFIX}${host}`);
+    appendFileSync(path, `where=remote\nremote=${host}\n`);
+  }
+
   /** Ticket é órfão quando o wrapper E o comando que ele lançou morreram (mesmo host, pid ausente ou reciclado). */
   prune(): void {
     for (const { path, ticket } of this.entries()) {
       if (field(ticket, "host") !== this.host) continue;
       if (alive(field(ticket, "pid"), field(ticket, "pstart"))) continue;
-      if (alive(field(ticket, "child"), field(ticket, "childstart"))) continue;
+      // Item remoto: o `child` é o ssh local, que não prova o job (ele morre com o wrapper e o worker derruba o job);
+      // só o wrapper vale. O host do ticket é o da máquina que o enfileirou, e é ele que é conferido antes do pid.
+      if (!isRemoteTicket(ticket) && alive(field(ticket, "child"), field(ticket, "childstart"))) continue;
       note(`ticket ${path.slice(path.lastIndexOf("/") + 1)} orfao (kind=${field(ticket, "kind")} label=${field(ticket, "label")}, pid ${field(ticket, "pid")} morto) — removendo`);
       this.journal("orphan", field(ticket, "kind"), field(ticket, "label"), field(ticket, "clone"));
       rmSync(path, { force: true });
@@ -277,6 +312,10 @@ class Queue {
 }
 
 // --- execução do comando ---
+
+function isRemoteTicket(ticket: ReturnType<typeof parseTicket>): boolean {
+  return field(ticket, "state").startsWith(REMOTE_STATE_PREFIX);
+}
 
 function signalExit(signal: NodeJS.Signals | null, code: number | null): number {
   if (signal !== null) return 128 + (constants.signals[signal] ?? 0);
@@ -320,6 +359,8 @@ function samplePeak(unit: string): () => number | undefined {
   };
 }
 
+type Admission = { target: "local"; waited: number } | { target: "remote"; host: string; waited: number };
+
 interface RunOptions {
   kind: string;
   label: string;
@@ -327,6 +368,10 @@ interface RunOptions {
   cost: string;
   step: string;
   priority: string;
+  /** `--where`: vazio = o que a configuração diz. */
+  where: string;
+  /** `--out`, repetível: arquivos que o worker devolve (caminho dentro de $HOME). */
+  out: string[];
 }
 
 class Gate {
@@ -339,6 +384,11 @@ class Gate {
   private watchKilled = false;
   /** O filho do vigia mora em grupo próprio e o sinal do terminal não chega a ele: a parada o derruba pelo grupo. */
   private childGrouped = false;
+  private where: Where = { mode: "local" };
+  /** Plano remoto da etapa, calculado na primeira vez que o despacho precisa dele. */
+  private plan: RemotePlan | undefined;
+  /** Aquecimentos disparados em segundo plano (um por worker): o fim do gate espera por eles em vez de largá-los. */
+  private readonly warming = new Map<string, Promise<void>>();
 
   constructor(config: GateConfig, queue: Queue, env: NodeJS.ProcessEnv) {
     this.config = config;
@@ -426,7 +476,21 @@ class Gate {
       if (costGb > num(parent, "cost")) note(`passo ${kind}/${options.label} custa ${costGb} GB, mais que a concessao (${num(parent, "cost")} GB)`);
       return runInherit(command, this.env);
     }
+    this.where = this.resolveWhere(options);
     return this.admitAndRun(options, kind, costGb, heavy, stepParallel, command);
+  }
+
+  private resolveWhere(options: RunOptions): Where {
+    try {
+      const where = parseWhere(options.where !== "" ? options.where : this.config.where, options.where !== "");
+      if (where.mode !== "local") checkOut(options.out, home(), process.cwd());
+      else if (options.out.length > 0) note("--out só vale fora da máquina (--where <host>): ignorado");
+      if (where.mode === "auto" && this.config.workers.length === 0) note("HADES_GATE_WORKERS vazio: o auto roda tudo local");
+      return where;
+    } catch (error) {
+      if (error instanceof ProtocolError) gateDie(error.message);
+      throw error;
+    }
   }
 
   /** Dentro de uma concessão `gate` viva o passo roda direto: a sequência já foi admitida inteira. */
@@ -463,20 +527,78 @@ class Gate {
     this.queue.journal("enqueue", kind, options.label, String(cost), clone);
     this.journalGate("enqueue", kind, options.label, clone, `cost=${cost}GB`);
 
-    const waited = await this.waitForAdmission(options, kind, cost, heavy, clone);
-    if (waited === undefined) return EX_TEMPFAIL;
-    this.queue.journal("admit", kind, options.label, String(cost), clone, `waited=${waited}`, `avail=${memAvailableMb()}MB`);
-    this.journalGate("admit", kind, options.label, clone, `waited=${waited}s`);
-    return this.runAdmitted(options, kind, cost, clone, command);
+    try {
+      const admission = this.where.mode === "host" ? ({ target: "remote", host: this.where.host, waited: 0 } as const) : await this.waitForAdmission(options, kind, cost, heavy, clone);
+      if (admission === undefined) return EX_TEMPFAIL;
+      if (admission.target === "remote") return await this.runOnWorker(options, kind, cost, clone, admission.host, admission.waited, command);
+      this.queue.journal("admit", kind, options.label, String(cost), clone, `waited=${admission.waited}`, `avail=${memAvailableMb()}MB`);
+      this.journalGate("admit", kind, options.label, clone, `waited=${admission.waited}s`);
+      return await this.runAdmitted(options, kind, cost, clone, command);
+    } finally {
+      await Promise.allSettled(this.warming.values());
+    }
   }
 
-  /** Espera a vez; devolve os segundos esperados, ou undefined ao esgotar o timeout (saída 75). */
-  private async waitForAdmission(options: RunOptions, kind: string, cost: number, heavy: boolean, clone: string): Promise<number | undefined> {
+  /** O item vai para o worker: sai do orçamento local (`state=remote:<host>`), roda lá e volta com o rc e o pico de lá. */
+  private async runOnWorker(options: RunOptions, kind: string, cost: number, clone: string, host: string, waited: number, command: readonly string[]): Promise<number> {
+    await this.queue.locked(() => this.queue.markRemote(this.ticket, host));
+    this.queue.journal("admit", kind, options.label, String(cost), clone, `waited=${waited}`, `host=${host}`);
+    this.journalGate("admit", kind, options.label, clone, `waited=${waited}s host=${host}`);
+    const started = Date.now();
+    const explicit = this.where.mode === "host";
+    const result = await runRemote(
+      {
+        host, home: home(), repo: projectSlug(), clone, subdir: relative(clone, process.cwd()), kind, label: options.label, cost,
+        timeout: Number(options.timeout), priority: Number(options.priority), step: options.step, stack: this.remotePlan(clone, options.step).stack,
+        argv: command, out: checkOut(options.out, home(), process.cwd()), warmInline: explicit,
+      },
+      sshCommand(this.env),
+      (child) => {
+        this.child = child;
+        appendFileSync(this.ticket, `child=${child.pid ?? ""}\nchildstart=${child.pid === undefined ? "" : (procStartTime(child.pid) ?? "")}\n`);
+      },
+      note,
+    );
+    return this.finish(options, kind, cost, clone, command, 0, started, result.rc, result.peakMb, { host: result.host ?? host, reason: result.reason });
+  }
+
+  private remotePlan(clone: string, step: string): RemotePlan {
+    this.plan ??= planOf(step, clone, installedStacks());
+    return this.plan;
+  }
+
+  /**
+   * `auto`: depois do transbordo, olha os workers a cada PROBE_EVERY_S. Devolve o host quando um aquecido serve; um frio
+   * nunca recebe o item (ele segue na fila local) e ganha o aquecimento em segundo plano.
+   */
+  private async autoDispatch(waitedS: number, kind: string, options: RunOptions, clone: string): Promise<string | undefined> {
+    if (this.where.mode !== "auto" || this.config.workers.length === 0) return undefined;
+    // waitedS anda de POLL_SECONDS em POLL_SECONDS: o início da sondagem é alinhado a esse passo para a cadência bater
+    const start = Math.ceil(this.config.autoAfterS / POLL_SECONDS) * POLL_SECONDS;
+    if (!shouldProbe(waitedS, start, PROBE_EVERY_S)) return undefined;
+    const ssh = sshCommand(this.env);
+    const plan = this.remotePlan(clone, options.step);
+    const decision = decide({
+      where: this.where, waitedS, autoAfterS: this.config.autoAfterS, kind, affinity: plan.affinity, warmKey: plan.warmKey,
+      workers: await probeAll(ssh, this.config.workers),
+    });
+    for (const host of decision.warm) {
+      if (this.warming.has(host)) continue;
+      note(`aquecendo ${host} para este item (segue local enquanto isso)`);
+      this.warming.set(host, warmWorker(ssh, host, { home: home(), repo: projectSlug(), clone, stack: plan.stack }, note));
+    }
+    return decision.target === "remote" ? decision.host : undefined;
+  }
+
+  /** Espera a vez; devolve onde o item vai rodar (com os segundos esperados), ou undefined ao esgotar o timeout (saída 75). */
+  private async waitForAdmission(options: RunOptions, kind: string, cost: number, heavy: boolean, clone: string): Promise<Admission | undefined> {
     let waited = 0;
     let last = "";
     for (;;) {
       const reason = await this.queue.locked(() => this.tryAdmit(cost, heavy));
-      if (reason === null) return waited;
+      if (reason === null) return { target: "local", waited };
+      const host = await this.autoDispatch(waited, kind, options, clone);
+      if (host !== undefined) return { target: "remote", host, waited };
       if (waited >= Number(options.timeout)) {
         note(`nao admitido apos ${waited}s (${reason}) — gate enfileirado, ceda o tick`);
         this.describeRunning();
@@ -555,13 +677,22 @@ class Gate {
 
   private finish(
     options: RunOptions, kind: string, cost: number, clone: string, command: readonly string[], cap: number, started: number, rc: number, peak: number | undefined,
+    remote?: { host: string; reason: string | undefined },
   ): number {
     if (peak !== undefined) writeFileSync(`${this.ticket}.peak`, `${peak}\n`);
+    const resultFile = this.env[RESULT_FILE_ENV];
+    // O worker lê o pico daqui: é como o `gate-lock` dele devolve ao `hades worker exec` o que mediu (ver worker.ts).
+    if (resultFile && peak !== undefined) writeFileSync(resultFile, `peak=${peak}\n`);
     const seconds = Math.floor((Date.now() - started) / 1000);
-    if (OOM_SIGNALS.includes(rc) && !this.watchKilled) this.explainOom(rc, cap, seconds);
-    const extra = [...(options.step !== "" ? [`step=${options.step}`] : []), ...(peak !== undefined ? [`peak=${peak}MB`] : [])];
+    // No remoto quem viu o estouro foi o worker (a mensagem dele já veio no stderr); o teto local não é o que valeu.
+    if (remote === undefined && OOM_SIGNALS.includes(rc) && !this.watchKilled) this.explainOom(rc, cap, seconds);
+    const extra = [
+      ...(options.step !== "" ? [`step=${options.step}`] : []),
+      ...(peak !== undefined ? [`peak=${peak}MB`] : []),
+      ...(remote === undefined ? [] : [`host=${remote.host}`, ...(remote.reason === undefined ? [] : [`reason=${remote.reason}`])]),
+    ];
     this.queue.journal("done", kind, options.label, String(cost), clone, `rc=${rc}`, `dur=${seconds}s`, `cmd=${normalizeCommand(command)}`, ...extra);
-    this.journalGate("done", kind, options.label, clone, `rc=${rc} dur=${seconds}s cmd=${normalizeCommand(command)}`);
+    this.journalGate("done", kind, options.label, clone, `rc=${rc} dur=${seconds}s cmd=${normalizeCommand(command)}${remote === undefined ? "" : ` host=${remote.host}`}`);
     return rc;
   }
 
@@ -637,7 +768,7 @@ function peak(queue: Queue, label: string): number {
 }
 
 function parseRun(args: readonly string[], defaultPriority: number): { options: RunOptions; command: string[] } {
-  const options: RunOptions = { kind: "", label: "-", timeout: String(DEFAULT_TIMEOUT_SECONDS), cost: "", step: "", priority: String(defaultPriority) };
+  const options: RunOptions = { kind: "", label: "-", timeout: String(DEFAULT_TIMEOUT_SECONDS), cost: "", step: "", priority: String(defaultPriority), where: "", out: [] };
   let rest = [...args];
   const first = rest[0] ?? "";
   if (!first.startsWith("--")) {
@@ -658,6 +789,8 @@ function parseRun(args: readonly string[], defaultPriority: number): { options: 
     else if (flag === "--cost-gb") options.cost = valueOf(flag, value);
     else if (flag === "--step") options.step = valueOf(flag, value, "--step exige <stack>:<etapa>");
     else if (flag === "--priority") options.priority = valueOf(flag, value);
+    else if (flag === "--where") options.where = valueOf(flag, value, "--where exige local ou <host>");
+    else if (flag === "--out") options.out.push(valueOf(flag, value, "--out exige um caminho"));
     else gateDie(`argumento inesperado: ${flag}`);
     rest = rest.slice(2);
   }

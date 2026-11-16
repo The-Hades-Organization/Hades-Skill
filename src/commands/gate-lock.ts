@@ -19,6 +19,7 @@ import { hadesHome, home, selfCli, skillRoot } from "../lib/paths.ts";
 import { MIN_FREE_KILL_MB, OOM_EXIT, MemWatch, type KillReason } from "../lib/mem-watch.ts";
 import { memAvailableMb, pidAlive, procStartTime, run as runSync, sameProcess, which } from "../lib/proc.ts";
 import { installedStacks, pyRepr, stepOf } from "../lib/profile.ts";
+import { OOM_SIGNAL_RCS, journalOomLines, oomKillsOf, rcAfterOom } from "../lib/oom-scope.ts";
 import { slugOfRemote } from "../lib/work.ts";
 import { probeWorker, runRemote, warmWorker } from "../lib/gate-remote/client.ts";
 import { decide, shouldProbe, type Where } from "../lib/gate-remote/dispatch.ts";
@@ -33,7 +34,7 @@ const NOTE_EVERY_SECONDS = 60;
 const MUTEX_WAIT_SECONDS = 30;
 const SAMPLE_MS = 200;
 const CERBERUS_TEXT_MAX = 300;
-const OOM_SIGNALS = [137, 143];
+const OOM_SIGNALS = OOM_SIGNAL_RCS;
 const MACHINE_SLUG = "_maquina";
 const MEM_WATCH_ENV = "HADES_MEM_WATCH";
 const MEM_WATCH_FLOOR_ENV = "HADES_MEM_WATCH_FLOOR_MB";
@@ -345,18 +346,20 @@ function canCapMemory(memcap: boolean): boolean {
 }
 
 /** Amostra o pico do cgroup do scope (memory.peak) enquanto o comando vive; devolve o parar() com o pico em MB. */
-function samplePeak(unit: string): () => number | undefined {
+function samplePeak(unit: string): () => { peakMb: number | undefined; oomKills: number } {
   let cgroup = "";
   let peakBytes: number | undefined;
+  let oomKills = 0;
   const timer = setInterval(() => {
     if (cgroup === "") cgroup = runSync("systemctl", ["--user", "show", "-p", "ControlGroup", "--value", `${unit}.scope`]).stdout.trim();
     if (cgroup === "") return;
     const value = readText(`/sys/fs/cgroup${cgroup}/memory.peak`)?.trim() ?? "";
     if (/^[0-9]+$/.test(value)) peakBytes = Number(value);
+    oomKills = Math.max(oomKills, oomKillsOf(readText(`/sys/fs/cgroup${cgroup}/memory.events`)));
   }, SAMPLE_MS);
   return () => {
     clearInterval(timer);
-    return peakBytes === undefined ? undefined : Math.floor((peakBytes + 1_048_575) / 1_048_576);
+    return { peakMb: peakBytes === undefined ? undefined : Math.floor((peakBytes + 1_048_575) / 1_048_576), oomKills };
   };
 }
 
@@ -384,6 +387,8 @@ class Gate {
   private readonly queue: Queue;
   private readonly env: NodeJS.ProcessEnv;
   private ticket = "";
+  /** scope do último comando com teto: a evidência de oom-kill vem dele */
+  private scope: { unit: string; oomKills: number } | undefined;
   private child: ChildProcess | undefined;
   /** O vigia de memória derrubou a árvore do comando (macOS): a mensagem dele já explica a saída 137. */
   private watchKilled = false;
@@ -482,6 +487,9 @@ class Gate {
       return runInherit(command, this.env);
     }
     this.where = this.resolveWhere(options);
+    if (this.where.mode === "host" && options.step === "") {
+      note(`--where ${this.where.host} sem --step: o job vai sem stack (sem aquecimento nem npm ci no worker); passe --step <stack>:<etapa>`);
+    }
     return this.admitAndRun(options, kind, costGb, heavy, stepParallel, command);
   }
 
@@ -564,7 +572,7 @@ class Gate {
       {
         host, home: home(), repo: projectSlug(), clone, subdir: relative(clone, process.cwd()), kind, label: options.label, cost,
         timeout: Number(options.timeout), priority: Number(options.priority), step: options.step, stack: plan.stack,
-        argv: command, out: checkOut(options.out, home(), process.cwd()), warmInline: explicit, fresh: options.fresh, env: this.passEnv(plan),
+        argv: command, out: checkOut(options.out, home(), process.cwd()), warmInline: explicit, fresh: options.fresh, env: this.passEnv(plan), headroom: this.config.headroomGb,
         postLocal: options.postLocal,
       },
       ssh,
@@ -666,14 +674,15 @@ class Gate {
       ? ["systemd-run", "--user", "--scope", "--quiet", "--collect", `--unit=${unit}`, "-p", `MemoryMax=${cap}G`, "-p", `MemorySwapMax=${this.config.swapcapGb}G`, "--", ...command]
       : [...command];
     const [file = "", ...args] = argv;
-    const stopSampling = capped ? samplePeak(unit) : () => undefined;
+    const stopSampling = capped ? samplePeak(unit) : () => ({ peakMb: undefined, oomKills: 0 });
     const child = spawn(file, args, { stdio: "inherit", env });
     this.child = child;
     const running = exitOf(child);
     appendFileSync(this.ticket, `child=${child.pid ?? ""}\nchildstart=${child.pid === undefined ? "" : (procStartTime(child.pid) ?? "")}\n`);
     const rc = await running;
-    const peak = stopSampling();
-    return this.finish(options, kind, cost, clone, command, cap, started, rc, peak);
+    const sampled = stopSampling();
+    this.scope = { unit, oomKills: sampled.oomKills };
+    return this.finish(options, kind, cost, clone, command, cap, started, rc, sampled.peakMb);
   }
 
   /** Sem cgroup (macOS): o teto é o vigia de RSS da árvore (ADR 0003). HADES_MEM_WATCH=1 liga o mesmo caminho no Linux (testes). */
@@ -728,16 +737,30 @@ class Gate {
     }
     const seconds = Math.floor((Date.now() - started) / 1000);
     // No remoto quem viu o estouro foi o worker (a mensagem dele já veio no stderr); o teto local não é o que valeu.
-    if (remote === undefined && OOM_SIGNALS.includes(rc) && !this.watchKilled) this.explainOom(rc, cap, seconds);
+    let code = rc;
+    if (remote === undefined && rc !== 0 && !this.watchKilled) {
+      const oomed = this.scopeOomed(seconds);
+      if (OOM_SIGNALS.includes(rc) || oomed) this.explainOom(rc, cap, seconds);
+      code = rcAfterOom(rc, oomed);
+    }
     const extra = [
       ...(options.step !== "" ? [`step=${options.step}`] : []),
       ...(peak !== undefined ? [`peak=${peak}MB`] : []),
       ...(remote === undefined ? [] : [`host=${remote.host}`, ...(remote.reason === undefined ? [] : [`reason=${remote.reason}`])]),
       ...(dispatched === undefined ? [] : [`sha=${dispatched.sha.slice(0, 12)}`]),
     ];
-    this.queue.journal("done", kind, options.label, String(cost), clone, `rc=${rc}`, `dur=${seconds}s`, `cmd=${normalizeCommand(command)}`, ...extra);
-    this.journalGate("done", kind, options.label, clone, `rc=${rc} dur=${seconds}s cmd=${normalizeCommand(command)}${remote === undefined ? "" : ` host=${remote.host}`}`);
-    return rc;
+    this.queue.journal("done", kind, options.label, String(cost), clone, `rc=${code}`, `dur=${seconds}s`, `cmd=${normalizeCommand(command)}`, ...extra);
+    this.journalGate("done", kind, options.label, clone, `rc=${code} dur=${seconds}s cmd=${normalizeCommand(command)}${remote === undefined ? "" : ` host=${remote.host}`}`);
+    return code;
+  }
+
+  /** oom-kill comprovado no scope deste comando: contador do cgroup ou, se o scope sumiu antes da última leitura, o journal. */
+  private scopeOomed(seconds: number): boolean {
+    if (this.scope === undefined) return false;
+    if (this.scope.oomKills > 0) return true;
+    if (process.platform === "darwin" || which("journalctl") === undefined) return false;
+    const log = runSync("journalctl", ["--user", "-b", "--no-pager", "--since", `-${seconds + 5}s`]).stdout;
+    return journalOomLines(log, this.scope.unit).length > 0;
   }
 
   /** 137 (SIGKILL no comando) e 143 (systemd derrubando o scope após oom-kill de um irmão) significam o mesmo: não coube no teto. */

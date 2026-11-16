@@ -4,6 +4,17 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.48.1 — 2026-11-16
+
+Correção (#126, piloto em loopback): defeitos que o primeiro build do front no worker expôs.
+
+- **Status do worker.** O status que o worker devolve passa a ser o mesmo no painel e no motor.
+- **`--where` sem `--step`.** O gate-lock avisa quando `--where` vem sem `--step`, em vez de cair em silêncio no caminho local.
+- **Memória do worker.** A folga de memória e `NG_BUILD_MAX_WORKERS`/`NODE_OPTIONS` agora chegam ao processo no worker.
+- **OOM do scope nomeado.** A morte por OOM de um scope nomeado é reconhecida e reportada como OOM.
+- **Build do front.** Heap de 6144 MB e folga de 7 GB. Prova em loopback: rc 0, 125 s, pico de 10336 MB, teto de 12 GB.
+- **Limite.** Worker em outra máquina ainda não provado; a #126 segue aberta até lá.
+
 ## 6.48.0 — 2026-11-16
 
 Capacidade nova (#126, fatia 2, pedida pelo dono): o build do front roda no worker e o diretório volta para esta máquina.

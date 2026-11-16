@@ -51,7 +51,7 @@ O rótulo `docker` é opcional: declare-o só se o worker tem Docker. A etapa de
 Da máquina de origem, na forma que o painel usa:
 
 ```
-ssh -o BatchMode=yes -- <host> worker status --json
+ssh -o BatchMode=yes -- <host> status --json
 ```
 
 A saída é um JSON com `host`, `labels`, `memFreeGb`, `memTotalGb`, `cpus`, `queue` e `warm` (por chave: `ready`, `warming` ou

@@ -11,7 +11,7 @@ import { withFlockAsync } from "../lib/flock.ts";
 import { JOB_REF_PREFIX } from "../lib/gate-remote/ship.ts";
 import type { WorkerStatus } from "../lib/gate-remote/dispatch.ts";
 import {
-  PROTOCOL_VERSION, ProtocolError, RC_NOT_RUN, decodePayload, formatTrailer, mirrorPath, parseWorkerCommand, type Job, type OutRequest, type WarmRequest,
+  PROTOCOL_VERSION, ProtocolError, RC_NOT_RUN, decodePayload, formatTrailer, mirrorPath, parseWorkerCommand, workerHeadroomGb, type Job, type OutRequest, type WarmRequest,
 } from "../lib/gate-remote/protocol.ts";
 import { MANIFEST_NAME, MANIFEST_VERSION, ManifestError, hashTree, type Manifest, type ManifestDir } from "../lib/gate-remote/manifest.ts";
 import { badPassEnv, claimSlot, expandEnv, readKeyFiles, readWarm, remoteSpecOf, warmKey, warmStates, writeWarm, type RemoteSpec } from "../lib/gate-remote/warm.ts";
@@ -252,6 +252,8 @@ function runGateLock(job: Job, spec: RemoteSpec | undefined, slot: number, resul
     ...process.env, ...(spec === undefined ? {} : expandEnv(spec.env, { cache: physical(baseDir()), repo: job.repo, slot: String(slot), key })), ...job.env,
     HADES_GATE_WHERE: "local", [RESULT_FILE_ENV]: resultFile,
   };
+  const headroom = workerHeadroomGb(job.headroom, job.cost, totalmem() / MB_PER_GB ** 3);
+  if (headroom !== undefined) env.HADES_GATE_HEADROOM_GB = String(headroom);
   delete env.GATE_LOCK_TICKET;
   const cwd = job.subdir === "" ? physical(job.cwd) : join(physical(job.cwd), job.subdir);
   return new Promise((resolve) => {

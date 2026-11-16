@@ -228,6 +228,18 @@ describe("build remoto do front com transporte local", () => {
     expect(readFileSync(resultado, "utf8")).toContain(`sha=${head}`);
   }, SLOW_MS);
 
+  test("--where <host> sem --step avisa no stderr que o job vai sem stack, e não recusa", () => {
+    const run = gate(frontArgs("front-sem-step", "true"));
+    expect(run.rc).toBe(0);
+    expect(run.err).toContain("sem --step: o job vai sem stack");
+  }, SLOW_MS);
+
+  test("--where <host> com --step não avisa de stack", () => {
+    const run = gate(["build", "--label", "front-com-step", "--step", "front-teste:build", "--where", HOST, "--timeout", "60", "--", "true"]);
+    expect(run.rc).toBe(0);
+    expect(run.err).not.toContain("sem --step");
+  }, SLOW_MS);
+
   test("--fresh sem --out é recusado antes de qualquer envio", () => {
     const run = gate(["build", "--label", "front-fresh-solto", "--where", HOST, "--fresh", "index.html", "--", "true"]);
     expect(run.rc).not.toBe(0);

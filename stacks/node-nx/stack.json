@@ -58,7 +58,7 @@
       "NX_CACHE_DIRECTORY": "{cache}/nx/{repo}/{key}/{slot}",
       "NX_DAEMON": "false"
     },
-    "passEnv": []
+    "passEnv": ["NG_BUILD_MAX_WORKERS", "NODE_OPTIONS"]
   },
   "guard": {
     "patterns": [

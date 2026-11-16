@@ -63,6 +63,22 @@ por vez, FIFO). O `gate-lock.sh` lê o `config.sh` da instalação a cada chamad
 | `HADES_GATE_PROJECT_BUDGET_GB` | teto por projeto, abaixo do orçamento da máquina |
 | `HADES_GATE_SCOPE` | `projeto` (uma fila por repo, onde o painel lê) ou `maquina` (todos na mesma fila) |
 
+| `HADES_GATE_WHERE` · `_WORKERS` · `_AUTO_AFTER_S` | onde o gate roda (`local`, `<host>` ou `auto`), os workers (`host[:rotulo+rotulo]`) e os segundos de espera local antes de o `auto` olhar para eles (`reference/loop/gates.md` §3.2) |
+
+## Aquecimento remoto (`remote` na stack)
+
+O worker só recebe item com o ambiente pronto. O pacote declara como se prepara:
+
+- `remote.key`: arquivos cujo conteúdo define "o mesmo ambiente" (lockfile, versão do toolchain). A chave é a stack mais o
+  hash desses arquivos e o caminho do worktree; arquivo ausente conta como ausente.
+- `remote.prepare`: comandos, em ordem, no worktree do worker. Vêm do pacote **do worker**, nunca do job.
+- `remote.env`: variáveis do job no worker; `{cache}`, `{repo}` e `{slot}` são expandidos.
+- `steps.<etapa>.remote`: afinidade (`labels`, `minMemGb`) usada pelo despacho `auto`.
+
+`node-nx`: `package-lock.json` + `.nvmrc`; `npm ci` e `npm run codegen --if-present`; a etapa `integration` pede o rótulo
+`docker`. `rust-cargo`: `Cargo.lock` + `rust-toolchain(.toml)`; `cargo fetch --locked`; `CARGO_TARGET_DIR` por repo e por
+slot (`{cache}/target/{repo}/{slot}`). Sem `remote`, a stack não tem o que aquecer e o item é considerado pronto.
+
 `scope=maquina` muda onde ficam os tickets (`work/_maquina/locks`); a página **Fila de gates** lê as duas filas e marca a da máquina com o selo "Máquina" (`reference/panel.md` §Fila de gates).
 
 ## Filtros do rtk da stack

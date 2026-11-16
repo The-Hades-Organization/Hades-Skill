@@ -247,13 +247,21 @@ A página usa `src/panel/gatewatch.ts`, o amostrador do estado da fila e do loop
 - resumos dos gates recentes;
 - processos pesados fora da fila;
 - locks do loop (página **Loop** para escalações, entregas e PRs).
+- **onde cada item roda**: `local` ou `remote:<host>` (ticket com `state=remote:<host>`, `where` e `remote`; `host` do ticket é a máquina local e o painel não o usa). Item remoto tem a faixa
+  **Em worker remoto**, não entra na soma de memória local nem em "rodando", e a linha de estado diz quantos estão fora;
+- **host no histórico**: `host=` da linha `done` do journal (ausente = local) e o motivo `remoto perdido (75)` quando o worker some no meio do gate;
+- **bloco Workers** (só com `HADES_GATE_WORKERS` preenchida): um cartão por worker com os rótulos, memória livre, fila, CPUs e o aquecimento por chave
+  (`ready`, `warming`, `failed`), do `hades worker status --json`. O painel lê por `ssh -o BatchMode=yes -- <alvo> worker status --json`, em segundo plano,
+  só enquanto a página é pedida, a cada 15 s e com limite de 4 s por worker. Worker inacessível aparece como tal, com o erro e a última leitura boa em cache; a
+  página e o amostrador local nunca esperam a rede. API: `remote` do `GET /api/gates` (`where`, `autoAfterS`, `workers[]`). Preparar o worker:
+  `reference/gate-remoto-worker.md`.
 
 A fila da máquina (`work/_maquina`) entra somada à do projeto, na mesma página: os cartões, o journal, os recentes e a
 fila crua trazem o selo **Máquina** nos itens que vieram de lá (`machine:true` na API). O mesmo `pid` aparece uma vez,
 preferindo o registro que tem ticket. Um ticket da fila da máquina só é atribuído a um loop pelo ticket (sem casar por
 repo), e a checagem de "repo único" do amostrador ignora o `_maquina`.
 
-Tour da página (§Tour por página): doze passos (resumo, memória, gráficos, journal, sequências, fora da fila, locks e o amostrador
+Tour da página (§Tour por página): treze passos (resumo, memória, gráficos, journal, sequências, fora da fila, locks, workers e o amostrador
 indisponível); sem prévia, porque a página sempre tem conteúdo vivo; os cards que podem faltar levam `fallback`. Código:
 `ui/pages/queue.tour.tsx`.
 

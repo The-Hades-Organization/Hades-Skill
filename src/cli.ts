@@ -20,6 +20,7 @@ const commands: Record<string, () => Promise<Command>> = {
   wait: async () => (await import("./commands/wait.ts")).waitCommand,
   consolidate: async () => (await import("./commands/consolidate.ts")).consolidateCommand,
   "gate-lock": async () => (await import("./commands/gate-lock.ts")).gateLockCommand,
+  worker: async () => (await import("./commands/worker.ts")).workerCommand,
   deps: async () => (await import("./commands/deps.ts")).depsCommand,
   cerberus: async () => (await import("./commands/cerberus.ts")).cerberusCommand,
   "cerberus-check": async () => (await import("./commands/cerberus-check.ts")).cerberusCheckCommand,
@@ -108,7 +109,8 @@ const HELP = `hades <subcomando> [argumentos]
   watch [--next] [<segundos>]    eventos novos dos agentes registrados, um por linha (hades watch)
   wait ci|gate|queue|merged|review|answer|agent …   esperas que notificam, rode em segundo plano (hades wait)
   consolidate plan|merge|verify|comment|ready|after-merge …   PR de consolidação (hades consolidate)
-  gate-lock run <kind> [...] -- <cmd>|status|peak <label>   fila de admissão de gates, saída 75 = não admitido
+  gate-lock run <kind> [--where local|<host>] [--out <arq>] [...] -- <cmd>|status|peak <label>   fila de admissão de gates, saída 75 = não admitido
+  worker exec|status [--json]|warm <stack>   lado do worker do gate remoto (comando forçado da chave SSH; reference/loop/gates.md §3.2)
   stack-add propose|measure|save  propõe, mede e grava o pacote de stack de um repo (hades stack-add)
   project-init draft|save        rascunho e gravação do perfil de um repo (hades project-init)
   widget-apk [build|test|shots|list|new <id>|image|status]   APK do widget Android, num container Docker (kit/android/build.sh)

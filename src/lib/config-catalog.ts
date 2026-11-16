@@ -3,6 +3,7 @@
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readText } from "./fs.ts";
+import { ProtocolError, isHost, parseWorkers } from "./gate-remote/protocol.ts";
 import { home } from "./paths.ts";
 
 const KEY = /^[A-Z][A-Z0-9_]*$/;
@@ -179,6 +180,15 @@ export function validate(item: Item, value: unknown): string {
       fail("lista nome=modelo (modelo: inherit, haiku, sonnet, opus), com default=…");
     }
     v = pairs.join(",");
+  } else if (t === "where") {
+    if (v !== "local" && v !== "auto" && !isHost(v)) fail("local, auto ou o host do worker (user@host)");
+  } else if (t === "workers") {
+    try {
+      parseWorkers(v);
+    } catch (error) {
+      if (error instanceof ProtocolError) fail("host[:rotulo+rotulo], separados por vírgula (user@host:docker+mem16)");
+      throw error;
+    }
   } else if (t === "id") {
     if (!fullMatch("[A-Za-z0-9_:-]{0,64}", v)) fail("letras, números, _ : -");
   } else if (t === "digits") {

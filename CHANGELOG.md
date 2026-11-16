@@ -4,6 +4,26 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.47.0 — 2026-11-15
+
+Capacidade nova (#126, fatia 1, pedida pelo dono): a fila de gates pode rodar um gate em outra máquina dele, por SSH.
+
+- **O quê (motor).** `gate-lock run --where local|<host>|auto` e as chaves `HADES_GATE_WHERE`, `HADES_GATE_WORKERS` e
+  `HADES_GATE_AUTO_AFTER_S`. O despacho é uma função pura e um worker frio nunca recebe item. O código vai por índice
+  temporário (`write-tree`, `commit-tree`, push para `refs/hades/jobs/<id>`), sem tocar stash nem índice. No worker:
+  `hades worker exec|status|warm`, com protocolo por `SSH_ORIGINAL_COMMAND` validado na fronteira. As stacks node-nx e
+  rust-cargo ganham `remote.key` e `remote.prepare` (aquecimento). O rc mantém a semântica; transporte perdido vira rc 75,
+  "remoto perdido"; `--out` traz arquivos de volta.
+- **O quê (painel).** A Fila de gates mostra onde cada gate roda e o estado dos workers; worker fora do ar não trava a
+  fila. Guia do worker em `reference/gate-remoto-worker.md`. Em Configurações, `where` e `workers` usam campo largo.
+- **Por quê.** Uma máquina só segura um gate pesado por vez; o dono tem outra máquina na rede privada, com o mesmo usuário
+  e a mesma árvore em `$HOME`. Padrão segue `local`; `auto` só liga pela chave.
+- **Descoberto.** Os tipos `where` e `workers` do catálogo não passavam pela UI: caíam num campo estreito. O release check
+  do motor falhou em 8 testes por golden desatualizado (catálogo, uso do `gate-lock`, guarda de tipos); regravados.
+  `npm run codegen --if-present` ficou na preparação do node-nx (no-op sem o script).
+- **Limite.** O worker real ainda não foi provado: só o transporte local foi testado de ponta a ponta. Build remoto do
+  front é a fatia 2.
+
 ## 6.46.0 — 2026-11-13
 
 Capacidade nova (#114, fatia 2, pedida pelo dono): o desenho do Argos gira, encaixa em guias e prende conectores.

@@ -4,7 +4,7 @@
 # repo (dono/nome no GitHub), multi:a,b,c (subconjunto, vírgulas), globs (padrões de nome com *, vírgulas), ttl (8h, 1d), login (conta do GitHub, vazio permitido), logins, emails e
 # tags (listas por vírgula, vazio permitido), id (letras, números, _ : -), digits, path (absoluto ou ~/, vazio
 # permitido), relpath (relativo, sem ..), modelmap (nome=modelo por vírgula; modelo inherit|haiku|sonnet|opus), port (1024–65535, vazio permitido),
-# cidr (sub-rede IPv4 como 172.18.0.0/16, vazio permitido).
+# cidr (sub-rede IPv4 como 172.18.0.0/16, vazio permitido), where (local, auto ou user@host), workers (host[:rotulo+rotulo], por vírgula, vazio permitido).
 # Aplicar: slice (na hora, config.sh apply-slice), services (restart dos serviços), watch
 # (reiniciar o plantão), panel (reiniciar o painel), autostart (na hora, panel.sh autostart),
 # logrotate (na hora, clean.sh apply), next (próxima execução), hooks (na hora: os hooks leem a cada chamada), agents (gravar o model: dos subagentes em
@@ -31,6 +31,9 @@ HADES_GATE_PRIORITY	0	int:-9:9	Fila de gates	Prioridade padrão do gate	next	Mai
 HADES_GATE_WINDOW		hours	Fila de gates	Janela de horário dos gates pesados	next	HH:MM-HH:MM (ex.: 22:00-07:00). Fora dela só lint e build leves entram; o pesado espera. Vazio = qualquer hora.
 HADES_GATE_PROJECT_BUDGET_GB	0	int:0:128	Fila de gates	Orçamento por projeto (GB, 0 = sem teto)	next	Teto da soma dos gates do mesmo projeto, abaixo do orçamento da máquina. Só vale com a fila da máquina (abaixo).
 HADES_GATE_SCOPE	projeto	enum:projeto,maquina	Fila de gates	Fila por projeto ou da máquina	next	projeto: uma fila por repositório (padrão). maquina: todos os projetos na mesma fila. Repo sem origin usa a da máquina.
+HADES_GATE_WHERE	local	where	Fila de gates	Onde os gates rodam	next	local (padrão): nesta máquina. <host> (user@host): tudo no worker por SSH, com o código do worktree enviado a cada gate. auto: local, e depois de HADES_GATE_AUTO_AFTER_S esperando a vez passa para um worker aquecido que sirva. `gate-lock run --where` vence esta chave.
+HADES_GATE_WORKERS		workers	Fila de gates	Workers dos gates remotos	next	Lista host[:rotulo+rotulo], separada por vírgula (ex.: dev@box:docker+mem16). Os rótulos dizem o que o worker tem (docker) e casam com a afinidade da etapa na stack. Vazio = sem workers.
+HADES_GATE_AUTO_AFTER_S	120	int:0:86400	Fila de gates	Auto: segundos na fila antes de olhar os workers	next	Só vale com HADES_GATE_WHERE=auto: o item espera a admissão local este tempo; depois, se um worker aquecido serve (rótulos e memória da etapa), ele roda lá. Worker frio nunca recebe item: o aquecimento começa em segundo plano.
 HADES_GATE_OVERRUN_MIN	90	int:1:1440	Fila de gates	Gate rodando além de (min) vira estouro	next	Gate rodando há mais que isso (ou que o fator abaixo vezes o tempo normal do label, o maior) vira ESTOURO no `gate-lock status` e aviso do notify.
 HADES_GATE_OVERRUN_FACTOR	5	int:1:100	Fila de gates	Estouro: vezes o tempo normal do gate	next	Tempo normal = mediana das execuções concluídas do mesmo label no histórico. Sem histórico vale só o piso.
 HADES_RUN_TUNNEL	0	bool	Subida (run-hades)	Levantar o túnel público do front	next	Desligado por padrão: o túnel público é escolha do dono (onboarding → Acesso remoto, ou aqui). Ligado, cada subida do ambiente publica o front num túnel público e anônimo: qualquer pessoa com a URL abre, até vencer a validade (grupo Túnel → Validade do acesso anônimo ao front). A guarda tunel-acesso do Cerberus continua valendo: com Hosts permitidos no túnel (Porta) vazio, ela barra a publicação mesmo com esta configuração ligada. Desligado = run-hades --no-tunnel; a flag --tunnel força numa subida.

@@ -51,7 +51,7 @@ describe("config", () => {
   cmp2("config export com flag inválida", C("export --x"));
   // um valor por tipo do catálogo: o validador tem de aceitar e recusar igual
   test("config: tipos do catálogo conhecidos", () => {
-    const known = new Set("size int bool percent enum multi globs ttl login logins emails tags modelmap id digits path secret relpath cidr port repo url hours".split(" "));
+    const known = new Set("size int bool percent enum multi globs ttl login logins emails tags modelmap id digits path secret relpath cidr port repo url hours where workers".split(" "));
     const tipos = new Set<string>();
     for (const l of readFileSync(`${K}/config.tsv`, "utf8").split("\n")) { if (l.startsWith("#") || !l.includes("\t")) continue; const c = l.split("\t")[2]; if (c !== undefined) tipos.add(c.replace(/:.*/, "")); }
     const novos = [...tipos].filter((t) => t && !known.has(t)).map((t) => `novo:${t}`);

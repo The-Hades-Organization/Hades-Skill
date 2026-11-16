@@ -28,13 +28,28 @@
     "integration": {
       "cmd": "npm run test:integration -- {project}",
       "kind": "test:integration",
-      "costGb": 5
+      "costGb": 5,
+      "remote": {
+        "labels": [
+          "docker"
+        ]
+      }
     },
     "affected": {
       "cmd": "npm run affected:build -- --parallel=2",
       "kind": "build",
       "costGb": 5
     }
+  },
+  "remote": {
+    "key": [
+      "package-lock.json",
+      ".nvmrc"
+    ],
+    "prepare": [
+      "npm ci",
+      "npm run codegen --if-present"
+    ]
   },
   "guard": {
     "patterns": [

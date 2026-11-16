@@ -29,6 +29,19 @@
       "costGb": 3
     }
   },
+  "remote": {
+    "key": [
+      "Cargo.lock",
+      "rust-toolchain",
+      "rust-toolchain.toml"
+    ],
+    "prepare": [
+      "cargo fetch --locked"
+    ],
+    "env": {
+      "CARGO_TARGET_DIR": "{cache}/target/{repo}/{slot}"
+    }
+  },
   "guard": {
     "patterns": [
       "(^|[;&|]|\\s)cargo\\s+(build|check|clippy|test|nextest)\\b"

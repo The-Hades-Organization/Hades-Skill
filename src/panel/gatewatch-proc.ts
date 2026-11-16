@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync, readlinkSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { readText } from "../lib/fs.ts";
+import { WORKER_STATUS_COMMAND } from "../lib/gate-remote/transport.ts";
 import { exec } from "./exec.ts";
 import { CGROUP_ROOT, meminfo, parsePsCommands, procIds, readLines } from "./system.ts";
 
@@ -362,7 +363,7 @@ const WORKER_EVERY_S = 15;
 const WORKER_ERROR_MAX = 160;
 const WARM_STATES: readonly string[] = ["ready", "warming", "failed"];
 /** argumento que o `command="hades worker exec"` forçado recebe em SSH_ORIGINAL_COMMAND */
-export const WORKER_STATUS_ARGS = ["worker", "status", "--json"];
+export const WORKER_STATUS_ARGS = WORKER_STATUS_COMMAND.split(" ");
 
 /** `host[:rótulo,…]` separados por vírgula de fora, espaço ou `;`; alvo fora do padrão é descartado (vai a argv do ssh). */
 export function parseWorkers(spec: string | undefined): WorkerSpec[] {

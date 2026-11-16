@@ -7,6 +7,8 @@ import { isHost } from "./protocol.ts";
 export const SSH_ENV = "HADES_GATE_SSH";
 const DEFAULT_SSH = ["ssh", "-T", "-o", "BatchMode=yes", "-o", "ForwardAgent=no", "-o", "ForwardX11=no", "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3"];
 const STATUS_TIMEOUT_MS = 8000;
+/** Comando de leitura do estado do worker: é o que chega em SSH_ORIGINAL_COMMAND ao `command="hades worker exec"` forçado (motor e painel). */
+export const WORKER_STATUS_COMMAND = "status --json";
 
 export interface SshCommand {
   argv: string[];

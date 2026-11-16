@@ -109,6 +109,8 @@ export interface Job {
   kind: string;
   label: string;
   cost: number;
+  /** folga de memória sobre o custo; -1 = a do próprio worker */
+  headroom: number;
   timeout: number;
   priority: number;
   step: string;
@@ -128,6 +130,12 @@ export interface Job {
 function str(value: unknown, field: string, pattern: RegExp): string {
   if (typeof value !== "string" || !pattern.test(value)) throw new ProtocolError(`job: campo '${field}' inválido`);
   return value;
+}
+
+/** Folga pedida pelo job, limitada à memória do worker (custo + folga + 1 GB para o sistema cabem no total); undefined = a do worker. */
+export function workerHeadroomGb(requested: number, costGb: number, totalGb: number): number | undefined {
+  if (requested < 0) return undefined;
+  return Math.max(0, Math.min(requested, Math.floor(totalGb) - costGb - 1));
 }
 
 function int(value: unknown, field: string, min: number, max: number): number {
@@ -171,6 +179,7 @@ export function validateJob(raw: unknown, home: string): Job {
     kind,
     label: str(j.label, "label", /^[^\u0000-\u001f\u007f]{1,200}$/),
     cost: int(j.cost, "cost", 0, COST_MAX_GB),
+    headroom: j.headroom === undefined ? -1 : int(j.headroom, "headroom", -1, COST_MAX_GB),
     timeout: int(j.timeout, "timeout", 0, TIMEOUT_MAX_S),
     priority: int(j.priority, "priority", -PRIORITY_MAX, PRIORITY_MAX),
     step,

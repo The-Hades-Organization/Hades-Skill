@@ -17,8 +17,9 @@ HADES_BUILD_HEAP_MB	4096	int:1024:16384	Builds e fila	Heap do build dos serviço
 HADES_BUILD_COST_GB	4	int:1:16	Builds e fila	Custo do build de serviços (GB)	next	Quanto a fila do gate-lock reserva para o build de serviços do run-hades e do update.
 HADES_ENABLE_COST_GB	3	int:1:16	Builds e fila	Custo do build ao ligar um serviço (GB)	next	Reserva na fila para compilar um serviço ligado sob demanda (svc-enable.sh).
 HADES_WEB_COST_GB	5	int:1:16	Builds e fila	Custo do build do front (GB)	next	Reserva na fila para o build do front.
-HADES_WEB_HEADROOM_GB	5	int:0:16	Builds e fila	Folga exigida para o build do front (GB)	next	Memória livre que a fila exige além do custo antes de liberar o build do front (HADES_GATE_HEADROOM_GB).
+HADES_WEB_HEADROOM_GB	7	int:0:16	Builds e fila	Folga exigida para o build do front (GB)	next	Memória livre que a fila exige além do custo antes de liberar o build do front (HADES_GATE_HEADROOM_GB).
 HADES_WEB_WORKERS	1	int:1:12	Builds e fila	Workers do compilador do front	next	NG_BUILD_MAX_WORKERS do build do front. Cada worker a mais custa ~1–2 GB.
+HADES_WEB_HEAP_MB	6144	int:1024:16384	Builds e fila	Heap do build do front (MB)	next	--max-old-space-size do NODE_OPTIONS do build do front (local e worker). Com o custo (5 GB) e a folga (7 GB) o teto do scope é 12 GB.
 HADES_GATE_BUDGET_GB	8	int:1:128	Fila de gates	Orçamento da fila (GB)	next	A soma dos custos dos gates rodando mais o do novo não passa disso. Custo maior que o orçamento só entra com a fila vazia.
 HADES_GATE_RESERVE_GB	2	int:0:64	Fila de gates	Reserva de memória livre (GB)	next	MemAvailable tem de cobrir o custo do gate mais esta reserva para o gate entrar.
 HADES_GATE_HEADROOM_GB	3	int:0:64	Fila de gates	Folga do teto do scope (GB)	next	MemoryMax do scope systemd = custo + esta folga; estourou, morre o gate (saída 137/143), não a máquina.

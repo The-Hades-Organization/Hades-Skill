@@ -33,7 +33,7 @@ vão inteiras, para o grep achar.
 ### Builds e fila
 | Chaves | Aplicar |
 |---|---|
-| `HADES_BUILD_HEAP_MB` (4096), `HADES_BUILD_COST_GB` (4), `HADES_ENABLE_COST_GB` (3), `HADES_WEB_COST_GB` (5), `HADES_WEB_HEADROOM_GB` (5), `HADES_WEB_WORKERS` (1) | próximo build |
+| `HADES_BUILD_HEAP_MB` (4096), `HADES_BUILD_COST_GB` (4), `HADES_ENABLE_COST_GB` (3), `HADES_WEB_COST_GB` (5), `HADES_WEB_HEADROOM_GB` (7), `HADES_WEB_HEAP_MB` (6144), `HADES_WEB_WORKERS` (1) | próximo build |
 
 ### Fila de gates
 | Chaves | Aplicar |

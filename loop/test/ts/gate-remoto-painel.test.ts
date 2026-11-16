@@ -4,6 +4,7 @@ import { type Subprocess, spawn } from "bun";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { WORKER_STATUS_COMMAND } from "../../../src/lib/gate-remote/transport.ts";
 import { createGateWatch, remoteHostOf } from "../../../src/panel/gatewatch.ts";
 import {
   type WorkerRunner, type WorkerStatus, WORKER_STATUS_ARGS, createWorkerWatch, parseWorkerStatus, parseWorkers, readWorker,
@@ -57,6 +58,9 @@ describe("readWorker", () => {
     expect(seen[0]).toBe("ssh");
     expect(seen).toContain("BatchMode=yes");
     expect(seen.slice(dash + 1)).toEqual(["big", ...WORKER_STATUS_ARGS]);
+  });
+  test("dado o comando do painel, então é o mesmo que o motor manda ao worker", () => {
+    expect(WORKER_STATUS_ARGS.join(" ")).toBe(WORKER_STATUS_COMMAND);
   });
   test("dado tempo esgotado, então erro de inacessível", async () => {
     const r = await readWorker("big", () => Promise.resolve({ status: 143, stdout: "", stderr: "", timedOut: true }));
@@ -217,10 +221,12 @@ describe("createGateWatch com tickets fabricados", () => {
 });
 
 describe("encaixe painel e worker", () => {
-  test("dado a saída real de `worker status --json`, então o parse do painel devolve o contrato", async () => {
+  test("dado o comando forçado `worker exec` com o que o painel manda, então o parse do painel devolve o contrato", async () => {
     const cli = join(import.meta.dir, "../../../src/cli.ts");
-    const argv = ["worker", ...WORKER_STATUS_ARGS.slice(WORKER_STATUS_ARGS.indexOf("worker") + 1)];
-    const proc = spawn({ cmd: ["bun", cli, ...argv], stdout: "pipe", stderr: "pipe" });
+    const proc = spawn({
+      cmd: ["bun", cli, "worker", "exec"], stdout: "pipe", stderr: "pipe",
+      env: { ...process.env, SSH_ORIGINAL_COMMAND: WORKER_STATUS_ARGS.join(" ") },
+    });
     const out = await new Response(proc.stdout).text();
     expect(await proc.exited).toBe(0);
     const status = parseWorkerStatus(out);

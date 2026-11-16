@@ -9,7 +9,7 @@ import {
 } from "./protocol.ts";
 import { MANIFEST_NAME, diffTree, freshProblem, hashTree, parseManifest, type Manifest, type ManifestDir } from "./manifest.ts";
 import { headSha, pushSnapshot, snapshotCommit } from "./ship.ts";
-import { captureRemote, spawnRemote, type SshCommand } from "./transport.ts";
+import { WORKER_STATUS_COMMAND, captureRemote, spawnRemote, type SshCommand } from "./transport.ts";
 
 const WARM_TIMEOUT_MS = 60_000;
 const OUT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -24,6 +24,8 @@ export interface RemoteJobInput {
   kind: string;
   label: string;
   cost: number;
+  /** folga de memória sobre o custo (teto do scope = cost + headroom); o worker aplica dentro da memória dele */
+  headroom: number;
   timeout: number;
   priority: number;
   step: string;
@@ -53,14 +55,14 @@ const newId = (): string => `${Date.now().toString(36)}-${randomBytes(6).toStrin
 export function jobOf(input: RemoteJobInput, sha: string, id: string, nonce: string): Job {
   return {
     v: PROTOCOL_VERSION, nonce, id, repo: input.repo, sha, cwd: input.clone, subdir: input.subdir, kind: input.kind, label: input.label,
-    cost: input.cost, timeout: input.timeout, priority: input.priority, step: input.step, stack: input.stack, argv: [...input.argv],
+    cost: input.cost, headroom: input.headroom, timeout: input.timeout, priority: input.priority, step: input.step, stack: input.stack, argv: [...input.argv],
     out: [...input.out], warmInline: input.warmInline, fresh: input.fresh, env: { ...input.env },
   };
 }
 
 /** Estado do worker (`worker status --json`); undefined quando não responde ou a resposta não tem o formato do contrato. */
 export async function probeWorker(ssh: SshCommand, host: string): Promise<WorkerStatus | undefined> {
-  const r = await captureRemote(ssh, host, "status --json");
+  const r = await captureRemote(ssh, host, WORKER_STATUS_COMMAND);
   if (r.rc !== 0) return undefined;
   try {
     const s = JSON.parse(r.stdout.toString("utf8")) as WorkerStatus;

@@ -18,6 +18,8 @@ export interface RemoteSpec {
   env: Record<string, string>;
   /** nomes das variáveis do chamador que atravessam para o build (lista de permitidos; nunca segredo) */
   passEnv: string[];
+  /** ferramentas que o preparo e a etapa exigem no PATH do worker (ex.: node, npm); ausentes, o job é recusado antes do envio */
+  requires: string[];
 }
 
 function strings(value: unknown): string[] {
@@ -30,7 +32,7 @@ export function remoteSpecOf(stack: JsonObject | undefined): RemoteSpec | undefi
   if (!isObject(remote)) return undefined;
   const env: Record<string, string> = {};
   if (isObject(remote.env)) for (const [name, value] of Object.entries(remote.env)) if (typeof value === "string" && /^[A-Z_][A-Z0-9_]*$/.test(name)) env[name] = value;
-  return { key: strings(remote.key), prepare: strings(remote.prepare), env, passEnv: strings(remote.passEnv) };
+  return { key: strings(remote.key), prepare: strings(remote.prepare), env, passEnv: strings(remote.passEnv), requires: strings(remote.requires) };
 }
 
 /** Primeiro nome de `passEnv` que não pode atravessar (forma inválida ou cara de segredo); undefined = a lista serve. */
@@ -38,13 +40,14 @@ export function badPassEnv(names: readonly string[]): string | undefined {
   return names.find((name) => !ENV_NAME_PATTERN.test(name) || isSecretName(name));
 }
 
-/** Afinidade da etapa (`steps.<etapa>.remote.labels` e `minMemGb`); sem declaração, nenhuma exigência. */
+/** Afinidade da etapa (`steps.<etapa>.remote.labels` e `minMemGb`) mais as ferramentas da stack (`remote.requires`); sem declaração, nenhuma exigência. */
 export function affinityOf(stack: JsonObject | undefined, stepName: string): Affinity {
   const steps = isObject(stack?.steps) ? stack.steps : {};
   const step = steps[stepName];
   const remote = isObject(step) && isObject(step.remote) ? step.remote : {};
   const min = typeof remote.minMemGb === "number" && remote.minMemGb > 0 ? remote.minMemGb : 0;
-  return { labels: strings(remote.labels), minMemGb: min };
+  const stackRemote = isObject(stack?.remote) ? stack.remote : {};
+  return { labels: strings(remote.labels), minMemGb: min, requires: strings(stackRemote.requires) };
 }
 
 const KEY_HEX = 16;

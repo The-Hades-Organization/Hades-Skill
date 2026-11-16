@@ -50,6 +50,10 @@
       ".nvmrc",
       "nx.json"
     ],
+    "requires": [
+      "node",
+      "npm"
+    ],
     "prepare": [
       "npm ci",
       "npm run codegen --if-present"

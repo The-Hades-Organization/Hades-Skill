@@ -72,6 +72,8 @@ O worker só recebe item com o ambiente pronto. O pacote declara como se prepara
 - `remote.key`: arquivos cujo conteúdo define "o mesmo ambiente" (lockfile, versão do toolchain). A chave é a stack mais o
   hash desses arquivos e o caminho do worktree; arquivo ausente conta como ausente.
 - `remote.prepare`: comandos, em ordem, no worktree do worker. Vêm do pacote **do worker**, nunca do job.
+- `remote.requires`: ferramentas que o preparo e as etapas exigem no PATH do worker (`node`, `npm`, `cargo`). O worker as procura
+  (com a toolchain do usuário carregada) e informa em `tools` do status; ausente, o gate recusa com 75 antes de enviar o código.
 - `remote.env`: variáveis do job no worker; `{cache}`, `{repo}`, `{slot}` e `{key}` são expandidos.
 - `remote.passEnv`: nomes de variáveis do chamador que atravessam para o job (entradas de build). Lista de permitidos,
   só nomes `^[A-Z_][A-Z0-9_]*$`; nome que case com o filtro de segredo do kit é recusado, e o worker só aceita o que a

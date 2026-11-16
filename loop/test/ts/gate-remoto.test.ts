@@ -35,7 +35,7 @@ function candidate(host: string, st: WorkerStatus | undefined, labels: string[] 
 }
 function input(over: Partial<DispatchInput> = {}): DispatchInput {
   return {
-    where: { mode: "auto" }, waitedS: 300, autoAfterS: 120, kind: "test", affinity: { labels: [], minMemGb: 0 },
+    where: { mode: "auto" }, waitedS: 300, autoAfterS: 120, kind: "test", affinity: { labels: [], minMemGb: 0, requires: [] },
     warmKey: "node-nx-abc", workers: [candidate("w1", status({ warm: { "node-nx-abc": "ready" } }))], ...over,
   };
 }
@@ -80,13 +80,13 @@ describe("despacho", () => {
     const ready = { "node-nx-abc": "ready" as const };
     const semDocker = candidate("w1", status({ warm: ready }));
     const comDocker = candidate("w2", status({ warm: ready }), ["docker"]);
-    const d = decide(input({ affinity: { labels: ["docker"], minMemGb: 0 }, workers: [semDocker, comDocker] }));
+    const d = decide(input({ affinity: { labels: ["docker"], minMemGb: 0, requires: [] }, workers: [semDocker, comDocker] }));
     expect(d.host).toBe("w2");
   });
 
   test("dado memória mínima acima da livre, quando decide, então o worker não é elegível", () => {
     const ready = { "node-nx-abc": "ready" as const };
-    const d = decide(input({ affinity: { labels: [], minMemGb: 17 }, workers: [candidate("w1", status({ warm: ready, memFreeGb: 16 }))] }));
+    const d = decide(input({ affinity: { labels: [], minMemGb: 17, requires: [] }, workers: [candidate("w1", status({ warm: ready, memFreeGb: 16 }))] }));
     expect(d.target).toBe("local");
   });
 
@@ -170,14 +170,14 @@ describe("chave de aquecimento", () => {
   });
 
   test("planOf: etapa sem ':' não tem plano e stack sem remote não tem chave", () => {
-    expect(planOf("lint", "/r", new Map())).toEqual({ stack: "", warmKey: undefined, affinity: { labels: [], minMemGb: 0 }, passEnv: [] });
+    expect(planOf("lint", "/r", new Map())).toEqual({ stack: "", warmKey: undefined, affinity: { labels: [], minMemGb: 0, requires: [] }, passEnv: [] });
     const semRemote = new Map([["go", { steps: { test: { remote: { labels: ["docker"], minMemGb: 4 } } } }]]);
-    expect(planOf("go:test", "/r", semRemote)).toEqual({ stack: "", warmKey: undefined, affinity: { labels: ["docker"], minMemGb: 4 }, passEnv: [] });
+    expect(planOf("go:test", "/r", semRemote)).toEqual({ stack: "", warmKey: undefined, affinity: { labels: ["docker"], minMemGb: 4, requires: [] }, passEnv: [] });
   });
 
   test("affinityOf: valor inválido não vira exigência", () => {
-    expect(affinityOf({ steps: { test: { remote: { labels: ["docker", 3], minMemGb: -2 } } } }, "test")).toEqual({ labels: ["docker"], minMemGb: 0 });
-    expect(affinityOf(undefined, "test")).toEqual({ labels: [], minMemGb: 0 });
+    expect(affinityOf({ steps: { test: { remote: { labels: ["docker", 3], minMemGb: -2 } } } }, "test")).toEqual({ labels: ["docker"], minMemGb: 0, requires: [] });
+    expect(affinityOf(undefined, "test")).toEqual({ labels: [], minMemGb: 0, requires: [] });
   });
 });
 

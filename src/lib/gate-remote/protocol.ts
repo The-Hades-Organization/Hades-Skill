@@ -14,6 +14,7 @@ export type WorkerCommandName = (typeof WORKER_COMMANDS)[number];
 export const RC_NOT_RUN = 75;
 export const REASON_LOST = "remoto perdido";
 export const REASON_OUT = "retorno de --out falhou";
+export const REASON_TOOL = "worker sem ferramenta no PATH do ssh não interativo";
 export const REASON_MEM = "memória livre do worker abaixo do mínimo da etapa";
 const JOB_MAX_BYTES = 256 * 1024;
 const ARGV_MAX = 256;

@@ -337,6 +337,8 @@ export interface WorkerStatus {
   cpus: number;
   queue: number;
   warm: Record<string, WarmState>;
+  /** aditivo: versão achada no PATH do ssh não interativo, ou null = ausente; worker antigo não manda o campo */
+  tools?: Record<string, string | null>;
 }
 export interface WorkerView {
   /** o alvo como veio de HADES_GATE_WORKERS (user@host ou host) */
@@ -401,7 +403,13 @@ export function parseWorkerStatus(text: string): WorkerStatus | undefined {
   if (o.warm !== null && typeof o.warm === "object" && !Array.isArray(o.warm)) {
     for (const [k, v] of Object.entries(o.warm)) if (typeof v === "string" && WARM_STATES.includes(v)) warm[k] = v as WarmState;
   }
-  return { host: o.host, labels, memFreeGb, memTotalGb, cpus, queue, warm };
+  const status: WorkerStatus = { host: o.host, labels, memFreeGb, memTotalGb, cpus, queue, warm };
+  if (o.tools !== null && typeof o.tools === "object" && !Array.isArray(o.tools)) {
+    const tools: Record<string, string | null> = {};
+    for (const [k, v] of Object.entries(o.tools)) if (v === null || typeof v === "string") tools[k] = v;
+    status.tools = tools;
+  }
+  return status;
 }
 
 export type WorkerRunner = (argv: string[], timeoutMs: number) => Promise<{ status: number; stdout: string; stderr: string; timedOut: boolean }>;

@@ -54,8 +54,8 @@ Da máquina de origem, na forma que o painel usa:
 ssh -o BatchMode=yes -- <host> status --json
 ```
 
-A saída é um JSON com `host`, `labels`, `memFreeGb`, `memTotalGb`, `cpus`, `queue` e `warm` (por chave: `ready`, `warming` ou
-`failed`). O painel lê esse comando a cada 15 s enquanto a página está aberta, com limite de 4 s por worker, e mostra na página Fila
+A saída é um JSON com `host`, `labels`, `memFreeGb`, `memTotalGb`, `cpus`, `queue`, `warm` (por chave: `ready`, `warming` ou
+`failed`) e `tools` (ferramentas das stacks do worker no PATH do ssh; §Toolchain). O painel lê esse comando a cada 15 s enquanto a página está aberta, com limite de 4 s por worker, e mostra na página Fila
 de gates:
 
 | O que aparece | Significa |
@@ -63,6 +63,41 @@ de gates:
 | Worker **inacessível**, com a última leitura em cache | o ssh falhou ou estourou o limite; a fila local segue normal |
 | `remote:<host>` no item | o gate roda no worker; o item não entra na soma de memória local |
 | `remoto perdido (75)` no histórico | o worker sumiu no meio do gate; o gate terminou com saída 75 |
+
+## Toolchain
+
+O `command=` forçado roda sem shell de login: o ssh não lê `.bashrc` nem `.profile`, então o `nvm` não entra e `node` e `npm`
+ficam fora do PATH, mesmo que o terminal do dono os ache. Sem tratamento, o job só falha no preparo (`npm: command not found`),
+depois de o código ter sido enviado e minutos perdidos.
+
+**O que o worker carrega sozinho.** Antes de responder ao status, preparar o ambiente ou rodar o job, o `hades worker exec` monta o
+PATH sem shell de login e põe na frente, só o que existe na máquina:
+
+1. `HADES_WORKER_PATH_PREPEND` (diretórios absolutos separados por `:`, para o caso exótico);
+2. nvm (`$NVM_DIR` ou `~/.nvm`): a versão do `.nvmrc` do repositório (`22`, `22.22`, `v22.22.1`; a maior que casa), senão o alias
+   `default`, senão a maior instalada; fnm (`$FNM_DIR` ou `~/.local/share/fnm`) pelo mesmo `.nvmrc`;
+3. volta (`~/.volta/bin`), asdf (`~/.asdf/shims`), mise (`~/.local/share/mise/shims`);
+4. `~/.cargo/bin`, `~/.bun/bin` e `~/.local/bin`.
+
+**O que a stack exige.** `remote.requires` na stack (ex.: `node-nx` pede `node` e `npm`; `rust-cargo` pede `cargo`; `reference/stacks.md`).
+O worker procura cada uma no PATH montado e devolve em `tools` do `status --json` (`{"node": "v22.22.1", "npm": "10.9.2"}`; `null` =
+ausente). O gate recusa **antes de enviar o código**, com saída 75 e `worker sem ferramenta no PATH do ssh não interativo: falta npm`;
+no despacho `auto` o worker sem a ferramenta nem é candidato. Worker antigo, sem `tools`, não é recusado (o cliente não sabe).
+
+**Conferir.**
+
+```
+ssh -o BatchMode=yes -- <host> status --json
+```
+
+O campo `tools` mostra o que o ssh não interativo acha. O painel mostra o mesmo no cartão do worker (ferramenta ausente em vermelho).
+
+**Se ainda faltar.** O Node mora fora dos lugares acima (instalação em `/opt`, por exemplo): ponha o diretório do `bin` no
+`command=` da chave, que é onde o ambiente do worker se configura:
+
+```
+command="HADES_WORKER_PATH_PREPEND=/opt/node-22/bin hades worker exec",no-agent-forwarding,no-port-forwarding,no-pty ssh-ed25519 AAAA…
+```
 
 ## Build remoto do front
 
@@ -76,5 +111,6 @@ marcador de "construído". O retorno é tar completo na v1.
 
 - `Permission denied (publickey)`: a chave não está no `authorized_keys` do usuário certo, ou o `IdentityFile` do `~/.ssh/config`
   não aponta para ela.
+- `worker sem ferramenta no PATH do ssh não interativo` ou `npm: command not found`: veja §Toolchain.
 - Resposta fora do contrato: a Hades do worker está desatualizada. Atualize a skill no worker.
 - Fila local parada e worker ocioso: `HADES_GATE_WHERE` está em `local`. Use `auto` ou passe `--where <host>` no gate.

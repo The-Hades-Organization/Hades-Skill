@@ -170,9 +170,9 @@ describe("chave de aquecimento", () => {
   });
 
   test("planOf: etapa sem ':' não tem plano e stack sem remote não tem chave", () => {
-    expect(planOf("lint", "/r", new Map())).toEqual({ stack: "", warmKey: undefined, affinity: { labels: [], minMemGb: 0 } });
+    expect(planOf("lint", "/r", new Map())).toEqual({ stack: "", warmKey: undefined, affinity: { labels: [], minMemGb: 0 }, passEnv: [] });
     const semRemote = new Map([["go", { steps: { test: { remote: { labels: ["docker"], minMemGb: 4 } } } }]]);
-    expect(planOf("go:test", "/r", semRemote)).toEqual({ stack: "", warmKey: undefined, affinity: { labels: ["docker"], minMemGb: 4 } });
+    expect(planOf("go:test", "/r", semRemote)).toEqual({ stack: "", warmKey: undefined, affinity: { labels: ["docker"], minMemGb: 4 }, passEnv: [] });
   });
 
   test("affinityOf: valor inválido não vira exigência", () => {

@@ -30,6 +30,8 @@ export interface RemotePlan {
   stack: string;
   warmKey: string | undefined;
   affinity: Affinity;
+  /** `remote.passEnv`: nomes das variáveis de build que atravessam */
+  passEnv: string[];
 }
 
 const NO_AFFINITY: Affinity = { labels: [], minMemGb: 0 };
@@ -37,13 +39,13 @@ const NO_AFFINITY: Affinity = { labels: [], minMemGb: 0 };
 /** Plano da etapa `<stack>:<etapa>` (vazio quando o item não vem de uma etapa). */
 export function planOf(step: string, clone: string, stacks: ReadonlyMap<string, JsonObject>): RemotePlan {
   const colon = step.indexOf(":");
-  if (colon < 0) return { stack: "", warmKey: undefined, affinity: NO_AFFINITY };
+  if (colon < 0) return { stack: "", warmKey: undefined, affinity: NO_AFFINITY, passEnv: [] };
   const name = step.slice(0, colon);
   const stack = stacks.get(name);
   const affinity = affinityOf(stack, step.slice(colon + 1));
   const spec = remoteSpecOf(stack);
-  if (spec === undefined) return { stack: "", warmKey: undefined, affinity };
-  return { stack: name, warmKey: warmKey({ stack: name, scope: clone, files: readKeyFiles(clone, spec.key) }), affinity };
+  if (spec === undefined) return { stack: "", warmKey: undefined, affinity, passEnv: [] };
+  return { stack: name, warmKey: warmKey({ stack: name, scope: clone, files: readKeyFiles(clone, spec.key) }), affinity, passEnv: spec.passEnv };
 }
 
 /** Consulta todos os workers em paralelo; o que não responde vira candidato inalcançável. */

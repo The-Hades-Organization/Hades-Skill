@@ -3,8 +3,8 @@
 // antes de qualquer coisa rodar. Nada aqui usa shell sobre texto do job: o comando do job é `argv` entregue ao
 // `gate-lock` do próprio worker (admissão, teto systemd, pico e journal são os de lá).
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { cpus, hostname, homedir, totalmem } from "node:os";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { cpus, hostname, homedir, tmpdir, totalmem } from "node:os";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { withFlockAsync } from "../lib/flock.ts";
@@ -13,7 +13,8 @@ import type { WorkerStatus } from "../lib/gate-remote/dispatch.ts";
 import {
   PROTOCOL_VERSION, ProtocolError, RC_NOT_RUN, decodePayload, formatTrailer, mirrorPath, parseWorkerCommand, type Job, type OutRequest, type WarmRequest,
 } from "../lib/gate-remote/protocol.ts";
-import { claimSlot, expandEnv, readKeyFiles, readWarm, remoteSpecOf, warmKey, warmStates, writeWarm, type RemoteSpec } from "../lib/gate-remote/warm.ts";
+import { MANIFEST_NAME, MANIFEST_VERSION, ManifestError, hashTree, type Manifest, type ManifestDir } from "../lib/gate-remote/manifest.ts";
+import { badPassEnv, claimSlot, expandEnv, readKeyFiles, readWarm, remoteSpecOf, warmKey, warmStates, writeWarm, type RemoteSpec } from "../lib/gate-remote/warm.ts";
 import { HadesError, warn } from "../lib/output.ts";
 import { journalWorkRoot } from "../lib/journal.ts";
 import { memAvailableMb, which } from "../lib/proc.ts";
@@ -27,6 +28,8 @@ const USAGE_EXIT = 2;
 const MB_PER_GB = 1024;
 const KILL_GRACE_MS = 3000;
 const OUT_EXIT_FAIL = 1;
+const START_SUFFIX = ".start";
+const START_KEEP_MS = 24 * 60 * 60 * 1000;
 
 const home = (): string => process.env.HOME || homedir();
 /** Teste/jaula: prefixo físico dos caminhos do job. Vazio em produção (o caminho do job é o caminho real). */
@@ -122,8 +125,8 @@ function keyOf(stack: string, spec: RemoteSpec, cwd: string): string {
 // --- preparo (aquecimento) ---
 
 /** Roda os `remote.prepare` da stack do worker, em ordem, no worktree. Para no primeiro que falha. */
-function runPrepare(spec: RemoteSpec, cwd: string, repo: string, toStderr: boolean): number {
-  const env = { ...process.env, ...expandEnv(spec.env, { cache: physical(baseDir()), repo, slot: "prepare" }) };
+function runPrepare(spec: RemoteSpec, cwd: string, repo: string, toStderr: boolean, key: string): number {
+  const env = { ...process.env, ...expandEnv(spec.env, { cache: physical(baseDir()), repo, slot: "prepare", key }) };
   for (const command of spec.prepare) {
     const r = spawnSync("sh", ["-c", command], { cwd: physical(cwd), env, stdio: ["ignore", toStderr ? 2 : "ignore", 2] });
     if (r.status !== 0) return r.status ?? 1;
@@ -160,7 +163,7 @@ async function warmRequestRun(request: WarmRequest, foreground: boolean): Promis
 function prepareAndRecord(request: Pick<WarmRequest, "cwd" | "repo">, spec: RemoteSpec, key: string): number {
   const base = physical(baseDir());
   writeWarm(base, { key, cwd: request.cwd, state: "warming", since: new Date().toISOString(), pid: process.pid });
-  const rc = runPrepare(spec, request.cwd, request.repo, true);
+  const rc = runPrepare(spec, request.cwd, request.repo, true, key);
   writeWarm(base, { key, cwd: request.cwd, state: rc === 0 ? "ready" : "failed", since: new Date().toISOString() });
   return rc;
 }
@@ -212,6 +215,10 @@ async function execJob(job: Job): Promise<number> {
       return refuse(job, error instanceof Error ? error.message : String(error), started);
     }
     const spec = specOfStack(job.stack);
+    const notAllowed = Object.keys(job.env).find((name) => !(spec?.passEnv ?? []).includes(name));
+    if (notAllowed !== undefined) return refuse(job, `variável ${notAllowed} não está em remote.passEnv da stack deste worker`, started);
+    const badName = badPassEnv(spec?.passEnv ?? []);
+    if (badName !== undefined) return refuse(job, `remote.passEnv da stack deste worker traz ${badName}, que não pode atravessar`, started);
     if (spec !== undefined && spec.prepare.length > 0) {
       const key = keyOf(job.stack, spec, job.cwd);
       if (readWarm(physical(baseDir()), key)?.state !== "ready") {
@@ -222,8 +229,9 @@ async function execJob(job: Job): Promise<number> {
     const slot = spec === undefined ? undefined : claimSlot(physical(baseDir()), job.repo);
     const resultFile = join(physical(baseDir()), "results", `${job.id}.txt`);
     mkdirSync(dirname(resultFile), { recursive: true });
+    recordStart(dirname(resultFile), job.id, started);
     try {
-      const rc = await runGateLock(job, spec, slot?.slot ?? 0, resultFile);
+      const rc = await runGateLock(job, spec, slot?.slot ?? 0, resultFile, spec === undefined ? undefined : keyOf(job.stack, spec, job.cwd));
       if (rc === undefined) return 143;
       emitTrailer(job, rc, readResult(resultFile).peakMb, started);
       return rc;
@@ -235,13 +243,13 @@ async function execJob(job: Job): Promise<number> {
 }
 
 /** Roda o `gate-lock` do worker sobre o job; undefined = a conexão caiu e o job foi derrubado (ninguém para ouvir o trailer). */
-function runGateLock(job: Job, spec: RemoteSpec | undefined, slot: number, resultFile: string): Promise<number | undefined> {
+function runGateLock(job: Job, spec: RemoteSpec | undefined, slot: number, resultFile: string, key: string | undefined): Promise<number | undefined> {
   const cli = selfCli(
     "gate-lock", "run", job.kind, "--label", job.label, "--timeout", String(job.timeout), "--cost-gb", String(job.cost), "--priority", String(job.priority),
     ...(job.step === "" ? [] : ["--step", job.step]), "--", ...job.argv,
   );
   const env: NodeJS.ProcessEnv = {
-    ...process.env, ...(spec === undefined ? {} : expandEnv(spec.env, { cache: physical(baseDir()), repo: job.repo, slot: String(slot) })),
+    ...process.env, ...(spec === undefined ? {} : expandEnv(spec.env, { cache: physical(baseDir()), repo: job.repo, slot: String(slot), key })), ...job.env,
     HADES_GATE_WHERE: "local", [RESULT_FILE_ENV]: resultFile,
   };
   delete env.GATE_LOCK_TICKET;
@@ -278,23 +286,69 @@ function runGateLock(job: Job, spec: RemoteSpec | undefined, slot: number, resul
   });
 }
 
-// --- retorno de arquivos ---
+// --- retorno de arquivos e diretórios ---
+
+/** Início do job no relógio do worker: o manifesto o leva ao cliente, que o compara com o mtime do `--fresh`. */
+function recordStart(resultsDir: string, id: string, startedMs: number): void {
+  writeFileSync(join(resultsDir, `${id}${START_SUFFIX}`), `${startedMs}\n`);
+  for (const name of listSafe(resultsDir)) {
+    if (!name.endsWith(START_SUFFIX)) continue;
+    try {
+      if (Date.now() - lstatSync(join(resultsDir, name)).mtimeMs > START_KEEP_MS) rmSync(join(resultsDir, name), { force: true });
+    } catch {
+      // arquivo que sumiu no meio: nada a limpar
+    }
+  }
+}
+
+function readStart(id: string): number | undefined {
+  if (id === "") return undefined;
+  try {
+    const value = Number(readFileSync(join(physical(baseDir()), "results", `${id}${START_SUFFIX}`), "utf8").trim());
+    return Number.isFinite(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function outFiles(request: OutRequest): number {
   const physHome = realpathSync(physical(home()));
   const names: string[] = [];
+  const dirs: ManifestDir[] = [];
   for (const file of request.files) {
     const path = physical(file);
     try {
-      if (!lstatSync(path).isFile() || !realpathSync(path).startsWith(`${physHome}/`)) continue;
-    } catch {
-      continue;
+      const info = lstatSync(path);
+      if (!realpathSync(path).startsWith(`${physHome}/`)) continue;
+      if (info.isFile()) names.push(`./${file.slice(1)}`);
+      else if (info.isDirectory() && request.dirs) {
+        dirs.push({ dir: file, files: hashTree(path) });
+        names.push(`./${file.slice(1)}`);
+      }
+    } catch (error) {
+      if (error instanceof ManifestError) warn(`worker: ${file}: ${error.message}`);
     }
-    names.push(file.slice(1));
   }
   if (names.length === 0) return 0;
-  const r = spawnSync("tar", ["-cf", "-", "-C", fsRoot() === "" ? "/" : fsRoot(), "--", ...names], { stdio: ["ignore", "inherit", "inherit"] });
-  return r.status === 0 ? 0 : OUT_EXIT_FAIL;
+  const manifestRoot = mkdtempSync(join(tmpdir(), "hades-manifest-"));
+  try {
+    // nomes com ./ na frente: nenhum começa por `-` (viraria opção do tar) e o `--` não pode vir antes do segundo -C
+    const args = ["-cf", "-", "-C", fsRoot() === "" ? "/" : fsRoot(), ...names];
+    if (dirs.length > 0) {
+      const startedMs = readStart(request.id);
+      if (startedMs === undefined) {
+        warn("worker: início do job desconhecido (o manifesto não pode atestar o --fresh)");
+        return OUT_EXIT_FAIL;
+      }
+      const manifest: Manifest = { v: MANIFEST_VERSION, startedMs, dirs };
+      writeFileSync(join(manifestRoot, MANIFEST_NAME), JSON.stringify(manifest));
+      args.push("-C", manifestRoot, `./${MANIFEST_NAME}`);
+    }
+    const r = spawnSync("tar", args, { stdio: ["ignore", "inherit", "inherit"] });
+    return r.status === 0 ? 0 : OUT_EXIT_FAIL;
+  } finally {
+    rmSync(manifestRoot, { recursive: true, force: true });
+  }
 }
 
 // --- entradas ---

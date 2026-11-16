@@ -14,10 +14,13 @@ export type WorkerCommandName = (typeof WORKER_COMMANDS)[number];
 export const RC_NOT_RUN = 75;
 export const REASON_LOST = "remoto perdido";
 export const REASON_OUT = "retorno de --out falhou";
+export const REASON_MEM = "memória livre do worker abaixo do mínimo da etapa";
 const JOB_MAX_BYTES = 256 * 1024;
 const ARGV_MAX = 256;
 const ARG_MAX_BYTES = 32 * 1024;
 const OUT_MAX = 64;
+const ENV_MAX = 32;
+const ENV_VALUE_MAX_BYTES = 4096;
 const COST_MAX_GB = 128;
 const TIMEOUT_MAX_S = 86_400;
 const PRIORITY_MAX = 9;
@@ -40,6 +43,14 @@ const STACK_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const STEP_PATTERN = /^[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*$/;
 // eslint-disable-next-line no-control-regex
 const CONTROL = /[\u0000-\u001f\u007f]/;
+
+/** Nome de variável que atravessa para o build remoto: forma de variável de ambiente e nunca cara de segredo. */
+export const ENV_NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
+const SECRET_NAME = /token|secret|passw(?:or)?d|passwd|senha|api_?key|apikey|credential|private_?key/i;
+
+export function isSecretName(name: string): boolean {
+  return SECRET_NAME.test(name);
+}
 
 export function isHost(value: string): boolean {
   return HOST_PATTERN.test(value);
@@ -108,6 +119,10 @@ export interface Job {
   out: string[];
   /** `--where <host>` explícito: o worker aquece na hora se estiver frio; no `auto` o frio nunca chega aqui */
   warmInline: boolean;
+  /** `--fresh`: arquivo (relativo a cada diretório de `--out`) que o build tem de ter regravado ("" = sem conferência) */
+  fresh: string;
+  /** entradas de build declaradas na stack (`remote.passEnv`): o worker só aceita nome que a stack dele permite */
+  env: Record<string, string>;
 }
 
 function str(value: unknown, field: string, pattern: RegExp): string {
@@ -163,7 +178,28 @@ export function validateJob(raw: unknown, home: string): Job {
     argv,
     out: stringList(j.out, "out", OUT_MAX, (item) => containedInHome(item, home)),
     warmInline: j.warmInline === true,
+    fresh: j.fresh === undefined ? "" : typeof j.fresh === "string" && safeRelative(j.fresh) ? j.fresh : fail("job: campo 'fresh' inválido"),
+    env: envMap(j.env),
   };
+}
+
+function fail(message: string): never {
+  throw new ProtocolError(message);
+}
+
+/** `env` do job: objeto nome→valor, nomes em forma de variável e sem cara de segredo, tamanho limitado. */
+function envMap(value: unknown): Record<string, string> {
+  if (value === undefined) return {};
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return fail("job: campo 'env' inválido");
+  const entries = Object.entries(value);
+  if (entries.length > ENV_MAX) return fail("job: variáveis demais em 'env'");
+  const out: Record<string, string> = {};
+  for (const [name, v] of entries) {
+    if (!ENV_NAME_PATTERN.test(name) || isSecretName(name)) return fail(`job: variável '${name.slice(0, 40)}' não pode atravessar`);
+    if (typeof v !== "string" || v.includes("\0") || Buffer.byteLength(v) > ENV_VALUE_MAX_BYTES) return fail(`job: valor de '${name}' inválido`);
+    out[name] = v;
+  }
+  return out;
 }
 
 export function encodePayload(payload: unknown): string {
@@ -194,6 +230,10 @@ export interface OutRequest {
   v: number;
   cwd: string;
   files: string[];
+  /** id do job: o worker lê o início dele para o manifesto (relógio do worker) */
+  id: string;
+  /** false = só os arquivos (o job falhou: diretório de build não se promove, então nem viaja) */
+  dirs: boolean;
 }
 
 export type WorkerRequest =
@@ -223,7 +263,8 @@ function outRequest(raw: unknown, home: string): OutRequest {
   if (j.v !== PROTOCOL_VERSION) throw new ProtocolError("out: protocolo inválido");
   const cwd = typeof j.cwd === "string" ? j.cwd : "";
   if (!containedInHome(cwd, home)) throw new ProtocolError("out: cwd fora de $HOME");
-  return { v: PROTOCOL_VERSION, cwd, files: stringList(j.files, "files", OUT_MAX, (item) => containedInHome(item, home)) };
+  const id = typeof j.id === "string" && j.id !== "" ? str(j.id, "id", ID_PATTERN) : "";
+  return { v: PROTOCOL_VERSION, cwd, id, dirs: j.dirs !== false, files: stringList(j.files, "files", OUT_MAX, (item) => containedInHome(item, home)) };
 }
 
 const RECEIVE_PACK = /^git-receive-pack '([^'\\!\u0000-\u001f]+)'$/;

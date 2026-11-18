@@ -169,7 +169,7 @@ function ViewsBar({ views, ask, onApply, onSave, onRename, onRemove }) {
 function LayoutSwitch({ layout, onLayout, running, onStop, last }) {
   return <div className="flex flex-wrap items-center gap-2">
     <Segmented label="Layout" value={layout} onChange={onLayout}
-      items={[{ value: 'free', label: 'Livre', icon: I.Move }, { value: 'force', label: 'Automático', icon: I.Orbit }]} />
+      items={[{ value: 'free', label: 'Livre', icon: I.Move }, { value: 'force', label: 'Automático', icon: I.Network }]} />
     {running ? <>
       <span role="status" className="t-micro text-muted-foreground">Organizando…</span>
       <Button variant="ghost" size="sm" icon={I.Square} onClick={onStop}>Parar o layout</Button>

@@ -16,6 +16,9 @@ Pedido do dono: o que sai da máquina não revela onde o gate rodou.
   Goldens `agent-new-brief.md` e `refs-brief.md` regravados: mudou só a frase nova do brief.
 - **Fora desta versão.** Ligar o `--saida` ao hook de commit e `gh pr create`: extrair heredoc e `--body-file` no
   `guard-hook.ts` pede desenho e teste próprios. Fica para a próxima.
+- **Painel: ícones sem nome de projeto.** O nó `mark` do Argos (`types-live.tsx`) e o seletor Livre/Automático da barra de
+  leitura (`reading-bar.tsx`) usavam o ícone `Orbit` do lucide, que a guarda de nome em `strict` lê como citação de
+  projeto depois da 6.48.2. Trocados por `Hexagon` e `Network` (rede, o papel do layout automático); só o glifo muda.
 
 ## 6.49.0 — 2026-11-18
 

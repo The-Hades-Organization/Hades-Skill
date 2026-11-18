@@ -546,7 +546,7 @@ function liveTypeDefs(deps: LiveDeps): NodeTypeDef[] {
     def(LIVE_TYPE.plan, "Plano", "ClipboardList", SIZES.plan, PlanNode),
     def(LIVE_TYPE.agentFile, "Arquivo do agente", "FileText", SIZES.agentFile, AgentFileNode),
     def(LIVE_TYPE.conversation, "Conversa", "MessagesSquare", SIZES.conversation, ConversationNode),
-    def(LIVE_TYPE.mark, "Mark", "Orbit", SIZES.mark, MarkNode),
+    def(LIVE_TYPE.mark, "Mark", "Hexagon", SIZES.mark, MarkNode),
   ];
 }
 

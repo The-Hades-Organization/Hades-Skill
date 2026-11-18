@@ -58,7 +58,7 @@ function makeCanvasMinimap() {
         ref: frame,
         role: "img",
         "aria-label": label,
-        className: "elev-float relative overflow-hidden bg-card touch-none cursor-pointer",
+        className: "elev-float bg-popover relative overflow-hidden touch-none cursor-pointer",
         style: { width: size.w, height: size.h },
         onPointerDown: (ev: React.PointerEvent) => {
           (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
@@ -73,7 +73,7 @@ function makeCanvasMinimap() {
         h("div", { key: i, className: "absolute bg-muted-foreground/60", style: { left: r.x, top: r.y, width: r.w, height: r.h } }),
       ),
       h("div", {
-        className: "absolute border border-foreground bg-foreground/10 pointer-events-none",
+        className: "cantos [--c:var(--primary)] absolute! bg-foreground/10 pointer-events-none",
         style: { left: quadro.viewport.x, top: quadro.viewport.y, width: quadro.viewport.w, height: quadro.viewport.h },
       }),
     );

@@ -2,11 +2,11 @@
  * Extensão é ferramenta externa da máquina (herdr, Mark), não plugin. A página lê GET /api/extensions (o mesmo JSON do
  * `hades ext list --json`) e liga/desliga por POST. O comando de instalação é só texto copiável: a Hades não o executa. */
 (() => {
-const { useState, useEffect, useCallback, I, cn, post, getJSON, Dot, Switch, Mono, Empty, CardHeader, CopyButton, LinhaDeEstado, Loading, useApp } = HadesCore;
+const { useState, useEffect, useCallback, I, cn, post, getJSON, Badge, Switch, Mono, Empty, Card, CardHeader, CopyButton, LinhaDeEstado, Loading, useApp } = HadesCore;
 
 // código estável do problema → palavra curta; o código em si aparece ao lado, para quem ramifica por ele
 const EXT_CAP = { 'canvas.terminal': 'terminal no canvas', voice: 'voz', window: 'janela do desktop' };
-const extKind = (e) => (!e.installed ? 'idle' : e.problems.length ? 'warn' : e.enabled ? 'ok' : 'idle');
+const extKind = (e) => (!e.installed ? 'idle' : e.problems.length ? 'warn' : 'secondary');
 const extWord = (e) => (!e.installed ? 'não instalada' : e.problems.length ? 'com problema' : 'instalada');
 
 function ExtKeys({ keys, values }) {
@@ -27,25 +27,21 @@ function ExtKeys({ keys, values }) {
 
 function ExtRow({ e, first, remote, values, busy, onToggle }) {
   const kind = extKind(e);
-  return <li data-tour-step-id={first ? 'extensoes-extensao' : undefined} className="grid gap-2.5 border-b py-4">
+  return <li data-tour-step-id={first ? 'extensoes-extensao' : undefined} className="grid gap-2.5 border-b last:border-b-0 py-4">
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-        <span className="font-semibold">{e.name}</span>
+        <span className="t-body-strong">{e.name}</span>
         <span className="t-body text-muted-foreground">{e.description}</span>
       </span>
       <span data-tour-step-id={first ? 'extensoes-ligar' : undefined} className="ml-auto flex items-center gap-3">
-        <span className={cn('inline-flex items-center gap-1.5 t-body', e.enabled ? 'font-medium' : 'text-muted-foreground')}>
-          <Dot kind={e.enabled ? 'ok' : 'idle'} />
-          {e.enabled ? 'ligada' : 'desligada'}
-        </span>
+        <Badge variant={e.enabled ? 'ok' : 'idle'}>{e.enabled ? 'ligada' : 'desligada'}</Badge>
         {remote ? null : <Switch checked={e.enabled} disabled={busy} label={(e.enabled ? 'Desligar ' : 'Ligar ') + e.name} onChange={(v) => onToggle(e, v)} />}
       </span>
     </div>
     <p data-tour-step-id={first ? 'extensoes-estado' : undefined} className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 t-meta text-muted-foreground">
-      <span className="inline-flex items-center gap-1.5"><Dot kind={kind} />{extWord(e)}</span>
-      <span aria-hidden="true">·</span>
+      <Badge variant={kind}>{extWord(e)}</Badge>
       <span>versão {e.version ?? 'desconhecida'}{e.minVersion ? ` (mínima ${e.minVersion})` : ' (sem versão mínima)'}</span>
-      {e.path ? <><span aria-hidden="true">·</span><Mono className="min-w-0 break-all text-foreground/80">{e.path}</Mono></> : null}
+      {e.path ? <><span aria-hidden="true">·</span><Mono className="min-w-0 break-all text-foreground">{e.path}</Mono></> : null}
     </p>
     <p className="t-body" aria-label="Capacidades">
       <span className="text-muted-foreground">Capacidades: </span>
@@ -61,7 +57,7 @@ function ExtRow({ e, first, remote, values, busy, onToggle }) {
         </span>
       </li>)}
     </ul> : null}
-    <div data-tour-step-id={first ? 'extensoes-instalar' : undefined} className="grid gap-1 border bg-muted/30 p-2.5">
+    <div data-tour-step-id={first ? 'extensoes-instalar' : undefined} className="grid gap-1 bg-muted p-2.5">
       <div className="flex items-center gap-2">
         <span className="t-meta-em">Instalar (passo seu)</span>
         <CopyButton text={e.install} label={`Copiar a instrução de instalação de ${e.name}`} />
@@ -110,12 +106,12 @@ function Extensoes({ d }) {
       </p> : null}
       {err ? <p className="t-body text-bad" role="status">Sem atualizar: {err}. Mostrando a última lista.</p> : null}
     </div>
-    <section className="grid gap-0" aria-label="Extensões">
+    <Card aria-label="Extensões" role="region" className="gap-0">
       <CardHeader title="Extensões" summary={`${x.extensions.length}`} />
       {x.extensions.length ? <ul>
         {x.extensions.map((e, i) => <ExtRow key={e.name} e={e} first={i === 0} remote={remote} values={values} busy={busy} onToggle={toggle} />)}
       </ul> : <Empty icon={I.Plug} title="Nenhuma extensão declarada.">A pasta extensions/ da skill não tem manifesto válido.</Empty>}
-    </section>
+    </Card>
     <p data-tour-step-id="extensoes-comando" className="max-w-[75ch] t-meta text-muted-foreground">
       {'Linha de comando: '}
       <Mono className="break-words">{'hades ext list | info <nome> | enable <nome> | disable <nome> | doctor'}</Mono>

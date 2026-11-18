@@ -2929,7 +2929,7 @@ describe("desenho dos flutuantes e dos nós: elevação, pulso, papéis de tipo"
   test.each(FLOATING)("dado %s, então o flutuante usa a elevação única e nenhuma sombra solta", (file) => {
     const src = ui(file);
     expect(src).toContain("elev-float");
-    expect(src).not.toMatch(/\bshadow(-sm|-lg)?\b/);
+    expect(src).not.toMatch(/\bshadow(?:-(?:sm|md|lg|xl|2xl))?(?![-\[])\b/);
   });
   test("dado o index.html, então elev-float e t-control existem e o pulso só anima sem prefers-reduced-motion", () => {
     const html = ui("index.html");
@@ -2956,9 +2956,9 @@ describe("desenho dos flutuantes e dos nós: elevação, pulso, papéis de tipo"
     expect(terminal).not.toMatch(/truncate font-medium/);
     expect(terminal).not.toContain("border px-1 t-micro\"\n");
   });
-  test("dada a legenda, então o cabeçalho da seção é micro em caixa-alta e os itens ficam em t-label", () => {
+  test("dada a legenda, então o cabeçalho da seção é t-meta-em sem caixa-alta e os itens ficam em t-label", () => {
     const legend = ui("argos/canvas-legend.tsx");
-    expect(legend).toContain("t-micro uppercase tracking-[0.04em]");
+    expect(legend).toContain("t-meta-em text-muted-foreground");
     expect(legend).toContain("grid gap-1 t-label");
   });
 });

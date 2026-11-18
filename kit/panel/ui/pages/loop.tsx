@@ -2,7 +2,7 @@
  * Escalações ao dono primeiro; depois as PRs mexidas como fios (um nó por rodada de review), as ações das últimas 24 h,
  * as sessões vivas e os locks. */
 (() => {
-const { useState, useEffect, I, cn, mb, dur, getJSON, Dot, Card, CardHeader, CardContent, Mono, Tip, Empty, Table, Th,
+const { useState, useEffect, I, cn, mb, dur, getJSON, Dot, Badge, Card, CardHeader, CardContent, Mono, Tip, Empty, Table, Th,
   Td, Tr, Legend, Fio, LinhaDeEstado, Loading, CopyButton, useTourPreview, ExampleSeal } = HadesCore;
 
 const VERDICT = { fixed: ['Corrigido', 'var(--s2)'], applied: ['Aplicado', 'var(--s2)'], rebutted: ['Refutado', 'var(--s4)'],
@@ -50,9 +50,8 @@ function Prs({ prs, ago, example }) {
           </span>
           <Fio s={waiting ? 'frouxo' : 'medido'} nos={roundKnots(p.rounds)} label={`PR ${p.pr}: ${plural(p.rounds || 0, 'rodada', 'rodadas')} de review${waiting ? `, ${p.blocking} bloqueante` : ''}`} />
           <span className="flex flex-wrap gap-x-2 t-meta text-muted-foreground md:justify-end">
-            <span className={cn(waiting && 'font-medium text-warn')}>
-              {waiting ? plural(p.blocking, 'bloqueante', 'bloqueantes') : VEREDITO_PR[p.review] || p.review || 'sem revisão local'}
-            </span>
+            {waiting ? <Badge variant="warn">{plural(p.blocking, 'bloqueante', 'bloqueantes')}</Badge>
+              : <span>{VEREDITO_PR[p.review] || p.review || 'sem revisão local'}</span>}
             <span className="tnum">{plural(p.rounds ?? 0, 'rodada', 'rodadas') + ' · há ' + ago(p.last)}</span>
           </span>
         </li>; })}
@@ -65,8 +64,8 @@ function Acoes({ hours, verdicts, actions, hourTotal, example }) {
   const peak = Math.max(1, ...hours.map(hourTotal));
   const legend = Object.entries(verdicts).map(([k, n]) => { const [l, c] = verdictOf(k); return { name: `${l} ${n}`, color: c }; });
   return <Card data-tour-step-id="loop-acoes">
-    <CardHeader title="Comentários de review tratados em 24 h" summary={`${plural(actions, 'ação', 'ações')} em 24 h${example ? ' · exemplo' : ''}`} />
-    <CardContent className="grid gap-3">
+    <CardHeader title="Comentários de review tratados em 24 h" summary={example ? 'exemplo' : undefined} />
+    {actions === 0 ? <CardContent><Empty icon={I.ListChecks} title="Nenhuma ação nas últimas 24 h" /></CardContent> : <CardContent className="grid gap-3">
       <div className="flex h-24 items-end gap-px border-b border-border-strong">
         {[...hours].reverse().map((h) => { const n = hourTotal(h); return <Tip key={h.hoursAgo} text={`há ${h.hoursAgo} h: ${plural(n, 'ação', 'ações')}`} className="h-full min-w-0 flex-1 items-end">
           <div className={cn('w-full transition-[height] duration-700', n ? 'bg-metal-ink' : 'bg-border')} style={{ height: n ? `${Math.max(6, n / peak * 100)}%` : '1px' }} />
@@ -76,8 +75,8 @@ function Acoes({ hours, verdicts, actions, hourTotal, example }) {
         <span>-24 h</span>
         <span>agora</span>
       </div>
-      {legend.length ? <Legend items={legend} /> : <p className="t-meta text-muted-foreground">Nenhuma ação nas últimas 24 h.</p>}
-    </CardContent>
+      {legend.length ? <Legend items={legend} /> : null}
+    </CardContent>}
   </Card>;
 }
 
@@ -104,16 +103,16 @@ function Loop() {
   const ago = (t) => t ? dur(now - t) : '—';
   const since = (s) => s ? ago(Date.parse(s) / 1000) : '—';
   const esc = L.escalations || [];
-  return <div className="grid gap-8">
+  return <div className="grid gap-6">
     <LinhaDeEstado main={esc.length ? plural(esc.length, 'escalação esperando você', 'escalações esperando você') : 'nenhuma escalação aberta'}
       rest={[`${plural(actions, 'ação', 'ações')} em 24 h`, dels.length ? dels.map(([k, n]) => `${n} ${DELIVERY_STATE[k] || k}`).join(' · ') : 'nenhuma entrega registrada',
         `${plural(agents.length, 'sessão viva', 'sessões vivas')}, ${plural(locks.length, 'lock', 'locks')}`]} />
     <Escalacoes list={esc} since={since} example={!!exemplo} />
-    <div className="grid items-start gap-8 xl:grid-cols-[3fr_2fr]">
+    <div className="grid items-start gap-6 xl:grid-cols-[3fr_2fr]">
       <Prs prs={L.recentPrs || []} ago={ago} example={!!exemplo} />
       <Acoes hours={hours} verdicts={L.verdicts24h || {}} actions={actions} hourTotal={hourTotal} example={!!exemplo} />
     </div>
-    <div className="grid items-start gap-8 xl:grid-cols-2">
+    <div className="grid items-start gap-6 xl:grid-cols-2">
       <Card className="min-w-0" data-tour-step-id="loop-sessoes">
         <CardHeader title="Sessões vivas" summary="Claude Code" />
         <CardContent>
@@ -123,18 +122,18 @@ function Loop() {
                 <Th>Clone</Th>
                 <Th className="text-right">Há</Th>
                 <Th className="text-right">Memória</Th>
-                <Th>Em posse (gates e locks)</Th>
+                <Th className="max-md:hidden"><Tip text="gates e locks que a sessão segura">Em posse</Tip></Th>
               </tr>
             </thead>
             <tbody>
               {agents.map((a) => <Tr key={a.pid}>
-                <Td className="max-w-64">
+                <Td className="max-w-40 md:max-w-64">
                   <Mono className="block truncate">{a.cwd}</Mono>
                   {exemplo ? <ExampleSeal /> : null}
                 </Td>
                 <Td className="text-right text-muted-foreground tnum">{dur(a.age)}</Td>
                 <Td className="text-right t-data">{mb(a.rss)}</Td>
-                <Td className="max-w-56 truncate t-data text-muted-foreground">
+                <Td className="max-w-56 truncate t-data text-muted-foreground max-md:hidden">
                   {[...(a.gates || []), ...(a.locks || [])].join(' · ') || '—'}
                 </Td>
               </Tr>)}
@@ -152,8 +151,9 @@ function Loop() {
               <Mono className="min-w-0 truncate">{l.name}</Mono>
               <span className="t-meta text-muted-foreground">{l.mode}</span>
               {l.agentPresent ? null : <CopyButton text="/hades locks" label="Copiar /hades locks para liberar" />}
-              <span className={cn('ml-auto shrink-0 t-meta', l.agentPresent ? 'text-muted-foreground' : 'text-warn')}>
-                {(l.agentPresent ? '' : 'sem agente: provável lock preso · ') + 'há ' + dur(l.age)}
+              <span className="ml-auto flex shrink-0 items-center gap-2 t-meta text-muted-foreground">
+                {l.agentPresent ? null : <Badge variant="warn">provável lock preso</Badge>}
+                {'há ' + dur(l.age)}
               </span>
             </li>)}
           </ul> : <Empty icon={I.LockOpen} title="Nenhum lock" />}

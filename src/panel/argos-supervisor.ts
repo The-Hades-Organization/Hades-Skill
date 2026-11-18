@@ -12,6 +12,7 @@ import {
   type AgentStatus, type OutgoingContext, SUPERVISOR_LIMITS, askContext, buildCard, clipAnswer, connectedNoteNames, isAgentStatus, notesContext,
 } from "../lib/canvas-supervisor.ts";
 import { isValidCanvasId } from "../lib/canvas-store.ts";
+import { activeProvider } from "../lib/agent-provider.ts";
 import { home } from "../lib/paths.ts";
 import { which } from "../lib/proc.ts";
 import { PANE_ID, SESSION_NAME } from "./herdr-page.ts";
@@ -95,7 +96,13 @@ function executable(path: string): boolean {
 
 /** O processo de verdade: prompt pelo stdin (no argv, um texto começando com "-" viraria opção), saída cortada no teto. */
 async function spawnClaude(argv: string[], input: string, options: { cwd: string; timeoutMs: number }): Promise<ClaudeRun> {
-  const proc = Bun.spawn(argv, {
+  const cmd0 = argv[0] ?? "";
+  const isAgy = cmd0 === "agy" || cmd0.endsWith("/agy");
+  const effectiveArgv =
+    isAgy && argv[1] === "-p" && (argv[2] === undefined || argv[2].startsWith("-"))
+      ? [cmd0, "-p", input, ...argv.slice(2)]
+      : argv;
+  const proc = Bun.spawn(effectiveArgv, {
     cwd: options.cwd, stdin: new TextEncoder().encode(input), stdout: "pipe", stderr: "ignore",
     env: { ...process.env, NO_COLOR: "1", TERM: "dumb" },
   });
@@ -119,8 +126,10 @@ export function createSupervisorRoutes(deps: SupervisorDeps): SupervisorRoutes {
   const claudeOn = (): boolean => (deps.config()[CONFIG_KEY] ?? "1") !== "0";
 
   function claudeBin(): string | undefined {
-    const configured = (deps.config().HADES_CHAT_BIN ?? "").replace(/^~(?=$|\/)/, home());
-    const bin = configured || which("claude");
+    const cfg = deps.config();
+    const provider = activeProvider("CHAT", (key) => cfg[key], {});
+    const configured = (cfg.HADES_CHAT_BIN ?? "").replace(/^~(?=$|\/)/, home());
+    const bin = provider.id === "claude" ? (configured || which("claude")) : provider.resolveBinary((key) => cfg[key], which, home());
     return bin && executable(bin) ? bin : undefined;
   }
 
@@ -174,10 +183,18 @@ export function createSupervisorRoutes(deps: SupervisorDeps): SupervisorRoutes {
     const cwd = join(deps.dir, "supervisor");
     mkdirSync(cwd, { recursive: true, mode: 0o700 });
     const cfg = deps.config();
-    const argv = [
-      bin, "-p", "--output-format", "text", "--tools", "", "--strict-mcp-config", "--no-session-persistence",
-      "--model", cfg.HADES_MODEL_CHAT || DEFAULT_MODEL, "--effort", "low",
-    ];
+    const provider = activeProvider("CHAT", (key) => cfg[key], {});
+    const argv = provider.buildPrintArgv({
+      bin,
+      outputFormat: "text",
+      noTools: true,
+      readOnly: true,
+      strictMcpConfig: true,
+      noSessionPersistence: true,
+      model: cfg.HADES_MODEL_CHAT || DEFAULT_MODEL,
+      effort: "low",
+      readConfig: (key) => cfg[key],
+    });
     if (caller.remote) noticeRemote(what, label);
     try {
       const r = await runClaude(argv, context.prompt, { cwd, timeoutMs: SUPERVISOR_ROUTE_LIMITS.timeoutMs });

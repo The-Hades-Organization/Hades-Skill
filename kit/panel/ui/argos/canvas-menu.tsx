@@ -195,7 +195,7 @@ function makeArgosCanvasMenu() {
     onKeyDown(event: { key: string; preventDefault(): void }): void;
   }
 
-  const ROOT = "absolute z-30 flex flex-col overflow-y-auto border border-border-strong bg-background py-1 t-body outline-none";
+  const ROOT = "absolute z-30 flex flex-col overflow-y-auto bg-popover shadow-[inset_0_-2px_0_var(--primary),0_12px_32px_-8px_rgb(0_0_0/.7)] py-1 t-body outline-none";
   const ROW = "flex min-h-8 w-full cursor-pointer items-center gap-2 px-3 text-left outline-none max-md:min-h-11";
 
   /** Árvore de elementos do menu: pura, sem hooks, para o teste ler sem DOM. Os grupos seguidos ganham um cabeçalho cada. */
@@ -213,7 +213,7 @@ function makeArgosCanvasMenu() {
       rows.push(h("div", {
         key: item.id, id: `${ITEM_ID_PREFIX}${index}`, role: "menuitem", "aria-disabled": item.disabled || undefined, "aria-keyshortcuts": item.shortcut, title: description || undefined,
         "data-active": active || undefined, "data-dangerous": item.dangerous || undefined,
-        className: `${ROW} ${active ? "bg-accent" : ""} ${item.disabled ? "opacity-50 cursor-default" : ""} ${item.dangerous ? "text-bad" : ""}`,
+        className: `${ROW} ${active ? "bg-accent" : ""} ${item.disabled ? "text-muted-foreground cursor-default" : ""} ${item.dangerous ? "text-bad" : ""}`,
         onPointerMove: () => ui.onActive(index), onClick: () => ui.onPick(item),
       },
       // o motivo de um item que não vale agora fica à vista (não só no title): o dono vê o que falta para valer
@@ -222,7 +222,7 @@ function makeArgosCanvasMenu() {
         item.disabled && item.reason ? h("span", { className: "t-meta truncate text-muted-foreground" }, item.reason) : null),
       item.shortcut ? h("span", { className: "t-meta text-muted-foreground" }, item.shortcut) : null));
     });
-    if (ui.items.length === 0) rows.push(h("div", { key: "empty", role: "menuitem", "aria-disabled": true, className: `${ROW} cursor-default opacity-50` }, EMPTY_LABEL));
+    if (ui.items.length === 0) rows.push(h("div", { key: "empty", role: "menuitem", "aria-disabled": true, className: `${ROW} cursor-default text-muted-foreground` }, EMPTY_LABEL));
     return h("div", {
       ref: ui.setRoot, role: "menu", tabIndex: -1, "aria-label": ui.label, "aria-activedescendant": ui.items.length > 0 ? `${ITEM_ID_PREFIX}${ui.active}` : undefined,
       className: ROOT, style: { left: ui.at.x, top: ui.at.y, width: ui.size.w, maxHeight: ui.size.h }, onKeyDown: ui.onKeyDown,

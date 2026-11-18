@@ -69,7 +69,7 @@ function useTermKeys() {
   return list.keys;
 }
 
-const KEY_CLS = 'inline-flex min-h-11 min-w-11 cursor-pointer select-none items-center justify-center border border-border-strong bg-background px-2 font-mono t-meta text-foreground outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring aria-pressed:bg-foreground aria-pressed:text-background';
+const KEY_CLS = 'inline-flex min-h-11 min-w-11 cursor-pointer select-none items-center justify-center bg-popover px-2 t-data text-foreground transition-colors outline-none hover:bg-hover focus-visible:outline-2 focus-visible:outline-ring aria-pressed:bg-primary aria-pressed:text-primary-foreground';
 
 /** Barra de teclas acima do teclado virtual. Toque não tira o foco do terminal (o teclado não fecha). `attention`: um agente espera
  *  você, então as respostas rápidas (1/2/3, y/n…) vêm primeiro e em destaque. */
@@ -100,9 +100,9 @@ function TermKeyBar({ api, attention }) {
     return <button key={id} type="button" aria-label={d.aria} aria-pressed={d.tool === 'ctrl' ? ctrl : undefined}
       onMouseDown={(e) => e.preventDefault()} onClick={() => press(id)} className={cn(KEY_CLS, extra)}>{d.label}</button>;
   });
-  const quick = row('quick', attention ? 'border-foreground bg-accent font-semibold' : '');
+  const quick = row('quick', attention ? 'bg-accent font-semibold text-warn' : '');
   const nav = row('nav');
-  return <div className="grid shrink-0 gap-1 border-t border-border-strong bg-card p-1" role="toolbar" aria-label="Teclas do terminal" data-term-keybar={attention ? 'attention' : 'on'}>
+  return <div className="grid shrink-0 gap-1 border-t border-border bg-card p-1" role="toolbar" aria-label="Teclas do terminal" data-term-keybar={attention ? 'attention' : 'on'}>
     {attention ? <>{quick.length ? <div className="flex flex-wrap gap-1">{quick}</div> : null}<div className="flex flex-wrap gap-1">{nav}</div></>
       : <><div className="flex flex-wrap gap-1">{nav}</div>{quick.length ? <div className="flex flex-wrap gap-1">{quick}</div> : null}</>}
   </div>;
@@ -113,7 +113,7 @@ function MobileTermScreen({ title, subtitle, onBack, attention, apiRef, actions,
   const box = useViewBox(true);
   return <div className="fixed z-40 flex flex-col bg-term text-term-foreground" style={{ top: box.top, left: box.left, width: box.width, height: box.height }}
     role="region" aria-label={title} data-mobile-term={box.keyboard ? 'keyboard' : 'full'}>
-    <header className="flex min-h-11 shrink-0 items-center gap-1 border-b border-border-strong bg-card px-1 text-foreground">
+    <header className="flex min-h-11 shrink-0 items-center gap-1 border-b border-border bg-card px-1 text-foreground">
       <Button variant="ghost" size="icon" className="min-h-11 min-w-11" icon={I.ArrowLeft} aria-label="Voltar" onClick={onBack} />
       <div className="min-w-0 flex-1">
         <div className="truncate t-section leading-5">{title}</div>

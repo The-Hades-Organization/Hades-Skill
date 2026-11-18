@@ -303,7 +303,7 @@ function makeArgosNodeNote() {
 
   // ---- o componente ----
 
-  const BTN = "inline-flex h-6 cursor-pointer items-center justify-center shrink-0 px-1.5 max-lg:min-h-11 max-lg:min-w-11! t-label text-foreground border border-border outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-40";
+  const BTN = "inline-flex h-6 cursor-pointer items-center justify-center shrink-0 px-1.5 max-lg:min-h-11 max-lg:min-w-11! t-label text-foreground outline-none hover:bg-secondary-hover focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-40 bg-secondary";
 
   interface Editor {
     phase: string;
@@ -546,7 +546,7 @@ function makeArgosNodeNote() {
     const header = h("div", { className: "flex items-center gap-1 border-b border-border px-1 py-0.5 t-label", "data-note-header": "" },
       renaming !== null
         ? h("input", {
-          className: "min-w-0 flex-1 border border-border-strong bg-background px-1 t-label text-foreground", autoFocus: true, value: renaming, maxLength: model.NOTE_FILE_LIMITS.titleChars,
+          className: "min-w-0 flex-1 campo px-1 t-label text-foreground", autoFocus: true, value: renaming, maxLength: model.NOTE_FILE_LIMITS.titleChars,
           "aria-label": "Nome da nota (vazio volta ao da primeira linha)",
           onChange: (event: { target: { value: string } }) => setRenaming(event.target.value),
           onKeyDown: (event: { key: string; stopPropagation(): void }) => {
@@ -572,7 +572,7 @@ function makeArgosNodeNote() {
 
     const content = current === "raw" || !rendered
       ? h("textarea", {
-        ref: textarea, className: "min-h-0 flex-1 resize-none border-0 bg-background p-1 font-mono t-label text-foreground outline-none",
+        ref: textarea, className: "min-h-0 flex-1 resize-none border-0 bg-card p-1 font-mono t-label text-foreground outline-none",
         "aria-label": `Texto da nota ${title}`, value: editor.draft, readOnly: meta.locked, disabled: !ready || editor.phase === "failed", spellCheck: false,
         onChange: (event: { target: { value: string } }) => editor.onEdit(event.target.value),
       })
@@ -596,21 +596,21 @@ function makeArgosNodeNote() {
         : null,
       moving !== null
         ? h("form", {
-          className: "absolute inset-x-1 top-8 flex flex-col gap-1 elev-float bg-card p-2", "aria-label": "Mover para…",
+          className: "absolute inset-x-1 top-8 flex flex-col gap-1 bg-popover shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] p-2", "aria-label": "Mover para…",
           onSubmit: (event: { preventDefault(): void }) => { event.preventDefault(); void commitMove(moving); },
           onKeyDown: (event: { key: string; stopPropagation(): void }) => { event.stopPropagation(); if (event.key === "Escape") setMoving(null); },
         },
           h("label", { className: "t-label" }, "Caminho completo do arquivo (.md, .markdown ou .txt)"),
-          h("input", { className: "border border-border-strong bg-background px-1 font-mono t-label", autoFocus: true, value: moving, onChange: (event: { target: { value: string } }) => setMoving(event.target.value) }),
+          h("input", { className: "campo px-1 font-mono t-label", autoFocus: true, value: moving, onChange: (event: { target: { value: string } }) => setMoving(event.target.value) }),
           h("span", { className: "flex gap-1" },
             h("button", { type: "submit", className: BTN, disabled: moving.trim() === "" }, "Mover"),
             meta.location === "custom" ? h("button", { type: "button", className: BTN, onClick: () => void commitMove(null) }, "Voltar à pasta padrão") : null,
             h("button", { type: "button", className: BTN, onClick: () => setMoving(null) }, "Cancelar")))
         : null,
       menu
-        ? ReactDOM.createPortal(h("div", { ref: menuRef, role: "menu", "aria-label": "Menu da nota", className: "fixed z-[60] flex min-w-40 flex-col elev-float bg-card py-1", style: { left: menu.x, top: menu.y } },
+        ? ReactDOM.createPortal(h("div", { ref: menuRef, role: "menu", "aria-label": "Menu da nota", className: "fixed z-[60] flex min-w-40 flex-col bg-popover shadow-[inset_0_-2px_0_var(--primary),0_12px_32px_-8px_rgb(0_0_0/.7)] py-1", style: { left: menu.x, top: menu.y } },
           ...menuItems.map((item) => h("button", {
-            key: item.id, type: "button", role: "menuitem", disabled: item.disabled, className: "px-2 py-0.5 text-left t-label hover:bg-accent focus-visible:bg-accent outline-none disabled:opacity-40",
+            key: item.id, type: "button", role: "menuitem", disabled: item.disabled, className: "px-2 py-0.5 text-left t-label hover:bg-hover focus-visible:bg-accent outline-none disabled:opacity-40",
             onClick: () => void run(item.id, menu.target),
           }, item.label))), document.body)
         : null);

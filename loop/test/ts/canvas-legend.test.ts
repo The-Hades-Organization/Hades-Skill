@@ -12,11 +12,20 @@ const TONES = Object.keys(TONE_VAR) as Tone[];
 const TEXT_MIN = 4.5; // WCAG 2.x AA, texto normal (1.4.3)
 const GRAPHIC_MIN = 3; // WCAG 2.x AA, ícone e forma (1.4.11)
 
-// ------------------------------------------------------------------ contraste (oklch → sRGB → luminância relativa)
+// ------------------------------------------------------------------ contraste (oklch / hex → sRGB → luminância relativa)
 
-type Oklch = readonly [number, number, number];
+type Color = { kind: "oklch"; l: number; c: number; h: number } | { kind: "hex"; r: number; g: number; b: number };
 
-function relativeLuminance([lightness, chroma, hueDeg]: Oklch): number {
+function srgbChannelToLinear(c: number): number {
+  const v = c / 255;
+  return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+}
+
+function relativeLuminance(color: Color): number {
+  if (color.kind === "hex") {
+    return 0.2126 * srgbChannelToLinear(color.r) + 0.7152 * srgbChannelToLinear(color.g) + 0.0722 * srgbChannelToLinear(color.b);
+  }
+  const { l: lightness, c: chroma, h: hueDeg } = color;
   const a = chroma * Math.cos((hueDeg * Math.PI) / 180);
   const b = chroma * Math.sin((hueDeg * Math.PI) / 180);
   const l = (lightness + 0.3963377774 * a + 0.2158037573 * b) ** 3;
@@ -29,26 +38,58 @@ function relativeLuminance([lightness, chroma, hueDeg]: Oklch): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
 }
 
-const contrast = (a: Oklch, b: Oklch): number => {
+const contrast = (a: Color, b: Color): number => {
   const [x, y] = [relativeLuminance(a), relativeLuminance(b)];
   return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
 };
 
 const html = read("index.html");
 
-/** Os tokens oklch declarados no bloco `selector { … }` do tema (o primeiro bloco com esse seletor). */
-function themeTokens(selector: string): Map<string, Oklch> {
+/** Os tokens de cor declarados no bloco `selector { … }` do tema (com herança de `:root` e resolução de `var(--x)`). */
+function rawBlock(selector: string): Map<string, string> {
   const start = html.indexOf(`\n${selector} {`);
   expect(start, `bloco ${selector} no index.html`).toBeGreaterThan(-1);
   const body = html.slice(start, html.indexOf("\n}", start));
-  const tokens = new Map<string, Oklch>();
-  for (const m of body.matchAll(/--([a-z-]+):\s*oklch\(([\d.]+) ([\d.]+) ([\d.]+)\)\s*;/g)) {
-    tokens.set(m[1] as string, [Number(m[2]), Number(m[3]), Number(m[4])]);
+  const raw = new Map<string, string>();
+  for (const m of body.matchAll(/--([a-z0-9-]+):\s*([^;/]+?)\s*;/g)) {
+    raw.set(m[1] as string, (m[2] as string).trim());
+  }
+  return raw;
+}
+
+function parseColor(val: string): Color | undefined {
+  const ok = /^oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)\)$/.exec(val);
+  if (ok) return { kind: "oklch", l: Number(ok[1]), c: Number(ok[2]), h: Number(ok[3]) };
+  const hex = /^#([0-9a-fA-F]{6})$/.exec(val);
+  if (hex) {
+    const h = hex[1] as string;
+    return { kind: "hex", r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
+  }
+  return undefined;
+}
+
+function themeTokens(selector: string, base?: Map<string, string>): Map<string, Color> {
+  const merged = new Map<string, string>(base);
+  for (const [k, v] of rawBlock(selector)) merged.set(k, v);
+  const resolve = (val: string, depth = 0): Color | undefined => {
+    if (depth > 8) return undefined;
+    const ref = /^var\(--([a-z0-9-]+)\)$/.exec(val);
+    if (ref) {
+      const target = merged.get(ref[1] as string);
+      return target ? resolve(target, depth + 1) : undefined;
+    }
+    return parseColor(val);
+  };
+  const tokens = new Map<string, Color>();
+  for (const [k, v] of merged) {
+    const c = resolve(v);
+    if (c) tokens.set(k, c);
   }
   return tokens;
 }
 
-const THEMES = [["claro", themeTokens(":root")], ["escuro", themeTokens(".dark")]] as const;
+const rootRaw = rawBlock(":root");
+const THEMES = [["claro", themeTokens(":root")], ["escuro", themeTokens(".dark", rootRaw)]] as const;
 const SURFACES = ["card", "background"] as const;
 
 /** O token que a classe `text-<token>` de cada tom usa, lido das tabelas de parts.tsx (a fonte do que se vê). */
@@ -136,7 +177,7 @@ describe("legenda: contraste nos dois temas", () => {
         for (const tone of TONES) {
           const fg = tokens.get(textTokens[tone]);
           expect(fg, `--${textTokens[tone]} no tema ${theme}`).toBeDefined();
-          expect(contrast(fg as Oklch, bg as Oklch), `${tone} (${textTokens[tone]}) sobre ${surface}, tema ${theme}`).toBeGreaterThanOrEqual(TEXT_MIN);
+          expect(contrast(fg as Color, bg as Color), `${tone} (${textTokens[tone]}) sobre ${surface}, tema ${theme}`).toBeGreaterThanOrEqual(TEXT_MIN);
         }
       });
 
@@ -146,14 +187,15 @@ describe("legenda: contraste nos dois temas", () => {
         for (const tone of TONES) {
           const fg = tokens.get(iconTokens[tone]);
           expect(fg, `--${iconTokens[tone]} no tema ${theme}`).toBeDefined();
-          expect(contrast(fg as Oklch, bg as Oklch), `${tone} (${iconTokens[tone]}) sobre ${surface}, tema ${theme}`).toBeGreaterThanOrEqual(GRAPHIC_MIN);
+          expect(contrast(fg as Color, bg as Color), `${tone} (${iconTokens[tone]}) sobre ${surface}, tema ${theme}`).toBeGreaterThanOrEqual(GRAPHIC_MIN);
         }
       });
     }
   }
 
   test("dado o contraste do preto no branco, então a conta dá 21 (sanidade da fórmula)", () => {
-    expect(contrast([0, 0, 0], [1, 0, 0])).toBeCloseTo(21, 0);
+    expect(contrast({ kind: "oklch", l: 0, c: 0, h: 0 }, { kind: "oklch", l: 1, c: 0, h: 0 })).toBeCloseTo(21, 0);
+    expect(contrast({ kind: "hex", r: 0, g: 0, b: 0 }, { kind: "hex", r: 255, g: 255, b: 255 })).toBeCloseTo(21, 0);
   });
 });
 

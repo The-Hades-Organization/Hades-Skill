@@ -776,7 +776,7 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
   const message = notice || drawError;
   return <div ref={root} role="region" aria-label={label} tabIndex={0} data-tty-wheel={ownsWheel({ headerOnly, problem }) ? '' : undefined} data-tty-focused={focused ? 'true' : 'false'}
     onKeyDown={onKeyDown} onPaste={onPaste} onCopy={onCopy} onPointerDown={onPointerDown} onPointerMove={onTouchMove} onPointerUp={endTouch} onPointerCancel={endTouch}
-    className={cn('relative flex h-full min-h-0 flex-col border bg-term text-term-foreground', FOCUS_RING, focused ? 'border-foreground' : 'border-border')}>
+    className={cn('relative flex h-full min-h-0 flex-col bg-term text-term-foreground', FOCUS_RING, focused && 'outline-2 -outline-offset-2 outline-ring')}>
     <div className="flex shrink-0 items-center gap-2 border-b border-border px-2 t-meta text-term-muted" style={{ height: HEADER_H }}>
       <span className="min-w-0 flex-1 truncate t-data">{problem ? 'terminal' : frame.pane}</span>
       {!problem ? <span className="t-data shrink-0">{frame.cols}×{frame.rows}</span> : null}
@@ -790,17 +790,17 @@ function NodeTty({ frame, focused = false, onFocus, onBlur, onInput, scale, head
       {/* texto com mais linhas que o quadro anuncia (pane que acabou de crescer) não perde as de baixo: o xterm mostra todas */}
       {drawing ? <div ref={host} data-tty-grid data-tty-engine="xterm" data-tty-cols={cols} data-tty-rows={shownRows} className="relative select-text"
         style={{ width: cols * cell.w, height: shownRows * cell.h, transform: `scale(${factor})`, transformOrigin: '0 0', overflow: 'hidden' }} /> : null}
-      {search ? <div data-tty-search role="search" className="absolute top-1 right-3 z-10 flex items-center gap-1 border border-border bg-term px-1 py-0.5">
+      {search ? <div data-tty-search role="search" className="absolute top-1 right-3 z-10 flex items-center gap-1 bg-term px-1 py-0.5">
         <input ref={searchInput} data-tty-search-input type="text" aria-label="Buscar no terminal" placeholder="Buscar" spellCheck={false} autoComplete="off" maxLength={extras().QUERY_MAX}
           value={search.query} onChange={(e) => onSearchQuery(e.target.value)} onKeyDown={onSearchKey}
           className="w-40 min-w-0 border-0 bg-transparent p-0 t-data text-term-foreground outline-none placeholder:text-term-muted" />
         <span role="status" aria-live="polite" data-tty-search-count className="min-w-12 shrink-0 text-right t-meta text-term-muted">{extras().searchCount(search.query, search.matches.length, search.index, search.truncated)}</span>
-        <button type="button" data-tty-search-prev aria-label="Resultado anterior" onClick={() => step(-1)} className={cn('cursor-pointer px-1 t-meta text-term-foreground hover:bg-accent', FOCUS_RING)}>↑</button>
-        <button type="button" data-tty-search-next aria-label="Próximo resultado" onClick={() => step(1)} className={cn('cursor-pointer px-1 t-meta text-term-foreground hover:bg-accent', FOCUS_RING)}>↓</button>
-        <button type="button" data-tty-search-close aria-label="Fechar a busca" onClick={closeSearch} className={cn('cursor-pointer px-1 t-meta text-term-foreground hover:bg-accent', FOCUS_RING)}>✕</button>
+        <button type="button" data-tty-search-prev aria-label="Resultado anterior" onClick={() => step(-1)} className={cn('cursor-pointer px-1 t-meta text-term-foreground hover:bg-hover', FOCUS_RING)}>↑</button>
+        <button type="button" data-tty-search-next aria-label="Próximo resultado" onClick={() => step(1)} className={cn('cursor-pointer px-1 t-meta text-term-foreground hover:bg-hover', FOCUS_RING)}>↓</button>
+        <button type="button" data-tty-search-close aria-label="Fechar a busca" onClick={closeSearch} className={cn('cursor-pointer px-1 t-meta text-term-foreground hover:bg-hover', FOCUS_RING)}>✕</button>
       </div> : null}
       {message ? <span role="status" className="absolute right-2 bottom-2 left-2 t-meta text-term-warn">{message}</span> : null}
-      {history ? <button type="button" data-tty-to-end className="absolute right-2 bottom-2 cursor-pointer border border-border bg-term px-2 py-0.5 t-meta text-term-foreground outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+      {history ? <button type="button" data-tty-to-end className="absolute right-2 bottom-2 cursor-pointer bg-term px-2 py-0.5 t-meta text-term-foreground outline-none hover:bg-hover focus-visible:outline-2 focus-visible:outline-ring"
         aria-label="Ir ao fim do terminal" onClick={backToLive}>↓ ir ao fim</button> : null}
     </div>}
   </div>;

@@ -191,14 +191,14 @@ function Tour({ steps, page, navigate, onFinish, onClose, onRef }) {
     </svg>
     <div ref={box} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={bodyId}
       style={{ top: pos.top, left: pos.left, width }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
-      className="absolute grid max-h-[calc(100dvh-24px)] gap-3 overflow-y-auto border border-border-strong bg-popover p-4 text-popover-foreground animate-fade-in">
+      className="absolute! cantos [--c:var(--primary)] grid max-h-[calc(100dvh-24px)] gap-3 overflow-y-auto bg-popover p-4 text-popover-foreground shadow-[0_24px_60px_-12px_rgb(0_0_0/.8)] animate-fade-in">
       <div className="flex items-start gap-3">
         <h2 id={titleId} className="min-w-0 flex-1 t-section leading-snug">{step.title}</h2>
         <Button variant="ghost" size="icon-sm" className="-mt-1 -mr-2" aria-label="Fechar o tour" icon={I.X} onClick={onClose} />
       </div>
       <p id={bodyId} className="t-body text-muted-foreground">{step.content ?? step.body}</p>
-      {missing && step.fallback ? <p className="border-l-2 border-warn pl-3 t-body" role="note">{step.fallback}</p> : null}
-      {step.command ? <div className="flex items-center gap-1 border border-border-strong bg-muted/40 py-0.5 pr-0.5 pl-2.5">
+      {missing && step.fallback ? <p className="flex items-start gap-2 t-body" role="note"><I.TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden="true" />{step.fallback}</p> : null}
+      {step.command ? <div className="flex items-center gap-1 bg-card py-0.5 pr-0.5 pl-2.5">
         <Mono className="min-w-0 flex-1 break-all">{step.command}</Mono>
         <CopyButton text={step.command} label="Copiar o comando" />
       </div> : null}
@@ -214,7 +214,7 @@ function Tour({ steps, page, navigate, onFinish, onClose, onRef }) {
       </div>
       <div className="flex flex-wrap items-center gap-2 pt-1">
         {last ? null : <Button variant="ghost" size="sm" onClick={onClose}>Pular</Button>}
-        {index > 0 ? <Button variant="outline" size="sm" className="ml-auto" onClick={prev}>Voltar</Button> : null}
+        {index > 0 ? <Button variant="secondary" size="sm" className="ml-auto" onClick={prev}>Voltar</Button> : null}
         <Button size="sm" data-tour-primary className={index > 0 ? '' : 'ml-auto'} onClick={next}>{last ? 'Concluir' : 'Próximo'}</Button>
       </div>
     </div>
@@ -272,7 +272,7 @@ function Gate({ page, go }) {
 
   if (phase === 'tour') return <TourGuard onFail={() => setPhase('idle')}><Tour steps={HADES_TOUR} page={page} navigate={navigate} onFinish={finish} onClose={skip} /></TourGuard>;
   if (!TL.offerVisible(phase === 'offer')) return null;
-  return <div role="region" aria-labelledby="tour-offer-title" className="fixed right-4 bottom-4 left-4 z-40 grid gap-3 border border-border-strong bg-popover p-4 text-popover-foreground sm:left-auto sm:w-96">
+  return <div role="region" aria-labelledby="tour-offer-title" className="fixed! cantos [--c:var(--primary)] right-4 bottom-4 left-4 z-40 grid gap-3 bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] animate-emergir sm:left-auto sm:w-96">
     <div className="flex items-start gap-3">
       <I.Compass className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       <div className="grid min-w-0 flex-1 gap-1">

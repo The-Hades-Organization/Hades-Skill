@@ -139,8 +139,8 @@ interface HiddenUi {
 }
 
 const FOCUS_RING = "outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring";
-const BUTTON = `inline-flex min-h-8 cursor-pointer items-center justify-center gap-1 border border-border px-2 t-control transition-colors hover:bg-accent/60 disabled:cursor-default disabled:opacity-50 max-md:min-h-11 ${FOCUS_RING}`;
-const TRIGGER = `inline-flex h-9 cursor-pointer items-center gap-2 border border-border px-3 t-control tabular-nums transition-colors hover:bg-accent/60 ${FOCUS_RING}`;
+const BUTTON = `inline-flex min-h-8 cursor-pointer items-center justify-center gap-1 px-2 t-control transition-colors hover:bg-secondary-hover disabled:cursor-default disabled:opacity-50 max-md:min-h-11 ${FOCUS_RING} bg-secondary`;
+const TRIGGER = `inline-flex h-8 cursor-pointer items-center gap-2 px-3 t-control tabular-nums transition-colors hover:bg-secondary-hover ${FOCUS_RING} bg-secondary`;
 
 // a lista é uma ilha: ponteiro e roda dentro dela não chegam ao canvas
 const stop = (event: { stopPropagation(): void }): void => event.stopPropagation();
@@ -175,11 +175,11 @@ function renderHiddenMenu(ui: HiddenUi): ReactNode {
     h("div", {
       ref: ui.setRoot, role: "dialog", "aria-label": "Nós na bandeja", tabIndex: -1, onKeyDown: ui.onKeyDown, ...SHIELD,
       className: ui.inline
-        ? "mt-1 flex max-h-64 flex-col overflow-y-auto border border-border-strong bg-background t-body outline-none"
-        : "absolute left-0 top-full z-30 mt-1 flex max-h-96 flex-col overflow-y-auto border border-border-strong bg-background t-body outline-none",
+        ? "mt-1 flex max-h-64 flex-col overflow-y-auto bg-popover t-body outline-none"
+        : "absolute left-0 top-full z-30 mt-1 flex max-h-96 flex-col overflow-y-auto bg-popover shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] t-body outline-none",
       style: ui.inline ? undefined : { width: LIST_WIDTH_PX, maxWidth: "calc(100vw - 2rem)" },
     },
-    h("div", { className: "sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b border-border bg-background px-3 py-1" },
+    h("div", { className: "sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b border-border bg-popover px-3 py-1" },
       h("span", { className: "t-meta-em tabular-nums text-muted-foreground" }, total > 0 ? `${nodesText(total)} na bandeja` : "Bandeja do canvas"),
       h("div", { className: "flex gap-1" },
         h("button", { type: "button", disabled: picked.length === 0, onClick: () => ui.onUnhide(picked), className: `${BUTTON} text-foreground` },
@@ -283,13 +283,13 @@ function renderHiddenTray(ui: TrayUi): ReactNode {
   const pill = h("button", {
     type: "button", ref: ui.setButton, onClick: ui.onToggleOpen, "aria-expanded": ui.open, "aria-controls": TRAY_ID,
     title: ui.open ? "Fechar a bandeja" : "Nós recolhidos: clique para devolver ao canvas",
-    className: `inline-flex min-h-8 cursor-pointer items-center gap-2 border border-border-strong bg-background/95 px-3 t-control tabular-nums shadow-sm transition-colors hover:bg-accent/60 max-md:min-h-11 ${FOCUS_RING}`,
+    className: `inline-flex min-h-8 cursor-pointer items-center gap-2 bg-popover shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] px-3 t-control tabular-nums transition-colors hover:bg-hover max-md:min-h-11 ${FOCUS_RING}`,
   }, h("span", { "aria-hidden": "true" }, ui.open ? "▾" : "▴"), `Bandeja · ${total}`);
   const panel = ui.open ? h("div", {
     id: TRAY_ID, role: "region", "aria-label": "Bandeja de nós recolhidos", onKeyDown: ui.onKeyDown,
-    className: "flex max-h-52 w-[36rem] max-w-[calc(100vw-2rem)] flex-col overflow-y-auto border border-border-strong bg-background/95 t-body shadow-sm",
+    className: "flex max-h-52 w-[36rem] max-w-[calc(100vw-2rem)] flex-col overflow-y-auto bg-popover shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] t-body animate-emergir",
   },
-  h("div", { className: "sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-background px-3 py-1" },
+  h("div", { className: "sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-popover px-3 py-1" },
     h("span", { className: "t-meta-em text-muted-foreground" }, "Clique para voltar ao canvas"),
     h("button", { type: "button", onClick: () => ui.onUnhide(ui.items.map((item) => item.id)), className: `${BUTTON} text-foreground` }, "Voltar todos")),
   h("ul", { role: "list", className: "flex flex-wrap gap-1.5 p-2" },
@@ -297,7 +297,7 @@ function renderHiddenTray(ui: TrayUi): ReactNode {
       h("button", {
         type: "button", ref: index === 0 ? ui.setFirst : undefined, onClick: () => ui.onUnhide([item.id]),
         title: `Voltar ao canvas: ${item.label}`, "aria-label": `Voltar ao canvas: ${item.label}`,
-        className: `inline-flex min-h-8 cursor-pointer items-center gap-2 border border-border bg-card px-2 t-control transition-colors hover:bg-accent/60 max-md:min-h-11 ${FOCUS_RING}`,
+        className: `inline-flex min-h-8 cursor-pointer items-center gap-2 bg-card px-2 t-control transition-colors hover:bg-hover max-md:min-h-11 ${FOCUS_RING}`,
       },
       h("span", { className: "truncate text-foreground", style: { maxWidth: TRAY_CHIP_LABEL_PX } }, item.label),
       item.kind ? h("span", { className: "t-meta text-muted-foreground" }, item.kind) : null))))) : null;

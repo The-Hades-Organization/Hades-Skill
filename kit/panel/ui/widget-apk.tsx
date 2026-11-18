@@ -1,14 +1,18 @@
 /* App do widget (baixar o APK no celular, gerar no painel): Acesso remoto usa, e plugins também podem.
  * Carrega depois da base (ui/app.js) e antes das páginas, que o pegam em HadesCore.WidgetApk. */
 (() => {
-const { useState, useEffect, I, cn, getJSON, Button, CardHeader, CopyButton, Mono, Dot, Fio, Skeleton, useActions, dt } = HadesCore;
+const { useState, useEffect, I, cn, getJSON, Button, Badge, CardHeader, CopyButton, Mono, Fio, Skeleton, useActions, dt } = HadesCore;
 
-const Estado = ({ kind, children }) => <span className="inline-flex items-center gap-1.5">
-  <Dot kind={kind} pulse={kind === 'busy'} />
-  {children}
-</span>;
 // link de download com o desenho do Button primário (o Button da base é <button>, e baixar arquivo pede <a download>)
-const LINK_PRIMARY = 'inline-flex h-8 items-center justify-center gap-2 bg-primary px-3.5 t-label text-primary-foreground transition-colors hover:bg-primary/90 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:h-11 [&_svg]:size-4';
+const LINK_PRIMARY = 'inline-flex h-8 items-center justify-center gap-2 bg-primary px-3.5 t-label text-primary-foreground transition-colors hover:bg-primary-hover outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:h-11 [&_svg]:size-4';
+const ESTADO_ICON = { ok: I.CircleCheck, warn: I.TriangleAlert, bad: I.CircleX, busy: I.LoaderCircle, idle: I.CircleStop, info: I.Info };
+const Estado = ({ kind, children }) => {
+  const Icon = ESTADO_ICON[kind] || I.CircleStop;
+  return <Badge variant={kind} className="gap-1.5">
+    <Icon className={cn(kind === 'busy' && 'animate-spin')} aria-hidden="true" />
+    {children}
+  </Badge>;
+};
 
 // plugins antigos passam delay: fica ignorado, a entrada escalonada saiu do sistema
 function WidgetApk({ d, className }) {
@@ -26,9 +30,7 @@ function WidgetApk({ d, className }) {
     apk.certSha256 ? ['Certificado', <span className="flex items-center gap-1"><Mono>{apk.certSha256.slice(0, 12)}…</Mono><CopyButton text={apk.certSha256} label="Copiar SHA-256 do certificado" /></span>] : null,
   ].filter(Boolean) : [];
   return <section className={cn('grid content-start gap-3', className)} aria-label="App do widget">
-    <CardHeader as="h3" title="App do widget" summary={state ? <Estado kind={state[0]}>
-      {state[1]}
-    </Estado> : null} />
+    <CardHeader as="h3" title="App do widget" summary={state ? <Estado kind={state[0]}>{state[1]}</Estado> : null} />
     {building ? <Fio s="fiando" label="Gerando o APK do widget" /> : null}
     <p className="t-body text-muted-foreground">
       Widget Android: baixe e instale direto no celular.
@@ -55,7 +57,7 @@ function WidgetApk({ d, className }) {
         <I.Download aria-hidden="true" />
         Baixar APK
       </a> : null}
-      <Button variant="outline" icon={I.Hammer} loading={building} onClick={() => run({ action: 'widget-apk' })}>
+      <Button variant="secondary" icon={I.Hammer} loading={building} onClick={() => run({ action: 'widget-apk' })}>
         {building ? 'Gerando…' : apk?.exists ? 'Gerar de novo' : 'Gerar APK'}
       </Button>
     </div>

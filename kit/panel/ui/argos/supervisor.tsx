@@ -294,7 +294,7 @@ function makeArgosSupervisor() {
   // ---- desenho ----
 
   const FOCUS_RING = "outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring";
-  const BUTTON = `inline-flex min-h-7 cursor-pointer items-center justify-center gap-1 border border-border px-2 t-meta transition-colors hover:bg-accent/60 disabled:cursor-not-allowed disabled:opacity-50 max-md:min-h-11 ${FOCUS_RING}`;
+  const BUTTON = `inline-flex min-h-7 cursor-pointer items-center justify-center gap-1 px-2 t-meta transition-colors hover:bg-secondary-hover disabled:cursor-not-allowed disabled:opacity-50 max-md:min-h-11 ${FOCUS_RING} bg-secondary`;
   const stop = (event: { stopPropagation(): void }): void => event.stopPropagation();
   // ilha: ponteiro e roda dentro do painel não chegam ao canvas
   const SHIELD = { onPointerDown: stop, onPointerMove: stop, onPointerUp: stop, onPointerCancel: stop, onWheel: stop, onDoubleClick: stop, onContextMenu: stop };
@@ -329,8 +329,8 @@ function makeArgosSupervisor() {
 
   function seal(h: PanelUi["h"], source: "local" | "claude", detail?: string): ReactNode {
     return source === "local"
-      ? h("span", { "data-seal": "local", className: "shrink-0 border border-border px-1 t-meta text-muted-foreground", title: "Processado nesta máquina; nada saiu dela" }, "local")
-      : h("span", { "data-seal": "claude", className: "shrink-0 border border-warn px-1 t-meta text-warn", title: detail ? `Saiu da máquina pelo claude -p: ${detail}` : "Saiu da máquina pelo claude -p" }, "saiu da máquina · claude -p");
+      ? h("span", { "data-seal": "local", className: "shrink-0 px-1 t-meta text-muted-foreground", title: "Processado nesta máquina; nada saiu dela" }, "local")
+      : h("span", { "data-seal": "claude", className: "shrink-0 px-1 t-meta bg-warn text-background font-semibold", title: detail ? `Saiu da máquina pelo claude -p: ${detail}` : "Saiu da máquina pelo claude -p" }, "saiu da máquina · claude -p");
   }
 
   function renderEntry(ui: PanelUi, entry: Entry): ReactNode {
@@ -360,9 +360,9 @@ function makeArgosSupervisor() {
       head(entry.label, c.title, "local"),
       // a pergunta ou a permissão detectada já é o resumo, em destaque: a frase não se repete acima dela
       c.question || c.permission ? null : h("p", { className: "t-body text-foreground" }, c.summary),
-      c.question || c.permission ? h("p", { "data-detected": c.permission ? "permission" : "question", className: "border border-warn/60 bg-warn/10 px-2 py-1 t-meta text-foreground" }, c.permission ?? c.question) : null,
+      c.question || c.permission ? h("p", { "data-detected": c.permission ? "permission" : "question", className: "cantos [--c:var(--warn)] bg-card px-2 py-1 t-meta text-foreground" }, c.permission ?? c.question) : null,
       c.steps.length ? h("ul", { className: "flex flex-col t-meta text-muted-foreground" }, ...c.steps.map((s, i) => h("li", { key: String(i), className: "truncate", title: s }, `⏺ ${s}`))) : null,
-      c.preview.length ? h("pre", { "aria-label": `Prévia do terminal ${entry.label}`, className: "max-h-40 overflow-auto border border-border bg-muted/40 p-2 font-mono text-[11px] leading-tight text-foreground scrollbar-thin" }, c.preview.join("\n")) : null,
+      c.preview.length ? h("pre", { "aria-label": `Prévia do terminal ${entry.label}`, className: "max-h-40 overflow-auto bg-card p-2 font-mono t-micro leading-tight text-foreground scrollbar-thin" }, c.preview.join("\n")) : null,
       h("div", { className: "flex flex-wrap gap-1" },
         ...visible.map((s) => h("button", { key: s.action + s.label, type: "button", onClick: () => ui.onSuggestion(entry, s), disabled: ui.busy, className: `${BUTTON} text-muted-foreground` }, s.label)),
         h("button", { key: "anotar-cartao", type: "button", onClick: () => ui.onNoteCard(entry), disabled: ui.busy, className: `${BUTTON} text-muted-foreground`, title: `Acrescenta o resumo em "${NOTE_TITLE}"` }, "Anotar este cartão")));
@@ -374,32 +374,32 @@ function makeArgosSupervisor() {
     const claudeOff = ui.claude === false;
     return h("section", {
       role: "dialog", "aria-label": "Supervisor", "data-supervisor": "panel", onKeyDown: ui.onKeyDown, ...SHIELD,
-      className: "absolute top-14 right-2 z-30 flex max-h-[calc(100%-5rem)] w-[min(27rem,calc(100%-1rem))] flex-col elev-float bg-background",
+      className: "absolute top-14 right-2 z-30 flex max-h-[calc(100%-5rem)] w-[min(27rem,calc(100%-1rem))] flex-col elev-float bg-popover",
     },
     h("header", { className: "flex items-center gap-2 border-b border-border px-3 py-2" },
-      h("span", { className: "t-label-em text-foreground" }, "Supervisor"),
+      h("span", { className: "t-body-strong text-foreground" }, "Supervisor"),
       h("span", { className: "min-w-0 flex-1 truncate t-meta text-muted-foreground" }, "só lê, resume e anota"),
-      h("button", { type: "button", "aria-label": "Fechar o supervisor", onClick: ui.onClose, className: `${BUTTON} border-transparent text-muted-foreground max-md:min-w-11` },
+      h("button", { type: "button", "aria-label": "Fechar o supervisor", onClick: ui.onClose, className: `${BUTTON} text-muted-foreground max-md:min-w-11` },
         h("span", { "aria-hidden": "true", className: "text-base leading-none" }, "×"))),
     ui.entries.length === 0
       ? h("p", { className: "px-3 py-4 t-meta text-muted-foreground" }, "Nada por enquanto. Quando um terminal terminar ou parar esperando você, o resumo aparece aqui.")
       : h("ul", { role: "list", "aria-live": "polite", className: "flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-thin" }, ...ui.entries.map((e) => renderEntry(ui, e))),
     h("form", { className: "flex flex-col gap-2 border-t border-border px-3 py-2", onSubmit: (e: { preventDefault(): void }) => { e.preventDefault(); ui.onAsk(); } },
-      ui.confirm ? h("div", { "data-confirm": "remote", className: "flex flex-col gap-1 border border-warn px-2 py-1" },
+      ui.confirm ? h("div", { "data-confirm": "remote", className: "flex flex-col gap-1 px-2 py-1 cantos [--c:var(--warn)] bg-card" },
         h("span", { className: "t-meta text-foreground" }, `Acesso remoto: digite "${ui.confirm.phrase}" para confirmar o envio ao claude -p (o dono recebe um aviso).`),
         h("div", { className: "flex gap-1" },
-          h("input", { "aria-label": "Confirmação", value: ui.confirm.value, onInput: (e: { target: { value: string } }) => ui.onConfirm(e.target.value), onChange: (e: { target: { value: string } }) => ui.onConfirm(e.target.value), className: `min-w-0 flex-1 border border-border bg-background px-2 t-body ${FOCUS_RING}` }),
+          h("input", { "aria-label": "Confirmação", value: ui.confirm.value, onInput: (e: { target: { value: string } }) => ui.onConfirm(e.target.value), onChange: (e: { target: { value: string } }) => ui.onConfirm(e.target.value), className: `min-w-0 flex-1 campo px-2 t-body ${FOCUS_RING}` }),
           h("button", { type: "button", onClick: ui.onConfirmSubmit, disabled: ui.confirm.value !== ui.confirm.phrase, className: `${BUTTON} text-foreground` }, "Confirmar"),
           h("button", { type: "button", onClick: ui.onConfirmCancel, className: `${BUTTON} text-muted-foreground` }, "Cancelar"))) : null,
       h("div", { className: "flex items-center gap-2" },
         h("label", { className: "t-meta text-muted-foreground", htmlFor: "supervisor-target" }, "Terminal"),
-        h("select", { id: "supervisor-target", value: ui.target, onChange: (e: { target: { value: string } }) => ui.onTarget(e.target.value), className: `min-w-0 flex-1 border border-border bg-background px-1 t-meta ${FOCUS_RING}` },
+        h("select", { id: "supervisor-target", value: ui.target, onChange: (e: { target: { value: string } }) => ui.onTarget(e.target.value), className: `min-w-0 flex-1 h-8 max-md:min-h-11 campo px-1 t-meta ${FOCUS_RING}` },
           h("option", { value: "" }, ui.terminals.length ? "pelo nome na pergunta" : "nenhum terminal no canvas"),
           ...ui.terminals.map((t) => h("option", { key: t.id, value: t.id }, t.label)))),
       h("textarea", {
         "aria-label": "Pergunta ou anotação", rows: 2, value: ui.text, placeholder: 'Ex.: "veja o que o revisor está fazendo", "anota que o rate limit foi resolvido", "resume as notas"',
         onInput: (e: { target: { value: string } }) => ui.onText(e.target.value), onChange: (e: { target: { value: string } }) => ui.onText(e.target.value),
-        className: `w-full resize-none border border-border bg-background px-2 py-1 t-body ${FOCUS_RING}`,
+        className: `w-full resize-none campo px-2 py-1 t-body ${FOCUS_RING}`,
       }),
       h("div", { className: "flex flex-wrap items-center gap-1" },
         h("button", { type: "submit", disabled: ui.busy || claudeOff || !ui.text.trim(), className: `${BUTTON} text-foreground` }, ui.busy ? "Consultando…" : "Perguntar"),
@@ -415,7 +415,7 @@ function makeArgosSupervisor() {
   function renderPill(h: ReactApi["createElement"], unread: number, onOpen: () => void): ReactNode {
     return h("button", {
       type: "button", "data-supervisor": "pill", onClick: onOpen, ...SHIELD,
-      className: `${BUTTON} elev-float absolute bottom-12 left-2 z-20 max-md:bottom-[4.5rem] bg-background text-foreground`, title: "Abrir o supervisor (Ctrl+Shift+O)",
+      className: `${BUTTON} elev-float bg-popover absolute bottom-12 left-2 z-20 max-md:bottom-[4.5rem] text-foreground`, title: "Abrir o supervisor (Ctrl+Shift+O)",
     }, `Supervisor · ${unread} ${unread === 1 ? "novo" : "novos"}`);
   }
 

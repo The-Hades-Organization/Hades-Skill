@@ -7,7 +7,7 @@ const L = window.ArgosLogic;
 const M = window.CanvasModel;
 
 const SEARCH_INPUT_ID = 'argos-reading-search';
-const CHIP = 'inline-flex h-8 items-center gap-1.5 border px-2 t-control whitespace-nowrap cursor-pointer transition-colors outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:h-11';
+const CHIP = 'inline-flex h-8 items-center gap-1.5 px-2 t-control whitespace-nowrap cursor-pointer transition-colors outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:h-11 bg-secondary';
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 const secs = (ms) => `${(ms / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s`;
 
@@ -31,25 +31,25 @@ function Popover({ label, icon, badge, open, onOpenChange, children, wide = fals
   return <div className="relative">
     <button ref={button} type="button" aria-expanded={open} aria-haspopup="dialog" aria-controls={open ? id : undefined} aria-keyshortcuts={shortcut}
       title={shortcut ? `${label} (${shortcut})` : label} onClick={() => onOpenChange(!open)}
-      className={cn(ISLAND_BUTTON, open && 'bg-accent text-foreground')}>
+      className={cn(ISLAND_BUTTON, open && 'bg-secondary shadow-[inset_0_-2px_0_var(--primary)] text-foreground')}>
       <Icon className="size-4" aria-hidden="true" /><span className="max-lg:sr-only">{label}</span>
       {badge ? <span className="font-mono t-micro tabular-nums" aria-label={`${badge} ligados`}>{badge}</span> : null}
     </button>
     {open ? <div ref={panel} id={id} role="dialog" aria-label={label} tabIndex={-1} data-own-keys=""
       onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); onOpenChange(false); } }}
       onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()}
-      className={cn('absolute top-full z-30 mt-1 grid max-h-[calc(100dvh-8rem)] content-start gap-3 overflow-y-auto border border-border-strong bg-popover p-3 text-popover-foreground outline-none scrollbar-thin animate-fade-in max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:top-auto max-md:mt-0 max-md:max-h-[75dvh] max-md:border-x-0 max-md:border-b-0',
+      className={cn('absolute top-full z-30 mt-1 grid max-h-[calc(100dvh-8rem)] content-start gap-3 overflow-y-auto bg-popover shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] p-3 text-popover-foreground outline-none scrollbar-thin animate-fade-in max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:top-auto max-md:mt-0 max-md:max-h-[75dvh]',
         align === 'right' ? 'right-0' : 'left-0', wide ? 'w-[26rem]' : 'w-80', 'max-md:w-auto')}>
       {children}
     </div> : null}
   </div>;
 }
-const ISLAND_BUTTON = 'inline-flex h-8 cursor-pointer items-center gap-1.5 px-2 t-control text-muted-foreground transition-colors outline-none hover:bg-accent/60 hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-md:min-h-11 max-md:min-w-11 max-md:justify-center';
+const ISLAND_BUTTON = 'inline-flex h-8 cursor-pointer items-center gap-1.5 px-2 t-control text-muted-foreground transition-colors outline-none hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-md:min-h-11 max-md:min-w-11 max-md:justify-center';
 
 // Uma ilha: grupo de controles com contorno fino sobre o canvas. `region` marca o alvo do F6.
 function Island({ label, region, className, children }) {
   return <div role="group" aria-label={label} data-region={region} data-tour-step-id={region === 'status' ? 'argos-estado' : region === 'reading' ? 'argos-leitura' : undefined}
-    className={cn('pointer-events-auto flex items-center gap-0.5 border border-border-strong bg-background/95 p-0.5 backdrop-blur-sm', className)}>{children}</div>;
+    className={cn('pointer-events-auto flex items-center gap-0.5 bg-popover shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] p-0.5', className)}>{children}</div>;
 }
 
 // Chip com contagem zero só fica se estiver marcado (o dono precisa poder desmarcar); dimensão sem chip some.
@@ -61,8 +61,8 @@ function FilterGroup({ label, children }) {
 }
 function FilterChip({ active, count, onClick, children }) {
   return <button type="button" aria-pressed={active} onClick={onClick}
-    className={cn(CHIP, active ? 'border-foreground bg-foreground text-background' : 'border-border-strong hover:bg-accent')}>
-    {children}{count === undefined ? null : <span className="font-mono t-micro tabular-nums opacity-70">{count}</span>}
+    className={cn(CHIP, active ? 'shadow-[inset_0_-2px_0_var(--primary)] text-foreground' : 'text-muted-foreground hover:bg-secondary-hover')}>
+    {children}{count === undefined ? null : <span className="font-mono t-micro tabular-nums text-muted-foreground">{count}</span>}
   </button>;
 }
 
@@ -99,9 +99,9 @@ function ActiveChips({ items, onClear }) {
   return <ul role="list" aria-label="Filtros ligados" data-region="chips" className="pointer-events-auto flex flex-wrap items-center gap-1">
     {items.map((it) => <li key={it.key}>
       <button type="button" onClick={it.onRemove} aria-label={`Tirar o filtro ${it.label}`}
-        className={cn(CHIP, 'border-foreground bg-background text-foreground hover:bg-accent')}>{it.label}<I.X className="size-3" aria-hidden="true" /></button>
+        className={cn(CHIP, 'text-foreground hover:bg-secondary-hover')}>{it.label}<I.X className="size-3" aria-hidden="true" /></button>
     </li>)}
-    <li><Button variant="ghost" size="sm" onClick={onClear} className="bg-background/90 max-md:min-h-11">Limpar</Button></li>
+    <li><Button variant="ghost" size="sm" onClick={onClear} className="bg-popover max-md:min-h-11">Limpar</Button></li>
   </ul>;
 }
 

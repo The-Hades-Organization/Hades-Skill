@@ -14,9 +14,64 @@ const Argos = (props) => React.createElement('svg', { xmlns: 'http://www.w3.org/
   fill: 'currentColor', 'aria-hidden': true, ...props }, React.createElement('path', { d: 'M365.8 21c-40.1 0.6-80.3 18.7-115.3 55.9 69.6 76.6 158.5 79.9 237 0-36.3-37.2-79-56.5-121.8-55.9zm2.4 18.7c2 0 4 0.2 6 0.5-8.6 2.1-14.9 10-14.9 19.5 0 11.1 8.6 20 19.3 20 10.7 0 19.3-8.9 19.3-20 0-1.9-0.3-3.6-0.7-5.3 4.9 6.5 7.8 14.6 7.8 23.5 0 21.1-16.5 38.1-36.8 38.1-20.3 0-36.8-17.1-36.8-38.1 0-21.1 16.5-38.1 36.8-38.1zm-229.8 49.2c-40.1 0.6-80.3 18.7-115.3 55.9 69.6 76.6 158.5 79.9 237 0-36.3-37.2-79-56.5-121.8-55.9zm2.4 18.7c2.1 0 4.1 0.2 6 0.5-8.6 2-15 10-15 19.5 0 11.1 8.6 20 19.3 20 10.7 0 19.3-8.9 19.3-20 0-1.9-0.3-3.7-0.7-5.4 4.9 6.5 7.8 14.6 7.8 23.5 0 21.1-16.5 38.1-36.8 38.1-20.3 0-36.8-17.1-36.8-38.1 0-21.1 16.5-38.1 36.8-38.1zm224.9 56.8c-40.1 0.6-80.3 18.7-115.3 55.9 69.6 76.6 158.5 79.9 237 0-36.3-37.2-79-56.5-121.8-55.9zm2.4 18.7c2.1 0 4.1 0.2 6.1 0.5-8.6 2-15 10-15 19.5 0 11.1 8.6 20 19.3 20 10.7 0 19.3-9 19.3-20 0-1.8-0.3-3.6-0.7-5.3 4.9 6.5 7.8 14.6 7.8 23.5 0 21.1-16.5 38.1-36.8 38.1-20.3 0-36.8-17.1-36.8-38.1 0-21.1 16.5-38.2 36.8-38.2zm-229.8 49.2c-40.1 0.6-80.3 18.7-115.3 55.9 69.6 76.6 158.5 79.9 237 0-36.3-37.2-79-56.5-121.8-55.9zm2.4 18.7c2 0 4 0.2 6 0.5-8.6 2.1-14.9 10-14.9 19.5 0 11.1 8.6 20 19.3 20 10.7 0 19.3-9 19.3-20 0-1.8-0.3-3.6-0.7-5.3 4.9 6.5 7.8 14.6 7.8 23.5 0 21.1-16.5 38.1-36.8 38.1-20.3 0-36.8-17.1-36.8-38.1 0-21.1 16.5-38.1 36.8-38.1zm224.9 56.3c-40.1 0.6-80.3 18.7-115.3 55.9 69.6 76.6 158.5 79.9 237 0-36.3-37.2-79-56.5-121.8-55.9zm2.4 18.7c2 0 4 0.2 6 0.5-8.6 2.1-14.9 10-14.9 19.5 0 11.1 8.6 20 19.3 20 10.7 0 19.3-8.9 19.3-20 0-1.9-0.3-3.6-0.7-5.3 4.9 6.5 7.8 14.6 7.8 23.5 0 21.1-16.5 38.1-36.8 38.1-20.3 0-36.8-17.1-36.8-38.1 0-21.1 16.5-38.1 36.8-38.1zm-229.8 49.2c-40.1 0.6-80.3 18.7-115.3 55.9 69.6 76.6 158.5 79.9 237 0-36.3-37.2-79-56.5-121.8-55.9zm2.4 18.7c2.1 0 4.1 0.2 6 0.5-8.6 2-15 10-15 19.5 0 11.1 8.6 20 19.3 20 10.7 0 19.3-8.9 19.3-20 0-1.9-0.3-3.7-0.7-5.4 4.9 6.5 7.8 14.6 7.8 23.5 0 21.1-16.5 38.1-36.8 38.1-20.3 0-36.8-17.1-36.8-38.1 0-21.1 16.5-38.1 36.8-38.1z' }));
 // ícone do Caronte, redesenhado em vetor: anel no topo e meia-lua contornada, só traço em currentColor
 const Caronte = (props) => React.createElement('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 256 256', width: 24, height: 24,
-  fill: 'none', stroke: 'currentColor', strokeWidth: 21, strokeLinejoin: 'round', 'aria-hidden': true, ...props },
+  fill: 'none', stroke: 'currentColor', strokeWidth: 21, strokeLinejoin: 'miter', 'aria-hidden': true, ...props },
   React.createElement('circle', { cx: 128, cy: 48, r: 27 }), React.createElement('path', { d: 'M22 128A106 106 0 0 0 234 128A160 160 0 0 1 22 128Z' }));
-const I = { ...LucideReact, Cerberus, Argos, Caronte };
+// Ícones próprios, na grade de 24 do lucide e com o mesmo traço que o index.html impõe a ele (2, ponta seca, quina viva).
+// Cada ícone solta um ou dois grãos (os `v.01`/`h.01`, que a ponta seca desenha como quadrado de 2) perto do contorno.
+// Prefixo `~`: corpo com preenchimento translúcido, além do traço.
+const icR = (x, y, w, h) => `M${x} ${y}h${w}v${h}h${-w}z`;
+const icC = (x, y, r) => `M${x - r} ${y}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0z`;
+const ICONES = {
+  grafo: ['M4 15h5v5H4z', 'M15 4h5v5h-5z', 'M9 17.5h6.5V9', '~M17.5 13v.01', 'M17.5 16.5v.01'],
+  loop: ['M4 11V8h11', 'M20 13v3H9', 'M13 5l3 3-3 3', 'M11 19l-3-3 3-3', 'M20 9v.01'],
+  fila: ['M4 6h12', 'M4 12h16', 'M4 18h8', 'M19 6h.01', 'M16 18h.01', 'M19 18h.01'],
+  consumo: ['~' + icR(5, 12, 4, 8), '~' + icR(10, 5, 4, 15), '~' + icR(15, 9, 4, 11), 'M20 3v.01', 'M21 6v.01'],
+  terminal: ['~' + icR(3, 5, 18, 14), 'M7 10l3 2-3 2', 'M12 15h5', 'M22 21v.01'],
+  chat: ['~M4 4h16v12h-8l-4 4v-4H4z', 'M8 9h8', 'M8 12h4', 'M22 18v.01'],
+  logs: ['~M6 3h9l4 4v14H6z', 'M9 11h7', 'M9 15h7', 'M9 19h3', 'M21 3v.01'],
+  notif: ['~M6 17v-6a6 6 0 0 1 12 0v6', 'M4 17h16', 'M10 21h4', 'M12 2v.01', 'M19 6v.01'],
+  config: ['M4 8h16', 'M4 16h16', '~' + icR(7, 5, 4, 6), '~' + icR(14, 13, 4, 6), 'M21 20v.01'],
+  docs: ['~' + icR(3, 5, 8, 14), '~' + icR(13, 5, 8, 14), 'M5 9h4', 'M15 9h4', 'M22 3v.01'],
+  guarda: ['~M12 3l8 3v6l-3 6-5 3-5-3-3-6V6z', 'M9 9v5', 'M12 8v6', 'M15 9v5', 'M21 20v.01'],
+  ramo: ['M6 3v18', 'M6 8h8a4 4 0 0 1 4 4v3', '~' + icR(16, 15, 4, 4), 'M3 3v.01'],
+  play: ['~M7 4l13 8-13 8z', 'M3 21v.01'],
+  parar: ['~' + icR(6, 6, 12, 12), 'M21 21v.01', 'M3 3v.01'],
+  atualizar: ['M4 12a8 8 0 0 1 14-5', 'M18 3v5h-5', 'M20 12a8 8 0 0 1-14 5', 'M6 21v-5h5'],
+  ok: ['M4 12l5 5L20 6', 'M22 4v.01'],
+  alerta: ['~M12 3l10 18H2z', 'M12 10v5', 'M12 18v.01'],
+  fechar: ['M5 5l14 14', 'M19 5L5 19', 'M3 12v.01', 'M21 12v.01'],
+  buscar: ['~' + icC(10, 10, 6), 'M15 15l6 6', 'M21 4v.01'],
+  menu: ['M4 6h16', 'M4 12h10', 'M4 18h4', 'M18 12h.01', 'M12 18h.01'],
+  seta: ['M5 9l7 7 7-7', 'M12 21v.01'],
+};
+// mesma API do lucide (size, strokeWidth, className, ref); some do leitor de tela, a não ser que receba nome acessível
+const icone = (nome) => {
+  const filhos = ICONES[nome].map((d, i) => d[0] === '~'
+    ? React.createElement('path', { key: i, d: d.slice(1), fill: 'currentColor', fillOpacity: 0.28 })
+    : React.createElement('path', { key: i, d }));
+  const Icone = React.forwardRef(({ size = 24, strokeWidth = 2, className, ...props }, ref) => {
+    const rotulado = props['aria-label'] || props['aria-labelledby'] || props.title || props.role;
+    return React.createElement('svg', { ref, xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', width: size, height: size,
+      fill: 'none', stroke: 'currentColor', strokeWidth, strokeLinecap: 'square', strokeLinejoin: 'miter',
+      'aria-hidden': rotulado ? undefined : true, focusable: 'false', ...props,
+      className: ['lucide lucide-' + nome, className].filter(Boolean).join(' ') }, filhos);
+  });
+  Icone.displayName = 'Icone_' + nome;
+  return Icone;
+};
+const PROPRIOS = Object.fromEntries(Object.keys(ICONES).map((n) => [n, icone(n)]));
+// onde o protótipo tem equivalente, o nome do lucide passa a ser o desenho próprio (as páginas recebem sem mudar o import);
+// Grafo e Guarda são nomes novos: Argos e Cerberus continuam sendo a figura de cada página, a navegação usa o traço.
+// CircleX (falha) fica no lucide: com o desenho de fechar, a falha do aviso ficaria igual ao botão de fechar ao lado
+const I = { ...LucideReact, Cerberus, Argos, Caronte,
+  Grafo: PROPRIOS.grafo, Guarda: PROPRIOS.guarda,
+  Repeat: PROPRIOS.loop, ListOrdered: PROPRIOS.fila, Coins: PROPRIOS.consumo,
+  SquareTerminal: PROPRIOS.terminal, TerminalSquare: PROPRIOS.terminal, Terminal: PROPRIOS.terminal, MessageSquare: PROPRIOS.chat,
+  ScrollText: PROPRIOS.logs, Bell: PROPRIOS.notif, SlidersHorizontal: PROPRIOS.config, BookOpen: PROPRIOS.docs,
+  GitBranch: PROPRIOS.ramo, Play: PROPRIOS.play, CircleStop: PROPRIOS.parar, RefreshCw: PROPRIOS.atualizar,
+  CircleCheck: PROPRIOS.ok, CircleCheckBig: PROPRIOS.ok, TriangleAlert: PROPRIOS.alerta,
+  X: PROPRIOS.fechar, Search: PROPRIOS.buscar,
+  Menu: PROPRIOS.menu, ChevronDown: PROPRIOS.seta };
 const cn = (...a) => a.filter(Boolean).join(' ');
 // plugin do projeto (GET /api/plugin + $D/plugin/panel/ui/*.js): o manifesto e o que os scripts dele registram antes do
 // primeiro render; sem plugin, tudo vazio e o painel é só o do núcleo
@@ -24,7 +79,7 @@ const PLUGIN = { manifest: {}, badges: {}, dialogs: {} };
 // registro único das páginas (id → componente): as do núcleo (ui/pages/*.js) e as do plugin entram pelo mesmo
 // registerPage; o plugin carrega depois e, com o id de uma página do núcleo, a substitui
 const PAGES = {};
-// páginas registradas com { stage: true }: sem cabeçalho, título nem padding; o trilho fica fixo (sem gravar a preferência)
+// páginas registradas com { stage: true }: sem cabeçalho, título nem padding; a barra lateral fica fixa (sem gravar a preferência)
 const STAGE = {};
 const pluginList = (k) => Array.isArray(PLUGIN.manifest[k]) ? PLUGIN.manifest[k] : [];
 // tour por página (tour-logic.tsx, carregado antes): registro, prévia de exemplo e progresso
@@ -92,14 +147,17 @@ const plainLabel = (c) => (typeof c === 'string' ? c.replace(/^Segure [\d,]+ s:\
 
 // ================================================================== primitivas (shadcn)
 const BTN_V = {
-  default: 'bg-primary text-primary-foreground hover:bg-primary/90',
-  destructive: 'bg-destructive text-white hover:bg-destructive/90 dark:bg-destructive/80',
-  outline: 'border border-border-strong bg-transparent hover:bg-accent hover:text-accent-foreground',
-  secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-  ghost: 'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
-  'ghost-destructive': 'text-destructive hover:bg-destructive/10',
-  link: 'text-foreground underline underline-offset-4 hover:no-underline',
+  default: 'bg-primary text-primary-foreground hover:bg-primary-hover',
+  destructive: 'bg-danger-soft text-bad hover:bg-danger-soft-hover',
+  outline: 'bg-secondary text-secondary-foreground hover:bg-secondary-hover',
+  secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary-hover',
+  ghost: 'hover:bg-hover',
+  'ghost-destructive': 'text-bad hover:bg-danger-soft',
+  link: 'text-foreground underline underline-offset-4 decoration-line hover:decoration-primary',
 };
+// desabilitado: esmaece e ganha hachura diagonal (não depende só da cor); carregando mantém a cor e o cursor de espera
+const BTN_OFF = 'disabled:pointer-events-none disabled:opacity-60 disabled:bg-[image:repeating-linear-gradient(135deg,transparent_0_5px,color-mix(in_srgb,var(--foreground)_16%,transparent)_5px_6px)]';
+const BTN_BUSY = 'disabled:opacity-100 disabled:cursor-progress';
 const BTN_S = {
   default: 't-label h-8 px-3.5 has-[>svg]:px-3 max-md:h-11', sm: 't-label h-8 gap-1.5 px-3 has-[>svg]:px-2.5 max-md:h-11',
   xs: 'h-7 gap-1 px-2 t-meta-em has-[>svg]:px-1.5 max-md:h-11', lg: 't-label h-10 px-6 has-[>svg]:px-4 max-md:h-11',
@@ -107,7 +165,7 @@ const BTN_S = {
 };
 function Button({ variant = 'default', size = 'default', icon: Icon, loading, className, children, ...p }) {
   // carregando não é desabilitado: mantém a cor, com o giro e aria-busy; só o desabilitado esmaece
-  return <button type="button" {...p} disabled={p.disabled || loading} aria-busy={loading || undefined} className={cn(loading && 'disabled:opacity-100 disabled:cursor-progress', "inline-flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer select-none transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 shrink-0 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring", BTN_V[variant], BTN_S[size], className)}>
+  return <button type="button" {...p} disabled={p.disabled || loading} aria-busy={loading || undefined} className={cn(loading ? BTN_BUSY : BTN_OFF, "inline-flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer select-none transition-[background-color,color,text-decoration-color] duration-150 active:translate-y-px [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 shrink-0 outline-none focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-ring", BTN_V[variant], BTN_S[size], className)}>
     {loading ? <I.LoaderCircle className="animate-spin" /> : Icon ? <Icon /> : null}
     {children}
   </button>;
@@ -120,30 +178,32 @@ function HoldConfirm({ variant = 'destructive', size = 'sm', icon: Icon, holdTim
   const danger = variant === 'destructive';
   if (!Hold) return <Button variant={variant} size={size} icon={Icon} disabled={disabled} className={className} onClick={onHold} {...p}>{hold ? children : plainLabel(children)}</Button>;
   return <Hold size={size === 'xs' || size === 'sm' ? 'sm' : 'md'} radius={0} holdTime={holdTime} disabled={disabled} className={className}
-    backgroundColor={danger ? 'color-mix(in oklch, var(--destructive) 12%, var(--background))' : 'var(--secondary)'}
-    textColor={danger ? 'var(--destructive)' : 'var(--secondary-foreground)'}
-    fillColor={danger ? 'var(--destructive)' : 'var(--primary)'} fillTextColor="#fff"
+    backgroundColor={danger ? 'var(--danger-soft)' : 'var(--secondary)'}
+    textColor={danger ? 'var(--bad)' : 'var(--secondary-foreground)'}
+    fillColor={danger ? 'var(--bad)' : 'var(--primary)'} fillTextColor={danger ? 'var(--background)' : 'var(--primary-foreground)'}
     icon={Icon ? <Icon /> : null} doneLabel="Feito" onHold={onHold} label={p['aria-label']}>
     {children}
   </Hold>;
 }
+// selo cheio, sem borda: o estado pinta o fundo e o texto vai na cor do chão (AA medido nos dois temas)
 const BADGE_V = {
-  default: 'border-transparent bg-primary text-primary-foreground',
-  secondary: 'border-transparent bg-secondary text-secondary-foreground',
-  outline: 'text-foreground',
-  destructive: 'border-transparent bg-destructive/10 text-destructive dark:bg-destructive/20',
-  ok: 'border-transparent bg-ok/12 text-[color-mix(in_oklch,var(--ok)_80%,var(--foreground))]',
-  warn: 'border-transparent bg-warn/15 text-[color-mix(in_oklch,var(--warn)_60%,var(--foreground))]',
-  bad: 'border-transparent bg-bad/12 text-[color-mix(in_oklch,var(--bad)_85%,var(--foreground))]',
-  info: 'border-transparent bg-info/12 text-[color-mix(in_oklch,var(--info)_80%,var(--foreground))]',
-  idle: 'border-transparent bg-muted text-muted-foreground',
+  default: 'bg-primary text-primary-foreground',
+  secondary: 'bg-secondary text-secondary-foreground',
+  outline: 'bg-secondary text-secondary-foreground',
+  destructive: 'bg-bad text-background',
+  ok: 'bg-ok text-background',
+  warn: 'bg-warn text-background',
+  bad: 'bg-bad text-background',
+  info: 'bg-info text-background',
+  busy: 'bg-busy text-background',
+  idle: 'bg-muted-foreground text-background',
 };
-const Badge = ({ variant = 'secondary', icon: Icon, className, children, ...p }) => <span {...p} className={cn('inline-flex items-center justify-center gap-1 border px-2 py-0.5 t-meta-em whitespace-nowrap shrink-0 [&>svg]:size-3 transition-colors', BADGE_V[variant], className)}>
+const Badge = ({ variant = 'secondary', icon: Icon, className, children, ...p }) => <span {...p} className={cn('inline-flex items-center justify-center gap-1 px-2 py-0.5 t-meta-em font-semibold whitespace-nowrap shrink-0 [&>svg]:size-3 transition-colors', BADGE_V[variant], className)}>
   {Icon ? <Icon /> : null}
   {children}
 </span>;
 
-const DOT = { ok: 'bg-ok', warn: 'bg-warn', bad: 'bg-bad', info: 'bg-info', idle: 'bg-muted-foreground/40', busy: 'bg-vivo' };
+const DOT = { ok: 'bg-ok', warn: 'bg-warn', bad: 'bg-bad', info: 'bg-info', idle: 'bg-muted-foreground/40', busy: 'bg-busy' };
 // o que está vivo respira (opacidade), não se expande
 const Dot = ({ kind = 'idle', pulse, className }) => <span className={cn('relative inline-flex size-2 shrink-0', className)}>
   <span className={cn('relative inline-flex size-2 rounded-full', DOT[kind], pulse && 'pulso')} />
@@ -151,21 +211,22 @@ const Dot = ({ kind = 'idle', pulse, className }) => <span className={cn('relati
 
 // cards de lista que crescem sem fim (agentes, locks, PRs, escalações): altura máxima e scroll no conteúdo
 const CARD_SCROLL = 'max-h-[28rem] overflow-y-auto scrollbar-thin';
-// seção no chão (título + filete) por padrão; variant="object" é o cartão de um objeto que existe (gate, agente, guarda)
-const Card = ({ variant = 'floor', className, children, ...p }) => <div {...p} className={cn('text-card-foreground flex min-w-0 flex-col gap-4',
-  variant === 'object' && 'bg-card border p-4', className)}>
+// superfície de leitura opaca sobre a névoa, sem borda, com colchetes de canto; floor é a seção da página, variant="object"
+// é o cartão compacto de um objeto que existe (gate, agente, guarda)
+const Card = ({ variant = 'floor', className, children, ...p }) => <div {...p} className={cn('cartao cantos bg-card/96 text-card-foreground flex min-w-0 flex-col',
+  variant === 'object' ? 'gap-2.5 p-3.5' : 'gap-4 p-5 max-md:p-4', className)}>
   {children}
 </div>;
 function CardHeader({ title, description, summary, icon: Icon, action, as: H = 'h2', className }) {
-  return <div className={cn('flex flex-wrap items-start gap-x-4 gap-y-2 border-b pb-2.5', className)}>
+  return <div className={cn('flex flex-wrap items-start gap-x-4 gap-y-2', className)}>
     <div className="flex min-w-0 flex-1 items-start gap-2">
       {Icon ? <Icon className="mt-1 size-4 shrink-0 text-muted-foreground" aria-hidden="true" /> : null}
       <div className="min-w-0">
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 md:flex-nowrap">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3">
           <H className="t-section md:shrink-0">
             {title}
           </H>
-          {summary ? <span className="min-w-0 t-label text-muted-foreground md:truncate">
+          {summary ? <span className="min-w-0 t-label text-muted-foreground">
             {summary}
           </span> : null}
         </div>
@@ -184,9 +245,9 @@ const CardContent = ({ className, children }) => <div className={cn('min-w-0', c
 </div>;
 
 function Switch({ checked, onChange, disabled, label, id }) {
-  return <button type="button" role="switch" id={id} aria-checked={!!checked} aria-label={label} disabled={disabled} onClick={(e) => { e.stopPropagation(); onChange?.(!checked); }} className={cn('peer relative inline-flex h-5 w-9 shrink-0 after:absolute after:-inset-x-1 after:-inset-y-3 after:content-[\'\'] cursor-pointer items-center border transition-colors outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50',
-      checked ? 'border-primary bg-primary' : 'border-border-strong bg-transparent')}>
-    <span className={cn('pointer-events-none block size-3.5 transition-transform duration-200', checked ? 'translate-x-[1.125rem] bg-primary-foreground' : 'translate-x-0.5 bg-muted-foreground')} />
+  return <button type="button" role="switch" id={id} aria-checked={!!checked} aria-label={label} disabled={disabled} onClick={(e) => { e.stopPropagation(); onChange?.(!checked); }} className={cn('peer relative inline-flex h-[22px] w-11 shrink-0 after:absolute after:-inset-x-1 after:-inset-y-3 after:content-[\'\'] cursor-pointer items-center transition-[background-color,box-shadow] outline-none focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-55',
+      checked ? 'bg-primary shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--primary)_60%,#000)]' : 'bg-control-off shadow-[inset_0_-2px_0_var(--line)]')}>
+    <span className={cn('pointer-events-none block size-3 -translate-y-px transition-transform duration-200', checked ? 'translate-x-[27px] bg-primary-foreground' : 'translate-x-[5px] bg-muted-foreground')} />
   </button>;
 }
 const Field = ({ label, hint, children }) => <label className="flex items-start justify-between gap-4 border-b py-3 cursor-pointer hover:bg-accent/40 transition-colors">
@@ -202,13 +263,13 @@ const Field = ({ label, hint, children }) => <label className="flex items-start 
 </label>;
 const Input = ({ className, icon: Icon, ...p }) => <div className={cn('relative flex-1 min-w-0', className)}>
   {Icon ? <Icon className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /> : null}
-  <input {...p} className={cn('flex h-8 w-full min-w-0 border border-border-strong bg-transparent max-md:h-11 px-3 py-1 t-body outline-none placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-ring', Icon && 'pl-8')} />
+  <input {...p} className={cn('campo flex h-8 w-full min-w-0 max-md:h-11 px-3 py-1 t-body outline-none placeholder:text-muted-foreground', Icon && 'pl-8')} />
 </div>;
 const Progress = ({ value, kind, className }) => <div className={cn('relative h-1 w-full overflow-hidden bg-border', className)}>
   <div className={cn('h-full transition-[width] duration-700 ease-out', kind === 'bad' ? 'bg-bad' : kind === 'warn' ? 'bg-warn' : kind === 'ok' ? 'bg-ok' : 'bg-foreground')} style={{ width: value + '%' }} />
 </div>;
 const Skeleton = ({ className }) => <div className={cn('bg-[linear-gradient(90deg,var(--muted)_25%,color-mix(in_oklch,var(--muted)_50%,var(--background))_50%,var(--muted)_75%)] bg-[length:200%_100%] animate-shimmer', className)} />;
-const Kbd = ({ children }) => <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-0.5 border bg-muted px-1.5 font-mono t-micro text-muted-foreground">
+const Kbd = ({ children }) => <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-0.5 bg-muted px-1.5 font-mono t-micro text-muted-foreground shadow-[inset_0_-1px_0_var(--line)]">
   {children}
 </kbd>;
 // papel próprio no className troca o t-data (dois papéis no mesmo elemento brigam pela ordem do CSS)
@@ -231,7 +292,7 @@ function Tip({ text, children, side = 'top', className, style }) {
   const show = (e) => { const r = e.currentTarget.getBoundingClientRect(); setPos({ cx: r.left + r.width / 2, cy: r.top + r.height / 2, right: r.right, top: r.top, bottom: r.bottom, side }); };
   return <span className={cn('inline-flex', className)} style={style} onMouseEnter={show} onMouseLeave={() => setPos(null)} onFocus={show} onBlur={() => setPos(null)}>
     {children}
-    {pos ? ReactDOM.createPortal(<span role="tooltip" ref={tip} style={{ left: pos.left ?? -9999, top: pos.top ?? -9999 }} className={cn('pointer-events-none fixed z-[70] w-max max-w-72 bg-foreground px-2.5 py-1.5 text-center t-meta text-background text-balance', pos.fixed && 'animate-fade-in')}>
+    {pos ? ReactDOM.createPortal(<span role="tooltip" ref={tip} style={{ left: pos.left ?? -9999, top: pos.top ?? -9999 }} className={cn('pointer-events-none fixed z-[70] w-max max-w-72 bg-popover px-2.5 py-1.5 text-center t-meta text-popover-foreground text-balance shadow-[0_10px_30px_-10px_rgb(0_0_0/.7)]', pos.fixed && 'animate-fade-in')}>
       {text}
     </span>, document.body) : null}
   </span>;
@@ -266,13 +327,13 @@ const Table = ({ children, className }) => <div className={cn('relative w-full o
     {children}
   </table>
 </div>;
-const Th = ({ children, className }) => <th className={cn('h-10 px-3 text-left align-middle font-medium text-muted-foreground whitespace-nowrap', className)}>
+const Th = ({ children, className }) => <th className={cn('h-10 px-3 max-md:px-2 text-left align-middle t-micro font-semibold uppercase tracking-[.14em] text-muted-foreground md:whitespace-nowrap', className)}>
   {children}
 </th>;
-const Td = ({ children, className, ...p }) => <td {...p} className={cn('px-3 py-2.5 align-middle whitespace-nowrap', className)}>
+const Td = ({ children, className, ...p }) => <td {...p} className={cn('px-3 py-2.5 max-md:px-2 align-middle md:whitespace-nowrap', className)}>
   {children}
 </td>;
-const Tr = ({ children, className, ...p }) => <tr {...p} className={cn('border-b transition-colors hover:bg-muted/50 last:border-0', className)}>
+const Tr = ({ children, className, ...p }) => <tr {...p} className={cn('transition-colors even:bg-secondary/55 hover:bg-hover', className)}>
   {children}
 </tr>;
 
@@ -294,10 +355,10 @@ function Menu({ items, label = 'Mais ações' }) {
   };
   return <span data-menu ref={btn} className="inline-flex">
     <Button variant="ghost" size="icon-sm" aria-label={label} aria-haspopup="menu" aria-expanded={!!open} onClick={toggle} icon={I.Ellipsis} />
-    {open ? <div role="menu" data-menu style={open} className="fixed z-50 min-w-48 overflow-hidden border border-border-strong bg-popover p-1 text-popover-foreground animate-fade-in">
+    {open ? <div role="menu" data-menu style={open} className="fixed z-50 min-w-48 overflow-hidden bg-popover p-1 pb-1.5 text-popover-foreground shadow-[inset_0_-2px_0_var(--primary),0_12px_32px_-8px_rgb(0_0_0/.7)] animate-fade-in">
       {items.filter(Boolean).map((it, i) => it === '-' ? <div key={i} className="-mx-1 my-1 h-px bg-border" />
-        : <button key={i} role="menuitem" type="button" disabled={it.disabled} onClick={() => { setOpen(null); it.onClick(); }} className={cn('relative flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 t-body outline-none select-none hover:bg-accent focus-visible:bg-accent disabled:opacity-50 disabled:pointer-events-none [&_svg]:size-4',
-            it.danger ? 'text-destructive [&_svg]:text-destructive' : '[&_svg]:text-muted-foreground')}>
+        : <button key={i} role="menuitem" type="button" disabled={it.disabled} onClick={() => { setOpen(null); it.onClick(); }} className={cn('relative flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 t-body outline-none select-none disabled:opacity-50 disabled:pointer-events-none [&_svg]:size-4',
+            it.danger ? 'text-bad hover:bg-danger-soft focus-visible:bg-danger-soft [&_svg]:text-bad' : 'hover:bg-hover focus-visible:bg-hover [&_svg]:text-muted-foreground')}>
           {it.icon ? <it.icon /> : null}
           {it.label}
         </button>)}
@@ -307,17 +368,41 @@ function Menu({ items, label = 'Mais ações' }) {
 
 // ================================================================== overlays: diálogo, folha lateral, toasts
 const UI = createContext(null);
-function Dialog({ open, onClose, children, className, label }) {
+const FOCAVEL = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+// foco do diálogo: entra no primeiro focável (se o autoFocus de dentro já não levou), Tab circula só dentro e, ao fechar,
+// volta a quem abriu. Foco num popover de fora (lista do Select) fica com ele. onClose vai por ref: quem passa uma função
+// nova a cada render não reabre o efeito (reabrir devolveria o foco no meio da digitação)
+function useFocoPreso(open, box, onClose) {
+  const fechar = useRef(onClose);
+  fechar.current = onClose;
   useEffect(() => {
     if (!open) return;
-    const k = (e) => e.key === 'Escape' && onClose();
+    const quemAbriu = document.activeElement;
+    const el = box.current;
+    if (el && !el.contains(document.activeElement)) el.querySelector(FOCAVEL)?.focus();
+    const k = (e) => {
+      if (e.key === 'Escape') { fechar.current(); return; }
+      const atual = document.activeElement;
+      if (e.key !== 'Tab' || !el || (atual && atual !== document.body && !el.contains(atual))) return;
+      const focaveis = [...el.querySelectorAll(FOCAVEL)].filter((f) => f.getClientRects().length);
+      if (!focaveis.length) return;
+      const primeiro = focaveis[0], ultimo = focaveis[focaveis.length - 1];
+      const fora = !el.contains(atual);
+      if (e.shiftKey && (fora || atual === primeiro)) { e.preventDefault(); ultimo.focus(); }
+      else if (!e.shiftKey && (fora || atual === ultimo)) { e.preventDefault(); primeiro.focus(); }
+    };
     addEventListener('keydown', k);
-    return () => removeEventListener('keydown', k);
-  }, [open, onClose]);
+    return () => { removeEventListener('keydown', k); if (quemAbriu?.isConnected) quemAbriu.focus?.({ preventScroll: true }); };
+  }, [open]);
+}
+function Dialog({ open, onClose, children, className, label }) {
+  const box = useRef(null);
+  useFocoPreso(open, box, onClose);
   if (!open) return null;
+  // `fixed!`: o cantos põe position: relative e a caixa precisa continuar fixa no centro
   return ReactDOM.createPortal(<div className="fixed inset-0 z-50">
-    <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
-    <div role="dialog" aria-modal="true" aria-label={label} className={cn('fixed top-1/2 left-1/2 grid w-full max-w-[calc(100%-2rem)] max-md:max-h-[calc(100dvh-2rem)] max-md:overflow-y-auto gap-4 border border-border-strong bg-popover p-6 shadow-lg animate-zoom-in sm:max-w-lg', className)}>
+    <div className="absolute inset-0 bg-background/72 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
+    <div ref={box} role="dialog" aria-modal="true" aria-label={label} className={cn('cantos [--c:var(--primary)] fixed! top-1/2 left-1/2 grid w-full max-w-[calc(100%-2rem)] max-md:max-h-[calc(100dvh-2rem)] max-md:overflow-y-auto gap-4 bg-popover p-6 shadow-[0_24px_60px_-12px_rgb(0_0_0/.8)] animate-emergir-centro sm:max-w-lg', className)}>
       {children}
       <button type="button" onClick={onClose} aria-label="Fechar" className="absolute top-4 right-4 opacity-60 transition-opacity hover:opacity-100 cursor-pointer outline-none focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring">
         <I.X className="size-4" />
@@ -340,7 +425,11 @@ const DialogFooter = ({ children }) => <div className="flex flex-col-reverse gap
   {children}
 </div>;
 
-function Sheet({ open, onClose, side = 'right', title, description, icon: Icon, actions, children, wide, rail }) {
+// side="top" é a folha de páginas do celular: desce do topo e ocupa a largura. label nomeia a folha sem título visível
+function Sheet({ open, onClose, side = 'right', title, label, description, icon: Icon, actions, children, wide, rail }) {
+  // só a folha de páginas prende o foco: nas folhas de execução o primeiro foco cairia no Interromper
+  const box = useRef(null);
+  useFocoPreso(open && side === 'top', box, onClose);
   useEffect(() => {
     if (!open) return;
     const k = (e) => e.key === 'Escape' && onClose();
@@ -349,8 +438,8 @@ function Sheet({ open, onClose, side = 'right', title, description, icon: Icon, 
   }, [open, onClose]);
   if (!open) return null;
   return ReactDOM.createPortal(<div className="fixed inset-0 z-50">
-    <div className="absolute inset-0 bg-black/40 animate-fade-in" onClick={onClose} />
-    <aside role="dialog" aria-modal="true" aria-label={title} className={cn('fixed flex w-full flex-col gap-0 border bg-background shadow-xl', side === 'bottom' ? 'inset-x-0 bottom-0 max-h-[75dvh] border-x-0 border-b-0 animate-fade-in' : side === 'right' ? 'inset-y-0 right-0 border-l animate-slide-in-right' : 'inset-y-0 left-0 border-r animate-slide-in-left', rail && 'border-sidebar-border bg-sidebar text-sidebar-foreground', side === 'bottom' ? '' : wide ? 'sm:max-w-4xl' : 'sm:max-w-sm')}>
+    <div className="absolute inset-0 bg-background/72 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
+    <aside ref={box} role="dialog" aria-modal="true" aria-label={title || label} className={cn('fixed flex w-full flex-col gap-0 bg-background shadow-xl', SHEET_SIDE[side], rail && 'bg-sidebar text-sidebar-foreground', side === 'bottom' || side === 'top' ? '' : wide ? 'sm:max-w-4xl' : 'sm:max-w-sm')}>
       {title ? <header className="flex items-start gap-3 border-b p-4 pr-12">
         {Icon ? <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" /> : null}
         <div className="min-w-0 flex-1">
@@ -375,28 +464,38 @@ function Sheet({ open, onClose, side = 'right', title, description, icon: Icon, 
   </div>, document.body);
 }
 
-const TOAST_ICON = { ok: [I.CircleCheck, 'text-ok'], bad: [I.CircleX, 'text-bad'], warn: [I.TriangleAlert, 'text-warn'], info: [I.Info, 'text-info'], busy: [I.LoaderCircle, 'text-muted-foreground animate-spin'] };
+const SHEET_SIDE = { bottom: 'inset-x-0 bottom-0 max-h-[75dvh] animate-fade-in', top: 'inset-x-0 top-0 h-[88dvh] animate-folha', right: 'inset-y-0 right-0 animate-slide-in-right', left: 'inset-y-0 left-0 animate-slide-in-left' };
+// cada tipo de aviso pinta a barra e o ícone pela variável --k; ocupado usa a cor do texto
+const TOAST_SAIDA_MS = 600; // a duração do animate-desfazer no index.html
+const TOAST = { ok: [I.CircleCheck, 'var(--ok)'], bad: [I.CircleX, 'var(--bad)'], warn: [I.TriangleAlert, 'var(--warn)'], info: [I.Info, 'var(--info)'], busy: [I.LoaderCircle, 'var(--foreground)'] };
+// o aviso emerge da névoa e, ao sair, se desfaz em grãos (a rajada da poeira, quando ela está ligada)
+function ToastItem({ t, dismiss }) {
+  const el = useRef(null);
+  useEffect(() => { if (t.leaving && el.current) window.HadesPoeira?.emitir(el.current, 'desfazer'); }, [t.leaving]);
+  const [Ic, k] = TOAST[t.kind] || TOAST.info;
+  return <li ref={el} style={{ '--k': k }} className={cn('relative flex items-start gap-3 bg-popover py-3 pr-3 pl-[18px] text-popover-foreground shadow-[0_10px_30px_-10px_rgb(0_0_0/.7)] before:absolute before:inset-y-0 before:left-0 before:w-[5px] before:bg-[var(--k)] before:content-[\'\']', t.leaving ? 'animate-desfazer pointer-events-none' : 'animate-emergir')}>
+    <Ic className={cn('mt-0.5 size-4 shrink-0 text-[var(--k)]', t.kind === 'busy' && 'animate-spin')} />
+    <div className="grid flex-1 gap-1">
+      <div className="t-label">
+        {t.title}
+      </div>
+      {t.desc ? <div className="text-muted-foreground t-body">
+        {t.desc}
+      </div> : null}
+      {t.action ? <div className="mt-1">
+        <Button size="xs" variant="outline" onClick={() => { t.action.onClick(); dismiss(t.id); }} icon={t.action.icon}>
+          {t.action.label}
+        </Button>
+      </div> : null}
+    </div>
+    <button type="button" aria-label="Fechar" onClick={() => dismiss(t.id)} className="text-muted-foreground hover:text-foreground cursor-pointer outline-none focus-visible:outline-2 focus-visible:outline-ring">
+      <I.X className="size-3.5" />
+    </button>
+  </li>;
+}
 function Toaster({ toasts, dismiss }) {
   return ReactDOM.createPortal(<ol className="fixed right-4 bottom-4 z-[60] flex max-md:top-[4.5rem] max-md:bottom-auto w-[calc(100%-2rem)] max-w-sm flex-col gap-2" aria-live="polite">
-    {toasts.map((t) => { const [Ic, cl] = TOAST_ICON[t.kind] || TOAST_ICON.info; return <li key={t.id} className="flex items-start gap-3 border border-border-strong bg-popover p-4 text-popover-foreground shadow-lg animate-toast-in">
-      <Ic className={cn('mt-0.5 size-4 shrink-0', cl)} />
-      <div className="grid flex-1 gap-1">
-        <div className="t-label">
-          {t.title}
-        </div>
-        {t.desc ? <div className="text-muted-foreground t-body">
-          {t.desc}
-        </div> : null}
-        {t.action ? <div className="mt-1">
-          <Button size="xs" variant="outline" onClick={() => { t.action.onClick(); dismiss(t.id); }} icon={t.action.icon}>
-            {t.action.label}
-          </Button>
-        </div> : null}
-      </div>
-      <button type="button" aria-label="Fechar" onClick={() => dismiss(t.id)} className="opacity-50 hover:opacity-100 cursor-pointer outline-none focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring">
-        <I.X className="size-3.5" />
-      </button>
-    </li>; })}
+    {toasts.map((t) => <ToastItem key={t.id} t={t} dismiss={dismiss} />)}
   </ol>, document.body);
 }
 
@@ -434,7 +533,8 @@ function AreaChart({ points, series, height = 220, yFmt = (v) => v, refLine, ref
   const [hi, setHi] = useState(null);
   const uid = useId().replace(/:/g, '');
   const m = { l: 42, r: 14, t: 14, b: 26 };
-  const ok = points.length > 1 && w > 0;
+  const hasValue = points.length > 1 && points.some((p) => series.some((s) => s.get(p)));
+  const ok = hasValue && w > 0;
   const t0 = ok ? points[0].t : 0, t1 = ok ? Math.max(points.at(-1).t, t0 + 60) : 1;
   const ymax = ok ? Math.max(refLine || 0, ...points.flatMap((p) => series.map((s) => s.get(p))), 1e-6) * 1.15 : 1;
   const x = (t) => m.l + (t - t0) / (t1 - t0) * (w - m.l - m.r);
@@ -447,9 +547,9 @@ function AreaChart({ points, series, height = 220, yFmt = (v) => v, refLine, ref
     setHi(best);
   };
   const hp = hi != null ? points[hi] : null;
-  return <div ref={ref} className="relative w-full min-w-0" style={{ height }}>
-    {!ok ? <div className="grid h-full place-items-center t-body text-muted-foreground">
-      {points.length ? 'Coletando amostras…' : 'Sem amostras ainda.'}
+  return <div ref={ref} className="relative w-full min-w-0" style={hasValue ? { height } : undefined}>
+    {!ok ? <div className={cn('t-body text-muted-foreground', hasValue ? 'grid h-full place-items-center' : 'py-2')}>
+      {!points.length ? 'Sem amostras ainda.' : points.length === 1 ? 'Coletando amostras…' : 'Sem atividade no período.'}
     </div> : <>
       <svg width={w} height={height} role="img" aria-label={label} onPointerMove={move} onPointerLeave={() => setHi(null)} className="absolute inset-0 overflow-visible">
         <defs>
@@ -488,12 +588,12 @@ function AreaChart({ points, series, height = 220, yFmt = (v) => v, refLine, ref
           {series.map((s, i) => <circle key={i} cx={x(hp.t)} cy={y(s.get(hp))} r="4" style={{ fill: s.color, stroke: 'var(--card)' }} strokeWidth="2" />)}
         </g> : null}
       </svg>
-      {hp ? <div className="pointer-events-none absolute top-1 z-10 grid min-w-36 gap-1.5 border bg-popover px-2.5 py-1.5 t-meta shadow-xl animate-fade-in" style={{ left: Math.min(w - 170, Math.max(0, x(hp.t) + 12)) }}>
+      {hp ? <div className="pointer-events-none absolute top-1 z-10 grid min-w-36 gap-1.5 bg-popover px-2.5 py-1.5 t-meta shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] animate-fade-in" style={{ left: Math.min(w - 170, Math.max(0, x(hp.t) + 12)) }}>
         <div className="font-medium">
           {hhmmss(hp.t)}
         </div>
         {series.map((s, i) => <div key={i} className="flex items-center gap-2">
-          <span className="size-2.5 shrink-0 rounded-sm" style={{ background: s.color }} />
+          <span className="size-2.5 shrink-0" style={{ background: s.color }} />
           <span className="text-muted-foreground">
             {s.name}
           </span>
@@ -514,11 +614,11 @@ const Legend = ({ items }) => <div className="flex flex-wrap items-center gap-x-
 
 // ================================================================== estado e ações
 const OVERALL = {
-  up: { kind: 'ok', label: 'No ar', icon: I.CircleCheck, pulse: true, desc: 'Todos os serviços prontos' },
+  up: { kind: 'ok', label: 'No ar', icon: I.CircleCheck, desc: 'Todos os serviços prontos' },
   partial: { kind: 'warn', label: 'Parcial', icon: I.TriangleAlert, desc: 'Serviço ou infra fora do ar' },
   paused: { kind: 'idle', label: 'Pausado', icon: I.CirclePause, desc: 'Regra de ceder ou pausa manual' },
   stopped: { kind: 'idle', label: 'Parado', icon: I.PowerOff, desc: 'Nada do Hades rodando' },
-  busy: { kind: 'busy', label: 'Em operação', icon: I.LoaderCircle, pulse: true, spin: true, desc: 'Um ciclo está rodando' },
+  busy: { kind: 'busy', label: 'Em operação', icon: I.LoaderCircle, spin: true, desc: 'Um ciclo está rodando' },
 };
 function svcState(s) {
   if (s.state === 'active') return s.ready ? { kind: 'ok', label: 'Pronto', icon: I.CircleCheck } : { kind: 'warn', label: s.readyCode ? `Ready ${s.readyCode}` : 'Sem ready', icon: I.CircleAlert };
@@ -533,7 +633,7 @@ function unitState(u) {
   return { kind: 'idle', label: 'Parado', icon: I.CircleStop };
 }
 const StateBadge = ({ st, title }) => <Tip text={title}>
-  <Badge variant={st.kind === 'busy' ? 'warn' : st.kind} className="gap-1.5">
+  <Badge variant={st.kind} className="gap-1.5">
     <st.icon className={cn(st.icon === I.LoaderCircle && 'animate-spin')} />
     {st.label}
   </Badge>
@@ -552,7 +652,7 @@ const CORE_NAV = [
   { id: 'loop', label: 'Loop', icon: I.Repeat, desc: 'Escalações, entregas, ações em 24 h, PRs, agentes e locks' },
   { id: 'claude', label: 'Claude', icon: I.MessageSquare, desc: 'Conversa com o Claude Code no clone principal, pelo navegador ou celular' },
   { id: 'herdr', label: 'Herdr', sub: 'terminais e agentes', icon: I.TerminalSquare, desc: 'Workspaces e agentes do herdr: acompanhe a saída, mande prompt e teclas, gerencie as sessões' },
-  { id: 'argos', label: 'Argos', sub: 'agentes ao vivo', icon: I.Argos, desc: 'Grafo dos agentes ao vivo: quem pede permissão ou está parado, PR e CI, e ações no agente' },
+  { id: 'argos', label: 'Argos', sub: 'agentes ao vivo', icon: I.Grafo, desc: 'Grafo dos agentes ao vivo: quem pede permissão ou está parado, PR e CI, e ações no agente' },
   { id: 'caronte', label: 'Caronte', sub: 'levar a outra máquina', icon: I.Caronte, desc: 'Leve uma orquestração para outra sessão ou máquina: prévia, pacotes cifrados e prompt de retomada (a senha fica no terminal)' },
   { id: 'jobs', label: 'Execuções', icon: I.SquareTerminal, desc: 'Ações disparadas pelo painel, com log ao vivo' },
   { id: 'logs', label: 'Logs', icon: I.ScrollText, desc: 'Serviços, builds, processos, containers e documentos do ambiente' },
@@ -563,7 +663,7 @@ const CORE_NAV = [
   { id: 'extensoes', label: 'Extensões', icon: I.Plug, desc: 'Ferramentas externas (herdr, Mark): instalada, versão, saúde, ligar e desligar' },
   { id: 'quality', label: 'Qualidade', icon: I.ShieldCheck, desc: 'Regras de qualidade: ligue e desligue o que entra nos briefs, na entrega, no inbox e na revisão' },
   { id: 'thanatos', label: 'Thanatos', sub: 'post-mortems', icon: I.Skull, desc: 'Post-mortems de incidentes e bugs em produção: linha do tempo, causa, correção e lacunas' },
-  { id: 'cerberus', label: 'Cerberus', sub: 'guarda de entrada e saída', icon: I.Cerberus, desc: 'Porta, Limiar e Vigília: modos, guardas, vereditos, o que barrou e exceções' },
+  { id: 'cerberus', label: 'Cerberus', sub: 'guarda de entrada e saída', icon: I.Guarda, desc: 'Porta, Limiar e Vigília: modos, guardas, vereditos, o que barrou e exceções' },
   { id: 'config', label: 'Configurações', icon: I.SlidersHorizontal, desc: 'Memória, builds, subida, plantão, túnel, painel e o que o projeto declara (config.env)' },
   { id: 'docs', label: 'Documentação', icon: I.BookOpen, desc: 'SKILL.md, referências e changelog' },
 ];
@@ -595,7 +695,7 @@ let NAV = CORE_NAV;
 let NAV_GROUPS = pluginNav([], {}).groups;
 const lsGet = (k, def) => { try { const v = localStorage.getItem(k); return v == null ? def : v; } catch (e) { return def; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
-// estado da navegação: trilho e grupos fechados (só neste navegador); o grupo da página aberta reabre sozinho
+// estado da navegação: barra recolhida e grupos fechados (só neste navegador); o grupo da página aberta reabre sozinho
 function useSidebarState(page) {
   const [min, setMin] = useState(() => lsGet('panel-sidebar-min', '0') === '1');
   const [closed, setClosed] = useState(() => lsGet('panel-sidebar-closed', '').split(',').filter(Boolean));
@@ -617,16 +717,24 @@ function Brand() {
   return <div className="flex min-w-0 items-center gap-3">
     <BrandMark />
     <div className="grid min-w-0 gap-1">
-      <span className="font-heading text-[1.125rem] leading-none tracking-[0.04em]">HADES</span>
+      <span className="font-heading text-[1.25rem] leading-none tracking-[0.22em]">HADES</span>
       <span className="truncate t-meta text-rail-muted">skill hades</span>
     </div>
   </div>;
 }
-// o ponto vivo nasce no topo do rio e desce até o item (a animação .ponto-vivo lê --desde)
+// o ponto de luz de quem tem atividade nasce no topo do rio e desce até o item (a animação .ponto-vivo lê --desde)
 const fromRiverTop = (el) => { if (el?.parentElement) el.style.setProperty('--desde', -el.parentElement.offsetTop + 'px'); };
 const SLICE_BAR = { ok: 'bg-metal', warn: 'bg-warn', bad: 'bg-bad' };
-// o trilho: o rio atravessa os itens, o óbolo marca a página aberta e desliza na troca, o ponto vivo marca onde há
-// atividade. Recolhido (rail), só os ícones
+// página fora da navegação (plugin sem registro) deixa todos os pontos de luz no piso
+const LONGE = 99;
+// distância, em itens visíveis, de cada página até a aberta: é ela que apaga os pontos de luz
+function navDistance(page, rail, closed) {
+  const order = NAV_GROUPS.flatMap((g) => rail || !closed.includes(g.id) ? g.items : []).map((n) => n.id);
+  const at = order.indexOf(page);
+  return (id) => at < 0 ? LONGE : Math.abs(order.indexOf(id) - at);
+}
+// a navegação em pontos de luz: cada página tem um ponto que perde força com a distância da aberta; o rio liga os pontos
+// e o óbolo (o ponto aceso) desliza na troca. Onde há atividade o ponto acende inteiro. Recolhida (rail), só os ícones
 function Sidebar({ page, d, onNavigate, rail, closed = [], onToggleGroup, onToggleMin }) {
   const badge = {
     queue: d && d.gates.length ? String(d.gates.length) : null,
@@ -663,32 +771,35 @@ function Sidebar({ page, d, onNavigate, rail, closed = [], onToggleGroup, onTogg
     return () => { alive = false; ro.disconnect(); };
   }, [page, closed.join(','), rail]);
   const minBtn = onToggleMin ? <Tip text={(rail ? 'Expandir' : 'Recolher') + ' (Ctrl+B)'} side={rail ? 'right' : 'bottom'}>
-    <button type="button" aria-label={rail ? 'Expandir o trilho' : 'Recolher o trilho'} onClick={onToggleMin} className="grid size-8 cursor-pointer place-items-center text-rail-muted outline-none transition-colors hover:text-sidebar-foreground focus-visible:outline-2 focus-visible:outline-metal max-md:size-11">
+    <button type="button" aria-label={rail ? 'Expandir a navegação' : 'Recolher a navegação'} onClick={onToggleMin} className="grid size-8 cursor-pointer place-items-center text-rail-muted outline-none transition-colors hover:text-sidebar-foreground focus-visible:outline-2 focus-visible:outline-metal max-md:size-11">
       {rail ? <I.PanelLeftOpen className="size-4" /> : <I.PanelLeftClose className="size-4" />}
     </button>
   </Tip> : null;
   const focus = 'outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-metal';
+  const dist = navDistance(page, rail, closed);
   const railItem = (n) => {
     const on = page === n.id, b = badge[n.id];
     return <Tip key={n.id} side="right" text={b && b !== 'spin' && b !== 'on' ? `${n.label} · ${b}${n.id === 'herdr' ? ' trabalhando' : n.id === 'queue' ? ' na fila' : ''}` : b === 'spin' ? `${n.label} · rodando` : n.label}>
       <a href={'#/' + n.id} onClick={onNavigate} aria-label={n.label} aria-current={on ? 'page' : undefined} className={cn('relative grid size-9 max-lg:size-11 place-items-center transition-colors [&>svg]:size-4', focus,
-        on ? 'bg-sidebar-accent text-metal' : 'text-rail-muted hover:bg-sidebar-accent hover:text-sidebar-foreground')}>
+        on ? 'nav-atual text-metal' : 'text-rail-muted hover:bg-sidebar-accent hover:text-sidebar-foreground')}>
+        <span className="luz luz-recolhida" style={{ '--d': alive(n.id) ? 0 : dist(n.id) }} aria-hidden="true" />
         <n.icon />
-        {alive(n.id) || blocked(n.id) || b === 'on' ? <span className={cn('absolute right-1 top-1 size-[7px] rounded-full', blocked(n.id) ? 'bg-warn' : b === 'on' ? 'bg-ok' : 'pulso bg-vivo')} /> : null}
+        {blocked(n.id) || b === 'on' ? <span className={cn('absolute right-1 top-1 size-[7px] rounded-full', blocked(n.id) ? 'pulso bg-warn' : 'bg-ok')} /> : null}
       </a>
     </Tip>;
   };
   const item = (n) => {
     const on = page === n.id, b = badge[n.id], live = alive(n.id);
-    return <a key={n.id} href={'#/' + n.id} onClick={onNavigate} aria-current={on ? 'page' : undefined} className={cn('relative flex items-center gap-2.5 pr-4 pl-11 t-label transition-colors [&>svg]:size-[15px] [&>svg]:shrink-0', n.sub ? 'min-h-10 py-1' : 'h-8', focus,
-      on ? 'font-medium text-sidebar-foreground' : 'text-rail-muted hover:bg-sidebar-accent hover:text-sidebar-foreground')}>
-      {live && !on ? <span ref={fromRiverTop} className="ponto-vivo absolute top-1/2 left-[24px] -mt-[3.5px] size-[7px] rounded-full bg-vivo" aria-hidden="true" /> : null}
-      <n.icon className={cn(on && 'text-metal')} />
+    return <a key={n.id} href={'#/' + n.id} onClick={onNavigate} aria-current={on ? 'page' : undefined} className={cn('relative flex items-center gap-2.5 pr-4 pl-11 t-label text-sidebar-foreground transition-colors [&>svg]:size-[15px] [&>svg]:shrink-0', n.sub ? 'min-h-10 py-1' : 'h-8', focus,
+      on ? 'nav-atual font-semibold' : 'hover:bg-sidebar-accent')}>
+      {live && !on ? <span ref={fromRiverTop} className="luz ponto-vivo" aria-hidden="true" />
+        : <span className="luz" style={{ '--d': dist(n.id) }} aria-hidden="true" />}
+      <n.icon className={on ? 'text-metal' : 'text-rail-muted'} />
       <span className="grid min-w-0 flex-1">
         <span className="truncate">
           {n.label}
         </span>
-        {n.sub ? <span className="truncate t-meta font-normal text-rail-muted/80">
+        {n.sub ? <span className="truncate t-meta font-normal text-rail-muted">
           {n.sub}
         </span> : null}
       </span>
@@ -705,24 +816,26 @@ function Sidebar({ page, d, onNavigate, rail, closed = [], onToggleGroup, onTogg
       {rail ? <BrandMark alt="Hades" /> : <Brand />}
       {minBtn}
     </div>
-    <div className={cn('min-h-0 flex-1 overflow-y-auto overflow-x-hidden', rail ? 'scrollbar-none' : 'scrollbar-thin')}>
+    {/* recolhida, a nav centra os filhos: sem self-stretch a caixa encolhe ao ícone e o overflow corta o ponto de luz à esquerda */}
+    <div className={cn('min-h-0 flex-1 overflow-y-auto overflow-x-hidden', rail ? 'scrollbar-none self-stretch' : 'scrollbar-thin')}>
       {rail ? <div className="grid content-start justify-items-center gap-0.5 pb-4">
         {NAV_GROUPS.map((g, gi) => <Fragment key={g.id}>
           {gi > 0 ? <div className="my-1.5 h-px w-6 bg-sidebar-border" role="separator" /> : null}
           {g.items.map(railItem)}
         </Fragment>)}
       </div> : <div ref={river} className="relative pb-4">
-        <span className="rio" aria-hidden="true" />
+        {/* a correnteza só corre com alguma página em atividade: parada, o rio é só o fio */}
+        <span className="rio" data-vivo={NAV_GROUPS.some((g) => g.items.some((n) => alive(n.id))) || undefined} aria-hidden="true" />
         {obolo == null ? null : <span className="obolo" style={{ transform: `translateY(${obolo}px)` }} aria-hidden="true" />}
         {NAV_GROUPS.map((g, gi) => {
           const shut = closed.includes(g.id);
           const hot = shut && g.items.some((n) => alive(n.id) || blocked(n.id));
           return <div key={g.id} className={gi > 0 ? 'mt-3' : 'mt-1'}>
-            <button type="button" aria-expanded={!shut} aria-controls={'nav-g-' + g.id} onClick={() => onToggleGroup(g.id)} className={cn('group flex h-7 w-full cursor-pointer items-center gap-1.5 pr-4 pl-11 t-micro font-semibold tracking-[0.06em] text-rail-muted/80 uppercase transition-colors hover:text-sidebar-foreground', focus)}>
+            <button type="button" aria-expanded={!shut} aria-controls={'nav-g-' + g.id} onClick={() => onToggleGroup(g.id)} className={cn('group flex h-7 w-full cursor-pointer items-center gap-1.5 pr-4 pl-11 t-micro font-semibold tracking-[0.14em] text-rail-muted uppercase transition-colors hover:text-sidebar-foreground', focus)}>
               <span className="flex-1 text-left">
                 {g.label}
               </span>
-              {hot ? <span className="size-[7px] rounded-full bg-vivo" title="Há atividade neste grupo" /> : null}
+              {hot ? <span className={cn('size-[7px]', g.items.some((n) => blocked(n.id)) ? 'pulso bg-warn' : 'bg-metal')} title="Há atividade neste grupo" /> : null}
               <I.ChevronDown className={cn('size-3.5 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100', shut && '-rotate-90 opacity-100')} />
             </button>
             {shut ? null : <div id={'nav-g-' + g.id}>
@@ -757,9 +870,9 @@ function Sidebar({ page, d, onNavigate, rail, closed = [], onToggleGroup, onTogg
       </div>
     </Tip>
       : <div className="shrink-0 border-t border-sidebar-border px-4 py-3 t-meta text-rail-muted">
-        <div className="flex items-center justify-between gap-2">
-          <Tip text={`Teto de memória do slice systemd hades (HADES_SLICE_MAX = ${d.config?.HADES_SLICE_MAX ?? '—'})`}><span>Memória do Hades</span></Tip>
-          <span className="font-mono tnum text-sidebar-foreground">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+          <Tip text={`Teto de memória do slice systemd hades (HADES_SLICE_MAX = ${d.config?.HADES_SLICE_MAX ?? '—'})`}><span className="whitespace-nowrap">Memória do Hades</span></Tip>
+          <span className="whitespace-nowrap font-mono tnum text-sidebar-foreground">
             {sliceText}
           </span>
         </div>
@@ -774,7 +887,7 @@ function LiveIndicator({ lastOk, frozen }) {
   useEffect(() => { const t = setInterval(() => force((x) => x + 1), 1000); return () => clearInterval(t); }, []);
   const stale = !lastOk || Date.now() - lastOk > 12000;
   return <div className="hidden items-center gap-2 t-meta text-muted-foreground sm:flex">
-    <Dot kind={frozen ? 'idle' : stale ? 'bad' : 'ok'} pulse={!frozen && !stale} />
+    <Dot kind={frozen ? 'idle' : stale ? 'bad' : 'ok'} />
     {frozen ? 'Congelado' : stale ? 'Sem dados do servidor' : <>
       {"Ao vivo "}
       <span className="font-mono tabular-nums">
@@ -795,7 +908,7 @@ function StageNotice({ lastOk, frozen }) {
   useEffect(() => { const t = setInterval(() => force((x) => x + 1), 1000); return () => clearInterval(t); }, []);
   const stale = !lastOk || Date.now() - lastOk > 12000;
   if (!frozen && !stale) return null;
-  return <div role="status" className="pointer-events-none absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 border border-border-strong bg-popover px-3 py-1.5 t-meta text-popover-foreground shadow-lg">
+  return <div role="status" className="pointer-events-none absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 bg-popover px-3 py-1.5 t-meta text-popover-foreground shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)]">
     <Dot kind={frozen ? 'idle' : 'bad'} />
     {frozen ? 'Congelado: a tela não atualiza' : 'Sem dados do servidor'}
   </div>;
@@ -868,7 +981,7 @@ function RunHadesDialog({ open, onClose, d }) {
           <Switch checked={f[k]} label={l} onChange={(v) => setF({ ...f, [k]: v })} />
         </Field>)}
     </div>
-    <div className="flex gap-2.5 border border-warn/30 bg-warn/8 p-3 t-meta">
+    <div className="flex gap-2.5 cantos [--c:var(--warn)] bg-card p-3 t-meta">
       <I.TriangleAlert className="size-4 shrink-0 text-warn" />
       <span>
         {"Firewall (sudo) e o primeiro login no devtunnel exigem terminal: numa máquina nova, rode o primeiro "}
@@ -939,7 +1052,7 @@ function Fio({ s = 'parado', nos = [], corte = 70, label, className }) {
 }
 
 // régua de leituras: uma peça com divisórias de 1 px; cada Leitura tem rótulo, número e a forma que é o próprio dado
-const Regua = ({ label, className, children }) => <section aria-label={label} className={cn('grid grid-cols-2 border bg-card lg:grid-cols-4 [&>*]:border-border max-lg:[&>*:nth-child(odd)]:border-r max-lg:[&>*:nth-child(-n+2)]:border-b lg:[&>*:not(:last-child)]:border-r', className)}>
+const Regua = ({ label, className, children }) => <section aria-label={label} className={cn('grid grid-cols-2 cantos bg-card/96 lg:grid-cols-4 [&>*]:border-border max-lg:[&>*:nth-child(odd)]:border-r max-lg:[&>*:nth-child(-n+2)]:border-b lg:[&>*:not(:last-child)]:border-r', className)}>
   {children}
 </section>;
 function Leitura({ label, value, unit, detail, format, decimals, onClick, children }) {
@@ -1029,7 +1142,7 @@ function QuickAction({ icon: Icon, title, desc, children, tone = 'default', disa
     </div>
   </div>;
 }
-const JOB_ST = { rodando: { kind: 'warn', icon: I.LoaderCircle, label: 'Rodando' }, ok: { kind: 'ok', icon: I.CircleCheck, label: 'Concluída' },
+const JOB_ST = { rodando: { kind: 'busy', icon: I.LoaderCircle, label: 'Rodando' }, ok: { kind: 'ok', icon: I.CircleCheck, label: 'Concluída' },
   falhou: { kind: 'bad', icon: I.CircleX, label: 'Falhou' }, interrompido: { kind: 'idle', icon: I.CircleSlash, label: 'Interrompida' } };
 // onde o fio de uma execução que falhou se corta: a duração dela sobre a mediana das que deram certo na mesma ação
 function cutAt(j, jobs) {
@@ -1047,7 +1160,7 @@ function JobRow({ j, now, onClick, active, jobs }) {
   const st = JOB_ST[j.state] || JOB_ST.interrompido;
   const fio = jobFio(j, jobs);
   const took = dur((j.ended || now) - j.started);
-  return <button type="button" onClick={onClick} aria-current={active || undefined} className={cn('group grid w-full gap-2 border-b border-l-2 border-l-transparent px-3 py-3 text-left transition-colors hover:bg-accent/60 cursor-pointer outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring', active && 'border-l-foreground bg-accent/40')}>
+  return <button type="button" onClick={onClick} aria-current={active || undefined} className={cn('group grid w-full gap-2 border-b px-3 py-3 text-left transition-colors hover:bg-hover cursor-pointer outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring', active && 'item-ativo')}>
     <span className="flex items-baseline gap-2">
       <span className={cn('min-w-0 flex-1 truncate t-label', j.state === 'falhou' && 'text-bad')}>
         {j.title}
@@ -1086,7 +1199,7 @@ function TunnelCard({ d }) {
   const { openLog } = useApp();
   const run = useActions();
   const t = d.extras?.tunnel || {}, port = d.config?.HADES_TUNNEL_PORT;
-  return <Svc icon={I.Earth} title="Túnel público" mem={t.mem} st={unitState(t)} desc={`Expõe só o front (${port ? ':' + port : 'porta HADES_TUNNEL_PORT vazia'}) pelo devtunnel.`} extra={d.tunnelUrl ? <div className="flex items-center gap-2 border bg-muted/40 px-3 py-2">
+  return <Svc icon={I.Earth} title="Túnel público" mem={t.mem} st={unitState(t)} desc={`Expõe só o front (${port ? ':' + port : 'porta HADES_TUNNEL_PORT vazia'}) pelo devtunnel.`} extra={d.tunnelUrl ? <div className="flex items-center gap-2 bg-popover px-3 py-2">
     <I.Link className="size-4 shrink-0 text-muted-foreground" />
     <a href={d.tunnelUrl} target="_blank" rel="noopener" className="min-w-0 flex-1 truncate t-data hover:underline">
       {d.tunnelUrl}
@@ -1110,14 +1223,14 @@ const ago = (iso) => { const s = (Date.now() - (typeof iso === 'number' ? iso * 
 const SegmentLabel = ({ it }) => <>
   {it.icon ? <it.icon /> : null}
   {it.label}
-  {it.count != null ? <span className="font-mono t-micro tabular-nums opacity-60">
+  {it.count != null ? <span className="font-mono t-micro font-normal tabular-nums">
     {it.count}
   </span> : null}
 </>;
 const Segmented = ({ value, onChange, items, className, label }) => {
   const Rubber = window.HadesFx.use('RubberSegment');
-  return <div role="tablist" aria-label={label} className={cn('inline-flex h-8 max-w-full items-stretch overflow-x-auto overflow-y-hidden border border-border-strong t-label text-muted-foreground scrollbar-thin max-md:h-11', className)}>
-  {Rubber ? <Rubber value={value} onChange={onChange} items={items.map((it) => ({ value: it.value, content: <SegmentLabel it={it} /> }))} /> : items.map((it) => <button key={it.value} type="button" role="tab" aria-selected={value === it.value} onClick={() => onChange(it.value)} className={cn('inline-flex items-center gap-1.5 px-3 font-medium whitespace-nowrap transition-colors cursor-pointer outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring [&>svg]:size-4 [&:not(:first-child)]:border-l [&:not(:first-child)]:border-border', value === it.value ? 'bg-muted text-foreground' : 'hover:text-foreground')}>
+  return <div role="tablist" aria-label={label} className={cn('inline-flex h-8 max-w-full items-stretch gap-1 overflow-x-auto overflow-y-hidden t-label text-muted-foreground scrollbar-thin max-md:h-11', className)}>
+  {Rubber ? <Rubber value={value} onChange={onChange} items={items.map((it) => ({ value: it.value, content: <SegmentLabel it={it} /> }))} /> : items.map((it) => <button key={it.value} type="button" role="tab" aria-selected={value === it.value} onClick={() => onChange(it.value)} className={cn('inline-flex items-center gap-1.5 px-3 font-semibold whitespace-nowrap transition-colors cursor-pointer outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring [&>svg]:size-4', value === it.value ? 'bg-secondary text-foreground shadow-[inset_0_-2px_0_var(--primary)]' : 'hover:bg-hover hover:text-foreground')}>
     <SegmentLabel it={it} />
   </button>)}
 </div>;
@@ -1221,7 +1334,7 @@ const Select = React.forwardRef(function Select({ value = '', onChange, items = 
         return <div key={it.value} id={optId(r.index)} role="option" aria-selected={on} aria-disabled={it.disabled || undefined}
           onMouseMove={() => { if (!it.disabled && !act) setSt((s) => ({ ...s, active: r.index })); }}
           onClick={() => { if (!it.disabled) choose(it.value); }}
-          className={cn('flex w-full cursor-pointer items-center gap-2 px-2 t-body select-none', rowH, act && 'bg-accent', it.disabled && 'cursor-not-allowed opacity-50', on && 'font-medium')}>
+          className={cn('flex w-full cursor-pointer items-center gap-2 px-2 t-body select-none', rowH, act && 'bg-hover', it.disabled && 'cursor-not-allowed opacity-50', on && 'font-medium')}>
           {it.icon ? <it.icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" /> : null}
           <span className="min-w-0 flex-1 truncate">
             {it.label}
@@ -1236,14 +1349,14 @@ const Select = React.forwardRef(function Select({ value = '', onChange, items = 
 
   return <>
     <button ref={setTrigger} id={id} type="button" role="combobox" aria-haspopup="listbox" aria-expanded={st.open} aria-controls={st.open ? uid : undefined} aria-label={label} disabled={disabled} autoFocus={autoFocus} onClick={toggle} onKeyDown={onKey}
-      className={cn('inline-flex items-center justify-between gap-2 border border-border-strong bg-background t-body text-foreground cursor-pointer select-none outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50', SELECT_SIZE[size] || SELECT_SIZE.md, className)}>
+      className={cn('campo inline-flex items-center justify-between gap-2 t-body cursor-pointer select-none outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring', SELECT_SIZE[size] || SELECT_SIZE.md, className)}>
       {picked?.icon ? <picked.icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" /> : null}
       <span className={cn('min-w-0 flex-1 truncate text-left', !picked && 'text-muted-foreground')}>
         {picked ? picked.label + (picked.count != null ? ` (${picked.count})` : '') : (placeholder ?? '')}
       </span>
       <I.ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
     </button>
-    {st.open && wide && pos ? ReactDOM.createPortal(<div data-select-pop style={pos} onKeyDown={onKey} className="fixed z-[60] flex flex-col overflow-hidden border border-border-strong bg-popover text-popover-foreground shadow-lg animate-fade-in">
+    {st.open && wide && pos ? ReactDOM.createPortal(<div data-select-pop style={pos} onKeyDown={onKey} className="fixed z-[60] flex flex-col overflow-hidden bg-popover text-popover-foreground shadow-[inset_0_-2px_0_var(--primary),0_12px_32px_-8px_rgb(0_0_0/.7)] animate-fade-in">
       {body}
     </div>, document.body) : null}
     {!wide ? <Sheet open={st.open} side="bottom" title={label} onClose={() => close(true)}>
@@ -1254,8 +1367,8 @@ const Select = React.forwardRef(function Select({ value = '', onChange, items = 
   </>;
 });
 function Checkbox({ checked, onChange, label }) {
-  return <button type="button" role="checkbox" aria-checked={checked} aria-label={label} onClick={(e) => { e.stopPropagation(); onChange(!checked); }} className={cn('relative grid size-4 shrink-0 place-items-center border transition-colors cursor-pointer outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring', checked ? 'border-primary bg-primary text-primary-foreground' : 'border-border-strong')}>
-    {checked ? <I.Check className="size-3.5" strokeWidth={3} aria-hidden="true" /> : null}
+  return <button type="button" role="checkbox" aria-checked={checked} aria-label={label} onClick={(e) => { e.stopPropagation(); onChange(!checked); }} className={cn('relative grid size-[18px] shrink-0 place-items-center transition-[background-color,box-shadow] cursor-pointer outline-none focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-ring', checked ? 'bg-primary text-primary-foreground' : 'bg-control-off shadow-[inset_0_-2px_0_var(--line)] hover:shadow-[inset_0_-2px_0_var(--primary)]')}>
+    {checked ? <I.Check className="size-3" strokeWidth={4} aria-hidden="true" /> : null}
   </button>;
 }
 
@@ -1266,8 +1379,8 @@ const ghError = (e) => /HTTP 401|auth login|not logged/i.test(e) ? 'O gh não es
     : /HTTP 422/.test(e) ? 'O GitHub recusou a busca: confira o autor e o texto do filtro.'
       : 'O GitHub não devolveu a lista de PRs.';
 
-const Caixa = ({ on }) => <span aria-hidden="true" className={cn('mt-0.5 grid size-4 shrink-0 place-items-center border transition-colors', on ? 'border-foreground bg-foreground text-background' : 'border-border-strong group-hover:border-foreground')}>
-  {on ? <I.Check className="size-3" strokeWidth={3} /> : null}
+const Caixa = ({ on }) => <span aria-hidden="true" className={cn('mt-px grid size-[18px] shrink-0 place-items-center transition-[background-color,box-shadow]', on ? 'bg-primary text-primary-foreground' : 'bg-control-off shadow-[inset_0_-2px_0_var(--line)] group-hover:shadow-[inset_0_-2px_0_var(--primary)]')}>
+  {on ? <I.Check className="size-3" strokeWidth={4} /> : null}
 </span>;
 
 // cada PR é um checkbox de verdade, sem pílulas nem selos; `onItems` (opcional) devolve as PRs vistas na página
@@ -1349,7 +1462,7 @@ function PrPicker({ sel, toggle, applied, inSet, onItems }) {
             <Skeleton className="h-4 w-3/4" />
             <Skeleton className="h-3 w-1/3" />
           </div>)
-            : data?.items?.length ? data.items.map((p) => { const on = sel.has(p.number); return <div key={p.number} className={cn('group relative flex items-start gap-3 border-b border-l-2 py-2.5 pr-1 pl-3 transition-colors', on ? 'border-l-foreground bg-accent/40' : 'border-l-transparent hover:bg-accent/60')}>
+            : data?.items?.length ? data.items.map((p) => { const on = sel.has(p.number); return <div key={p.number} className={cn('group relative flex items-start gap-3 border-b py-2.5 pr-1 pl-3 transition-colors', on ? 'item-ativo' : 'hover:bg-hover')}>
               <button type="button" role="checkbox" aria-checked={on} aria-label={`#${p.number} ${p.title}`} onClick={() => toggle(p.number)} className="flex min-w-0 flex-1 items-start gap-3 text-left cursor-pointer outline-none after:absolute after:inset-0 focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-ring">
                 <Caixa on={on} />
                 <span className="min-w-0 flex-1">
@@ -1439,7 +1552,7 @@ function Terminal({ jobId, running, className, flow }) {
   }, [text, follow, flow]);
   return <div className={cn('relative flex flex-col border bg-term text-term-foreground', !flow && 'min-h-0 overflow-hidden', className)}>
     <div className={cn('flex items-center gap-2 border-b border-white/10 bg-term px-3 py-2', flow && 'sticky top-16 z-20')}>
-      {running ? <Dot kind="busy" pulse /> : null}
+      {running ? <Dot kind="busy" /> : null}
       <span className="min-w-0 truncate t-data text-term-muted">
         {jobId ? 'logs/panel-jobs/' + jobId + '.log' : 'terminal'}
       </span>
@@ -1658,17 +1771,18 @@ function CommandPalette({ open, onClose, d, go, tourId, startTour }) {
   };
   useEffect(() => { document.querySelector(`[data-cmd="${idx}"]`)?.scrollIntoView({ block: 'nearest' }); }, [idx]);
   let lastGroup = null;
-  return <Dialog open={open} onClose={onClose} label="Buscar ações" className="gap-0 overflow-hidden p-0 sm:max-w-xl top-[30%] max-md:top-3 max-md:animate-none max-md:[transform:translateX(-50%)]">
-    <div className="flex items-center gap-2 border-b px-3">
-      <I.Search className="size-4 shrink-0 opacity-50" />
+  // topo fixo: centrada pela própria altura, a caixa pulava a cada letra que filtra a lista
+  return <Dialog open={open} onClose={onClose} label="Buscar ações" className="gap-0 overflow-hidden p-0 sm:max-w-xl top-[12vh] [transform:translateX(-50%)] animate-fade-in max-md:top-3 max-md:animate-none">
+    <div className="flex items-center gap-2 bg-background/40 pr-10 pl-3 shadow-[inset_0_-2px_0_var(--primary)]">
+      <I.Search className="size-4 shrink-0 text-muted-foreground" />
       <input ref={input} value={q} onInput={(e) => { setQ(e.target.value); setIdx(0); }} onKeyDown={key} placeholder="Buscar ação, serviço ou página…" className="flex h-12 w-full bg-transparent py-3 t-body outline-none placeholder:text-muted-foreground" />
     </div>
     <div className="max-h-[360px] overflow-y-auto p-1 scrollbar-thin max-md:max-h-[calc(100dvh-9rem)]" role="listbox">
       {items.length ? items.map((it, i) => { const head = it.group !== lastGroup; lastGroup = it.group; return <Fragment key={i}>
-        {head ? <div className="px-2 pt-2 pb-1 t-meta-em text-muted-foreground">
+        {head ? <div className="px-2 pt-3 pb-1 t-micro font-semibold tracking-[0.14em] text-muted-foreground uppercase">
           {it.group}
         </div> : null}
-        <button type="button" data-cmd={i} role="option" aria-selected={i === idx} onMouseMove={() => setIdx(i)} onClick={() => pick(i)} className={cn('flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left t-body [&>svg]:size-4 [&>svg]:text-muted-foreground', i === idx && 'bg-accent text-accent-foreground')}>
+        <button type="button" data-cmd={i} role="option" aria-selected={i === idx} onMouseMove={() => setIdx(i)} onClick={() => pick(i)} className={cn('flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 text-left t-body [&>svg]:size-4 [&>svg]:text-muted-foreground', i === idx && 'item-ativo text-accent-foreground [&>svg]:text-foreground')}>
           <it.icon />
           {it.label}
           {i === idx ? <I.CornerDownLeft className="ml-auto !size-3.5" /> : null}
@@ -1702,12 +1816,12 @@ class Boundary extends React.Component {
   componentDidCatch(err, info) { console.error(err, info); }
   render() {
     if (!this.state.err) return this.props.children;
-    return <div role="alert" className="grid max-w-2xl justify-items-start gap-3 py-1">
-      <p className="flex items-start gap-2 font-medium text-bad">
-        <I.CircleX className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+    return <div role="alert" className="cantos [--c:var(--bad)] grid max-w-2xl justify-items-start gap-3 bg-card p-5 animate-emergir">
+      <h2 className="flex items-start gap-2.5 t-section">
+        <I.CircleX className="mt-1 size-4 shrink-0 text-bad" aria-hidden="true" />
         Erro nesta página; o resto do painel segue no ar.
-      </p>
-      <pre className="max-w-full overflow-auto bg-muted px-3 py-2 t-code">
+      </h2>
+      <pre className="w-full max-w-full overflow-auto bg-muted px-3 py-2 t-code text-muted-foreground">
         {String(this.state.err?.stack || this.state.err).split('\n').slice(0, 4).join('\n')}
       </pre>
       <Button size="sm" variant="outline" icon={I.RotateCw} onClick={() => this.setState({ err: null })}>Tentar de novo</Button>
@@ -1796,14 +1910,18 @@ function App() {
     addEventListener('keydown', k); return () => removeEventListener('keydown', k);
   }, []);
   useEffect(() => {
-    // em página stage o trilho é fixo: Ctrl+B não grava a preferência do dono
+    // em página stage a barra lateral é fixa: Ctrl+B não grava a preferência do dono
     const k = (e) => { if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b' && !STAGE[page] && matchMedia('(min-width: 768px)').matches) { e.preventDefault(); sb.toggleMin(); } };
     addEventListener('keydown', k); return () => removeEventListener('keydown', k);
   }, [sb.toggleMin, page]);
   useEffect(() => { requestAnimationFrame(() => setTimeout(() => document.body.classList.add('ready'), 60)); }, []);
   useEffect(() => { navRef.current = true; }, []);
 
-  const dismiss = useCallback((id) => setToasts((t) => t.filter((x) => x.id !== id)), []);
+  // sair é marcar `leaving` (o item se desfaz) e tirar da lista quando a animação acaba
+  const dismiss = useCallback((id) => {
+    setToasts((all) => all.map((x) => x.id === id ? { ...x, leaving: true } : x));
+    setTimeout(() => setToasts((all) => all.filter((x) => x.id !== id)), TOAST_SAIDA_MS);
+  }, []);
   const toast = useCallback((t) => {
     const id = Math.random().toString(36).slice(2);
     setToasts((all) => [...all.slice(-3), { ...t, id }]);
@@ -1867,7 +1985,7 @@ function App() {
       <aside className={cn('sticky top-0 hidden h-screen shrink-0 overflow-hidden bg-sidebar transition-[width] duration-200 ease-out md:block', sb.min || stage ? 'w-16' : 'w-[248px]')}>
         <Sidebar page={cur.id} d={d} rail={sb.min || stage} closed={sb.closed} onToggleGroup={sb.toggleGroup} onToggleMin={stage ? undefined : sb.toggleMin} />
       </aside>
-      <Sheet open={nav} onClose={() => setNav(false)} side="left" rail>
+      <Sheet open={nav} onClose={() => setNav(false)} side="top" label="Páginas do painel" rail>
         <Sidebar page={cur.id} d={d} closed={sb.closed} onToggleGroup={sb.toggleGroup} onNavigate={() => setNav(false)} />
       </Sheet>
       {stage ? <div className="stage-frame relative flex h-dvh min-w-0 flex-1 flex-col overflow-hidden">
@@ -1883,11 +2001,11 @@ function App() {
         <header className="sticky top-0 z-30 bg-background/90 backdrop-blur-sm">
           <div className="flex h-12 items-center gap-3 px-4 md:px-6 lg:px-8">
             <Button variant="ghost" size="icon-sm" className="-ml-2 md:hidden" aria-label="Abrir a navegação" icon={I.Menu} onClick={() => setNav(true)} />
-            <span className="marca size-6 shrink-0 bg-foreground! md:hidden" aria-hidden="true" />
+            <span className="marca size-6 shrink-0 bg-primary! md:hidden" aria-hidden="true" />
             <StateLine d={d} threads={threads} />
             <div className="ml-auto flex items-center gap-2">
               <LiveIndicator lastOk={lastOk} frozen={frozen} />
-              <button type="button" onClick={() => setCmd(true)} className="hidden h-8 w-60 cursor-pointer items-center gap-2 border border-border-strong px-2.5 t-label text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring lg:flex">
+              <button type="button" onClick={() => setCmd(true)} className="campo hidden h-8 w-60 cursor-pointer items-center gap-2 px-2.5 t-label text-muted-foreground! outline-none hover:text-foreground! focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring lg:flex">
                 <I.Search className="size-3.5" />
                 Buscar ou ir para…
                 <span className="ml-auto">
@@ -1934,8 +2052,8 @@ function App() {
         </main>
       </div>}
     </div>
-    {dock ? <button type="button" onClick={() => openJob(running[0].id)} className="fixed inset-x-4 bottom-4 z-40 flex items-center gap-3 md:inset-x-auto md:right-6 border border-border-strong bg-popover py-1.5 pr-1.5 pl-3 t-body shadow-lg animate-toast-in cursor-pointer outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-      <Dot kind="busy" pulse />
+    {dock ? <button type="button" onClick={() => openJob(running[0].id)} className="fixed inset-x-4 bottom-4 z-40 flex items-center gap-3 md:inset-x-auto md:right-6 bg-popover py-1.5 pr-1.5 pl-3 t-body shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] animate-emergir cursor-pointer outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+      <Dot kind="busy" />
       <span className="min-w-0 flex-1 truncate text-left font-medium md:max-w-[32ch]">
         {running[0].title}
       </span>

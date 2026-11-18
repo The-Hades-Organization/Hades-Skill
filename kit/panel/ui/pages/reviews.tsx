@@ -1,7 +1,7 @@
 /* Página Revisões (#/reviews): usa a base (ui/app.js) pelo HadesCore e se registra pelo registerPage dela.
  * O formulário no topo (PRs à esquerda, como revisar à direita); as revisões em curso como fios; o histórico como lista. */
 (() => {
-const { useState, useEffect, useCallback, useId, I, cn, dur, post, getJSON, Button, Card, CardHeader, CardContent, Switch,
+const { useState, useEffect, useCallback, useId, I, cn, dur, post, getJSON, Button, Badge, Card, CardHeader, CardContent, Switch,
   Field, Skeleton, Mono, Tip, Empty, Sheet, useApp, ago, Segmented, PrPicker, renderMd, modelLabel, Loading, Fio,
   LinhaDeEstado, useTourPreview, ExampleSeal } = HadesCore;
 
@@ -20,7 +20,7 @@ const tokTip = (r) => [`entrada ${tok(r.tokens.input)} · saída ${tok(r.tokens.
 const cap1 = (x) => x ? x[0].toUpperCase() + x.slice(1) : x;
 const cmdName = (r) => REVIEW_CMD[r.cmd]?.[0] || r.cmd;
 const howLine = (r) => `${cmdName(r)} · ${cap1(r.model)} · esforço ${EFFORT[r.effort] || r.effort}`;
-const ICON_LINK = 'inline-flex h-7 shrink-0 items-center justify-center gap-1 px-1.5 t-meta-em text-muted-foreground transition-colors hover:bg-accent hover:text-foreground outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-md:h-11';
+const ICON_LINK = 'inline-flex h-7 shrink-0 items-center justify-center gap-1 px-1.5 t-meta-em text-muted-foreground transition-colors hover:bg-hover hover:text-foreground outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-md:h-11';
 
 function ReviewReport({ open, onClose, r }) {
   const [x, setX] = useState(null);
@@ -158,33 +158,25 @@ function EmCurso({ list, openJob }) {
 function Resultado({ r }) {
   const v = VERDICT[r.verdict];
   const VIcon = v?.[2];
-  if (r.state === 'falhou') return <span className="flex min-w-0 items-baseline gap-1.5 t-body">
-    <I.CircleX className="size-3.5 shrink-0 translate-y-0.5 text-bad" aria-hidden="true" />
-    <span className="shrink-0 font-medium text-bad">Falhou</span>
+  if (r.state === 'falhou') return <span className="flex min-w-0 items-center gap-2 t-body">
+    <Badge variant="bad" icon={I.CircleX}>Falhou</Badge>
     {r.error ? <Tip text={r.error} className="min-w-0">
       <span className="min-w-0 break-words text-muted-foreground md:truncate">{r.error}</span>
     </Tip> : null}
   </span>;
-  if (r.state !== 'ok') return <span className="flex items-baseline gap-1.5 t-body text-muted-foreground">
-    <I.CircleSlash className="size-3.5 shrink-0 translate-y-0.5" aria-hidden="true" />
-    Interrompida
-  </span>;
+  if (r.state !== 'ok') return <Badge variant="idle" icon={I.CircleSlash}>Interrompida</Badge>;
   const counts = [r.blocking != null ? plural(r.blocking, 'bloqueante', 'bloqueantes') : null, r.important != null ? plural(r.important, 'importante', 'importantes') : null,
     r.inline != null ? `${r.inline} in-line` : null].filter(Boolean);
-  return <span className="flex flex-wrap items-baseline gap-x-1.5 t-body">
-    {v ? <>
-      <VIcon className={cn('size-3.5 shrink-0 translate-y-0.5', v[1])} aria-hidden="true" />
-      <span className="text-muted-foreground">Veredito:</span>
-      <span className={cn('font-medium', v[1])}>{v[0].toLowerCase()}</span>
-    </> : <span className="font-medium">Concluída, sem veredito</span>}
+  return <span className="flex flex-wrap items-center gap-x-2 gap-y-1 t-body">
+    {v ? <Badge variant={v[1].slice(5)} icon={VIcon}>{v[0]}</Badge> : <Badge variant="secondary">Concluída, sem veredito</Badge>}
     {counts.length ? <span className="text-muted-foreground tnum">{'· ' + counts.join(' · ')}</span> : null}
   </span>;
 }
 
 function Publicacao({ r }) {
   if (r.posted) return <span>comentada no GitHub</span>;
-  if (r.post && r.state === 'ok') return <span className="text-warn">
-    {'publicação não confirmada (a sessão não confirmou): '}
+  if (r.post && r.state === 'ok') return <span className="inline-flex flex-wrap items-center gap-2">
+    <Badge variant="warn">publicação não confirmada</Badge>
     {r.url ? <a href={r.url} target="_blank" rel="noopener" className="underline underline-offset-2">confira no GitHub</a> : 'confira no GitHub'}
   </span>;
   return <span>{r.post ? 'publicação pedida' : 'só local'}</span>;
@@ -289,16 +281,16 @@ function Reviews() {
   const cost = done.reduce((a, r) => a + (r.costUsd || 0), 0);
   const tokAll = done.reduce((a, r) => a + (tokTotal(r.tokens) || 0), 0);
   const posted = x.items.filter((r) => r.posted).length;
-  return <div className="grid gap-8">
+  return <div className="grid gap-6">
     <LinhaDeEstado main={running.length ? `${plural(running.length, 'revisão rodando', 'revisões rodando')}: ${running.map((r) => '#' + r.pr).join(' ')}` : 'nenhuma revisão rodando'}
       rest={[`${x.items.length} no histórico, ${plural(done.length, 'concluída', 'concluídas')}${failed ? `, ${failed} com falha` : ''}`,
         plural(posted, 'comentada no GitHub', 'comentadas no GitHub'), done.length ? `${usd(cost)} · ${tok(tokAll)} tokens nas últimas 20 concluídas (equivalente em API)` : null]} />
-    <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
+    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
       <Card data-tour-step-id="reviews-prs">
         <CardHeader title="PRs" summary={sel.size ? plural(sel.size, 'selecionada', 'selecionadas') : undefined}
           action={<span className="inline-flex gap-3">
-            <Button variant="link" size="xs" className="h-auto px-0" disabled={!visiveis.length || exemplo} onClick={() => setSel((s) => new Set([...s, ...visiveis]))}>Marcar todas</Button>
-            <Button variant="link" size="xs" className="h-auto px-0" disabled={!sel.size} onClick={() => setSel(new Set())}>Limpar</Button>
+            <Button variant="ghost" size="xs" disabled={!visiveis.length || exemplo} onClick={() => setSel((s) => new Set([...s, ...visiveis]))}>Marcar todas</Button>
+            <Button variant="ghost" size="xs" disabled={!sel.size} onClick={() => setSel(new Set())}>Limpar</Button>
           </span>} />
         <CardContent>
           <PrPicker sel={sel} toggle={toggle} applied={new Set()} inSet={new Set()} onItems={(items) => setVisiveis(items.map((i) => i.number))} />

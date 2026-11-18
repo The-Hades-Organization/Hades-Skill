@@ -1,13 +1,13 @@
 /* Página Plugins (#/plugins): usa a base (ui/app.js) pelo HadesCore e se registra pelo registerPage dela. */
 (() => {
-const { useState, useEffect, useRef, useCallback, I, cn, post, getJSON, Button, CardHeader, Dot, Fio,
+const { useState, useEffect, useRef, useCallback, I, cn, post, getJSON, Button, Card, CardHeader, Badge, Dot, Fio,
   Switch, Input, Mono, Tip, Empty, Dialog, DialogHeader, DialogFooter, LinhaDeEstado, useApp, Loading, useTourPreview, ExampleSeal } = HadesCore;
 
 // ------------------------------------------------------------------ plugins (os pacotes da Hades; $D/plugins.sh)
 // A página só mostra e coleta: a regra (URL aceita, prévia, recusas) é do hades plugins, e o servidor confere o painel local
 // e o token. O que muda roda como execução exclusiva; páginas e rotas do plugin são lidas na subida do painel.
-// estado do pacote: ponto e palavra (o ponto só tem cor quando o plugin vale nesta instalação)
-const PK_STATE = { ativo: ['ok', 'ativo'], desligado: ['idle', 'desligado'], 'outro-projeto': ['idle', 'de outro projeto'] };
+// estado do pacote: selo e palavra (o selo só ganha cor quando o plugin vale nesta instalação)
+const PK_STATE = { ativo: ['ok', 'ativo'], desligado: ['idle', 'desligado'], 'outro-projeto': ['secondary', 'de outro projeto'] };
 // versão do núcleo que o pacote pede (identity.core): só ganha tom quando há algo a resolver
 const PK_CORE = { ok: ['', 'compatível com este núcleo'], 'sem-core': ['text-warn', 'não declara a versão do núcleo'], fora: ['text-bad', 'pede outra versão do núcleo'], invalido: ['text-bad', 'versão do núcleo pedida é inválida'] };
 const coreText = (c) => { const [tone, label] = PK_CORE[c?.state] || PK_CORE.invalido; return <span className={tone}>{label}{c?.core ? ` (${c.core})` : ''}</span>; };
@@ -29,7 +29,7 @@ function PkAdds({ adds }) {
     : <span className="t-body text-muted-foreground">Não acrescenta configurações, passos nem páginas.</span>;
 }
 function PkCode({ path, text, meta }) {
-  return <details className="group border t-body">
+  return <details className="group cantos bg-card t-body">
     <summary className="flex min-h-10 cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-0.5 px-2.5 py-2 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
       <I.ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden="true" />
       <Mono className="min-w-0 flex-1 basis-48 break-all">
@@ -46,7 +46,7 @@ function PkCode({ path, text, meta }) {
   </details>;
 }
 function PkRefusal({ r }) {
-  return <div role="alert" className="grid gap-1 border border-bad/50 bg-bad/5 p-3 t-body">
+  return <div role="alert" className="grid gap-1 cantos [--c:var(--bad)] bg-card p-3 t-body">
     <div className="flex flex-wrap items-baseline gap-2 font-medium">
       <I.CircleX className="size-4 shrink-0 translate-y-0.5 text-bad" aria-hidden="true" />
       Recusado
@@ -83,13 +83,13 @@ function PkAddDialog({ open, onClose, onLaunched }) {
     <DialogHeader icon={I.PackagePlus} title="Adicionar plugin" description="Clonado fora da pasta de pacotes, sem hooks. Nada roda antes de você conferir a prévia e confirmar o commit." />
     <form className="flex flex-wrap gap-2" onSubmit={preview}>
       <Input icon={I.Link} className="basis-72" autoFocus placeholder="https://github.com/<dono>/<plugin> ou git@github.com:<dono>/<plugin>" aria-label="URL do repositório do plugin" value={url} spellcheck="false" onInput={(e) => setUrl(e.target.value)} />
-      <Button type="submit" variant="outline" icon={I.ScanSearch} loading={busy === 'preview'} disabled={!url.trim()}>Ver prévia</Button>
+      <Button type="submit" variant="secondary" icon={I.ScanSearch} loading={busy === 'preview'} disabled={!url.trim()}>Ver prévia</Button>
     </form>
     {pv && !pv.ok ? <PkRefusal r={pv} /> : null}
     {pv && pv.name ? <div className="grid max-h-[55vh] gap-3 overflow-y-auto pr-1 scrollbar-thin">
-      <div className="grid gap-1.5 border p-3 t-body">
+      <div className="grid gap-1.5 cantos bg-card p-3 t-body">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className="font-semibold">
+          <span className="t-body-strong">
             {pv.name}
           </span>
           <span className="t-meta text-muted-foreground">
@@ -138,7 +138,7 @@ function PkAddDialog({ open, onClose, onLaunched }) {
       </div>
     </div> : null}
     <DialogFooter>
-      <Button variant="outline" onClick={onClose}>Cancelar</Button>
+      <Button variant="secondary" onClick={onClose}>Cancelar</Button>
       <Button icon={I.ShieldCheck} loading={busy === 'apply'} disabled={!pv?.ok} onClick={apply}>
         {pv?.activates ? 'Instalar e ativar' : pv?.mine ? 'Instalar desligado' : pv?.ok ? 'Guardar o pacote' : 'Instalar'}
         {pv?.ok ? ' ' + pkShort(pv.commit) : ''}
@@ -200,16 +200,16 @@ function PkUpdateDialog({ pack, onClose, onLaunched }) {
           {pv.runsChanged ? 'muda o que executa' : 'não muda o que executa'}
         </span>
       </div>
-      <pre className="overflow-auto border bg-term p-3 t-code whitespace-pre text-term-foreground scrollbar-thin">
+      <pre className="overflow-auto bg-term p-3 t-code whitespace-pre text-term-foreground scrollbar-thin">
         {pv.commits.join('\n')}
       </pre>
-      {pv.stat ? <pre className="overflow-auto border bg-term p-3 t-code whitespace-pre text-term-foreground scrollbar-thin">
+      {pv.stat ? <pre className="overflow-auto bg-term p-3 t-code whitespace-pre text-term-foreground scrollbar-thin">
         {pv.stat}
       </pre> : null}
       {pv.diff ? <PkCode path="diff do que executa" text={pv.diff + (pv.cut ? '\n… (cortado: confira o resto no repositório)' : '')} meta={pv.cut ? 'cortado' : ''} /> : null}
     </div> : null}
     <DialogFooter>
-      <Button variant="outline" onClick={onClose}>
+      <Button variant="secondary" onClick={onClose}>
         {can ? 'Cancelar' : 'Fechar'}
       </Button>
       {can ? <Button icon={I.Download} loading={busy} onClick={apply}>
@@ -236,14 +236,14 @@ function PkRemoveDialog({ pack, onClose, onLaunched }) {
     <form className="grid gap-2" onSubmit={go}>
       <label className="t-body" htmlFor="pk-confirm">
         {"Digite "}
-        <Mono className="font-semibold">
+        <Mono className="font-medium">
           {pack?.name}
         </Mono>
         {" para confirmar"}
       </label>
       <Input id="pk-confirm" autoFocus value={typed} spellcheck="false" autoComplete="off" onInput={(e) => setTyped(e.target.value)} />
       <DialogFooter>
-        <Button variant="outline" onClick={onClose}>Cancelar</Button>
+        <Button variant="secondary" onClick={onClose}>Cancelar</Button>
         <Button type="submit" variant="destructive" icon={I.Trash2} loading={busy} disabled={typed !== pack?.name}>Remover</Button>
       </DialogFooter>
     </form>
@@ -252,10 +252,10 @@ function PkRemoveDialog({ pack, onClose, onLaunched }) {
 // um pacote é uma linha: nome e estado (com o liga/desliga quando ele é desta instalação), a origem fixada, o que pede
 // atenção, o que acrescenta e onde configurar
 function PkRow({ p, remote, onUpdate, onRemove, onToggle, busy, first, example }) {
-  if (p.error) return <li className="grid gap-1 border-b py-3.5 t-body">
+  if (p.error) return <li className="grid gap-1 border-b last:border-b-0 py-3.5 t-body">
     <span className="flex flex-wrap items-baseline gap-x-2">
-      <span className="font-semibold">{p.name}</span>
-      <span className="inline-flex items-center gap-1.5 t-meta-em text-bad"><I.CircleX className="size-3.5 translate-y-px" aria-hidden="true" />não deu para ler o pacote</span>
+      <span className="t-body-strong">{p.name}</span>
+      <Badge variant="bad" icon={I.CircleX}>não deu para ler o pacote</Badge>
     </span>
     <span className="text-muted-foreground text-pretty">{p.error}</span>
   </li>;
@@ -267,20 +267,20 @@ function PkRow({ p, remote, onUpdate, onRemove, onToggle, busy, first, example }
     p.unpublished ? ['text-warn', I.GitBranchPlus, `${p.unpublished} commit${p.unpublished > 1 ? 's' : ''} não publicado${p.unpublished > 1 ? 's' : ''}`] : null,
     p.behind ? ['text-info', I.ArrowDownToLine, `${p.behind} commit${p.behind > 1 ? 's' : ''} a atualizar`] : null,
   ].filter(Boolean);
-  return <li data-tour-step-id={first ? 'plugins-pacote' : undefined} className="grid gap-2 border-b py-4">
+  return <li data-tour-step-id={first ? 'plugins-pacote' : undefined} className="grid gap-2 border-b last:border-b-0 py-4">
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-        <span className="font-semibold">{p.name}</span>
+        <span className="t-body-strong">{p.name}</span>
         {example ? <ExampleSeal /> : null}
         <span className="t-body text-muted-foreground">{p.repo ? `de ${p.repo}` : 'sem repositório de projeto declarado'}</span>
       </span>
       <span data-tour-step-id={first ? 'plugins-estado-pacote' : undefined} className="ml-auto flex items-center gap-3">
-        <span className={cn('inline-flex items-center gap-1.5 t-body', p.state === 'ativo' ? 'font-medium' : 'text-muted-foreground')}><Dot kind={kind} />{word}</span>
+        <Badge variant={kind}>{word}</Badge>
         {p.mine && !remote ? <Switch checked={p.state === 'ativo'} disabled={busy} label={(p.state === 'ativo' ? 'Desligar ' : 'Ligar ') + p.name} onChange={(v) => onToggle(p, v)} /> : null}
       </span>
     </div>
     <p className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 t-meta text-muted-foreground">
-      <Mono className="min-w-0 break-all text-foreground/80">{p.url || '(sem remote)'}</Mono>
+      <Mono className="min-w-0 break-all text-foreground">{p.url || '(sem remote)'}</Mono>
       <span aria-hidden="true">·</span>
       <Mono>{p.git ? `${p.branch} @ ${pkShort(p.commit)}` : 'não é um clone git'}</Mono>
       <span aria-hidden="true">·</span>
@@ -289,7 +289,7 @@ function PkRow({ p, remote, onUpdate, onRemove, onToggle, busy, first, example }
     {flags.length || p.errors?.length ? <p data-tour-step-id={first ? 'plugins-avisos' : undefined} className="flex flex-wrap items-center gap-x-4 gap-y-1 t-meta-em">
       {flags.map(([tone, Icon, text]) => <span key={text} className={cn('inline-flex items-center gap-1.5', tone)}><Icon className="size-3.5" aria-hidden="true" />{text}</span>)}
       {p.errors?.length ? <Tip text={p.errors.slice(0, 3).join(' · ')}>
-        <span tabIndex={0} className="inline-flex items-center gap-1.5 text-bad outline-none focus-visible:outline-2 focus-visible:outline-ring"><I.CircleX className="size-3.5" aria-hidden="true" />perfil inválido</span>
+        <Badge variant="bad" icon={I.CircleX} tabIndex={0} className="outline-none focus-visible:outline-2 focus-visible:outline-ring">perfil inválido</Badge>
       </Tip> : null}
     </p> : null}
     <PkAdds adds={p.adds} />
@@ -300,7 +300,7 @@ function PkRow({ p, remote, onUpdate, onRemove, onToggle, busy, first, example }
         <a href={'#/config?q=' + encodeURIComponent(g)} className="underline underline-offset-3 hover:no-underline outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{g}</a>
       </span>)}
       {remote ? null : <span data-tour-step-id={first ? 'plugins-acoes' : undefined} className="ml-auto flex flex-wrap gap-2">
-        {p.git ? <Button size="xs" variant="outline" icon={I.RefreshCw} disabled={busy} onClick={() => onUpdate(p)}>{p.behind ? 'Atualizar' : 'Buscar atualização'}</Button> : null}
+        {p.git ? <Button size="xs" variant="secondary" icon={I.RefreshCw} disabled={busy} onClick={() => onUpdate(p)}>{p.behind ? 'Atualizar' : 'Buscar atualização'}</Button> : null}
         <Button size="xs" variant="ghost-destructive" icon={I.Trash2} disabled={busy} onClick={() => onRemove(p)}>Remover</Button>
       </span>}
     </div> : null}
@@ -366,11 +366,11 @@ function Plugins({ d }) {
       </p> : null}
       {err ? <p className="t-body text-bad" role="status">Sem atualizar: {err}. Mostrando a última lista.</p> : null}
     </div>
-    <section data-tour-step-id="plugins-pacotes" className="grid gap-0" aria-label="Pacotes">
+    <Card data-tour-step-id="plugins-pacotes" role="region" className="gap-0" aria-label="Pacotes">
       <CardHeader title="Pacotes" summary={`${x.packs.length} em ${x.packsRoot}`} action={<>{exemplo ? <ExampleSeal /> : null}<span data-tour-step-id="plugins-adicionar" className="inline-flex">{add}</span></>} />
       {mineRunning ? <Fio s="fiando" className="mt-px" label="Aplicando a mudança nos plugins" /> : null}
       {busy && !x.remote ? <p className="flex items-center gap-2 border-b py-2.5 t-body text-muted-foreground">
-        <Dot kind="busy" pulse />
+        <Dot kind="busy" />
         Execução exclusiva em andamento; as ações voltam quando acabar.
       </p> : null}
       {x.packs.length ? <ul>
@@ -379,7 +379,7 @@ function Plugins({ d }) {
         O núcleo roda sem plugin.
         {x.remote ? null : ' Adicione o do seu projeto pela URL.'}
       </Empty>}
-    </section>
+    </Card>
     <p data-tour-step-id="plugins-comando" className="max-w-[75ch] t-meta text-muted-foreground">
       {"Um plugin por instalação: o pacote cujo "}
       <Mono>identity.repo</Mono>

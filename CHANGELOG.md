@@ -4,6 +4,31 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.49.0 — 2026-11-18
+
+Capacidade nova: repaginada do estilo visual do painel local e abstração de providers de agente (`claude` e `agy`).
+
+- **Painel com o estilo visual repaginado (`kit/panel/ui/`, `reference/identidade.md`, `reference/panel.md`).** Todas as
+  23 páginas, a casca de navegação, os diálogos, os terminais e o canvas do Argos passam a usar a nova paleta em névoa
+  (`#0e050a` no escuro e `#f8ecf1` no claro, destaque `--primary` em `#ffc6df` / `#391a2c`, texto `#f2e6d9` / `#301423` e
+  estados com contraste WCAG AA medido nos dois temas). Superfícies de leitura (`Card`, `Regua`, diálogos e alertas) são
+  opacas sobre a névoa com colchetes de canto (`cantos`) de 10 px em `--line` no lugar de bordas fechadas, raio 0 em toda
+  a escala, controles de 32 px na mesa e 44 px no toque, campos planos (`campo`) com linha de base de 2 px em
+  `--line`/`--primary`, linha selecionável `.item-ativo` com filete de 3 px em `--primary`, selos `Badge` cheios com
+  texto em `--background`, estado em curso em `--busy` separado da ação principal e pulso restrito ao que pede atenção
+  (`warn`/bloqueado). Inclui 21 ícones próprios em grade de 24 com traço seco de 2 px, camada de partículas em canvas 2D
+  (`fx/poeira.tsx`, `window.HadesPoeira`) com pausa automática em movimento reduzido ou aba oculta, navegação lateral com
+  pontos de luz graduados pela distância e folha superior no celular, `AreaChart` com estado vazio compacto, `Table`
+  responsiva em 360 px e nós do Argos com cabeçalho em `--popover`, faixa de estado de 4 px no topo, arestas de 1,5 a
+  2,5 na cor do destino com tracejado animado em atividade e repouso a `REST_FILL_PCT = 70%` (≥ 3:1 nos dois temas).
+- **Provider de agente plugável (`src/lib/agent-provider.ts`, `HADES_AGENT_PROVIDER`, `HADES_AGY_SKIP_PERMISSIONS`).**
+  Contrato `AgentProvider` com implementações para `claude` e `agy` (Antigravity CLI), integrado em `hades agent`,
+  `hades review`, `hades moirai`, terminais (`term.ts`), chat do painel, supervisor do Argos, diário (`journal.ts`) e
+  guarda (`guard-hook.ts`). Traduz argumentos de linha de comando (`--mode auto|plan|accept-edits`, `--conversation`,
+  resolução de modelos por papel), eventos de stream (`init`, `step_update`, `result`), leitura de transcript e entradas
+  de hook (`PreInvocation`/`PostInvocation` com fila de avisos via `injectSteps`). A chave `HADES_AGY_SKIP_PERMISSIONS`
+  (padrão `0`) controla a emissão explícita de `--dangerously-skip-permissions` quando o provider ativo é `agy`.
+
 ## 6.48.2 — 2026-11-16
 
 Correção (#126, piloto real no Dell): o gate remoto falhou com `npm: command not found` depois de 160 s, porque o ssh

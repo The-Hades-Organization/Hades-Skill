@@ -69,7 +69,7 @@ function markButtonState({ available, exists }) {
 function ToolButton({ icon, label, title, pressed, onClick, style, vertical, disabled }) {
   const Icon = I[icon] || I.Square;
   return <button type="button" aria-pressed={pressed === undefined ? undefined : pressed} aria-label={label} aria-disabled={disabled ? true : undefined} title={title || label} onClick={disabled ? undefined : onClick}
-    className={cn('inline-flex h-8 shrink-0 items-center gap-1.5 px-2 t-meta max-md:min-h-11 max-md:min-w-11 max-md:justify-center', vertical && 'w-8 justify-center px-0 max-md:w-11 xl:w-full xl:justify-start xl:px-2', RING, disabled ? 'cursor-not-allowed text-muted-foreground/60' : cn('cursor-pointer', pressed ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'))}>
+    className={cn('inline-flex h-8 shrink-0 items-center gap-1.5 px-2 t-meta max-md:min-h-11 max-md:min-w-11 max-md:justify-center', vertical && 'w-8 justify-center px-0 max-md:w-11 xl:w-full xl:justify-start xl:px-2', RING, disabled ? 'cursor-not-allowed text-muted-foreground' : cn('cursor-pointer', pressed ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-hover hover:text-foreground'))}>
     <Icon aria-hidden="true" className="size-4" style={style} /><span className={vertical ? 'max-md:sr-only max-xl:sr-only' : 'max-lg:sr-only'}>{label}</span>
   </button>;
 }
@@ -83,7 +83,7 @@ function ToolButton({ icon, label, title, pressed, onClick, style, vertical, dis
  */
 function CanvasToolbar({ armed, onArm, quick = [], onRoles, link, mark, className, vertical = false }) {
   const sep = vertical ? 'my-1 h-px w-5' : 'mx-1 h-5 w-px';
-  return <div role="toolbar" data-tour-step-id="argos-ferramentas" aria-label="Ferramentas do canvas" aria-orientation={vertical ? 'vertical' : 'horizontal'} className={cn('flex max-w-full items-center gap-0.5 elev-float bg-background p-0.5 scrollbar-thin', vertical ? 'flex-col overflow-y-auto' : 'overflow-x-auto', className)}>
+  return <div role="toolbar" data-tour-step-id="argos-ferramentas" aria-label="Ferramentas do canvas" aria-orientation={vertical ? 'vertical' : 'horizontal'} className={cn('flex max-w-full items-center gap-0.5 elev-float bg-popover p-0.5 scrollbar-thin', vertical ? 'flex-col overflow-y-auto' : 'overflow-x-auto', className)}>
     <ToolButton vertical={vertical} icon="MousePointer2" label="Selecionar" title="Selecionar (Esc)" pressed={armed === null} onClick={() => onArm(null)} />
     {tools.map((t) => <ToolButton vertical={vertical} key={t.id} icon={t.icon} label={t.label} title={t.hint ? `${t.label}: ${t.hint}` : t.label} pressed={armed === t.id} onClick={() => onArm(armed === t.id ? null : t.id)} />)}
     {mark ? <ToolButton vertical={vertical} icon="Mic" label="Mark" title={markButtonState(mark).title} disabled={markButtonState(mark).disabled} onClick={mark.onClick} /> : null}

@@ -2,8 +2,8 @@
  * retomada. Só leitura, exceto o botão Estacionar (hades agent park). Pack e unpack são no terminal: a senha nunca passa
  * pelo navegador (reference/caronte.md). */
 (() => {
-const { useState, useEffect, useCallback, useRef, I, getJSON, post, useApp, Button, HoldConfirm, Card, CardHeader, CardContent, CopyButton,
-  Mono, Empty, Skeleton, Loading, Dot, Fio, Regua, Leitura, LinhaDeEstado, ago, cn, useWide, useTourPreview, ExampleSeal, Select } = HadesCore;
+const { useState, useEffect, useCallback, useRef, I, getJSON, post, useApp, HoldConfirm, Card, CardHeader, CardContent, CopyButton,
+  Mono, Empty, Skeleton, Loading, Dot, Badge, Fio, Regua, Leitura, LinhaDeEstado, ago, cn, useWide, useTourPreview, ExampleSeal, Select } = HadesCore;
 
 // prontidão do agente para o pack: estacionado e encerrado atravessam; trabalhando ainda segura o barco
 const READINESS = { parked: ['estacionado', 'ok'], ended: ['encerrado', 'idle'], working: ['trabalhando', 'busy'] };
@@ -17,10 +17,10 @@ const bytes = (n) => n >= 1048576 ? `${(n / 1048576).toFixed(1).replace('.', ','
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 // pacote do plano: <plano>-<UTC>.caronte (reference/caronte.md §Saída)
 const ofPlan = (pkg, plan) => pkg.name.startsWith(plan + '-') && /^\d/.test(pkg.name.slice(plan.length + 1));
-const ROW = 'grid w-full gap-1 border-b border-l-2 border-l-transparent px-3 py-2.5 text-left t-body transition-colors cursor-pointer hover:bg-accent/60 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
+const ROW = 'grid w-full gap-1 border-b px-3 py-2.5 text-left t-body transition-colors cursor-pointer hover:bg-hover outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
 
 function Command({ text, label }) {
-  return <div className="flex min-h-9 items-center gap-2 border border-border-strong bg-card pr-1 pl-3">
+  return <div className="flex min-h-9 items-center gap-2 bg-popover pr-1 pl-3">
     <code className="min-w-0 flex-1 overflow-x-auto py-2 t-data whitespace-nowrap scrollbar-thin">{text}</code>
     <CopyButton text={text} label={label} />
   </div>;
@@ -29,8 +29,8 @@ function Command({ text, label }) {
 // as três margens: o óbolo marca onde o plano está; o que já atravessou é nó medido, o que falta é marco vazio
 function Marco({ k }) {
   if (k === 'feito') return <span className="size-2 shrink-0 rotate-45 bg-foreground" aria-hidden="true" />;
-  if (k === 'aqui') return <span className="size-2.5 shrink-0 rounded-full border border-metal-ink bg-metal" aria-hidden="true" />;
-  return <span className="size-2 shrink-0 border border-border-strong" aria-hidden="true" />;
+  if (k === 'aqui') return <span className="size-2.5 shrink-0 rotate-45 bg-metal-ink" aria-hidden="true" />;
+  return <span className="size-2 shrink-0 rotate-45 border border-border-strong" aria-hidden="true" />;
 }
 function Travessia({ margens, onGo }) {
   return <nav aria-label="Travessia do plano" className="grid grid-cols-[minmax(0,1fr)_1.25rem_minmax(0,1fr)_1.25rem_minmax(0,1fr)] items-start gap-x-2 md:grid-cols-[auto_minmax(2rem,1fr)_auto_minmax(2rem,1fr)_auto] md:gap-x-4">
@@ -38,7 +38,7 @@ function Travessia({ margens, onGo }) {
       i ? <Fio key={'f' + i} s={margens[i - 1].k === 'feito' ? (m.k === 'falta' ? 'frouxo' : 'medido') : 'parado'} className="mt-[9px]" label={`${margens[i - 1].nome} → ${m.nome}`} /> : null,
       <button key={m.id} type="button" onClick={() => onGo(m.id)} aria-current={m.k === 'aqui' ? 'step' : undefined}
         className="grid min-w-0 cursor-pointer justify-items-start gap-0.5 text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11">
-        <span className={cn('flex items-center gap-2 t-body', m.k === 'falta' ? 'text-muted-foreground' : 'font-medium')}><Marco k={m.k} />{m.nome}</span>
+        <span className={cn('flex items-center gap-2 t-label', m.k === 'falta' && 'text-muted-foreground')}><Marco k={m.k} />{m.nome}</span>
         <span className="t-meta text-muted-foreground">{m.estado}</span>
       </button>,
     ].filter(Boolean))}
@@ -49,13 +49,13 @@ function AgentRow({ plan, agent, busy, example, onPark }) {
   const [label, kind] = READINESS[agent.readiness] || [agent.readiness, 'idle'];
   return <li className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b py-2.5 last:border-b-0">
     <span className="min-w-0 truncate t-label">{agent.name}</span>
-    <span className="inline-flex items-center gap-1.5 t-meta text-muted-foreground"><Dot kind={kind} pulse={kind === 'busy'} />{label}</span>
+    <Badge variant={kind}>{label}</Badge>
     {agent.canPark ? <span className="ml-auto" data-tour-step-id="caronte-park">
-      <HoldConfirm size="sm" icon={busy ? I.LoaderCircle : I.CirclePause} disabled={busy || example} onHold={() => onPark(plan, agent.name)}>
+      <HoldConfirm variant="secondary" size="sm" icon={busy ? I.LoaderCircle : I.CirclePause} disabled={busy || example} onHold={() => onPark(plan, agent.name)}>
         {busy ? 'Estacionando…' : 'Segure 1,2 s: Estacionar'}
       </HoldConfirm>
     </span> : null}
-    {agent.command ? <span className="flex basis-full items-center gap-1.5 t-meta text-muted-foreground">falta <Mono>{agent.command}</Mono><CopyButton text={agent.command} label={`Copiar o comando que estaciona ${agent.name}`} /></span> : null}
+    {agent.command ? <span className="flex basis-full items-center gap-1.5 t-meta text-muted-foreground">falta <Mono className="min-w-0 break-all">{agent.command}</Mono><CopyButton text={agent.command} label={`Copiar o comando que estaciona ${agent.name}`} /></span> : null}
   </li>;
 }
 
@@ -63,11 +63,11 @@ function Preview({ detail, plan }) {
   if (!detail) return <Skeleton className="h-28" />;
   const { preview, previewError } = detail;
   if (previewError) {
-    if (previewError.code === 'not_ready') return <Empty icon={I.CirclePause} title="O pack ainda recusaria.">
+    if (previewError.code === 'not_ready') return <Empty tour={false} icon={I.CirclePause} title="O pack ainda recusaria.">
       Estacione antes {(previewError.agents || []).map((a, i) => <span key={a}>{i ? ', ' : ''}<Mono>{a}</Mono></span>)}.
     </Empty>;
     return <div className="grid gap-2">
-      <Empty icon={I.CircleAlert} title="Sem prévia.">Rode no terminal para ver o motivo.</Empty>
+      <Empty tour={false} icon={I.CircleAlert} title="Sem prévia.">Rode no terminal para ver o motivo.</Empty>
       <Command text={detail.commands?.dryRun || `hades caronte pack ${plan} --dry-run`} label="Copiar o comando da prévia" />
     </div>;
   }
@@ -88,13 +88,13 @@ function Preview({ detail, plan }) {
     </ul> : null}
     {preview.worktrees.length ? <ul className="grid t-body" aria-label="Worktrees no pacote">
       {preview.worktrees.map((w) => <li key={w.agent} className="flex flex-wrap items-baseline gap-x-2 border-b py-1.5 last:border-b-0">
-        <span className="font-medium">{w.agent}</span>
+        <span className="t-label">{w.agent}</span>
         <Mono className="text-muted-foreground">{w.branch || '(sem branch)'}</Mono>
         <span className="t-meta text-muted-foreground">base <Mono>{w.baseRef}</Mono> · {w.bundle ? 'leva os commits' : 'sem commit próprio'}{w.patch ? ' · leva o não commitado' : ''}</span>
       </li>)}
     </ul> : null}
     <details className="group/p border-y">
-      <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 t-body outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-10 max-md:min-h-11 cursor-pointer list-none items-center gap-2 t-body outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
         <I.ChevronRight className="size-3.5 text-muted-foreground transition-transform group-open/p:rotate-90" aria-hidden="true" />
         <span className="font-medium">Partes do pacote</span>
         <span className="t-meta text-muted-foreground tnum">{preview.parts.length}</span>
@@ -148,9 +148,9 @@ function Caronte() {
     }
   };
 
-  if (error && !data) return <Empty icon={I.CircleAlert} title="Não deu para ler os planos.">{error}. Tentando de novo a cada 10 s.</Empty>;
+  if (error && !data) return <Empty tour={false} icon={I.CircleAlert} title="Não deu para ler os planos.">{error}. Tentando de novo a cada 10 s.</Empty>;
   if (!data) return <Loading />;
-  if (!data.plans.length) return <Empty icon={I.ScrollText} title="Nenhum plano.">Ficam em <Mono>~/.claude/hades/plans</Mono>; o orquestrador grava um ao começar.</Empty>;
+  if (!data.plans.length) return <Empty tour={false} icon={I.ScrollText} title="Nenhum plano.">Ficam em <Mono>~/.claude/hades/plans</Mono>; o orquestrador grava um ao começar.</Empty>;
   const plan = data.plans.find((p) => p.name === selected);
   const ready = data.plans.filter((p) => p.ready).length;
   const mine = plan ? data.packages.filter((p) => ofPlan(p, plan.name)) : [];
@@ -164,7 +164,7 @@ function Caronte() {
   ] : [];
   const go = (id) => refs[id].current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
   // na mesa a explicação vai na linha do título; no celular ela desce para não ser cortada
-  const head = (title, text) => <CardHeader title={title} summary={desk ? text : null} description={desk ? null : text} />;
+  const head = (title, text) => <CardHeader title={title} description={text} />;
   const planItem = (p) => `${p.name} · ${p.ready ? 'pronto' : `${p.missing.length} a estacionar`}`;
 
   return <div className="grid gap-6">
@@ -175,13 +175,13 @@ function Caronte() {
       </div>
       {error ? <p className="t-body text-bad" role="status">Sem atualizar: {error}. Mostrando a última leitura.</p> : null}
     </div>
-    <div className="grid items-start gap-8 lg:grid-cols-[18rem_minmax(0,1fr)]">
+    <div className="grid items-start gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
       {wide ? <Card className="gap-0 lg:sticky lg:top-[4.5rem]" data-tour-step-id="caronte-planos">
         <CardHeader title="Planos" summary={`${data.plans.length}`} action={exemplo ? <ExampleSeal /> : null} />
         <CardContent className="max-h-[calc(100dvh-12rem)] overflow-y-auto scrollbar-thin">
           {data.plans.map((p) => <button key={p.name} type="button" onClick={() => setCur(p.name)} aria-current={selected === p.name ? 'true' : undefined}
-            className={cn(ROW, selected === p.name && 'border-l-foreground bg-accent/40')}>
-            <span className="truncate font-medium">{p.name}</span>
+            className={cn(ROW, selected === p.name && 'bg-accent')}>
+            <span className="truncate t-label">{p.name}</span>
             <span className="flex flex-wrap items-center gap-x-1.5 t-meta text-muted-foreground">
               <Dot kind={p.ready ? 'ok' : 'warn'} />
               <span className={p.ready ? '' : 'text-foreground'}>{p.ready ? 'pronto para o pack' : `${p.missing.length} a estacionar`}</span>
@@ -190,25 +190,28 @@ function Caronte() {
           </button>)}
         </CardContent>
       </Card> : <label className="grid gap-1.5 t-body" data-tour-step-id="caronte-planos">
-        <span className="font-medium">
+        <span className="t-label">
           Plano
           {exemplo ? <> <ExampleSeal /></> : null}
         </span>
         <Select value={selected} onChange={setCur} label="Plano" className="w-full min-w-0" items={data.plans.map((p) => ({ value: p.name, label: planItem(p) }))} />
       </label>}
-      {plan ? <div className="grid min-w-0 gap-10">
-        <div className="grid gap-4">
+      {plan ? <div className="grid min-w-0 gap-6">
+        <Card className="gap-4">
           {wide ? <h2 className="t-section break-words">{plan.name}</h2> : null}
           <div data-tour-step-id="caronte-travessia">
           <Travessia margens={margens} onGo={go} />
           </div>
-        </div>
-        <section ref={refs.estacionar} className="grid scroll-mt-20 gap-3" aria-label="Estacionar" data-tour-step-id="caronte-estacionar">
+        </Card>
+        <section ref={refs.estacionar} className="scroll-mt-20" aria-label="Estacionar" data-tour-step-id="caronte-estacionar">
+        <Card className="gap-3">
           {head('Estacionar', 'o pack exige agentes estacionados ou encerrados. Estacionar: o agente commita o pronto, grava o handoff e para, sem fechar o terminal, em até 10 min')}
           {plan.agents.length === 0 ? <Empty icon={I.Users} title="Nenhum agente no plano." />
             : <ul>{plan.agents.map((a) => <AgentRow key={a.name} plan={plan.name} agent={a} busy={parking === a.name} example={!!exemplo} onPark={park} />)}</ul>}
+        </Card>
         </section>
-        <section ref={refs.empacotar} className="grid scroll-mt-20 gap-3" aria-label="Empacotar" data-tour-step-id="caronte-empacotar">
+        <section ref={refs.empacotar} className="scroll-mt-20" aria-label="Empacotar" data-tour-step-id="caronte-empacotar">
+        <Card className="gap-3">
           {head('Empacotar', 'prévia do pack --dry-run: não grava nada')}
           <div data-tour-step-id="caronte-previa">
             <Preview detail={detail} plan={plan.name} />
@@ -218,8 +221,10 @@ function Caronte() {
             <p className="flex items-start gap-2 t-body text-muted-foreground"><I.KeyRound className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               A senha é digitada só no terminal. Esquecida, o pacote se perde.</p>
           </div>
+        </Card>
         </section>
-        <section ref={refs.retomar} className="grid scroll-mt-20 gap-3" aria-label="Retomar" data-tour-step-id="caronte-retomar">
+        <section ref={refs.retomar} className="scroll-mt-20" aria-label="Retomar" data-tour-step-id="caronte-retomar">
+        <Card className="gap-3">
           {head('Retomar', 'na outra máquina: abra o pacote e entregue o prompt ao orquestrador de lá')}
           {data.packages.length === 0 ? <Empty icon={I.Package} title="Nenhum pacote ainda.">O pack grava em <Mono>{data.packagesDir}</Mono>.</Empty>
             : <ul aria-label="Pacotes" className="grid" data-tour-step-id="caronte-pacotes">{[...mine, ...data.packages.filter((p) => !mine.includes(p))].map((p) => <li key={p.name} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b py-2 t-body last:border-b-0">
@@ -231,9 +236,10 @@ function Caronte() {
           <div className="grid gap-2 pt-4" data-tour-step-id="caronte-brief">
             <CardHeader as="h3" title="Prompt de retomada" summary="hades caronte brief"
               action={detail?.brief ? <CopyButton text={detail.brief} label="Copiar o prompt de retomada" /> : null} />
-            {!detail ? <Skeleton className="h-24" /> : detail.brief ? <pre className="max-h-80 overflow-auto border bg-card p-4 t-code whitespace-pre-wrap scrollbar-thin">{detail.brief}</pre>
-              : <Empty icon={I.FileX} title="Sem prompt de retomada." />}
+            {!detail ? <Skeleton className="h-24" /> : detail.brief ? <pre className="max-h-80 overflow-auto bg-muted p-4 t-code whitespace-pre-wrap scrollbar-thin">{detail.brief}</pre>
+              : <Empty tour={false} icon={I.FileX} title="Sem prompt de retomada." />}
           </div>
+        </Card>
         </section>
       </div> : null}
     </div>

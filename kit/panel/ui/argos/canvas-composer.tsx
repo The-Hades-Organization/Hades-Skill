@@ -186,10 +186,10 @@ function makeArgosCanvasComposer() {
     return TEXT[code] ?? (error instanceof Error ? error.message : "Não deu para preparar a mensagem.");
   }
 
-  const BOX = "elev-float absolute z-30 flex flex-col gap-1.5 bg-background p-2 t-body";
-  const FIELD_TEXT = "w-full whitespace-pre-wrap break-words px-2 py-1.5 font-mono text-sm leading-5";
-  const BTN = "inline-flex min-h-8 cursor-pointer items-center justify-center border border-border-strong px-2 t-label outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-40 max-md:min-h-11";
-  const LIST = "absolute bottom-full left-0 mb-1 max-h-56 w-full overflow-y-auto border border-border-strong bg-background p-1 t-body";
+  const BOX = "elev-float bg-popover absolute z-30 flex flex-col gap-1.5 p-2 t-body";
+  const FIELD_TEXT = "w-full whitespace-pre-wrap break-words px-2 py-1.5 t-code";
+  const BTN = "inline-flex min-h-8 cursor-pointer items-center justify-center px-2 t-label outline-none hover:bg-secondary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-40 max-md:min-h-11 bg-secondary";
+  const LIST = "absolute bottom-full left-0 mb-1 max-h-56 w-full overflow-y-auto bg-popover shadow-[inset_0_-2px_0_var(--primary),0_12px_32px_-8px_rgb(0_0_0/.7)] p-1 t-body";
   const OPTION = "flex w-full cursor-pointer items-center gap-2 px-2 py-1 text-left";
 
   interface MenuItem {
@@ -261,7 +261,7 @@ function makeArgosCanvasComposer() {
             key: item.key, id: `${listId}-${i}`, role: "option", "aria-selected": i === menu.active,
             className: `${OPTION}${i === menu.active ? " bg-accent" : ""}`, onMouseDown: (e: MouseEvent) => { e.preventDefault(); ui.on.choose(i); },
           }, h("span", { className: "min-w-0 truncate", title: item.label }, item.label), h("span", { className: "min-w-0 flex-1 truncate text-right t-meta text-muted-foreground", title: item.hint }, item.hint)))) : null,
-        h("div", { className: "relative max-h-48 min-h-20 overflow-hidden border border-border-strong bg-background" },
+        h("div", { className: "relative max-h-48 min-h-20 overflow-hidden campo" },
           h("div", { ref: ui.mirrorRef, "aria-hidden": "true", className: `${FIELD_TEXT} pointer-events-none absolute inset-0 overflow-hidden text-transparent` }, ...mirrorKids(h, ui.draft.text, ui.pills)),
           h("textarea", {
             ref: ui.fieldRef, value: ui.draft.text, rows: 4, maxLength: C.COMPOSE_LIMITS.draftChars, spellCheck: false,

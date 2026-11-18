@@ -2,7 +2,7 @@
  * Cada feature é um fio medido: um nó por passo feito, na posição do passo; os passos em lista logo abaixo. */
 (() => {
 const { useState, useEffect, useCallback, I, cn, post, getJSON, ErroExplicado, errDesc, Button, Card, CardHeader, CardContent, CopyButton, Empty,
-  Fio, LinhaDeEstado, useApp, Loading } = HadesCore;
+  Fio, LinhaDeEstado, Badge, useApp, Loading } = HadesCore;
 
 // ------------------------------------------------------------------ onboarding (onboard.sh, mesma fonte do comando e do doctor)
 const OB_ST = { feito: { label: 'feito', icon: I.Check, tone: 'text-ok' }, pendente: { label: 'pendente', icon: I.CircleDashed, tone: 'text-warn' },
@@ -25,7 +25,7 @@ function ObStep({ s, sel, busy, act, go, tour, first }) {
       </span>
       <span className="shrink-0 t-meta text-muted-foreground">{s.who === 'dono' ? 'você faz' : 'o Hades faz'}</span>
     </div>
-    {s.note || s.detail ? <p className="col-start-2 max-w-[70ch] t-body text-muted-foreground">
+    {s.note || s.detail ? <p className="col-start-2 max-w-[70ch] t-body text-muted-foreground [overflow-wrap:anywhere]">
       {(s.note ? s.note + '. ' : '') + (s.detail || '')}
     </p> : null}
     {s.command && s.state !== 'feito' ? <div data-tour-step-id={first ? 'onboard-comando' : undefined} className="col-start-2 flex items-start gap-1 bg-muted py-1 pr-1 pl-3">
@@ -35,8 +35,8 @@ function ObStep({ s, sel, busy, act, go, tour, first }) {
       <CopyButton text={s.command} label={`Copiar o comando de ${s.name}`} />
     </div> : null}
     {(s.runnable && open) || s.manual || s.page || s.doc ? <div data-tour-step-id={first ? 'onboard-acoes' : undefined} className="col-start-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-      {s.runnable && open ? <Button size="xs" variant={sel ? 'default' : 'outline'} icon={I.Play} loading={busy === s.id} onClick={() => act({ op: 'run', step: s.id }, s)}>Executar pelo Hades</Button> : null}
-      {s.manual && open ? <Button size="xs" variant="outline" icon={I.Check} onClick={() => act({ op: 'done', step: s.id })}>Marcar como feito</Button> : null}
+      {s.runnable && open ? <Button size="xs" variant={sel ? 'default' : 'secondary'} icon={I.Play} loading={busy === s.id} onClick={() => act({ op: 'run', step: s.id }, s)}>Executar pelo Hades</Button> : null}
+      {s.manual && open ? <Button size="xs" variant="secondary" icon={I.Check} onClick={() => act({ op: 'done', step: s.id })}>Marcar como feito</Button> : null}
       {s.manual && s.state === 'feito' ? <Button size="xs" variant="ghost" onClick={() => act({ op: 'undone', step: s.id })}>Desmarcar</Button> : null}
       {s.page ? <Button size="xs" variant="ghost" icon={I.ArrowUpRight} onClick={() => go(s.page)}>Abrir a página</Button> : null}
       {s.doc ? <span className="ml-auto t-data text-muted-foreground max-md:basis-full">{s.doc}</span> : null}
@@ -55,10 +55,7 @@ function Feature({ f, busy, act, go, firstPending, first }) {
   return <Card data-tour-step-id={first ? 'onboard-recurso' : undefined}>
     <CardHeader className="max-md:[&>div:first-child]:basis-full" title={f.label} summary={`${OB_CHOICE[f.choice] || OB_CHOICE.nova} · ${done} de ${applicable} feitos`} description={f.desc}
       action={<>
-        {sel ? <span className="inline-flex items-center gap-1.5 t-label text-muted-foreground">
-          <I.Check className="size-3.5" aria-hidden="true" />
-          Escolhida
-        </span> : <Button size="sm" variant="outline" icon={I.Plus} onClick={() => act({ op: 'select', features: [f.id] })}>Escolher</Button>}
+        {sel ? <Badge variant="ok" icon={I.Check}>Escolhida</Badge> : <Button size="sm" variant="secondary" icon={I.Plus} onClick={() => act({ op: 'select', features: [f.id] })}>Escolher</Button>}
         {f.choice !== 'pulada' ? <Button size="sm" variant="ghost" onClick={() => act({ op: 'skip', features: [f.id] })}>Pular</Button> : null}
       </>} />
     <CardContent className="grid gap-1">
@@ -92,7 +89,7 @@ function Onboard({ go }) {
   }, [load, toast, confirm]);
   if (err && !st) return <div className="grid justify-items-start gap-3">
     <ErroExplicado error={err} title="Não consegui ler o onboarding" />
-    <Button variant="outline" size="sm" icon={I.RefreshCw} loading={busy === 'load'} onClick={load}>Tentar de novo</Button>
+    <Button variant="secondary" size="sm" icon={I.RefreshCw} loading={busy === 'load'} onClick={load}>Tentar de novo</Button>
   </div>;
   if (!st) return <Loading />;
   const pr = st.progress;
@@ -108,7 +105,7 @@ function Onboard({ go }) {
           Escolher só marca o recurso: nada roda, e os passos abaixo mostram o que fazer. O resto fica para depois. O Hades só executa um passo com o seu ok; túnel público, login, sudo e tokens são seus: mostramos só o comando. Comando com ! na frente: rode no Claude Code com o !, porque pede terminal ou senha.
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button data-tour-step-id="onboard-fazer-tour" variant="outline" size="sm" icon={I.Compass} onClick={() => window.HadesTour?.start()}>Fazer o tour</Button>
+          <Button data-tour-step-id="onboard-fazer-tour" variant="secondary" size="sm" icon={I.Compass} onClick={() => window.HadesTour?.start()}>Fazer o tour</Button>
           <Button variant="ghost" size="sm" icon={I.RefreshCw} loading={busy === 'load'} onClick={load}>Verificar de novo</Button>
         </div>
       </div>

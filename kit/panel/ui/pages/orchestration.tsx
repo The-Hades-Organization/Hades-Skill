@@ -2,7 +2,7 @@
  * Perguntas ao dono primeiro; depois cada agente ativo como objeto com o fio do estado, os encerrados recolhidos, as
  * consolidações e as decisões tomadas sozinho. */
 (() => {
-const { useState, useEffect, I, cn, dur, getJSON, Button, Dot, Card, CardHeader, CardContent, Skeleton, Mono, Tip,
+const { useState, useEffect, I, cn, dur, getJSON, Button, Badge, Dot, Card, CardHeader, CardContent, Skeleton, Mono, Tip,
   Empty, Sheet, Fio, LinhaDeEstado, renderMd, Loading, CopyButton, useTourPreview, ExampleSeal, OpenTerminalButton, post, useApp } = HadesCore;
 
 // estado do agente em palavras, o ponto e o fio (trabalhando fia; esperando você é o fio frouxo)
@@ -24,7 +24,7 @@ function OrchFile({ open, onClose, src }) {
   const term = src?.file === 'terminal';
   return <Sheet open={open} onClose={onClose} wide icon={term ? I.SquareTerminal : I.FileText} title={src ? `${src.name} · ${term ? 'terminal' : FILE_LABEL[src.file]}` : ''} description={x?.file || (term ? 'últimas 160 linhas' : '')}>
     {!x ? <Skeleton className="h-40" /> : !x.text ? <Empty icon={I.FileX} title="Arquivo vazio ou inexistente" />
-      : term ? <pre className="overflow-auto border bg-term p-3 t-code whitespace-pre-wrap text-term-foreground">
+      : term ? <pre className="overflow-auto bg-term p-3 t-code whitespace-pre-wrap text-term-foreground">
         {x.text}
       </pre>
       // o renderMd descarta o HTML cru do markdown (renderer html() vazio no app.tsx)
@@ -116,10 +116,7 @@ function AgentCard({ a, show, example }) {
         {a.card ? <Mono className="shrink-0 text-muted-foreground">
           {a.card}
         </Mono> : null}
-        <span className={cn('ml-auto inline-flex shrink-0 items-center gap-1.5 t-meta', a.live === 'blocked' ? 'font-medium' : 'text-muted-foreground')}>
-          <Dot kind={k} pulse={k === 'busy'} />
-          {l}
-        </span>
+        <Badge variant={k} className="ml-auto">{l}</Badge>
       </div>
       <Fio s={fio} label={`${a.name}: ${l}`} />
       {a.title ? <div className="truncate t-meta text-muted-foreground" title={a.title}>
@@ -131,19 +128,16 @@ function AgentCard({ a, show, example }) {
         </Mono>
       </Tip>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 t-meta">
-        {a.openQuestions.length ? <span className="font-medium text-warn">{plural(a.openQuestions.length, 'pergunta aberta', 'perguntas abertas')}</span>
+        {a.openQuestions.length ? <Badge variant="warn">{plural(a.openQuestions.length, 'pergunta aberta', 'perguntas abertas')}</Badge>
           : answered > 0 ? <span className="text-muted-foreground">{plural(answered, 'respondida', 'respondidas')}</span> : null}
-        {a.reportDone ? <span className="inline-flex items-center gap-1 text-ok">
-          <I.CircleCheck className="size-3.5" aria-hidden="true" />
-          relatório pronto: abra em Relatório
-        </span> : null}
+        {a.reportDone ? <Badge variant="ok" icon={I.CircleCheck}>relatório pronto</Badge> : null}
       </div>
       <div className="mt-auto flex flex-wrap items-center gap-1 border-t pt-3">
         {a.files.map((f) => <Button key={f} size="xs" variant="ghost" onClick={() => show(a.name, f)}>
           {FILE_LABEL[f]}
         </Button>)}
         <span className="ml-auto flex items-center gap-1">
-          {a.pane ? <a href={'#/herdr?pane=' + encodeURIComponent(a.pane)} className="inline-flex h-7 max-md:min-h-11 items-center gap-1 px-2 t-meta-em hover:bg-accent outline-none focus-visible:outline-2 focus-visible:outline-ring">
+          {a.pane ? <a href={'#/herdr?pane=' + encodeURIComponent(a.pane)} className="inline-flex h-7 max-md:min-h-11 items-center gap-1 px-2 t-meta-em hover:bg-hover outline-none focus-visible:outline-2 focus-visible:outline-ring">
             Abrir no Herdr
             <I.ArrowUpRight className="size-3" aria-hidden="true" />
           </a> : null}
@@ -212,14 +206,14 @@ function Orchestration() {
   // quem espera por você primeiro, depois quem trabalha
   const order = { blocked: 0, working: 1 };
   const sorted = [...active].sort((a, b) => (order[a.live] ?? 2) - (order[b.live] ?? 2));
-  return <div className="grid gap-8">
+  return <div className="grid gap-6">
     <LinhaDeEstado main={openQ ? plural(openQ, 'pergunta aberta', 'perguntas abertas') : 'nenhuma pergunta aberta'}
       rest={[`${plural(active.length, 'agente ativo', 'agentes ativos')}, ${working} trabalhando`, reports ? `${plural(reports, 'relatório pronto', 'relatórios prontos')}: abra em Relatório no cartão` : null,
         x.consolidations.length ? plural(x.consolidations.length, 'consolidação', 'consolidações') : null]} />
     <Publicar example={!!exemplo} />
     {openQ ? <Perguntas agents={asking} show={show} example={!!exemplo} /> : null}
     <Card data-tour-step-id="orchestration-agentes">
-      <CardHeader title="Agentes" summary={`<worktree>/${x.reportsDir}`} />
+      <CardHeader title="Agentes" description={`Relatórios em ${x.reportsDir} dentro de cada worktree.`} />
       <CardContent>
         {active.length ? <ul className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
           {sorted.map((a) => <AgentCard key={a.name} a={a} show={show} example={!!exemplo} />)}
@@ -246,8 +240,9 @@ function Orchestration() {
             <Mono className="text-muted-foreground">
               {(c.members || []).map((m) => '#' + m).join(' ')}
             </Mono>
-            <span className={cn('t-meta', c.verifiedAt && !c.verifyOk ? 'text-bad' : 'text-muted-foreground')}>
-              {c.verifiedAt ? `${c.verifyOk ? 'todas as PRs contidas na branch' : 'falta merge'} · há ${dur(Date.now() / 1000 - Date.parse(c.verifiedAt) / 1000)}` : 'ainda não conferida'}
+            <span className="inline-flex items-center gap-2 t-meta text-muted-foreground">
+              {c.verifiedAt ? <Badge variant={c.verifyOk ? 'ok' : 'bad'}>{c.verifyOk ? 'PRs contidas' : 'falta merge'}</Badge> : null}
+              {c.verifiedAt ? `há ${dur(Date.now() / 1000 - Date.parse(c.verifiedAt) / 1000)}` : 'ainda não conferida'}
             </span>
           </li>)}
         </ul>
@@ -261,11 +256,11 @@ function Orchestration() {
         {x.decisions?.length ? <ul className="-mt-2">
           {x.decisions.map((d) => <li key={d.ts + d.question} className="grid gap-1 border-b py-3 t-body last:border-b-0">
             <div className="flex flex-wrap items-baseline gap-x-3">
-              <span className="min-w-0 flex-1 font-medium text-pretty">
+              <span className="min-w-0 basis-full text-pretty t-body-strong md:basis-0 md:flex-1">
                 {exemplo ? <ExampleSeal className="mr-2" /> : null}
                 {d.question}
               </span>
-              <span className="t-data text-muted-foreground">
+              <span className="whitespace-normal t-data text-muted-foreground">
                 {`nível atual ${d.level} (exige ${d.needed}) · ${new Date(d.ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`}
               </span>
             </div>

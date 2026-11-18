@@ -1,5 +1,6 @@
 // Uma linha do stream-json do `claude -p` (ou os marcadores hds_user/hds_end que o painel grava) vira eventos compactos
 // para a tela.
+import { providerOf } from "../lib/agent-provider.ts";
 import { pyStr } from "./actions.ts";
 
 type Dict = Record<string, unknown>;
@@ -135,7 +136,18 @@ export function chatEvents(line: string, deltas: boolean): ChatEvent[] {
     }
     case "assistant": return assistantEvents(o, sub);
     case "user": return toolResultEvents(o, sub);
-    case "result": return [resultEvent(o)];
+    case "init":
+    case "step_update":
+      return providerOf("agy").parseStreamLine(line, { includeDeltas: deltas }) as unknown as ChatEvent[];
+    case "result": {
+      const usage = dictOf(o.usage);
+      if (o.conversation_id !== undefined || o.denied_actions !== undefined || "total_usd" in usage || "cache_read_tokens" in usage) {
+        return providerOf("agy").parseStreamLine(line, { includeDeltas: deltas }).map((ev) =>
+          ev.t === "result" ? { ...ev, cost: ev.costUsd, ms: ev.durationMs } : ev,
+        ) as unknown as ChatEvent[];
+      }
+      return [resultEvent(o)];
+    }
     default: return [];
   }
 }

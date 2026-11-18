@@ -5,6 +5,7 @@
 import { randomBytes } from "node:crypto";
 import { accessSync, appendFileSync, chmodSync, closeSync, constants, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { activeProvider } from "../lib/agent-provider.ts";
 import { pyJsonDumps } from "../lib/kit.ts";
 import { home } from "../lib/paths.ts";
 import { which } from "../lib/proc.ts";
@@ -225,6 +226,9 @@ export function createChat(deps: ChatDeps): Chat {
       else if (ev.type === "system" && ev.subtype === "init" && CLAUDE_SESSION.test(String(ev.session_id ?? ""))) {
         m.claudeSession = ev.session_id as string;
         m.model = (ev.model as string | undefined) || m.model;
+      } else if (ev.type === "init" && CLAUDE_SESSION.test(String(ev.conversation_id ?? ""))) {
+        m.claudeSession = ev.conversation_id as string;
+        m.model = (ev.model as string | undefined) || m.model;
       } else if (ev.type === "result") applyResult(sid, m, chatEvents(line, false)[0] as ChatEvent);
     }
     m.off = off + end;
@@ -292,8 +296,9 @@ export function createChat(deps: ChatDeps): Chat {
     const text = rawText.trim();
     if (!text) throw new BadRequest("mensagem vazia");
     if (Array.from(text).length > MAX_TEXT) throw new BadRequest(`mensagem acima de ${MAX_TEXT} caracteres`);
+    const provider = activeProvider("CHAT", (key) => cfg[key]);
     const configured = (cfg.HADES_CHAT_BIN ?? "").replace(/^~(?=$|\/)/, home());
-    const bin = configured || which("claude");
+    const bin = provider.id === "claude" ? (configured || which("claude")) : provider.resolveBinary((key) => cfg[key], which, home());
     if (!bin || !executable(bin)) throw new BadRequest("binário claude não encontrado (Configurações → Sessão Claude → Caminho do claude)");
     const clone = await chatClone();
     if (!clone || !existsSync(clone)) throw new BadRequest("clone principal do repositório não encontrado");
@@ -325,11 +330,18 @@ export function createChat(deps: ChatDeps): Chat {
     const m = meta[id] as SessionMeta;
     m.updated = nowS();
     m.lastRemote = remote;
-    const argv = [
-      bin, "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--permission-mode", "auto",
-      "--model", cfg.HADES_MODEL_CHAT || DEFAULT_MODEL, "--effort", cfg.HADES_EFFORT_CHAT || DEFAULT_EFFORT,
-      ...(m.claudeSession ? ["--resume", m.claudeSession] : []),
-    ];
+    const argv = provider.buildPrintArgv({
+      bin,
+      ...(provider.id === "agy" ? { prompt: sent } : {}),
+      outputFormat: "stream-json",
+      verbose: true,
+      includePartialMessages: true,
+      permissionMode: "auto",
+      model: cfg.HADES_MODEL_CHAT || DEFAULT_MODEL,
+      effort: cfg.HADES_EFFORT_CHAT || DEFAULT_EFFORT,
+      resumeSessionId: m.claudeSession,
+      readConfig: (key) => cfg[key],
+    });
     const out = outFile(id);
     const input = inFile(id);
     // a mensagem entra pelo stdin: no argv, um texto começando com "-" viraria opção do claude

@@ -1,7 +1,7 @@
 /* Peças da página Argos (#/argos): grafo em SVG, lista, painel lateral, ações e paleta. A regra mora em argos/logic.tsx
  * (window.ArgosLogic); aqui só se desenha e se coleta. Carregado antes de pages/argos.js. */
 (() => {
-const { useState, useEffect, useRef, useMemo, useCallback, I, cn, getJSON, Button, Dot, Mono, Empty, Dialog, DialogHeader, DialogFooter, Sheet, Input,
+const { useState, useEffect, useRef, useMemo, useCallback, I, cn, getJSON, Button, Badge, Dot, Mono, Empty, Dialog, DialogHeader, DialogFooter, Sheet, Input,
   Skeleton, HoldConfirm, useConfirmPrefs, CardHeader, Fio, Tracos, Progress, Menu, Select } = HadesCore;
 const L = window.ArgosLogic;
 // cor, forma, ícone e indicadores dos nós: a regra e as tabelas moram em src/lib/canvas-argos.ts (pacote do modelo)
@@ -14,17 +14,17 @@ const TOUCH_MIN = 'max-md:min-h-11';
 const hms = (iso) => { const t = Date.parse(iso || ''); return Number.isFinite(t) ? new Date(t).toLocaleTimeString('pt-BR') : '—'; };
 const agoMs = (iso, now) => { const t = Date.parse(iso || ''); return Number.isFinite(t) ? HadesCore.dur(Math.max(0, (now - t) / 1000)) : null; };
 const KEY_LABEL = { Up: 'Seta para cima', Down: 'Seta para baixo', Left: 'Seta para a esquerda', Right: 'Seta para a direita' };
-const ROW = 'group grid w-full gap-1 border-b border-l-2 border-l-transparent px-3 py-2.5 text-left t-body transition-colors cursor-pointer hover:bg-accent/60 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
+const ROW = 'group grid w-full gap-1 border-b border-l-2 border-l-transparent px-3 py-2.5 text-left t-body transition-colors cursor-pointer hover:bg-hover outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
 
 // o olho de Argos é o ponto de estado do nó: aberto e vivo (trabalha), aberto no tom do aviso (pede você, parado),
 // aberto e quieto (ocioso, aberta, na fila), fechado (concluído, arquivado, fora); o tom vem da tabela de estados
 const EYE_OF_TONE = { vivo: 'vivo', warn: 'warn', bad: 'bad', info: 'ok', muted: 'fechado' };
 const eyeOf = (n, now) => EYE_OF_TONE[A.stateLook(n.state, L.severity(n, now)).tone];
 
-// tom → classe. O ícone e a forma usam o tom inteiro (contraste de gráfico, 3:1); o texto do `vivo` fica na cor do texto
-// porque o rosa vivo do tema escuro não chega a 4,5:1 (AA) como texto sobre o cartão
-const TONE_ICON = { vivo: 'text-vivo', warn: 'text-warn', bad: 'text-bad', info: 'text-info', muted: 'text-muted-foreground' };
-const TONE_TEXT = { vivo: 'text-foreground', warn: 'text-warn', bad: 'text-bad', info: 'text-info', muted: 'text-muted-foreground' };
+// tom → classe. O ícone e a forma usam o tom inteiro (contraste de gráfico, 3:1); "trabalhando" (`vivo` na tabela de
+// estados) é `--busy`, a cor do texto, para o destaque ficar só na ação principal
+const TONE_ICON = { vivo: 'text-busy', warn: 'text-warn', bad: 'text-bad', info: 'text-info', muted: 'text-muted-foreground' };
+const TONE_TEXT = { vivo: 'text-busy', warn: 'text-warn', bad: 'text-bad', info: 'text-info', muted: 'text-muted-foreground' };
 // ícone do lucide pelo nome da tabela; nome que o pacote não tem some em vez de quebrar a página
 function Icon({ name, ...rest }) {
   const C = I[name];
@@ -35,7 +35,7 @@ function Forma({ shape, size = 12, className }) {
   const points = A.shapePoints(shape, 1, 1, size - 2, size - 2).map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
   return <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={cn('shrink-0', className)} aria-hidden="true"><polygon points={points} fill="currentColor" /></svg>;
 }
-const EYE = { vivo: ['stroke-foreground', 'fill-vivo'], warn: ['stroke-warn', 'fill-warn'], bad: ['stroke-bad', 'fill-bad'], ok: ['stroke-muted-foreground', 'fill-ok'] };
+const EYE = { vivo: ['stroke-foreground', 'fill-busy'], warn: ['stroke-warn', 'fill-warn'], bad: ['stroke-bad', 'fill-bad'], ok: ['stroke-muted-foreground', 'fill-ok'] };
 function Olho({ node, now, x, y }) {
   const k = eyeOf(node, now);
   const ui = EYE[k];
@@ -47,24 +47,26 @@ function Olho({ node, now, x, y }) {
   </svg>;
 }
 
-// estado do nó em texto: a palavra, e o que pede você ou o que parou com o tom e a forma do aviso
+// estado do nó com selo da base (Badge), e o que pede você ou o que parou com o tom e a forma do aviso
+const TONE_BADGE = { vivo: 'busy', warn: 'warn', bad: 'bad', info: 'info', muted: 'idle' };
 function Estado({ node, now, eye }) {
   const sev = L.severity(node, now);
+  const look = A.stateLook(node.state, sev);
   const perm = node.pendingPermission;
   return <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 t-meta">
     {eye ? <Olho node={node} now={now} /> : null}
-    <span className={sev === 'attention' ? 'font-medium text-foreground' : 'text-muted-foreground'}>{stateUi(node.state)}</span>
+    <Badge variant={TONE_BADGE[look.tone] || 'idle'}>{stateUi(node.state)}</Badge>
     {perm ? <span className="inline-flex items-center gap-1 font-medium text-warn"><I.Hand className="size-3" aria-hidden="true" />pede permissão{perm.tool ? ` para ${perm.tool}` : ''}</span> : null}
     {sev === 'stalled' ? <span className="inline-flex items-center gap-1 font-medium text-bad"><I.Clock className="size-3" aria-hidden="true" />sem evento há {agoMs(node.lastEventTs, now)}</span> : null}
   </span>;
 }
 
 // ------------------------------------------------------------------ canvas
-// cor do cabeçalho do nó (o canvas desenha com ela; variável CSS não vale no canvas, então se lê o valor do tema)
-const fillOf = (node, now) => {
-  const v = getComputedStyle(document.documentElement).getPropertyValue(A.TONE_VAR[A.stateLook(node.state, L.severity(node, now)).tone]).trim();
-  return v || '#888';
-};
+// cor da faixa de estado do nó e das arestas que chegam nele (o canvas desenha com ela; variável CSS não vale no canvas,
+// então se lê o valor do tema). "Trabalhando" é `--busy`, não o destaque: o destaque fica só para a ação principal.
+const toneVar = (tone) => (tone === 'vivo' ? '--busy' : A.TONE_VAR[tone]);
+const themeColor = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const fillOf = (node, now) => themeColor(toneVar(A.stateLook(node.state, L.severity(node, now)).tone)) || themeColor('--muted-foreground');
 
 // altura do cabeçalho do nó (desenhado no canvas, fora do corpo) e de uma linha do corpo, em px de mundo
 const NODE_HEADER_PX = 24;
@@ -160,7 +162,7 @@ function DockLayer({ api, state, onState, doc, renderAt, describe }) {
     if (!node) return null;
     const name = describe(node);
     const bodyH = Math.max(0, frame.h - DOCK_HEADER_PX);
-    return <section key={id} aria-label={name} data-docked={action.mode} className="elev-float absolute z-20 flex flex-col border border-border-strong bg-card"
+    return <section key={id} aria-label={name} data-docked={action.mode} className="elev-float bg-popover absolute z-20 flex flex-col"
       style={{ left: frame.x, top: frame.y, width: frame.w, height: frame.h }}>
       <header className="flex shrink-0 items-center gap-2 border-b px-2 t-meta max-lg:h-11!" style={{ height: DOCK_HEADER_PX }}>
         <span className="min-w-0 flex-1 truncate font-medium" title={name}>{name}</span>
@@ -196,7 +198,7 @@ const ownName = (n) => {
 // acoplada (DockLayer, `data-docked`) o grupo some: a moldura tem o "Voltar ao canvas" dela.
 const NODE_COMMAND_EVENT = 'argos-node-command';
 const NODE_MENU_COMMAND = 'menu';
-const NODE_ACTION_BTN = 'inline-flex size-6 shrink-0 cursor-pointer items-center justify-center text-muted-foreground outline-none hover:bg-accent/60 hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-lg:size-11';
+const NODE_ACTION_BTN = 'inline-flex size-6 shrink-0 cursor-pointer items-center justify-center text-muted-foreground outline-none hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-lg:size-11';
 const NODE_ACTIONS = [
   { command: 'dock:elevate', icon: 'Maximize2', label: 'Destacar', hint: 'Destacar: abre o nó em primeiro plano (E)' },
   { command: 'canvas:hide', icon: 'ArrowDownToLine', label: 'Recolher', hint: 'Recolher para a bandeja (Shift+H)' },
@@ -234,7 +236,7 @@ function CanvasPane({ doc, selection, onSelectionChange, onOp, graphById, types,
   const selected = useMemo(() => new Set(selection), [selection]);
   // a área se chama pelo título (desenho e nome acessível); os demais, pelo rótulo do grafo ou o id
   const describeNode = useCallback((n) => (M.areas.isAreaNode(n) ? M.areas.areaLook(n).title || 'Área' : graphById.get(n.id)?.label || ownName(n) || n.id), [graphById]);
-  const nodeColor = useCallback((n) => { const g = graphById.get(n.id); return g ? fillOf(g, now) : '#888'; }, [graphById, now, theme]);
+  const nodeColor = useCallback((n) => { const g = graphById.get(n.id); return g ? fillOf(g, now) : themeColor('--muted-foreground'); }, [graphById, now, theme]);
   const isRich = useCallback((n) => types.get(n.type)?.draw.surface === 'html', [types]);
   // zoom semântico: linha de resumo do bloco e balde de estado da contagem por área (modelo puro em canvas-semantic.ts)
   const summaryOf = useCallback((n) => M.semantic.summaryOf({ type: n.type, live: graphById.get(n.id), data: n.data }), [graphById]);
@@ -362,7 +364,7 @@ function NodeList({ nodes, selected, onSelect, now, order }) {
     {list.map((n) => {
       const on = selected === n.id;
       const where = [n.registry === '_skill' ? 'a própria skill' : n.registry, n.phase ? `fase ${n.phase}` : null].filter(Boolean).join(' · ');
-      return <button type="button" role="listitem" key={n.id} onClick={() => onSelect(n.id)} aria-pressed={on} className={cn(ROW, TOUCH_MIN, on && 'border-l-foreground bg-accent/40')}>
+      return <button type="button" role="listitem" key={n.id} onClick={() => onSelect(n.id)} aria-pressed={on} className={cn(ROW, TOUCH_MIN, on && 'border-l-primary bg-accent')}>
         <span className="flex min-w-0 items-center gap-2.5">
           <Olho node={n} now={now} />
           <Forma shape={A.typeLook(n.type).shape} className="text-muted-foreground" />
@@ -385,8 +387,8 @@ function ListPanel({ open, phone, summary, onClose, children }) {
   if (!open) return null;
   return <div ref={root} role="complementary" aria-label="Lista de nós" tabIndex={-1} data-region="list" data-tour-step-id="argos-lista" {...LIST_SHIELD}
     onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); onClose(); } }}
-    className={cn('pointer-events-auto absolute z-20 flex flex-col border-border-strong bg-card text-card-foreground outline-none animate-fade-in',
-      phone ? 'inset-x-0 bottom-0 max-h-[70%] border-t' : 'top-16 bottom-3 left-14 w-[min(22rem,40%)] border')}>
+    className={cn('pointer-events-auto absolute z-20 flex flex-col elev-float bg-popover text-popover-foreground outline-none animate-emergir',
+      phone ? 'inset-x-0 bottom-0 max-h-[70%] border-t' : 'top-16 bottom-3 left-14 w-[min(22rem,40%)]')}>
     {phone ? <span aria-hidden="true" className="mx-auto mt-2 h-1 w-10 shrink-0 bg-border-strong" /> : null}
     <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-1">
       <span className="t-meta-em text-muted-foreground">Lista · {summary}</span>
@@ -410,7 +412,7 @@ function FileSheet({ src, onClose }) {
     <div className="p-4">
       {!x ? <Skeleton className="h-40" /> : x.error ? <Empty icon={I.CircleAlert} title="Não deu para ler o arquivo">{x.error}</Empty>
         : !x.text ? <Empty icon={I.FileX} title="Arquivo vazio" />
-        : <pre className="overflow-auto border bg-card p-4 t-code whitespace-pre-wrap scrollbar-thin">{x.text}</pre>}
+        : <pre className="overflow-auto bg-card p-4 t-code whitespace-pre-wrap scrollbar-thin">{x.text}</pre>}
     </div>
   </Sheet>;
 }
@@ -445,13 +447,13 @@ function Timeline({ node, events, live, now }) {
   useEffect(() => { const b = box.current; if (b && stick.current) b.scrollTop = b.scrollHeight; }, [events.length]);
   return <section className="grid gap-3" aria-label="Faixa do tempo">
     <CardHeader as="h3" title="Faixa do tempo" summary={<span className="inline-flex items-center gap-1.5">
-      <Dot kind={live ? 'busy' : 'idle'} pulse={live} />
+      <Dot kind={live ? 'busy' : 'idle'} />
       {live ? 'ao vivo' : 'reconectando…'}
       <span className="tnum">· {events.length} evento{events.length === 1 ? '' : 's'}</span>
     </span>} />
     <FioDoTempo node={node} events={events} live={live} now={now} />
     {events.length ? <ol ref={box} onScroll={(e) => { const b = e.currentTarget; stick.current = b.scrollHeight - b.scrollTop - b.clientHeight < 40; }} aria-label="Eventos do diário do agente"
-      className="max-h-72 overflow-auto border bg-card t-data scrollbar-thin">
+      className="max-h-72 overflow-auto bg-card t-data scrollbar-thin">
       {events.map((e, i) => <li key={`${e.ts}|${i}`} className="grid grid-cols-[auto_auto_minmax(0,1fr)] items-start gap-2 border-b px-2.5 py-1 last:border-b-0">
         <span className="text-muted-foreground tnum">{hms(e.ts)}</span>
         <Dot kind={TONE_DOT[L.eventTone(e)]} className="mt-[5px]" />
@@ -561,7 +563,7 @@ function SidePanel({ node, detail, moirai, detailError, events, live, now, onFil
         <ul className="grid border-t t-body">
           {runs.map((r) => <li key={r.id} className="grid gap-1 border-b py-2">
             <span className="flex items-center gap-2">
-              {r.status === 'running' ? <Dot kind="busy" pulse /> : r.status === 'ok' ? <I.CircleCheck className="size-4 text-ok" aria-hidden="true" /> : <I.CircleX className="size-4 text-bad" aria-hidden="true" />}
+              {r.status === 'running' ? <Dot kind="busy" /> : r.status === 'ok' ? <I.CircleCheck className="size-4 text-ok" aria-hidden="true" /> : <I.CircleX className="size-4 text-bad" aria-hidden="true" />}
               <span className="min-w-0 truncate font-medium">{r.label}</span>
               <span className="ml-auto shrink-0 t-meta text-muted-foreground tnum">{r.status === 'running' ? 'aguardando o agente' : hms(new Date(r.at).toISOString())}</span>
             </span>
@@ -590,7 +592,7 @@ function ActionBar({ node, actions, onPick }) {
       {primary.map((a) => <Button key={a.id} variant={a.id === 'approve_permission' ? 'default' : 'outline'} icon={I[a.icon]} className="max-md:flex-1" onClick={() => onPick(a)}>{a.label}</Button>)}
     </div> : null}
     <div className="flex flex-wrap items-center gap-1.5">
-      {agentActs.map((a) => <Button key={a.id} size="xs" variant="outline" icon={I[a.icon]} onClick={() => onPick(a)}>{a.label}</Button>)}
+      {agentActs.map((a, i) => <Button key={a.id} size="xs" variant={!primary.length && i === 0 ? 'default' : 'outline'} icon={I[a.icon]} onClick={() => onPick(a)}>{a.label}</Button>)}
       {more.length ? <Menu label="Mais ações: terminal e encerrar" items={more} /> : null}
     </div>
   </div>;
@@ -639,7 +641,7 @@ function ActionDialog({ node, action, detail, onClose, onRun }) {
           background="var(--card)" color="var(--foreground)" menuBackground="var(--popover)" sparkColor="var(--primary)"
           onSend={(t) => { const v = L.validateArgs(action, { ...vals, [f.name]: t }); if (!v.ok) { setErr(v.reason); return; } onRun(action, v.args, typed); onClose(); }} />
           : f.kind === 'textarea' ? <textarea ref={i === 0 ? first : undefined} rows={4} value={vals[f.name] || ''} onInput={(e) => set(f.name, e.target.value)}
-          className="min-h-24 max-h-60 resize-y border border-border-strong bg-background px-3 py-2 text-base outline-none focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-ring md:text-sm" />
+          className="min-h-24 max-h-60 resize-y campo px-3 py-2 t-body outline-none focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-ring" />
           : f.kind === 'select' ? <Select ref={i === 0 ? first : undefined} size="sm" label={f.label} value={vals[f.name] || ''} onChange={(v) => set(f.name, v)}
             items={options(f).map((o) => ({ value: o, label: KEY_LABEL[o] || o }))} />
           : <Input autoFocus={i === 0} value={vals[f.name] || ''} maxLength={f.max} onInput={(e) => set(f.name, e.target.value)} />}
@@ -675,8 +677,8 @@ function SwatchChoice({ title, options, value, onChange }) {
       const on = o.value === value;
       return <button type="button" role="radio" aria-checked={on} key={o.value} id={'argos-swatch-' + o.value} tabIndex={on ? 0 : -1} autoFocus={on}
         onClick={() => onChange(o.value)} onKeyDown={(e) => move(e, i)}
-        className={cn('flex items-center gap-2 rounded-md border px-2.5 py-2 text-left t-body', TOUCH_MIN, on ? 'border-foreground bg-accent/40' : 'border-border hover:bg-accent/20')}>
-        <span aria-hidden="true" className="size-4 shrink-0 rounded-sm border border-foreground/20" style={{ background: o.swatch }} />
+        className={cn('flex items-center gap-2 bg-secondary px-2.5 py-2 text-left t-body', TOUCH_MIN, on ? 'shadow-[inset_0_-2px_0_var(--primary)] text-foreground' : 'text-muted-foreground hover:bg-secondary-hover')}>
+        <span aria-hidden="true" className="size-4 shrink-0" style={{ background: o.swatch }} />
         <span className="truncate">{o.label}</span>
       </button>;
     })}
@@ -750,19 +752,19 @@ function HelpDialog({ open, onClose, rows }) {
     <div className="grid content-start gap-4 min-h-0 overflow-y-auto overscroll-contain pr-1" tabIndex={0} aria-label="Lista de atalhos">
       <ul className="grid gap-1 t-body">
         {rows.map((r) => <li key={r.id} className="flex items-center gap-3">
-          <kbd className="min-w-14 border bg-muted px-1.5 py-0.5 text-center t-data text-muted-foreground">{r.shortcuts.map(chord).join(' · ')}</kbd>
+          <kbd className="min-w-14 bg-muted px-1.5 py-0.5 text-center t-data text-muted-foreground">{r.shortcuts.map(chord).join(' · ')}</kbd>
           <span>{r.label}</span>
         </li>)}
       </ul>
       <ul className="grid gap-1 t-body">
         {REGION_KEYS.map(([k, what]) => <li key={k} className="flex items-center gap-3">
-          <kbd className="min-w-14 border bg-muted px-1.5 py-0.5 text-center t-data text-muted-foreground">{k}</kbd><span>{what}</span>
+          <kbd className="min-w-14 bg-muted px-1.5 py-0.5 text-center t-data text-muted-foreground">{k}</kbd><span>{what}</span>
         </li>)}
       </ul>
       <p className="t-meta-em text-muted-foreground">Com o foco no canvas</p>
       <ul className="grid gap-1 t-body">
         {CANVAS_KEYS.map(([k, what]) => <li key={k} className="flex items-center gap-3">
-          <kbd className="min-w-14 border bg-muted px-1.5 py-0.5 text-center t-data text-muted-foreground">{k}</kbd><span>{what}</span>
+          <kbd className="min-w-14 bg-muted px-1.5 py-0.5 text-center t-data text-muted-foreground">{k}</kbd><span>{what}</span>
         </li>)}
       </ul>
     </div>

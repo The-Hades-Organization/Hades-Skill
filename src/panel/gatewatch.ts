@@ -3,6 +3,7 @@
 import { hostname, userInfo } from "node:os";
 import { type Dirent, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { AGENT_PROVIDER_IDS, providerOf } from "../lib/agent-provider.ts";
 import { readText } from "../lib/fs.ts";
 import { log } from "./log.ts";
 import {
@@ -332,10 +333,20 @@ export function createGateWatch(opts: GateWatchOptions): GateWatch {
     const psi = pressure();
     const load = loadAverage();
 
+    const agentComms = new Set(AGENT_PROVIDER_IDS.flatMap((id) => providerOf(id).processNames));
+    const isAgentProc = (p: Proc): boolean => {
+      if (agentComms.has(p.comm)) return true;
+      const firstTok = p.cmd.split(" ")[0] ?? "";
+      for (const name of agentComms) {
+        if (p.cmd === name || firstTok.endsWith(`/${name}`)) return true;
+      }
+      return false;
+    };
     const agents: Dict[] = [];
     for (const p of procs.values()) {
-      if (!(p.comm === "claude" || (p.cmd.split(" ")[0] ?? "").endsWith("/claude") || p.cmd === "claude")) continue;
-      if (procs.get(p.ppid)?.comm === "claude") continue;
+      if (!isAgentProc(p)) continue;
+      const parent = procs.get(p.ppid);
+      if (parent && agentComms.has(parent.comm)) continue;
       agents.push({ pid: p.pid, cwd: p.cwd, age: ageOf(p), ...tree(p.pid) });
     }
 

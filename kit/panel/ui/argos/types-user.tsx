@@ -278,7 +278,7 @@ function makeArgosTypesUser() {
     onReload(): void;
   }
 
-  const BUTTON = "inline-flex h-7 cursor-pointer items-center px-2 t-label text-foreground border border-border-strong outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-40";
+  const BUTTON = "inline-flex h-7 cursor-pointer items-center px-2 t-label text-foreground outline-none hover:bg-secondary-hover focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-40 bg-secondary";
 
   /** Árvore da nota, pura (sem hooks): o teste a lê sem DOM. */
   function renderNoteView(model: UserModel, state: NoteState, info: { name: string; agent?: string }, on: NoteViewHandlers): Tree {
@@ -296,12 +296,12 @@ function makeArgosTypesUser() {
     }
     return h("div", { className: "flex h-full flex-col gap-2 p-2", "data-note-phase": state.phase }, header,
       h("textarea", {
-        className: "min-h-0 flex-1 resize-none border border-border bg-background p-1 font-mono t-label text-foreground",
+        className: "min-h-0 flex-1 resize-none campo p-1 font-mono t-label text-foreground",
         "aria-label": `Texto da nota ${info.name}`, value: state.draft, disabled: busy, spellCheck: false,
         onChange: (event: { target: { value: string } }) => on.onEdit(event.target.value),
       }),
       state.phase === "conflict"
-        ? h("div", { role: "alert", className: "flex flex-col gap-1 border border-warn p-1 t-label" },
+        ? h("div", { role: "alert", className: "flex flex-col gap-1 p-1 t-label cantos [--c:var(--warn)] bg-card" },
           h("span", null, messageOf(state.code ?? SERVER_CODES.stale)),
           h("span", { className: "flex gap-1" },
             h("button", { type: "button", className: BUTTON, onClick: on.onOverwrite }, "Gravar o meu por cima"),
@@ -393,7 +393,7 @@ function makeArgosTypesUser() {
       void client.save(name, latest.current.draft, rev).then((result) => dispatch({ type: "saved", result, now: deps.now() }));
     };
     const conflict = state.phase === "conflict"
-      ? h("div", { role: "alert", className: "flex flex-col gap-1 border border-warn p-1 t-label" },
+      ? h("div", { role: "alert", className: "flex flex-col gap-1 p-1 t-label cantos [--c:var(--warn)] bg-card" },
         h("span", null, messageOf(state.code ?? SERVER_CODES.stale)),
         h("span", { className: "flex gap-1" },
           h("button", { type: "button", className: BUTTON, onClick: () => send(state.remoteRev) }, "Gravar o meu por cima"),
@@ -433,7 +433,7 @@ function makeArgosTypesUser() {
     }
   }
 
-  const TEXT_CLASS: Readonly<Record<string, string>> = { title: "t-title font-semibold", label: "t-label" };
+  const TEXT_CLASS: Readonly<Record<string, string>> = { title: "t-section", label: "t-label" };
 
   function TextBody(props: { id: string; data: Record<string, unknown>; model: UserModel; deps: UserTypesDeps }): Tree {
     const { id, model, deps } = props;
@@ -563,7 +563,7 @@ function makeArgosTypesUser() {
     if (!view.ok) return h("p", { role: "alert", className: "p-2 text-bad t-label" }, `Esboço inválido: ${view.message} (${view.code})`);
     return h("div", { className: "flex h-full flex-col gap-2 p-2" },
       h("span", { className: "-mt-1 -mr-1 flex items-center gap-1" },
-        h("span", { className: "min-w-0 flex-1 truncate t-label font-semibold", title: view.title }, view.title),
+        h("span", { className: "min-w-0 flex-1 truncate t-body-strong", title: view.title }, view.title),
         nodeActions ? h(nodeActions, { id: input.id }) : null),
       h("pre", { className: "min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all bg-muted p-1 font-mono t-label", tabIndex: 0, "aria-label": "Comandos do esboço" }, view.text),
       deps.copy ? h("button", { type: "button", className: BUTTON, onClick: () => deps.copy?.(view.text) }, "Copiar comandos") : null,
@@ -602,7 +602,7 @@ function makeArgosTypesUser() {
     const { counts } = status;
     return h("div", { className: "flex h-full flex-col gap-1 p-2" },
       h("div", { className: "flex items-center justify-between t-label" },
-        h("span", { className: "font-semibold" }, status.label || "Banda"),
+        h("span", { className: "t-body-strong" }, status.label || "Banda"),
         h("span", { className: "text-muted-foreground" }, `${counts.waiting} esperam você · ${counts.working} trabalham`)),
       h("ul", { className: "min-h-0 flex-1 overflow-auto", "aria-label": "Agentes da banda" },
         ...status.members.map((member) => h("li", { key: member.id },
@@ -717,11 +717,11 @@ function makeArgosTypesUser() {
   const HANDLE_SIZE = 8;
   const ROTATE_MIN = 0.5;
   const ROTATE_OFFSET = 20;
-  const GUIDE_STROKE = "var(--vivo, currentColor)";
+  const GUIDE_STROKE = "var(--ring, currentColor)";
   const DUPLICATE_OFFSET = 16;
   const MARQUEE_MIN = 3;
   const HANDLE_CURSOR: Record<string, string> = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize", ne: "nesw-resize", sw: "nesw-resize", nw: "nwse-resize", se: "nwse-resize" };
-  const TOOL_BUTTON = "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center px-2 t-label text-foreground border border-border-strong outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-40 sm:min-h-8 sm:min-w-8";
+  const TOOL_BUTTON = "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center px-2 t-label text-foreground outline-none hover:bg-secondary-hover focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-40 sm:min-h-8 sm:min-w-8 bg-secondary";
   const TOOL_CURSOR: Record<DrawTool, string> = { select: "cursor-default", rect: "cursor-crosshair", ellipse: "cursor-crosshair", line: "cursor-crosshair", arrow: "cursor-crosshair", stroke: "cursor-crosshair", text: "cursor-text" };
 
   /** Cor de um token de tema (`--<token>`) como `#rrggbb[aa]`, resolvida pelo navegador (aceita oklch etc.) via canvas 1×1; vazio se não resolver. */
@@ -999,7 +999,7 @@ function makeArgosTypesUser() {
         h("span", { className: "flex flex-wrap items-center gap-1", role: "group", "aria-label": "Cor" },
           ...dm.DRAW_PALETTE.map((entry) => h("button", { key: entry.token, type: "button", title: entry.label, "aria-label": entry.label, "aria-pressed": (entry.token === "foreground" ? color === undefined : false) ? "true" : "false",
             className: `${TOOL_BUTTON} ${entry.token === "foreground" && color === undefined ? "bg-accent" : ""}`, onClick: () => pickColor(entry.token) },
-            h("span", { "aria-hidden": "true", className: "block size-4 border border-border-strong", style: { backgroundColor: `var(--${entry.token})` } })))),
+            h("span", { "aria-hidden": "true", className: "block size-4", style: { backgroundColor: `var(--${entry.token})` } })))),
         h("span", { className: "flex flex-wrap items-center gap-1", role: "group", "aria-label": "Espessura" },
           ...dm.DRAW_WIDTHS.map((value) => h("button", { key: value, type: "button", title: `Espessura ${value}`, "aria-label": `Espessura ${value}`, "aria-pressed": lineWidth === value ? "true" : "false",
             className: `${TOOL_BUTTON} ${lineWidth === value ? "bg-accent" : ""}`, onClick: () => setLineWidth(value) },
@@ -1007,12 +1007,12 @@ function makeArgosTypesUser() {
         h("button", { type: "button", className: TOOL_BUTTON, disabled: live.length === 0, onClick: () => { if (apply(() => dm.removeElements(base, live))) setSelected([]); } }, "Apagar"),
         h("button", { type: "button", className: TOOL_BUTTON, onClick: () => { exportDrawingPng(dm, base, base.title ?? id).catch(() => setError("Não deu para exportar o PNG.")); } }, "PNG"),
         h("button", { type: "button", className: TOOL_BUTTON, onClick: leave }, "Sair"),
-        pendingText ? h("input", { className: "h-7 min-w-24 flex-1 border border-border-strong bg-background px-1 t-label", autoFocus: true, value: pendingText.text, "aria-label": "Texto do desenho", maxLength: dm.DRAWING_LIMITS.textChars,
+        pendingText ? h("input", { className: "h-7 min-w-24 flex-1 campo px-1 t-label", autoFocus: true, value: pendingText.text, "aria-label": "Texto do desenho", maxLength: dm.DRAWING_LIMITS.textChars,
           onChange: (event: { target: { value: string } }) => setPendingText({ ...pendingText, text: event.target.value }),
           onKeyDown: (event: { key: string }) => { if (event.key === "Enter") commitText(); } }) : null)
         : null,
       h("svg", {
-        ref: svgRef, viewBox: `0 0 ${props.w} ${props.h}`, width: "100%", height: "100%", role: "img", tabIndex: 0, className: `block min-h-0 flex-1 text-foreground ${editing ? `${TOOL_CURSOR[tool]} touch-none` : ""}`,
+        ref: svgRef, viewBox: `0 0 ${props.w} ${props.h}`, width: "100%", height: "100%", role: "img", tabIndex: 0, className: `block min-h-0 flex-1 text-foreground ${editing ?`${TOOL_CURSOR[tool]} touch-none` : ""}`,
         "aria-label": editable && !editing ? `Desenho ${base.title ?? ""}: duplo clique ou Enter para editar` : `Desenho ${base.title ?? ""}`.trim(),
         onPointerDown: onDown, onPointerMove: onMove, onPointerUp: onUp, onDoubleClick: onDouble,
       },

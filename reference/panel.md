@@ -76,15 +76,13 @@ A unit fica **fora** do slice `hades` (~40 MB): não conta no teto e segue no ar
 
 ### Navegação lateral
 - **Grupos** (`CORE_GROUPS`; cabeçalho clicável, `aria-expanded`, Enter/Espaço): Ambiente (Visão geral, Branch e PRs, e as páginas do plugin que pedirem esse grupo), Loop (Loop, Orquestração, Revisões, Fila de gates, Consumo), Operação (Claude, Herdr, Execuções, Logs, Notificações, Acesso remoto), Hades (Argos, Cerberus, Thanatos, Caronte) e Sistema (Onboarding, Plugins, Qualidade, Configurações, Documentação). Argos, Cerberus, Thanatos, Caronte e Herdr levam um subtítulo de função sob o nome (campo `sub` do `CORE_NAV`). A lista plana `CORE_NAV` segue valendo para rota e paleta de comandos.
-- **Hades:** grupo logo depois de Operação, com Argos, Cerberus, Thanatos e Caronte, nessa ordem (o grupo Fronteiras deixou de existir; plugin que declare `group: 'fronteiras'` cai num grupo novo antes de Sistema). Argos e Caronte têm ícone próprio em SVG `currentColor` (os seis olhos e o anel com a meia-lua), usado na sidebar, no trilho e na paleta Ctrl+K.
-- **O rio:** uma linha fina desce pelo trilho, atrás dos ícones, com uma correnteza de metal (parada com movimento
-  reduzido). O **óbolo** (moeda de metal) marca a página aberta e desliza até a nova na troca. Onde há atividade, um
-  **ponto vivo** (`--vivo`) desce do topo do rio até o item e fica pulsando; um ponto âmbar marca o que espera o dono.
+- **Hades:** grupo logo depois de Operação, com Argos, Cerberus, Thanatos e Caronte, nessa ordem (o grupo Fronteiras deixou de existir; plugin que declare `group: 'fronteiras'` cai num grupo novo antes de Sistema). Argos e Caronte têm ícone próprio em SVG `currentColor` (os seis olhos e o anel com a meia-lua), usado na sidebar, na barra recolhida e na paleta Ctrl+K.
+- **O rio:** uma linha fina desce pela navegação, atrás dos ícones, com uma correnteza de metal quando há página em atividade (parada sem atividade ou com movimento reduzido). O **óbolo** (ponto de metal com halo) marca a página aberta e desliza até a nova na troca. Onde há atividade, um **ponto vivo** (`.ponto-vivo`) desce do topo do rio até o item; um ponto âmbar marca o que espera o dono.
 - Grupo fechado com atividade (fila com gates, execução rodando) mostra um ponto no cabeçalho. O grupo da página aberta reabre sozinho ao navegar.
 - **Rolagem:** marca no topo e card do slice no rodapé ficam fixos; só a área dos grupos rola.
-- **Trilho:** o botão do topo da sidebar ou **Ctrl B** minimiza para 64 px (só ícones, nome no tooltip, ponto no lugar do badge, barra vertical do slice). Só no desktop (`md:`); a gaveta do celular é sempre expandida.
-- **Páginas stage** (`registerPage(..., { stage: true })`, hoje a Argos): sem cabeçalho nem padding, trilho forçado em 64 px sem gravar `panel-sidebar-min`, fio global sobreposto e `h1` só para leitor de tela. No celular a gaveta de navegação segue normal (`openNav` no contexto da página).
-- O estado (trilho e grupos fechados) fica no `localStorage` do navegador: `panel-sidebar-min` e `panel-sidebar-closed`. Não vai para o servidor nem para outro navegador.
+- **Barra recolhida:** o botão do topo da sidebar ou **Ctrl B** minimiza para 64 px (só ícones, nome no tooltip, ponto no lugar do badge, barra vertical do slice). Só no desktop (`md:`); a gaveta do celular é sempre expandida.
+- **Páginas stage** (`registerPage(..., { stage: true })`, hoje a Argos): sem cabeçalho nem padding, barra lateral forçada em 64 px sem gravar `panel-sidebar-min`, fio global sobreposto e `h1` só para leitor de tela. No celular a gaveta de navegação segue normal (`openNav` no contexto da página).
+- O estado (barra recolhida e grupos fechados) fica no `localStorage` do navegador: `panel-sidebar-min` e `panel-sidebar-closed`. Não vai para o servidor nem para outro navegador.
 
 ### Topo
 Uma frase de estado (ponto + "Parcial · 3 rodando · 1 na fila · 1 espera por você", `StateLine`) e, colado embaixo do
@@ -130,7 +128,7 @@ Tour da página (§Tour por página): onze passos (o cabeçalho, espera por voc�
 ### Versão nova
 
 Quando a `VERSION` do branch padrão do repo da skill (`HADES_VERSION_CHECK_REPO`, lida por GET anônimo e, de reserva, pelo `gh api`) é maior que a
-instalada, o painel mostra um selo discreto no pé da sidebar (ícone no trilho) e o card **Versão X disponível** no topo da
+instalada, o painel mostra um selo discreto no pé da sidebar (ícone na barra recolhida) e o card **Versão X disponível** no topo da
 Visão geral, com o comando de atualizar e botão de copiar. Sem botão que atualize, sem download e sem `notify.sh`. Vem em
 `snapshot.versionCheck` (`enabled`, `access`, `local`, `remote`, `update`, `command`): lê só o cache e, vencido o
 intervalo, a consulta corre numa thread, nunca na amostragem. Sem acesso ao repo, com a checagem desligada ou em dia,
@@ -1073,29 +1071,25 @@ Para editar a tela, mexa no arquivo `.tsx` da página e recarregue o navegador: 
 
 ## Tema e ícone
 
-Dois temas desenhados: **Érebo** (escuro, o principal) e **Marfim** (claro). Tudo mora no `<style>` do `ui/index.html`:
+Dois temas desenhados: escuro (`#0e050a`, o principal) e claro (`#f8ecf1`). O sistema de design está em `kit/panel/ui/DESIGN.md` e `reference/identidade.md`. Tudo mora no `<style>` do `ui/index.html`:
 os tokens em `:root` (claro) e `.dark` (escuro) e o mapeamento `@theme inline` (`--color-*`, `--radius-*`, `--font-*`).
 Os nomes são os do shadcn, com o sentido do Hades:
 
-- `--primary` é o vinho `#391a2c` no claro e o metal `#ffc6df` no escuro; `--accent` é só o fundo de hover, não cor de marca.
-- `--vivo` (o rosa `oklch(0.586 0.253 17.585)` no escuro) é **só o que está vivo**: fio fiando, ponto que pulsa, foco
-  (`--ring`). Nada estático usa rosa.
-- `--metal` (`#ffc6df`) é o metal da abertura: marca, óbolo, brilho do fio fiando. `--metal-ink` é o metal legível sobre o
-  marfim (série de gráfico, traço e nós do fio fiando; no escuro é o próprio metal).
-- `--border-strong` (contorno de controle), `--rail-muted` (rótulo no trilho), `--term*` (o terminal é escuro nos dois
-  temas: erro e aviso dele usam `--term-bad`/`--term-warn`), `--ok`/`--warn`/`--bad`/`--info` para estado.
-- `--chart-1..5` = vivo, info, warn, ok, metal-ink; `--s1..s4` são apelidos deles.
-- **Raio 0 em tudo** (`--radius: 0`). Redondo só de propósito: `rounded-full` em ponto de estado, ponto vivo e óbolo; o switch é quadrado.
+- `--primary` é `#391a2c` no claro e `#ffc6df` no escuro, reservado à ação principal, foco e controles marcados; `--accent` e `--hover` são a mistura do texto sobre a superfície para o hover.
+- `--busy` (`var(--foreground)`) marca o que está em curso ("trabalhando", fio fiando); `--vivo` (`var(--primary)`) fica apenas em `caret-color` e `::selection`.
+- `--metal` (`#ffc6df`) ilumina a sidebar e a abertura: marca, ponto de luz e óbolo. `--metal-ink` é o tom para série de gráfico e traço no tema claro (`oklch(0.6 0.1 350)`; no escuro é o próprio metal).
+- `--line` (`#926e7e` no claro, `#876678` no escuro) pinta colchetes de canto (`cantos`), linha de base de 2 px de campo (`campo`) e controles desmarcados (`--control-off`); `--border` e `--border-strong` são frações dela para divisórias internas; `--rail-muted` é o rótulo secundário na sidebar; `--term*` mantém o terminal escuro nos dois temas (erro e aviso usam `--term-bad`/`--term-warn`, e links sobre `bg-term` usam `text-term-foreground underline decoration-line underline-offset-4 hover:text-metal`); `--ok`/`--warn`/`--bad`/`--info` pintam os estados.
+- `--chart-1..5` = primary, info, warn, ok, metal-ink; `--s1..s4` são apelidos deles.
+- **Raio 0 em tudo** (`--radius: 0`, `--radius-xs` a `--radius-4xl` = 0). Redondo só de propósito: `rounded-full` em ponto de estado (`Dot`), pontinhos de 7 px da sidebar e giro; o switch é reto e o rádio é losango.
 
 - **Cor sai do token, nunca de classe fixa.** Nada de `zinc-*`, `emerald-*`, hex ou `oklch` literal em
   `app.tsx`/`pages/`; use `bg-primary`, `text-ok`, `text-chart-2`. Tracejado em CSS sempre por `mask` (gradiente com
   `oklch` e `transparent` não pinta no Firefox).
-- **Sidebar** nos tokens `sidebar-*` e `--rail-muted`: o trilho é vinho `#391a2c` com tinta marfim nos dois temas.
-- **Card do slice** minimizável (botão com `aria-expanded`): estado em `localStorage` (`panel-sidebar-slice-min`), como o
-  trilho e os grupos; sem chave no `config.tsv`. No trilho continua só o % e a barra.
+- **Sidebar** nos tokens `sidebar-*` e `--rail-muted`: opaca e escura nos dois temas (`#190d14` no escuro, `#391a2c` no claro).
+- **Card do slice** no rodapé da sidebar: na barra recolhida mostra o % e a barra de 3 px.
 - **Claude e Herdr, uma coisa por vez** (`mobile-term.tsx`, `HadesCore.Mobile`): abaixo de 768 px a página tem dois níveis, **lista** (conversas; terminais abertos; workspaces) e **detalhe** (conversa, terminal ou painel de agente em tela cheia). Entrar no detalhe empilha uma entrada no histórico (`history.pushState`, mesma URL); o voltar do sistema e a seta do cabeçalho voltam à lista sem sair da página. O lado a lado da mesa não existe no celular (uma sessão por vez; trocar é voltar e escolher). Regra pura em `term-logic.tsx` (`navStep`, `isMobileWidth`). Limite: ao sair da página com o detalhe aberto sobra uma entrada de histórico (um voltar sem efeito).
 - **Ícone:** `ui/brand/hades.svg` (fundo quadrado incluso, serve aos dois temas) é favicon (`type="image/svg+xml"`),
-  marca da sidebar e do trilho. Os PNG (`icon-192`, `icon-512`, `icon-maskable-512` com o glifo a 80% para a zona
+  marca da sidebar e da barra recolhida. Os PNG (`icon-192`, `icon-512`, `icon-maskable-512` com o glifo a 80% para a zona
   segura, `apple-touch-icon`, `favicon-32`) saem do SVG com `rsvg-convert -w <n> -h <n>`. `theme_color` e
   `background_color` do manifest, e a `theme-color` escura do `index.html`, são o `--background` escuro.
 - **Ícone do Cerberus:** `ui/brand/cerberus.svg` (só a figura, `currentColor`, polilinha simplificada) é o `I.Cerberus` do
@@ -1103,10 +1097,10 @@ Os nomes são os do shadcn, com o sentido do Hades:
 
 ## Layout no celular (390 px)
 
-A tela é conferida a **390 px** (celular) e a **1440 px** (desktop); abaixo de 768 px (`md:`) a sidebar vira gaveta. Regras para página nova:
+A tela é conferida a **360/390 px** (celular) e a **1440 px** (desktop); abaixo de 768 px (`md:`) a sidebar abre como folha que desce do topo. Regras para página nova:
 - **Sem rolagem horizontal da página.** Fila de botões usa `flex-wrap`; item de grid já encolhe (`:where(.grid) > *`); texto longo leva `truncate` ou `min-w-0`.
-- **Tabela larga:** `Table` já rola dentro do próprio card (`overflow-x-auto`); lista densa vira cartão empilhado (`grid` de uma coluna no celular, colunas só de `sm:` para cima).
-- **Alvo de toque:** `Button`, `Input` e o `Select` têm 44 px no celular (`max-md:h-11`); botão cru, `select`, link da navegação e link externo ganham piso de 40 px pela regra `@media (max-width: 767px), (pointer: coarse)` do `index.html`. Chave, caixa e fechar mantêm o desenho e só ampliam a área (`::after`).
+- **Tabela larga:** `Table` rola dentro do próprio card (`overflow-x-auto`), `Th` e `Td` reduzem o padding (`max-md:px-2`) e permitem quebra abaixo de `md`, e tabelas densas ocultam colunas secundárias com `max-md:hidden` para caber em 360 px.
+- **Alvo de toque:** `Button`, `Input` e o `Select` têm 44 px no celular (`max-md:h-11`); botão cru, `select`, link da navegação e link externo ganham piso de 44 px pela regra `@media (max-width: 767px), (pointer: coarse)` do `index.html`. Chave, caixa e fechar mantêm o desenho e só ampliam a área (`::after`).
 - **Diálogo** limita a altura a `100dvh − 2rem` e rola por dentro; a busca Ctrl K gruda no topo no celular, para o teclado não cobri-la.
 - **Cabeçalho:** o estado geral vira só o ponto; o texto fica para `sm:` (leitor de tela e tooltip mantêm).
 
@@ -1114,31 +1108,21 @@ A tela é conferida a **390 px** (celular) e a **1440 px** (desktop); abaixo de 
 
 Tamanho e peso saem de um papel, nunca de `text-xs`, `text-sm`, `text-[13px]` ou de um par
 `text-* font-*` solto. Os papéis são `@utility t-*` em `ui/index.html` sobre tokens `--fs-*` em rem: `t-page-title` (h1),
-`t-section-lg` e `t-section` (títulos), `t-body-strong`, `t-body` (texto e descrição), `t-label` (nav, aba, botão, nome
+`t-section-lg` e `t-section` (títulos em Marcellus, peso 400 sem síntese), `t-body-strong`, `t-body` (texto e descrição), `t-label` (nav, aba, botão, nome
 de campo; 13px em 500), `t-meta` e `t-meta-em` (hora, contagem, caminho, selo), `t-micro` (eixo, Kbd), `t-data` (número,
 tempo, id em mono tabular), `t-kpi` (número grande), `t-code` e `t-code-doc` (log, comando, `<pre>`), `t-prose` (Docs,
 Thanatos, chat). Um papel por elemento (dois brigam pela ordem do CSS); `leading-*`, `font-*` e `truncate` soltos vencem o
 papel e servem de exceção. CSS de efeito em `fx/` lê `var(--fs-label)` e afins em vez de px. Títulos levam
 `text-wrap: balance` e texto `pretty` (já vêm no papel e na base do `index.html`). Prosa de leitura: medida de até 68ch.
-Famílias (Figtree, Marcellus só no `h1` e na marca, Geist Mono para dado e código) não se trocam por página.
+Famílias (Figtree, Marcellus nos títulos e na marca, Geist Mono para dado e código) não se trocam por página.
 
 ## Linguagem de componentes (`app.tsx`, no `HadesCore`)
 Uma página nova usa estes, na ordem em que a leitura pede: estado primeiro, depois o que vive, depois a lista.
-- **Seções no chão:** `Card` é título + filete (`CardHeader`: `title`, `summary` na linha do título, `action`, `as`),
-  sem fundo nem borda. `Card variant="object"` (fundo e borda) só para um objeto que existe: gate, agente, guarda, PR,
-  unit (`Svc`). `CardContent` não tem padding. A página não repete o h1, que o app desenha (Marcellus).
-- **Estado:** `LinhaDeEstado` (o número que importa e os vizinhos apagados, numa frase) no lugar de faixa de KPIs;
-  `Regua` + `Leitura` (`value`, `unit`, `detail`, `format`, `decimals`, `onClick`) quando há 2 a 4 leituras com forma;
-  `Tracos` (um traço por unidade, `ok|warn|bad|idle`, a altura diz a gravidade); `Num` conta ao mudar.
-- **Atividade:** `Fio` (`s`: `fiando` rodando, `medido` concluído com nós, `cortado` falhou no ponto da falha, `frouxo`
-  esperando, `parado`; sempre com `label`). `jobFio(j, jobs)` dá o fio de uma execução: o corte fica na proporção da
-  duração sobre a mediana das execuções ok da mesma ação (70% sem histórico). `JobRow` desenha o fio.
-- **Linhas:** item de lista com `border-b`; selecionado com `border-l-2 border-l-foreground bg-accent/40`; o link
-  estica pela linha (`after:absolute after:inset-0`) e as ações aparecem no hover/foco sem mudar a altura.
-- **Controles:** `Button` (h-8, `outline` com `border-strong`, foco em contorno de 2 px `ring`), `Segmented`, e
-  `Choice` (`Segmented` na mesa, `Select` no celular; a largura vem de `useWide(px)`), `Legend` com traço, `Empty` em
-  uma linha com a ação que resolve, `Progress` reto. `PrPicker` (`sel`, `toggle`, `applied`, `inSet`, `onItems`
-  opcional) é o seletor de PRs de qualquer página: cada PR é um checkbox, o erro do `gh` sai em palavras.
+- **Superfícies:** `Card` é seção opaca (`bg-card/96`) sobre a névoa com colchetes de canto (`cantos`), sem borda fechada (`CardHeader`: `title` em `t-section`, `summary`, `description`, `action`, `as`). `Card variant="object"` tem padding compacto (`p-3.5 gap-2.5`) para um objeto individual (gate, agente, guarda, unit `Svc`). Card dentro de card cai para superfície 2 (`.cartao .cartao`). A página não repete o h1, que o app desenha.
+- **Estado:** `LinhaDeEstado` (o número que importa e os vizinhos apagados, numa frase); `Badge` cheio na cor do estado com texto em `--background` (e `StateBadge` com ícone); `Dot` de 8 px com `pulse` restrito ao que pede atenção (`warn`/bloqueado); `Regua` + `Leitura` (`value`, `unit`, `detail`, `format`, `decimals`, `onClick`) com `cantos` e divisórias de 1 px; `Tracos` (um traço por unidade, `ok|warn|bad|idle`); `Num` conta ao mudar.
+- **Atividade:** `Fio` (`s`: `fiando` rodando em `--busy`, `medido` concluído com nós, `cortado` falhou no ponto da falha, `frouxo` esperando, `parado`; sempre com `label`). `jobFio(j, jobs)` dá o fio de uma execução: o corte fica na proporção da duração sobre a mediana das execuções ok da mesma ação (70% sem histórico). `JobRow` desenha o fio.
+- **Linhas:** item de lista com `border-b` (`last:border-b-0`); linha selecionável com `.item-ativo` (`bg-accent shadow-[inset_3px_0_0_var(--primary)] hover:bg-accent`).
+- **Controles:** `Button` (h-8 na mesa, 44 px no celular; um `default` por região, `secondary`/`outline` cheios em `bg-secondary`, `destructive` em `bg-danger-soft text-bad`, foco em contorno tracejado de 2 px `ring`), `Input` e `Select` com `campo` (superfície 2 e linha de base de 2 px em `--line`, `--primary` em foco), `Segmented` e `Choice` (`Segmented` na mesa, `Select` no celular; largura por `useWide(px)`), `AreaChart` (renderiza uma linha compacta quando não há amostras ou as séries estão zeradas) com `Legend`, `Empty` em uma linha, `Progress` reto. `PrPicker` (`sel`, `toggle`, `applied`, `inSet`, `onItems` opcional) é o seletor de PRs de qualquer página.
 - **Escalas:** `niceTicks(max, n)` dá passos redondos até `max`; `niceTicksCovering(max, n)` passa de `max` quando a
   escala não pode cortar a maior coluna.
 - **Barra presa no rodapé:** com uma execução rodando, a pílula dela fica no canto e o shell expõe `--dock`; a barra
@@ -1207,6 +1191,7 @@ nem CDN. Só mudam a forma de acionar: rotas, autenticação e regra do acesso r
 - **Rubber Segment** (`fx/rubber-segment.tsx`, miolo do `Segmented` do `app.tsx`): todas as abas do painel (Revisões, Visão geral, Fila de gates,
   Argos, Configurações, Documentação, Branch e PRs, e `Choice` na mesa). A pílula elástica segue clique, arrasto e setas (papel `tab`, sem
   mudar assinatura nem medidas). Sem o fx carregado, com `prefers-reduced-motion` ou `saveData`, vale o miolo comum.
+- **Poeira** (`fx/poeira.tsx`, `window.HadesPoeira`): camada de partículas em canvas 2D entre a névoa (`body::before`) e `#root` (até 48 grãos por unidade de densidade na cor `--primary`, a 25 qps apenas com a aba visível) e camada de rajada (`emitir(el, 'desfazer' | 'apagar')`, z 65) acionada quando um aviso sai. Parada com `prefers-reduced-motion` ou `saveData`.
 - **Carga sob demanda** (`fx/lazy.tsx`, `HadesFx.use(nome, enabled)`): `vendor/motion.js` e os componentes que o usam entram
   por `import()` quando a página precisa; ficam fora do pré-cache do `sw.js`.
 

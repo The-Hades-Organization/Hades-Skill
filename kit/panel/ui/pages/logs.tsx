@@ -13,8 +13,8 @@ const LOG_CATS = [
 const DOT_WORD = { ok: 'ativo', warn: 'subindo', idle: 'parado' };
 const EMPTY = { svc: 'Nenhum serviço registrado.', build: 'Nenhum build rodou ainda.', unit: 'Nenhuma unit encontrada.',
   docker: 'Nenhum container do projeto rodando: suba a infra na Visão geral.', doc: 'Nenhum documento ainda.' };
-const ROW = 'flex w-full items-center gap-2.5 border-b border-l-2 border-l-transparent px-3 text-left t-body transition-colors cursor-pointer hover:bg-accent/60 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
-const ROW_ON = 'border-l-foreground bg-accent/40';
+const ROW = 'flex min-h-8 max-md:min-h-11 w-full items-center gap-2.5 border-b last:border-b-0 px-3 text-left transition-colors cursor-pointer hover:bg-hover outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
+const ROW_ON = 'item-ativo';
 
 // log de serviço que não existe quase sempre é serviço que não subiu: a saída é subir esse serviço
 function Missing({ svc }) {
@@ -47,36 +47,44 @@ function Logs({ d }) {
     docker: d.containers.filter((c) => c.state !== 'ausente').map((c) => ({ src: 'docker:' + c.name, label: c.service, dot: c.state === 'running' ? 'ok' : 'idle' })),
     doc: ['STATUS.md', 'notes.md', 'conflicts.log', 'rebuild.report', 'prs.list'].map((f) => ({ src: 'doc:' + f, label: f })),
   };
-  const catInfo = LOG_CATS.find((c) => c.id === cat);
+  const catInfo = LOG_CATS.find((c) => c.id === cat) || LOG_CATS[0];
+  useEffect(() => {
+    if ((items[cat] || []).length === 0) {
+      const first = LOG_CATS.find((c) => (items[c.id] || []).length > 0);
+      if (first && first.id !== cat) setCat(first.id);
+    }
+  }, [files.length, d.services.length, d.containers.length]);
   const list = (items[cat] || []).filter((i) => i.label.toLowerCase().includes(q.toLowerCase()));
   const cur = src && src.split(':')[0] === (cat === 'build' ? 'file' : cat) ? src : list[0]?.src;
   const curItem = Object.values(items).flat().find((i) => i.src === cur);
   const curSvc = cur?.startsWith('svc:') ? d.services.find((s) => 'svc:' + s.name === cur) : null;
   return <div className="grid items-start gap-6 lg:grid-cols-[300px_1fr]">
     <aside className="grid gap-6 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:grid-rows-[auto_minmax(0,1fr)]">
-      <nav aria-label="Categorias de log" data-tour-step-id="logs-categorias">
-        {LOG_CATS.map((c) => <button key={c.id} type="button" aria-current={cat === c.id ? 'true' : undefined} onClick={() => { setCat(c.id); setSrc(null); setQ(''); }} className={cn(ROW, 'py-2', cat === c.id && ROW_ON)}>
-          <span className="min-w-0 flex-1">
-            <span className={cn('block', cat === c.id && 'font-medium')}>
-              {c.label}
+      <Card className="gap-0 p-2" data-tour-step-id="logs-categorias">
+        <nav aria-label="Categorias de log">
+          {LOG_CATS.map((c) => <button key={c.id} type="button" aria-current={cat === c.id ? 'true' : undefined} onClick={() => { setCat(c.id); setSrc(null); setQ(''); }} className={cn(ROW, 'py-2', cat === c.id && ROW_ON)}>
+            <span className="min-w-0 flex-1">
+              <span className={cn('block t-body', cat === c.id && 'font-medium')}>
+                {c.label}
+              </span>
+              <span className="block truncate t-meta text-muted-foreground">
+                {c.desc}
+              </span>
             </span>
-            <span className="block truncate font-mono t-micro text-muted-foreground">
-              {c.desc}
+            <span className="t-meta text-muted-foreground tnum">
+              {items[c.id].length}
             </span>
-          </span>
-          <span className="t-meta text-muted-foreground tnum">
-            {items[c.id].length}
-          </span>
-        </button>)}
-      </nav>
-      <Card className="min-h-0 gap-0" data-tour-step-id="logs-lista">
+          </button>)}
+        </nav>
+      </Card>
+      <Card className="min-h-0 gap-3" data-tour-step-id="logs-lista">
         <CardHeader title={catInfo.label} summary={q ? `${list.length} de ${items[cat].length}` : `${items[cat].length}`} />
-        <div className="border-b py-2" data-tour-step-id="logs-filtro">
+        <div data-tour-step-id="logs-filtro">
           <Input icon={I.Search} aria-label={'Filtrar ' + catInfo.label.toLowerCase()} placeholder={'Filtrar ' + catInfo.label.toLowerCase() + '…'} value={q} onInput={(e) => setQ(e.target.value)} />
         </div>
-        <CardContent className="min-h-0 overflow-y-auto scrollbar-thin max-lg:max-h-72">
-          {list.length ? list.map((i) => <button key={i.src} type="button" aria-current={cur === i.src ? 'true' : undefined} onClick={() => setSrc(i.src)} title={i.off ? 'Desligado' : undefined}
-            className={cn(ROW, 'py-1.5', cur === i.src ? ROW_ON + ' font-medium' : 'text-muted-foreground hover:text-foreground', i.off && cur !== i.src && 'opacity-60')}>
+        <CardContent className="-mx-2 min-h-0 overflow-y-auto scrollbar-thin max-lg:max-h-72">
+          {list.length ? list.map((i) => <button key={i.src} type="button" aria-current={cur === i.src ? 'true' : undefined} onClick={() => setSrc(i.src)}
+            className={cn(ROW, 'py-1.5', cur === i.src ? ROW_ON + ' font-medium' : 'text-muted-foreground hover:text-foreground')}>
             {i.dot ? <Dot kind={i.dot} /> : null}
             {i.dot ? <span className="sr-only">{DOT_WORD[i.dot] || ''}</span> : null}
             <span className="min-w-0 flex-1 truncate font-mono t-label">
@@ -88,7 +96,7 @@ function Logs({ d }) {
               <span> err</span>
             </span></Tip> : null}
           </button>)
-            : <div className="px-3">
+            : <div className="px-2">
               <Empty icon={I.ScrollText} title={q ? `Nada com "${q}".` : (EMPTY[cat] || 'Vazio.')} />
             </div>}
         </CardContent>
@@ -97,7 +105,7 @@ function Logs({ d }) {
     {cur ? <div className="min-w-0" data-tour-step-id="logs-leitor">
       <LogViewer key={cur} src={cur} title={curItem?.label || cur} flow missing={<Missing svc={curSvc} />} />
     </div>
-      : <Empty icon={I.ScrollText} title="Escolha um log." />}
+      : <Card><Empty icon={I.ScrollText} title="Escolha um log." /></Card>}
   </div>;
 }
 

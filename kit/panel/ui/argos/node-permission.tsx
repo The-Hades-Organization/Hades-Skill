@@ -238,8 +238,8 @@ function makeArgosNodePermission() {
     return state.phase === "error" ? errorText(state.code, state.message) : "";
   };
 
-  const BOX = "flex flex-col gap-1.5 border border-warn bg-background p-2 t-body";
-  const BTN = "inline-flex min-h-8 cursor-pointer items-center justify-center border border-border-strong px-3 t-label outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-40 max-md:min-h-11";
+  const BOX = "flex flex-col gap-1.5 bg-background p-2 t-body cantos [--c:var(--warn)]";
+  const BTN = "inline-flex min-h-8 cursor-pointer items-center justify-center px-3 t-label outline-none hover:bg-secondary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-40 max-md:min-h-11 bg-secondary";
 
   interface PermissionUi {
     h: ReactApi["createElement"];

@@ -19,7 +19,7 @@ const HerdrStatus = ({ st, since }) => {
   const [l, k] = HERDR_ST[st] || HERDR_ST.unknown;
   return <Tip text={since ? `${l} há ${dur(Date.now() / 1000 - since)}` : l}>
     <span className={cn('inline-flex items-center gap-1.5 t-meta whitespace-nowrap', st === 'blocked' ? 'font-medium text-foreground' : 'text-muted-foreground')}>
-      <Dot kind={k} pulse={k === 'busy'} />
+      <Dot kind={k} pulse={k === 'warn'} />
       {l}
     </span>
   </Tip>;
@@ -71,7 +71,7 @@ function HerdrPane({ session, pane, w, t, onAdmin, onOpenTerm, term = true }) {
         {pane.agent && pane.name ? <span className="t-body text-muted-foreground">
           {pane.agent}
         </span> : null}
-        {pane.hades ? <a href="#/orchestration" className="t-meta text-info hover:underline">agente do orquestrador</a> : null}
+        {pane.hades ? <a href="#/orchestration" className="t-meta underline decoration-line underline-offset-4 hover:text-primary">agente do orquestrador</a> : null}
         <Mono className="text-muted-foreground">
           {pane.id}
         </Mono>
@@ -104,7 +104,8 @@ function HerdrPane({ session, pane, w, t, onAdmin, onOpenTerm, term = true }) {
       <Term key={`${session}/${pane.id}`} session={session} pane={pane.id} onState={setLive} />
     </div> : null}
     <details open={showText} onToggle={(e) => setTextOpen(e.currentTarget.open)} className={cn('group flex min-h-0 flex-col gap-2', showText && !term && 'flex-1')} data-tour-step-id="herdr-saida">
-      <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1.5 t-meta text-muted-foreground outline-none focus-visible:outline-2 focus-visible:outline-ring">
+      <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1.5 t-meta text-muted-foreground outline-none focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+        <I.ChevronRight className="size-3.5 shrink-0 transition-transform group-open:rotate-90" aria-hidden="true" />
         <span className="min-w-0 flex-1">{term ? 'Saída em texto (200 linhas): copiar e leitor de tela' : 'Saída (200 linhas)'}</span>
       </summary>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 t-meta text-muted-foreground">
@@ -114,7 +115,7 @@ function HerdrPane({ session, pane, w, t, onAdmin, onOpenTerm, term = true }) {
         </span>
         <Button variant="outline" size="xs" icon={I.RefreshCw} onClick={load}>Atualizar saída</Button>
       </div>
-      <pre ref={box} onScroll={(e) => { const b = e.currentTarget; stick.current = b.scrollHeight - b.scrollTop - b.clientHeight < 40; }} className="max-h-72 min-h-48 flex-1 overflow-auto border bg-term p-3 t-data leading-relaxed whitespace-pre text-term-foreground scrollbar-thin">
+      <pre ref={box} onScroll={(e) => { const b = e.currentTarget; stick.current = b.scrollHeight - b.scrollTop - b.clientHeight < 40; }} className="max-h-72 min-h-48 flex-1 overflow-auto bg-term p-3 t-code whitespace-pre text-term-foreground scrollbar-thin">
         {x ? (x.text || '(sem saída)') : 'carregando…'}
       </pre>
     </details>
@@ -131,9 +132,9 @@ function HerdrPane({ session, pane, w, t, onAdmin, onOpenTerm, term = true }) {
     <div className="grid gap-2" data-tour-step-id="herdr-enviar">
       {PromptBar ? <PromptBar width={4000} radius={0} busy={busy} placeholder="Prompt para o agente"
         sources={[]} commands={[]} models={[]} efforts={[]}
-        background="var(--card)" color="var(--foreground)" menuBackground="var(--popover)" sparkColor="var(--primary)"
+        background="var(--popover)" color="var(--foreground)" menuBackground="var(--popover)" sparkColor="var(--primary)"
         onSend={(t) => act({ action: 'prompt', text: t }, 'Prompt enviado')} /> : null}
-      <textarea value={text} rows={2} placeholder={pane.agent && !PromptBar ? 'Prompt ou texto para o terminal' : 'Texto para o terminal'} onInput={(e) => setText(e.target.value)} className="min-h-14 max-h-40 min-w-0 resize-y border border-border-strong bg-background px-3 py-2 text-base outline-none focus-visible:outline-2 focus-visible:outline-ring md:text-sm" />
+      <textarea value={text} rows={2} placeholder={pane.agent && !PromptBar ? 'Prompt ou texto para o terminal' : 'Texto para o terminal'} onInput={(e) => setText(e.target.value)} className="campo min-h-14 max-h-40 min-w-0 resize-y px-3 py-2 t-body outline-none focus-visible:outline-2 focus-visible:outline-ring max-md:text-base" />
       <div className="flex flex-wrap items-center gap-2">
         {pane.agent && !PromptBar ? <Tip text="Manda como prompt e aperta Enter (herdr agent prompt)">
           <Button size="sm" icon={I.SendHorizontal} loading={busy} disabled={!text.trim()} onClick={() => send('prompt')}>Enviar prompt</Button>
@@ -143,7 +144,7 @@ function HerdrPane({ session, pane, w, t, onAdmin, onOpenTerm, term = true }) {
         </Tip>
       </div>
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="Teclas de atalho" data-tour-step-id="herdr-teclas">
-        {HERDR_KEYS.map((k) => <Button key={k[1]} size="xs" variant={k[3] ? 'ghost-destructive' : 'outline'} className={k[3] ? 'border' : ''} icon={k[2]} disabled={busy} aria-label={k[4] ? k[0] : undefined} title={k[4] ? k[0] : undefined} onClick={() => key(k)}>
+        {HERDR_KEYS.map((k) => <Button key={k[1]} size="xs" variant={k[3] ? 'ghost-destructive' : 'outline'} icon={k[2]} disabled={busy} aria-label={k[4] ? k[0] : undefined} title={k[4] ? k[0] : undefined} onClick={() => key(k)}>
           {k[4] ? null : k[0]}
         </Button>)}
       </div>
@@ -152,8 +153,8 @@ function HerdrPane({ session, pane, w, t, onAdmin, onOpenTerm, term = true }) {
         <Button size="xs" variant="outline" icon={I.Columns2} onClick={() => onAdmin(askPaneSplit(pane))}>Dividir</Button>
         <Button size="xs" variant="outline" icon={I.Pencil} onClick={() => onAdmin(askPaneRename(pane))}>Renomear painel</Button>
         <Button size="xs" variant="outline" icon={I.Pencil} onClick={() => onAdmin(askTabRename(t))}>Renomear aba</Button>
-        <Button size="xs" variant="ghost-destructive" className="border" icon={I.X} onClick={() => onAdmin(askPaneClose(pane))}>Fechar painel</Button>
-        <Button size="xs" variant="ghost-destructive" className="border" icon={I.X} onClick={() => onAdmin(askTabClose(t))}>Fechar aba</Button>
+        <Button size="xs" variant="ghost-destructive" icon={I.X} onClick={() => onAdmin(askPaneClose(pane))}>Fechar painel</Button>
+        <Button size="xs" variant="ghost-destructive" icon={I.X} onClick={() => onAdmin(askTabClose(t))}>Fechar aba</Button>
       </div>
       {pane.agent ? <form className="flex items-center gap-2" data-tour-step-id="herdr-renomear" onSubmit={(e) => { e.preventDefault(); act({ action: 'rename', name }, name ? 'Agente renomeado' : 'Nome removido'); }}>
         <Input icon={I.Pencil} value={name} placeholder="Nome do agente (vazio remove)" maxLength={40} onInput={(e) => setName(e.target.value)} aria-label="Nome do agente" />
@@ -249,8 +250,8 @@ function HerdrSessions({ open, onClose, sessions, onDone }) {
           </span>
         </div>
         <div className="flex flex-wrap gap-2">
-          {x.running ? <Button size="xs" variant="ghost-destructive" className="border" icon={I.Power} onClick={() => setAsk({ what: 'stop', s: x })}>Parar</Button>
-          : <Button size="xs" variant="ghost-destructive" className="border" icon={I.Trash2} onClick={() => setAsk({ what: 'delete', s: x })}>Apagar</Button>}
+          {x.running ? <Button size="xs" variant="ghost-destructive" icon={I.Power} onClick={() => setAsk({ what: 'stop', s: x })}>Parar</Button>
+          : <Button size="xs" variant="ghost-destructive" icon={I.Trash2} onClick={() => setAsk({ what: 'delete', s: x })}>Apagar</Button>}
         </div>
       </Card>)}
     </div>
@@ -338,7 +339,7 @@ function HerdrManage({ onOpenClient, onOpenTerm, mobile }) {
   const selEntry = all.find(({ p }) => p.id === selId) || first;
   const sel = selEntry?.p;
   const pick = (id) => { setSelId(id); if (mobile) nav.enter(); else if (!wide) setSheet(true); };
-  const rowCls = (on) => cn('group grid w-full gap-1.5 border-b border-l-2 border-l-transparent px-3 py-2.5 text-left t-body transition-colors cursor-pointer hover:bg-accent/60 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring', on && 'border-l-foreground bg-accent/40');
+  const rowCls = (on) => cn('group grid w-full gap-1.5 border-b px-3 py-2.5 text-left t-body transition-colors cursor-pointer hover:bg-hover outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring', on && 'item-ativo');
   const tree = x.tree.map((w) => {
     const mine = shown.filter((e) => e.w === w);
     if (!mine.length) return null;
@@ -390,7 +391,7 @@ function HerdrManage({ onOpenClient, onOpenTerm, mobile }) {
           {bare.length === 1 ? 'terminal sem agente' : `${bare.length} terminais sem agente`}
         </span>
         {bare.map(({ p }) => <button type="button" key={p.id} onClick={() => pick(p.id)} aria-pressed={sel?.id === p.id} title={[p.title, p.fcwd || p.cwd].filter(Boolean).join(' · ')}
-          className={cn('px-1.5 py-0.5 font-mono transition-colors cursor-pointer hover:bg-accent hover:text-foreground outline-none focus-visible:outline-2 focus-visible:outline-ring', sel?.id === p.id && 'bg-accent text-foreground')}>
+          className={cn('px-1.5 py-0.5 font-mono transition-colors cursor-pointer hover:bg-hover hover:text-foreground outline-none focus-visible:outline-2 focus-visible:outline-ring', sel?.id === p.id && 'bg-accent text-foreground shadow-[inset_0_-2px_0_var(--primary)]')}>
           {p.title ? `${p.id} ${p.title}` : p.id}
         </button>)}
       </div> : null}
@@ -419,7 +420,7 @@ function HerdrManage({ onOpenClient, onOpenTerm, mobile }) {
           {tree.length ? tree : <Empty icon={I.SearchX} title="Nada com esse filtro" />}
         </CardContent>
       </Card>
-      {wide ? <Card variant="object" data-tour-step-id="herdr-detalhe" className="flex flex-col sticky top-[4.5rem] h-[calc(100dvh-6rem)] min-h-[480px] overflow-y-auto scrollbar-thin">
+      {wide ? <Card data-tour-step-id="herdr-detalhe" className="flex flex-col sticky top-[4.5rem] h-[calc(100dvh-6rem)] min-h-[480px] overflow-y-auto scrollbar-thin">
         {detail}
       </Card> : null}
     </div>
@@ -475,7 +476,7 @@ function TermNew({ open, onClose, info, onCreate, session }) {
       <Select value={cwd} onChange={setCwd} label="Pasta" items={info.roots.map((r) => ({ value: r, label: r }))} className="w-full" placeholder="Pasta" />
       {kind === 'claude' ? <Input value={resume} onInput={(e) => setResume(e.target.value)} maxLength={64} placeholder="Retomar sessão (id, opcional)" aria-label="Id da sessão do Claude para retomar" aria-invalid={badResume || undefined} /> : null}
       {kind === 'herdr-client' ? <Input value={hs} onInput={(e) => setHs(e.target.value)} maxLength={64} placeholder="Sessão do herdr" aria-label="Sessão do herdr" /> : null}
-      {badResume ? <p className="t-meta text-destructive" role="alert">O id só leva letras, números, _ e -, até 64.</p> : null}
+      {badResume ? <p className="t-meta text-bad" role="alert">O id só leva letras, números, _ e -, até 64.</p> : null}
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>Cancelar</Button>
         <Button type="submit" icon={I.Plus} disabled={badResume}>Abrir</Button>
@@ -502,7 +503,7 @@ function TermSessions({ open, onClose, info, mesa, onAttach, onKill }) {
             <Tip text={s.attached && !here ? 'A outra tela perde a sessão (ela pode trazê-la de volta)' : 'Mostra a sessão na mesa'}>
               <Button size="xs" variant="outline" icon={I.MonitorDown} onClick={() => { onAttach(s.id); onClose(); }}>{here ? 'Mostrar' : 'Anexar aqui'}</Button>
             </Tip>
-            <Button size="xs" variant="ghost-destructive" className="border" icon={I.X} onClick={() => onKill(s)}>Fechar sessão</Button>
+            <Button size="xs" variant="ghost-destructive" icon={I.X} onClick={() => onKill(s)}>Fechar sessão</Button>
           </div>
         </Card>;
       }) : <Empty icon={I.SquareTerminal} title="Nenhuma sessão viva" />}
@@ -555,7 +556,7 @@ function TermDesk({ info, reload, intent, onIntent, wide, mobile, autoEnter }) {
   const label = (id) => { const s = byId(id); if (isDraft(id)) return `Novo · ${kindOf(owned.current.get(id)?.spec.kind).label}`; return s ? `${kindOf(s.kind).label} · ${baseName(s.cwd)}` : id.slice(0, 8); };
   const cell = (id, isSplit) => {
     const s = byId(id), own = owned.current.get(id);
-    return <div key={own?.key ?? id} className="flex min-h-0 min-w-0 flex-col border" data-term-cell={id}>
+    return <div key={own?.key ?? id} className="cantos flex min-h-0 min-w-0 flex-col bg-card/96" data-term-cell={id}>
       <div className="flex min-h-11 items-center gap-2 border-b px-3 py-1.5 t-meta text-muted-foreground">
         <Dot kind={s && s.state === 'running' ? 'ok' : 'idle'} />
         {isSplit ? <Select size="sm" value={id} onChange={(v) => setLay((l) => L.layoutSplit(l, v))} label="Sessão deste lado" className="min-w-0 max-w-64"
@@ -584,14 +585,14 @@ function TermDesk({ info, reload, intent, onIntent, wide, mobile, autoEnter }) {
       </div>
       {lay.tabs.length ? <ul className="grid gap-2" aria-label="Terminais abertos" data-tour-step-id="herdr-mesa">
         {lay.tabs.map((t) => { const ts = byId(t); return <li key={t}>
-          <button type="button" onClick={() => { setLay((l) => L.layoutSelect(l, t)); nav.enter(); }} className="grid min-h-11 w-full gap-0.5 border px-3 py-2 text-left outline-none hover:bg-accent/60 focus-visible:outline-2 focus-visible:outline-ring">
+          <button type="button" onClick={() => { setLay((l) => L.layoutSelect(l, t)); nav.enter(); }} className="grid min-h-11 w-full gap-0.5 bg-popover px-3 py-2 text-left transition-colors outline-none hover:bg-hover focus-visible:outline-2 focus-visible:outline-ring">
             <span className="flex items-center gap-2 font-medium"><Dot kind={ts && ts.state === 'running' ? 'ok' : 'idle'} />{label(t)}</span>
             <Mono className="truncate text-muted-foreground">{ts?.cwd || owned.current.get(t)?.spec.cwd || ''}</Mono>
           </button>
         </li>; })}
-      </ul> : <Empty icon={I.SquareTerminal} title="Nenhum terminal aberto">
+      </ul> : <Card><Empty icon={I.SquareTerminal} title="Nenhum terminal aberto">
         Abra um shell, o Claude Code ou o cliente do herdr, ou anexe uma sessão que já roda em &quot;Sessões&quot;.
-      </Empty>}
+      </Empty></Card>}
       {nav.level === 'detail' && id ? <HadesCore.Mobile.MobileTermScreen key={own?.key ?? id} title={label(id)} subtitle={s?.cwd || own?.spec.cwd || ''} onBack={nav.leave} apiRef={api}
         attention={(s?.kind || own?.spec.kind) === 'claude'}
         actions={<>
@@ -605,29 +606,29 @@ function TermDesk({ info, reload, intent, onIntent, wide, mobile, autoEnter }) {
   }
   return <div className="grid gap-3">
     <div className="flex flex-wrap items-center gap-2" data-tour-step-id="herdr-abas">
-      <div role="tablist" aria-label="Terminais abertos" className="flex min-w-0 basis-full gap-1 overflow-x-auto scrollbar-thin sm:flex-1 sm:basis-0">
+      {lay.tabs.length ? <div role="tablist" aria-label="Terminais abertos" className="flex min-w-0 basis-full gap-1 overflow-x-auto scrollbar-thin sm:flex-1 sm:basis-0">
         {lay.tabs.map((id) => <button type="button" role="tab" key={id} aria-selected={lay.active === id || lay.split === id} onClick={() => setLay((l) => L.layoutSelect(l, id))}
-          className={cn('shrink-0 whitespace-nowrap border px-3 py-1.5 t-body transition-colors cursor-pointer outline-none hover:bg-accent/60 focus-visible:outline-2 focus-visible:outline-ring',
-            lay.active === id ? 'bg-accent font-medium text-foreground' : lay.split === id ? 'bg-accent/40 text-foreground' : 'text-muted-foreground')}>
+          className={cn('shrink-0 whitespace-nowrap px-3 py-1.5 t-control transition-colors cursor-pointer outline-none hover:bg-hover focus-visible:outline-2 focus-visible:outline-ring',
+            lay.active === id ? 'bg-secondary font-medium text-foreground shadow-[inset_0_-2px_0_var(--primary)]' : lay.split === id ? 'bg-secondary text-foreground shadow-[inset_0_-2px_0_var(--line)]' : 'bg-card text-muted-foreground')}>
           {label(id)}
         </button>)}
-      </div>
+      </div> : null}
       <Button size="sm" icon={I.Plus} onClick={() => { setHsession(null); setNewOpen(true); }}>Novo terminal</Button>
       {wide && lay.tabs.length > 1 ? <Button size="sm" variant="outline" icon={I.Columns2} aria-pressed={!!lay.split}
         onClick={() => setLay((l) => L.layoutSplit(l, l.split ? null : (other ?? null)))}>{lay.split ? 'Desfazer lado a lado' : 'Lado a lado'}</Button> : null}
       <span data-tour-step-id="herdr-vivas"><Button size="sm" variant="outline" icon={I.Server} onClick={() => setList(true)}>{`Sessões (${info.sessions.length})`}</Button></span>
     </div>
-    <div data-tour-step-id="herdr-mesa" className={cn('grid h-[calc(100dvh-16rem)] min-h-[22rem] gap-3', wide && lay.split ? 'lg:grid-cols-2' : '')}>
-      {lay.active ? <>
-        {cell(lay.active, false)}
-        {wide && lay.split ? cell(lay.split, true) : null}
-      </> : <Empty icon={I.SquareTerminal} title="Nenhum terminal na mesa">
+    {lay.active ? <div data-tour-step-id="herdr-mesa" className={cn('grid h-[calc(100dvh-16rem)] min-h-[22rem] gap-3', wide && lay.split ? 'lg:grid-cols-2' : '')}>
+      {cell(lay.active, false)}
+      {wide && lay.split ? cell(lay.split, true) : null}
+    </div> : <Card data-tour-step-id="herdr-mesa">
+      <Empty icon={I.SquareTerminal} title="Nenhum terminal na mesa">
         Abra um shell, o Claude Code ou o cliente do herdr, ou anexe uma sessão que já roda em &quot;Sessões&quot;.
-        <span className="mt-3 flex flex-wrap justify-center gap-2">
-          <Button size="sm" icon={I.Plus} onClick={() => create({ kind: 'shell', ...(info.roots[0] ? { cwd: info.roots[0] } : {}) })}>Abrir um shell</Button>
-        </span>
-      </Empty>}
-    </div>
+      </Empty>
+      <div>
+        <Button size="sm" variant="outline" icon={I.Plus} onClick={() => create({ kind: 'shell', ...(info.roots[0] ? { cwd: info.roots[0] } : {}) })}>Abrir um shell</Button>
+      </div>
+    </Card>}
     {dialogs}
   </div>;
 }
@@ -650,17 +651,17 @@ function Herdr() {
   // do painel de um agente: abre a sessão já (sem diálogo) e leva ao terminal em tela cheia
   const openTerm = on ? { folder: (cwd) => HadesCore.TermOpen.folderFor(cwd, info),
     open: async (spec) => { const r = await HadesCore.TermOpen.openTerminalAt(spec); if (r.ok) { setDirect(true); setView('term'); load(); } else toast({ kind: r.refusal.kind === 'disabled' ? 'info' : 'warn', title: r.refusal.title, desc: r.refusal.hint }); } } : null;
-  return <div className="grid gap-4 max-md:[&_button]:min-h-11 max-md:[&_button]:min-w-11 max-md:[&_a]:inline-flex max-md:[&_a]:min-h-11 max-md:[&_a]:items-center">
+  return <div className="grid gap-6 max-md:[&_button:not([role=switch])]:min-h-11 max-md:[&_button:not([role=switch])]:min-w-11 max-md:[&_a]:inline-flex max-md:[&_a]:min-h-11 max-md:[&_a]:items-center">
     {on ? <div className="flex flex-wrap items-center gap-3">
       <Segmented value={shown} onChange={setView} label="Visão" items={[{ value: 'term', label: 'Terminais' }, { value: 'herdr', label: 'Workspaces do herdr' }]} />
       {shown === 'term' ? <span className="t-meta text-muted-foreground">{`${info.active} de ${info.max} sessões · cada sessão tem uma tela por vez`}</span> : null}
-    </div> : <div data-tour-step-id="herdr-aviso" className="flex flex-wrap items-center gap-x-3 gap-y-1 border bg-card px-4 py-3 t-body" role="note">
+    </div> : <div data-tour-step-id="herdr-aviso" className="cantos flex flex-wrap items-center gap-x-3 gap-y-1 bg-card/96 px-4 py-3 t-body" role="note">
       <I.SquareTerminal className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       <span className="min-w-0 flex-1 basis-56">
         <strong className="font-medium">Terminal no navegador desligado.</strong>
         {' Ligue HADES_TERMINAL em Configurações → Terminal, no painel aberto nesta máquina (a chave não muda pelo acesso remoto). Ligado, quem tem a chave de acesso abre um shell aqui.'}
       </span>
-      <a href="#/config" className="t-meta text-info hover:underline">Abrir Configurações</a>
+      <a href="#/config" className="t-meta underline decoration-line underline-offset-4 hover:text-primary">Abrir Configurações</a>
     </div>}
     {shown === 'term' ? <TermDesk info={info} reload={load} intent={intent} onIntent={setIntent} wide={wide} mobile={mobile} autoEnter={direct} /> : <HerdrManage onOpenClient={openClient} onOpenTerm={openTerm} mobile={mobile} />}
   </div>;

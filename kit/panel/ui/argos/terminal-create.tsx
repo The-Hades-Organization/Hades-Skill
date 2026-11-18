@@ -207,7 +207,7 @@ async function changeRole({ client, data, role, orchestrator, askName }) {
 }
 
 /* ------------------------------------------------------------ modal */
-const FIELD = 'h-8 w-full min-w-0 border border-border-strong bg-background px-2 t-body max-md:h-11';
+const FIELD = 'h-8 w-full min-w-0 bg-popover px-2 t-body max-md:h-11';
 const RING = 'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
 function Row({ label, hint, children }) {
@@ -219,7 +219,7 @@ function IconPicker({ value, onChange }) {
     {[['', 'Padrão'], ...NT().TERMINAL_ICONS.map((n) => [n, n])].map(([name, label]) => {
       const Icon = I[name || 'SquareTerminal'] || I.SquareTerminal;
       return <button key={name || 'default'} type="button" role="radio" aria-checked={value === name} aria-label={label} title={label} onClick={() => onChange(name)}
-        className={cn('inline-flex size-8 items-center justify-center border', RING, value === name ? 'border-foreground bg-accent' : 'border-border text-muted-foreground hover:bg-accent/60')}>
+        className={cn('inline-flex size-8 items-center justify-center bg-secondary', RING, value === name ? 'shadow-[inset_0_-2px_0_var(--primary)] text-foreground' : 'text-muted-foreground hover:bg-secondary-hover')}>
         {name ? <Icon aria-hidden="true" className="size-4" /> : <span className="t-micro">—</span>}
       </button>;
     })}
@@ -229,17 +229,17 @@ function IconPicker({ value, onChange }) {
 function ColorPicker({ label, value, onChange, allowDefault = true }) {
   return <div role="radiogroup" aria-label={label} className="flex flex-wrap items-center gap-1">
     {allowDefault ? <button type="button" role="radio" aria-checked={value === ''} onClick={() => onChange('')}
-      className={cn('h-7 border px-2 t-meta', RING, value === '' ? 'border-foreground bg-accent' : 'border-border text-muted-foreground')}>Padrão</button> : null}
+      className={cn('h-7 bg-secondary px-2 t-meta', RING, value === '' ? 'shadow-[inset_0_-2px_0_var(--primary)] text-foreground' : 'text-muted-foreground hover:bg-secondary-hover')}>Padrão</button> : null}
     {COLOR_SWATCHES.map((c) => <button key={c} type="button" role="radio" aria-checked={value === c} aria-label={c} title={c} onClick={() => onChange(c)}
-      className={cn('size-7 border-2', RING, value === c ? 'border-foreground' : 'border-transparent')} style={{ background: c }} />)}
-    <input type="color" aria-label={`${label}: outra cor`} value={value || '#808080'} onChange={(e) => onChange(e.target.value)} className={cn('h-7 w-9 cursor-pointer border border-border bg-transparent', RING)} />
+      className={cn('size-7', RING, value === c && 'outline-2 -outline-offset-2 outline-primary')} style={{ background: c }} />)}
+    <input type="color" aria-label={`${label}: outra cor`} value={value || '#808080'} onChange={(e) => onChange(e.target.value)} className={cn('h-7 w-9 cursor-pointer bg-transparent', RING)} />
   </div>;
 }
 
 function Preview({ form }) {
   const style = NT().terminalThemeStyle({ ...form, name: form.name || 'terminal' }, typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches);
   const Icon = (form.icon && I[form.icon]) || I.SquareTerminal;
-  return <div aria-label="Prévia" className="border" style={style}>
+  return <div aria-label="Prévia" style={style}>
     <div className="flex items-center gap-1.5 border-b bg-card px-2 py-1 t-meta" style={{ boxShadow: form.color ? `inset 0 3px 0 ${form.color}` : undefined }}>
       <Icon aria-hidden="true" className="size-3.5" style={form.color ? { color: form.color } : undefined} />
       <span className="truncate font-medium">{form.name.trim() || 'terminal'}</span>

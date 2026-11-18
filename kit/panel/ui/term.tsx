@@ -406,16 +406,16 @@ function PtyTerminal({ id, open, onExit, onState, onOpened, className, fontSize,
     <div className={cn('relative min-h-0 flex-1 p-2', refused && 'invisible')}>
       <div ref={host} className="size-full" role="group" aria-label="Terminal" />
     </div>
-    {hint ? <div role="status" data-term-hint className="pointer-events-none absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] border border-border bg-popover px-2 py-1 t-meta text-term-muted">{hint}</div> : null}
+    {hint ? <div role="status" data-term-hint className="pointer-events-none absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] bg-popover px-2.5 py-1.5 t-meta text-foreground shadow-[0_10px_30px_-10px_rgb(0_0_0/.7)]">{hint}</div> : null}
     {following || refused ? null : <Button size="sm" variant="outline" icon={I.ArrowDownToLine} className="absolute right-3 bottom-3 min-h-11 bg-popover max-md:min-w-11" onClick={() => { toEnd.current(); apiRef?.current?.focus?.(); }}>Ir ao fim</Button>}
     {refused ? <div className="absolute inset-0 grid place-content-center justify-items-center gap-3 p-6 text-center" role="alert">
       <I.SquareTerminal className="size-6 text-term-muted" aria-hidden="true" />
       <div className="t-section">{p.refusal.title}</div>
       <p className="max-w-md t-body text-term-muted">{p.refusal.hint}</p>
-      {p.refusal.kind === 'disabled' ? <a className="t-body text-info hover:underline" href="#/config">Abrir Configurações</a> : null}
+      {p.refusal.kind === 'disabled' ? <a className="t-body text-term-foreground underline decoration-line underline-offset-4 hover:text-metal" href="#/config">Abrir Configurações</a> : null}
       {p.refusal.kind === 'rate' || p.refusal.kind === 'request' || p.refusal.kind === 'failed' ? <Button size="sm" variant="outline" icon={I.RotateCw} onClick={again}>Tentar de novo</Button> : null}
     </div> : null}
-    {text ? <div className="flex flex-wrap items-center gap-2 border-t border-border-strong bg-term px-3 py-2 t-meta text-term-muted" role="status">
+    {text ? <div className="flex flex-wrap items-center gap-2 border-t border-border bg-term px-3 py-2 t-meta text-term-muted" role="status">
       <span className="min-w-0 flex-1">{text}</span>
       {p.kind === 'ended' && p.reason === 'replaced' ? <Button size="xs" variant="outline" icon={I.MonitorDown} onClick={again}>Trazer para cá</Button> : null}
       {p.kind === 'gaveup' ? <Button size="xs" variant="outline" icon={I.RotateCw} onClick={again}>Reconectar</Button> : null}

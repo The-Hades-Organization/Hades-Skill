@@ -6,7 +6,7 @@
  * põe sobre o canvas as camadas de ui/argos/canvas-overlays.js (menu de contexto, balão, permissão no nó, minimapa).
  * Contrato: reference/argos.md. */
 (() => {
-const { useState, useEffect, useRef, useMemo, useCallback, I, cn, post, getJSON, Button, Skeleton,
+const { useState, useEffect, useRef, useMemo, useCallback, I, cn, post, getJSON, Button, Dot, Skeleton,
   Empty, useApp, useWide, Choice } = HadesCore;
 const L = window.ArgosLogic;
 const P = window.ArgosParts;
@@ -2020,12 +2020,12 @@ function Argos() {
     }
   };
   // chips por tom: cada um é um filtro de um toque ("N esperam por você" leva ao primeiro e o seleciona)
-  const jump = (v, text, dot) => <button key={v} type="button" onClick={() => jumpWaiting(v)} className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 px-1.5 whitespace-nowrap outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11">
-    <span className={cn('size-2 shrink-0 rounded-full', dot)} aria-hidden="true" />{text}</button>;
+  const jump = (v, text, kind, pulse = false) => <button key={v} type="button" onClick={() => jumpWaiting(v)} className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 px-1.5 whitespace-nowrap outline-none hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11">
+    <Dot kind={kind} pulse={pulse} />{text}</button>;
   const statusChips = [
-    attention ? jump('attention', `${attention} ${attention === 1 ? 'espera' : 'esperam'} por você`, 'bg-warn') : null,
-    stalled ? jump('stalled', `${plural(stalled, 'parado', 'parados')} sem evento há ${HadesCore.dur(L.STALL_MS / 1000)}`, 'bg-bad') : null,
-    working ? jump('working', `${working} trabalhando`, 'bg-ok') : null,
+    attention ? jump('attention', `${attention} ${attention === 1 ? 'espera' : 'esperam'} por você`, 'warn', true) : null,
+    stalled ? jump('stalled', `${plural(stalled, 'parado', 'parados')} sem evento há ${HadesCore.dur(L.STALL_MS / 1000)}`, 'bad') : null,
+    working ? jump('working', `${working} trabalhando`, 'busy') : null,
   ].filter(Boolean);
   // o aviso do herdr não pode ficar só no tooltip: sem hover (celular) ninguém o veria
   const herdrDown = graph.herdr?.available === false ? <span key="herdr" className="px-1.5 text-bad">herdr fora do ar</span> : null;
@@ -2070,7 +2070,7 @@ function Argos() {
   // vazio de verdade: nem agente nem nó do usuário à vista (a nota sozinha já é canvas, não vazio)
   const emptyStage = !hasNodes && !!viewDoc && viewDoc.nodes.length === 0 && !canvasError;
   const hud = bare ? <Button variant="outline" size="icon-sm" icon={I.PanelTop} aria-label="Mostrar controles" aria-keyshortcuts="Shift+F" title="Mostrar controles (Shift+F)"
-    className="pointer-events-auto absolute top-2 right-2 z-30 bg-background/90 max-md:size-11" onClick={() => setFocus(false)} />
+    className="pointer-events-auto absolute top-2 right-2 z-30 shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] max-md:size-11" onClick={() => setFocus(false)} />
     : <div className="pointer-events-none absolute inset-x-2 top-2 z-20 grid gap-1.5">
       <div className="flex items-start justify-between gap-2">
         <R.Island label="Estado do Argos" region="status">
@@ -2091,7 +2091,7 @@ function Argos() {
           <R.Popover label="Vista" icon={I.Eye} open={viewMenuOpen} onOpenChange={closeViewMenu}>
             <div className="grid gap-1.5">
               <span className="t-micro text-muted-foreground">Canvas</span>
-              <Choice label="Canvas aberto" value={canvasInfo.id} onChange={pickCanvas} items={canvasItems} className="h-9 w-full max-md:h-11" />
+              <Choice label="Canvas aberto" value={canvasInfo.id} onChange={pickCanvas} items={canvasItems} className="h-8 w-full max-md:h-11" />
             </div>
             <div className="grid gap-1.5">
               <span className="t-micro text-muted-foreground">Vistas salvas</span>
@@ -2108,31 +2108,31 @@ function Argos() {
             </div>
           </R.Popover>
           <button type="button" aria-pressed={listOpen} aria-keyshortcuts="L" title="Lista de nós (l)" onClick={() => setListOpen((o) => !o)}
-            className={cn(R.ISLAND_BUTTON, listOpen && 'bg-accent text-foreground')}>
+            className={cn(R.ISLAND_BUTTON, listOpen && 'bg-secondary shadow-[inset_0_-2px_0_var(--primary)] text-foreground')}>
             <I.List className="size-4" aria-hidden="true" /><span className="max-lg:sr-only">Lista</span>
           </button>
           <Button variant="ghost" size="icon-sm" icon={I.Keyboard} aria-label="Atalhos de teclado" title="Atalhos de teclado (?)" className="max-md:hidden" onClick={() => setHelp(true)} />
         </R.Island>
       </div>
       <R.ActiveChips items={activeChips} onClear={clearAll} />
-      {loadError ? <p className="pointer-events-auto flex w-fit items-center gap-2 border border-border-strong bg-background px-2 py-1 t-meta text-bad" role="status">
+      {loadError ? <p className="pointer-events-auto flex w-fit items-center gap-2 bg-popover shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] px-2 py-1 t-meta text-bad" role="status">
         <I.CircleAlert className="size-3.5 shrink-0" aria-hidden="true" />
         <span>Sem atualizar{graphOkAt.current ? ` desde ${new Date(graphOkAt.current).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}: {L.graphErrorText(loadError)} Mostrando o último grafo.</span>
         <button type="button" onClick={() => reloadGraph.current()} className="cursor-pointer underline underline-offset-3 hover:no-underline max-md:min-h-11">Tentar agora</button>
       </p> : null}
-      {orphans.length > 0 ? <p className="pointer-events-auto flex w-fit items-center gap-2 border border-border-strong bg-background px-2 py-1 t-meta text-muted-foreground" role="status">
+      {orphans.length > 0 ? <p className="pointer-events-auto flex w-fit items-center gap-2 bg-popover shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] px-2 py-1 t-meta text-muted-foreground" role="status">
         <I.CircleAlert className="size-3.5 shrink-0" aria-hidden="true" />
         <span>{orphans.length === 1 ? '1 terminal vivo fora do canvas' : `${orphans.length} terminais vivos fora do canvas`}: {orphans.map((o) => o.name).join(', ')}</span>
         <button type="button" onClick={bringOrphans} className="cursor-pointer underline underline-offset-3 hover:no-underline max-md:min-h-11">Trazer para o canvas</button>
       </p> : null}
-      {deadIds.length > 0 ? <p className="pointer-events-auto flex w-fit items-center gap-2 border border-border-strong bg-background px-2 py-1 t-meta text-muted-foreground" role="status">
+      {deadIds.length > 0 ? <p className="pointer-events-auto flex w-fit items-center gap-2 bg-popover shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] px-2 py-1 t-meta text-muted-foreground" role="status">
         <I.CircleAlert className="size-3.5 shrink-0" aria-hidden="true" />
         <span>{deadIds.length === 1 ? '1 terminal encerrado no canvas' : `${deadIds.length} terminais encerrados no canvas`}{deadHidden > 0 ? ` (${deadHidden} oculto${deadHidden === 1 ? '' : 's'})` : ''}: {deadIds.map((id) => nodeLabel(id) || id).join(', ')}</span>
         <button type="button" onClick={() => termRun(() => termRemoveEnded(deadIds))} className="cursor-pointer underline underline-offset-3 hover:no-underline max-md:min-h-11">Remover do canvas</button>
       </p> : null}
       {saveStatus.kind === 'error' ? (() => {
         const badge = L.saveBadgeOf(saveStatus.code, saveFails);
-        return <p className={cn('pointer-events-auto flex w-fit items-center gap-2 border border-border-strong bg-background px-2 py-1 t-meta', badge.loud ? 'text-bad' : 'text-muted-foreground')} role="status" title={badge.title}>
+        return <p className={cn('pointer-events-auto flex w-fit items-center gap-2 bg-popover shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] px-2 py-1 t-meta', badge.loud ? 'text-bad' : 'text-muted-foreground')} role="status" title={badge.title}>
           <I.CircleAlert className="size-3.5 shrink-0" aria-hidden="true" />
           <span>{badge.label}</span>
           <button type="button" onClick={() => { saver.flush().catch((e) => console.error('canvas: nova tentativa falhou', e && e.name)); }}
@@ -2148,7 +2148,7 @@ function Argos() {
       <div className="pointer-events-none absolute inset-y-0 left-0 right-0" style={focusShift ? { right: focusShift } : undefined}>
         {hud}
         {emptyStage ? <div className="pointer-events-none absolute inset-0 grid place-items-center p-4">
-          <div className="pointer-events-auto max-w-md border border-border-strong bg-background/95 p-4">
+          <div className="pointer-events-auto max-w-md cantos bg-card/96 p-5 shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)]">
             <Empty icon={I.Network} title={!totalNodes ? 'Nenhum agente ainda.' : filtered ? 'Nenhum nó com esse filtro.' : 'Nenhum agente em andamento.'}>
               {!totalNodes ? 'Cada agente do Hades vira um nó aqui, com o estado e o que ele espera de você. Crie o primeiro com hades agent new, ou comece já por um terminal ou uma nota; depois de escolher, arraste um retângulo no canvas.'
                 : filtered ? 'Tire um filtro para ver os nós de volta.' : 'Os agentes concluídos continuam no grafo.'}
@@ -2192,7 +2192,7 @@ function Argos() {
           {!bare ? <>
             {/* grupo da câmera (histórico, zoom, enquadrar); acima do minimapa na mesa, acima das ferramentas no celular */}
             <CC.CanvasControls api={canvasApi} history={{ canUndo, canRedo, onUndo: () => stepHistory('undo'), onRedo: () => stepHistory('redo') }}
-              className={cn('pointer-events-auto absolute right-2 z-10 flex items-center border border-border-strong bg-background', desk ? 'bottom-[8.5rem]' : 'bottom-[4.25rem]')} />
+              className={cn('pointer-events-auto absolute right-2 z-10 flex items-center bg-popover shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)]', desk ? 'bottom-[8.5rem]' : 'bottom-[4.25rem]')} />
             {termReady ? <window.ArgosCanvasToolbar.CanvasToolbar armed={termTool} onArm={armTool} link={{ active: linking, onClick: toggleLink }} mark={{ available: markAvail, exists: markNodeId !== null, onClick: onMarkButton }} onRoles={host.current.termRolesOpen}
               quick={[...termPresets.map((p) => ({ key: p.slug, label: p.name, icon: p.icon, color: p.color, onClick: () => quickStart(p) })), { key: 'shell', label: 'Shell', icon: 'SquareTerminal', onClick: () => createByKey('shell') }]}
               vertical={desk} className={cn('pointer-events-auto absolute z-10', desk ? 'top-24 left-2 max-h-[calc(100%-8rem)]' : 'bottom-2 left-2 right-2')} /> : null}

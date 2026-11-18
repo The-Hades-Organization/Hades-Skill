@@ -69,6 +69,26 @@ faixas do projeto valem como estão.
 - Gate preso esperando memória não se derruba: reporte ao dono, que decide liberar. Worktree nova pode pedir passos de
   preparação (`ref gates`); `/tmp` cheio trava o lint.
 
+### 1.1 Texto que sai da máquina não revela onde o gate rodou
+
+Vale para tudo que sai da sua máquina: corpo de PR, comentário, resposta de thread, review publicado, mensagem de commit, card
+e descrição de release. Nenhum desses textos cita:
+
+- o nome do worker que rodou o gate (qualquer host de `--where`);
+- o `gate-lock`, a fila, o ticket ou o despacho remoto;
+- a opção `--where` ou a palavra "worker";
+- onde o gate rodou (máquina local ou remota, de qualquer forma de dizer).
+
+A tabela de gate em PR leva três colunas: Passo, Escopo e Resultado. O resultado é `passou`, `falhou` (com a saída) ou
+`não rodou: <motivo>`. Peak de memória, host, tempo de fila e comando completo ficam no relatório local (`report.md`, nota do
+orquestrador), onde essa informação serve a quem opera.
+
+`--maxWorkers=<n>` do jest é um argumento de teste e pode aparecer: o `write-check --saida` não o barra.
+
+Antes de publicar, rode `hades write-check --saida <arquivo>` no texto (corpo da PR, comentário, mensagem de commit). Saída 1 é
+bloqueante: reescreva o trecho e rode de novo. Este parágrafo é o único que define a regra; o brief, os cartões e os passos de
+entrega apontam para cá.
+
 ## 2. Guarda de push (obrigatória, sem exceção)
 
 Antes de **todo** push:

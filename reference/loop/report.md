@@ -49,6 +49,8 @@ Estado: <antes> → <depois> · commits: <n> · push: <sha ou "não">
   processo irmão: é o mesmo estouro de teto, não alguém matando o gate. Ver `gates.md` §3.2.)
 - **A faixa aparece junto do projeto**: "suite completa" é Faixa A, "specs relacionados" é Faixa B
   (`gates.md` §1). Faixa B relatada como suíte completa é gate inflado no relatório.
+- **O relatório local pode citar a fila e o worker; o que sai da máquina não.** Tabela de gate em PR, comentário, commit e card
+  fica em Passo, Escopo e Resultado, sem host nem `gate-lock` (`gates.md` §1.1).
 - **Um achado = uma linha**, com `arquivo:linha` e o código da regra quando existir. Mesmo defeito em
   N locais = uma linha com a contagem.
 - **Escalação aberta volta em todo relatório** até ter `answeredAt`. É o único bloco que reaparece

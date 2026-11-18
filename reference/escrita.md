@@ -81,19 +81,22 @@ por isso mascara código, crases, aspas retas e comentário HTML.
 ## Checador
 
 ```
-hades write-check [--changelog] [--json] <arquivo>...
+hades write-check [--changelog] [--saida] [--json] <arquivo>...
 ```
 
 Saída `arquivo:linha: gravidade [código] trecho => reparo`; código de saída 0 limpo, 1 com achados, 2 uso errado. `--changelog` desliga
 as regras de negrito de rótulo e de diário de edição, que o formato do CHANGELOG pede. Bloqueante (travessão em prosa, gancho,
 resíduo de chat) se corrige antes de entregar; aviso se corrige ou se justifica no relatório.
 
+`--saida` troca a varredura de estilo pela de vazamento de gate: texto que sai da máquina (PR, comentário, commit, card) não cita worker,
+`gate-lock`, `--where` nem onde o gate rodou; `--maxWorkers` do jest passa (`reference/loop/gates.md` §1.1). Código e crases também são varridos.
+
 ## Checklist de entrega
 
 1. O primeiro parágrafo traz a conclusão ou o pedido.
 2. Cada afirmação sobre o estado do trabalho diz se rodou, não rodou ou foi suposta.
 3. Nenhum fato entrou ou saiu na revisão de estilo (compare número, nome e caminho antes e depois).
-4. `hades write-check` sem bloqueante; avisos corrigidos ou justificados.
+4. `hades write-check` sem bloqueante (e `--saida` limpo se o texto vai a PR, comentário, commit ou card); avisos corrigidos ou justificados.
 5. O passe da tabela (`reviewing-technical-prose` ou `humanizer-pt-br`) rodou e o texto o cita no relatório.
 6. Um termo por conceito; nenhum "antes era" na referência; nenhuma oferta no fim.
 

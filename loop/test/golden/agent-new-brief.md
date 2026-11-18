@@ -2,7 +2,7 @@
 
 Papel **impl**: siga `<SKILL>/reference/loop/roles/impl.md` (processo, espera, handoff, escalada, proibido). Trabalhe só em
 `<T>/agents/impl-a`, nunca no clone principal. Este brief é o contrato do item; o que ele não disser, pergunte em
-`.design-sync-reports/questions.md`. O texto que você escrever (report, PR, nota) segue `reference/escrita.md`.
+`.design-sync-reports/questions.md`. O texto que você escrever (report, PR, nota) segue `reference/escrita.md`; o que sai da máquina (PR, comentário, commit, card) não cita worker, `gate-lock`, `--where` nem onde o gate rodou (`gates.md` §1.1).
 
 ## Item
 

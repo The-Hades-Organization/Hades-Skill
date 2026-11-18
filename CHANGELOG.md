@@ -4,6 +4,19 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.50.0 — 2026-11-18
+
+Pedido do dono: o que sai da máquina não revela onde o gate rodou.
+
+- **Regra.** `reference/loop/gates.md` §1.1 define: corpo de PR, comentário, resposta de thread, review, commit e card não
+  citam o worker, o `gate-lock`, `--where`, a palavra "worker" nem onde o gate rodou. A tabela de gate em PR tem só Passo,
+  Escopo e Resultado. `--maxWorkers` do jest é permitido. Ponteiros para a §1.1 em `report.md`, `deliver.md`, `inbox.md`,
+  `roles/impl.md`, `roles/consolidate.md`, `brief-template.md` e `orchestrate.md` §3, sem repetir o texto.
+- **`hades write-check --saida`.** Varre o texto cru (inclusive entre crases) atrás desses termos; bloqueante, saída 1.
+  Goldens `agent-new-brief.md` e `refs-brief.md` regravados: mudou só a frase nova do brief.
+- **Fora desta versão.** Ligar o `--saida` ao hook de commit e `gh pr create`: extrair heredoc e `--body-file` no
+  `guard-hook.ts` pede desenho e teste próprios. Fica para a próxima.
+
 ## 6.49.0 — 2026-11-18
 
 Capacidade nova: repaginada do estilo visual do painel local e abstração de providers de agente (`claude` e `agy`).

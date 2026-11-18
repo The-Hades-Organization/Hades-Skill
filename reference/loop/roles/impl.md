@@ -47,4 +47,4 @@ O orquestrador decide e, se for o caso, abre uma sessão de escalada (modelo de 
 se tudo depende, estacione.
 
 ## Proibido
-Merge, `pkill -f`, instalar dependências, mexer em pane do herdr ou painel de teste alheio, autoaprovar spec, rodar a suíte completa.
+Citar worker, `gate-lock`, `--where` ou onde o gate rodou em PR, comentário, commit ou card (`gates.md` §1.1), merge, `pkill -f`, instalar dependências, mexer em pane do herdr ou painel de teste alheio, autoaprovar spec, rodar a suíte completa.

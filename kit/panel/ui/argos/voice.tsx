@@ -254,25 +254,25 @@ function Sheet({ onClose }) {
   return (
     <div role="dialog" aria-modal="true" aria-label="Voz do Mark" className="fixed inset-0 z-[100] flex flex-col gap-4 overflow-auto bg-background p-4 text-foreground max-md:pb-8">
       <div className="mx-auto flex w-full max-w-md items-center gap-3">
-        <span aria-hidden="true" className={cn('size-12 shrink-0 rounded-full', live ? tone : 'bg-muted-foreground', live && v.markState && v.markState.state === 'SPEAKING' && 'motion-safe:animate-pulse')} />
+        <span aria-hidden="true" className={cn('size-12 shrink-0 cantos', live ? tone : 'bg-muted-foreground')} />
         <div className="min-w-0 flex-1">
           <div className="t-meta-em truncate">{(v.markState && v.markState.name) || 'Mark'}</div>
           <div className="t-meta text-muted-foreground" role="status">{status}{live && v.maxS ? ` · sessão de até ${Math.round(v.maxS / 60)} min` : ''}</div>
         </div>
-        <button type="button" onClick={close} className="inline-flex min-h-11 items-center gap-1 border px-3 t-body outline-none focus-visible:outline-2 focus-visible:outline-ring"><I.X className="size-4" />Encerrar</button>
+        <button type="button" onClick={close} className="inline-flex min-h-11 cursor-pointer items-center gap-1 bg-secondary px-3 t-body transition-colors outline-none hover:bg-secondary-hover focus-visible:outline-2 focus-visible:outline-ring"><I.X className="size-4" />Encerrar</button>
       </div>
       {v.error ? (
-        <div role="alert" className="mx-auto flex w-full max-w-md flex-col gap-1 border border-bad p-3">
+        <div role="alert" className="mx-auto flex w-full max-w-md flex-col gap-1 p-3 cantos [--c:var(--bad)] bg-card">
           <div className="t-meta-em text-bad">{v.error.title}</div>
           <div className="t-body">{v.error.cause}</div>
           <div className="t-body text-muted-foreground">{v.error.action}</div>
-          <button type="button" onClick={() => v.start()} className="mt-2 min-h-11 self-start border px-3 t-body outline-none focus-visible:outline-2 focus-visible:outline-ring">Tentar de novo</button>
+          <button type="button" onClick={() => v.start()} className="mt-2 min-h-11 cursor-pointer self-start bg-secondary px-3 t-body transition-colors outline-none hover:bg-secondary-hover focus-visible:outline-2 focus-visible:outline-ring">Tentar de novo</button>
         </div>
       ) : null}
       {v.away ? (
-        <div role="status" className="mx-auto flex w-full max-w-md items-center gap-2 border border-warn p-3 t-body">
+        <div role="status" className="mx-auto flex w-full max-w-md items-center gap-2 p-3 t-body cantos [--c:var(--warn)] bg-card">
           <span className="min-w-0 flex-1">A tela apagou ou a aba foi para segundo plano: o celular pode ter cortado o microfone. Se o Mark não ouvir, encerre e abra a voz de novo.</span>
-          <button type="button" onClick={v.dismissAway} className="min-h-11 border px-3 outline-none focus-visible:outline-2 focus-visible:outline-ring">Ok</button>
+          <button type="button" onClick={v.dismissAway} className="min-h-11 cursor-pointer bg-secondary px-3 transition-colors outline-none hover:bg-secondary-hover focus-visible:outline-2 focus-visible:outline-ring">Ok</button>
         </div>
       ) : null}
       <ol aria-label="Últimas falas" className="mx-auto min-h-0 w-full max-w-md flex-1 overflow-auto t-body scrollbar-thin">
@@ -294,7 +294,7 @@ function Sheet({ onClose }) {
           onPointerUp={() => v.press(false)} onPointerCancel={() => v.press(false)} onLostPointerCapture={() => v.press(false)}
           onContextMenu={(e) => e.preventDefault()}
           style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
-          className={cn('flex size-40 max-md:size-44 items-center justify-center rounded-full border-2 outline-none focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50', v.pressed ? 'border-ok bg-ok text-background' : 'bg-card')}
+          className={cn('flex size-40 max-md:size-44 cursor-pointer items-center justify-center cantos transition-colors outline-none focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50', v.pressed ? '[--c:var(--ok)] bg-ok text-background' : 'bg-card hover:bg-hover')}
         >
           {v.mode === 'open' ? <I.Mic className="size-12" /> : v.pressed ? <I.Mic className="size-12" /> : <I.MicOff className="size-12" />}
         </button>

@@ -22,7 +22,7 @@ const PROSA = [
   '[&_:is(p,li)]:leading-[1.7]',
   // código inline: folga curta e sem esticar a linha
   '[&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-px [&_:not(pre)>code]:text-[0.86em] [&_:not(pre)>code]:leading-none',
-  // código em título herda o peso e a cor do título, sem o bloco cinza
+  // código em título herda o peso e a cor do título, sem o fundo de código
   '[&_:is(h1,h2,h3,h4)_code]:bg-transparent [&_:is(h1,h2,h3,h4)_code]:p-0 [&_:is(h1,h2,h3,h4)_code]:text-[0.7em]! [&_:is(h1,h2,h3,h4)_code]:font-medium',
   // tabela: a 1ª coluna (nomes, campos) não parte no meio da palavra; as outras quebram só se a palavra não couber
   '[&_td_code]:[overflow-wrap:break-word] [&_td:first-child_code]:whitespace-nowrap',
@@ -44,7 +44,7 @@ function renderDoc(text) {
   return secoes(text).map((t, i) => i === 0 ? renderMd(t) : '<section class="doc-sec">' + renderMd(t) + '</section>').join('');
 }
 const reduzMovimento = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const ROW = 'relative block w-full border-l-2 py-1.5 pr-2 text-left t-body transition-colors cursor-pointer outline-none hover:bg-accent/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
+const ROW = 'relative block w-full py-1.5 pr-2 text-left t-body transition-colors cursor-pointer outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
 
 function Topicos({ shown, total, active, go, q, setQ }) {
   return <div className="grid gap-2">
@@ -52,7 +52,7 @@ function Topicos({ shown, total, active, go, q, setQ }) {
     {shown.length ? <ul>
       {shown.map((t) => <li key={t.id}>
         <button type="button" onClick={() => go(t.id)} aria-current={active === t.id ? 'location' : undefined} className={cn(ROW, t.level === 3 ? 'pl-6 t-label' : 'pl-3',
-          active === t.id ? 'border-l-foreground bg-accent/40 font-medium text-foreground' : 'border-l-transparent text-muted-foreground hover:text-foreground')}>
+          active === t.id ? 'item-ativo font-medium text-foreground' : 'text-muted-foreground hover:bg-hover hover:text-foreground')}>
           {t.title}
         </button>
       </li>)}
@@ -92,7 +92,7 @@ function Docs() {
       const wrap = document.createElement('div'); wrap.className = 'doc-code group/code relative';
       const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Copiar';
       b.setAttribute('aria-label', 'Copiar este bloco de código');
-      b.className = 'absolute right-2 top-2 border bg-background/90 px-2 py-1 t-meta text-muted-foreground opacity-0 outline-none transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring group-hover/code:opacity-100 [@media(hover:none)]:opacity-100';
+      b.className = 'absolute right-2 top-2 min-h-8 max-md:min-h-11 bg-popover px-3 py-1 t-meta text-muted-foreground opacity-0 outline-none transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring group-hover/code:opacity-100 [@media(hover:none)]:opacity-100';
       let t = 0;
       b.onclick = () => navigator.clipboard.writeText(pre.textContent || '').then(() => { b.textContent = 'Copiado'; clearTimeout(t); t = setTimeout(() => { b.textContent = 'Copiar'; }, 1600); }, () => { b.textContent = 'Não copiou'; });
       pre.replaceWith(wrap); wrap.append(pre, b);
@@ -137,7 +137,7 @@ function Docs() {
             <ul>
               {g.items.map((it) => <li key={it.id}>
                 <button type="button" onClick={() => pickDoc(it.id)} aria-current={cur === it.id ? 'page' : undefined} className={cn(ROW, 'pl-3 text-pretty',
-                  cur === it.id ? 'border-l-foreground bg-accent/40 font-medium' : 'border-l-transparent text-muted-foreground hover:text-foreground')}>
+                  cur === it.id ? 'item-ativo font-medium text-foreground' : 'text-muted-foreground hover:bg-hover hover:text-foreground')}>
                   {plain(it.title)}
                 </button>
               </li>)}

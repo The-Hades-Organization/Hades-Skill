@@ -49,7 +49,7 @@ function previewOf(text) {
 }
 
 function Swatch({ color }) {
-  return <span aria-hidden="true" className="inline-block size-3 shrink-0 border border-border-strong" style={HEX_COLOR.test(color || '') ? { background: color } : undefined} />;
+  return <span aria-hidden="true" className="inline-block size-3 shrink-0" style={HEX_COLOR.test(color || '') ? { background: color } : undefined} />;
 }
 
 function Field({ label, hint, children }) {
@@ -62,12 +62,12 @@ function RoleEditor({ initial, busy, onSave, onCancel }) {
   const text = (k) => (e) => set(k)(e.target.value);
   const problem = roleFormProblem(form);
   const ColorPicker = TC().ColorPicker;
-  return <form className="grid gap-3 border p-3" onSubmit={(e) => { e.preventDefault(); if (!problem && !busy) onSave(form); }}>
+  return <form className="grid gap-3 p-3" onSubmit={(e) => { e.preventDefault(); if (!problem && !busy) onSave(form); }}>
     <Field label="Nome"><Input autoFocus value={form.name} onInput={text('name')} maxLength={ROLE_NAME_MAX} aria-label="Nome do papel" /></Field>
     <Field label="Cor do badge"><ColorPicker label="Cor do badge" value={form.color} onChange={set('color')} allowDefault={false} /></Field>
     <Field label="Instruções" hint="Injetadas quando o agente inicia. Ficam só no arquivo do papel: não vão a log nem a aviso.">
       <textarea value={form.instructions} onInput={text('instructions')} rows={8} maxLength={ROLE_INSTRUCTIONS_MAX} aria-label="Instruções"
-        className="min-h-32 w-full resize-y border border-border-strong bg-background p-2 font-mono t-body outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" />
+        className="min-h-32 w-full resize-y campo p-2 font-mono t-body outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" />
     </Field>
     <div className="grid gap-3 sm:grid-cols-3">
       <Field label="Agente" hint="Vazio segue a predefinição."><Input value={form.agent} onInput={text('agent')} aria-label="Agente do papel" /></Field>
@@ -117,11 +117,11 @@ function Discover({ client, defaultCwd, onImported }) {
       <Button type="submit" size="sm" variant="outline" icon={I.FolderSearch} disabled={!cwd.trim() || busy} className="mb-6">Descobrir</Button>
     </form>
     {found && found.length ? <ul className="grid max-h-72 gap-2 overflow-y-auto scrollbar-thin" aria-label="Papéis encontrados">
-      {found.map((f) => <li key={f.path} className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 border p-2">
+      {found.map((f) => <li key={f.path} className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 border-b p-2 last:border-b-0">
         <Checkbox checked={picks.has(f.path)} onChange={toggle(f.path)} label={`Importar ${f.role.name || f.slug}`} />
         <div className="grid gap-1">
           <span className="flex items-center gap-1.5 t-body font-medium"><Swatch color={f.role.color} />{f.role.name || f.slug}
-            {f.exists ? <span className="border px-1 t-micro text-muted-foreground">já existe: importar substitui</span> : null}</span>
+            {f.exists ? <span className="px-1 t-micro text-muted-foreground">já existe: importar substitui</span> : null}</span>
           <span className="truncate font-mono t-micro text-muted-foreground" title={f.path}>{f.path}</span>
           <p className="whitespace-pre-line t-meta text-muted-foreground">{previewOf(f.role.instructions)}</p>
         </div>
@@ -187,7 +187,7 @@ function RolesDialog({ open, client, defaultCwd, askSlug, confirm, onChanged, on
           : <Button size="sm" variant="outline" icon={I.Plus} className="justify-self-start" onClick={() => setEditing({})}>Novo papel</Button>}
         {roles === null ? <p className="t-meta text-muted-foreground">Lendo…</p> : !roles.length ? <p className="t-meta text-muted-foreground">Nenhum papel ainda.</p>
           : <ul className="grid max-h-80 gap-1 overflow-y-auto scrollbar-thin" aria-label="Papéis">
-            {roles.map((r) => <li key={r.slug} className="flex items-center gap-2 border px-2 py-1.5">
+            {roles.map((r) => <li key={r.slug} className="flex items-center gap-2 border-b px-2 py-1.5 last:border-b-0">
               <Swatch color={r.color} />
               <span className="min-w-0 flex-1 truncate t-body">{r.name}<span className="ml-2 font-mono t-micro text-muted-foreground">{r.slug}</span></span>
               {r.agent ? <span className="shrink-0 t-micro text-muted-foreground">{[r.agent, r.model, r.effort].filter(Boolean).join(' · ')}</span> : null}
@@ -200,7 +200,7 @@ function RolesDialog({ open, client, defaultCwd, askSlug, confirm, onChanged, on
           {presets === null ? <p className="t-meta text-muted-foreground">Lendo…</p> : !presets.length
             ? <p className="t-meta text-muted-foreground">Nenhuma predefinição. Crie pelo modal do terminal, em "Salvar como predefinição".</p>
             : <ul className="grid max-h-80 gap-1 overflow-y-auto scrollbar-thin" aria-label="Predefinições">
-              {presets.map((p) => <li key={p.slug} className="flex items-center gap-2 border px-2 py-1.5">
+              {presets.map((p) => <li key={p.slug} className="flex items-center gap-2 border-b px-2 py-1.5 last:border-b-0">
                 <Swatch color={p.color} />
                 <span className="min-w-0 flex-1 truncate t-body">{p.name}</span>
                 <span className="shrink-0 t-micro text-muted-foreground">{[p.agent, p.model, p.effort, p.role ? `papel ${p.role}` : null].filter(Boolean).join(' · ')}</span>

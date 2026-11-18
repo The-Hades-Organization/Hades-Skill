@@ -271,10 +271,11 @@ describe("canvas-engine-shape: o motor", () => {
     expect(nodesLayer.calls.at(-1)).not.toEqual(["set:textAlign", "center"]);
   });
 
-  test("o bloco quadrado segue com a faixa lateral, sem centralizar", () => {
+  test("o bloco quadrado segue com a faixa lateral e colchetes de canto, sem centralizar", () => {
     const { nodesLayer } = paint([node("alvo", 0)], BLOCK_K, { nodeShape: () => "square", describeNode: () => "Ok" });
     expect(count(nodesLayer.calls, "set:textAlign")).toBe(0);
-    expect(count(nodesLayer.calls, "strokeRect")).toBe(1);
+    expect(count(nodesLayer.calls, "strokeRect")).toBe(0);
+    expect(count(nodesLayer.calls, "stroke")).toBe(1);
   });
 
   test("no detalhe completo o nó rico volta ao retângulo e o simples mantém a forma", () => {
@@ -317,8 +318,9 @@ describe("canvas-engine-shape: o motor", () => {
 describe("canvas-engine-shape: cor de estado e rótulo", () => {
   const fills = (calls: Call[]): string[] => calls.filter((c) => c[0] === "set:fillStyle").map((c) => String(c[1]));
   const fontOf = (calls: Call[]): string[] => calls.filter((c) => c[0] === "set:font").map((c) => String(c[1]));
-  const LIVE = "#c8264a";
-  const REST = "#7a5a6a";
+  const LIVE = "#301423";
+  const REST = "#684b5b";
+  const RING = "#391a2c";
 
   test("dado nó trabalhando de longe, então o preenchimento é o vivo diluído, não o cheio", () => {
     const { nodesLayer } = paint([node("a", 0)], DOT_K, { nodeColor: () => LIVE });
@@ -344,7 +346,7 @@ describe("canvas-engine-shape: cor de estado e rótulo", () => {
     const texts = nodesLayer.calls.filter((c) => c[0] === "fillText");
     expect(texts.length).toBe(1);
     expect(texts[0]?.[1]).toBe("agente alfa");
-    expect(nodesLayer.calls).toContainEqual(["set:strokeStyle", "#c8264a"]);
+    expect(nodesLayer.calls).toContainEqual(["set:strokeStyle", RING]);
   });
 
   test("dado nó cheio em zoom baixo, então a fonte de tela não passa de baixo de 11 px", () => {

@@ -34,7 +34,7 @@ function Bloco({ guardas, historico }) {
             {e.commit ? <Mono className="text-muted-foreground">{String(e.commit).slice(0, 12)}</Mono> : null}
             <span className="ml-auto t-meta text-muted-foreground tnum">{e.ts ? ago(e.ts) : ''}</span>
           </div>
-          <ul className="grid gap-2 border-l pl-4">
+          <ul className="grid gap-2 pl-4">
             {[...e.vs].sort((a, b) => (ORDEM[a.efeito] ?? 9) - (ORDEM[b.efeito] ?? 9)).map((v) => <li key={v.guarda} className="grid min-w-0 gap-0.5">
               <div className="flex flex-wrap items-baseline gap-x-3">
                 <Efeito ef={v.efeito} className="t-label" />

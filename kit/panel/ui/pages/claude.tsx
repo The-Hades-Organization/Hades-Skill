@@ -81,8 +81,8 @@ function ChatTool({ x }) {
   const Icon = { Bash: I.Terminal, Read: I.FileText, Edit: I.Pencil, Write: I.Pencil, Grep: I.Search, Glob: I.Search, Agent: I.Bot, Task: I.Bot }[x.name] || I.Wrench;
   const r = x.result;
   const state = !r ? 'rodando' : r.denied ? 'recusada' : r.error ? 'com erro' : 'feita';
-  return <details className={cn('group border t-body', x.sub && 'ml-4', r?.denied ? 'border-bad/60' : r?.error && 'border-bad/40')}>
-    <summary aria-label={`${x.name}: ${state}`} className="flex min-h-9 cursor-pointer list-none items-center gap-2 px-3 py-1.5 transition-colors hover:bg-accent/60 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-md:min-h-11 [&::-webkit-details-marker]:hidden">
+  return <details className={cn('group bg-popover t-body', x.sub && 'ml-4', (r?.denied || r?.error) && 'shadow-[inset_3px_0_0_var(--bad)]')}>
+    <summary aria-label={`${x.name}: ${state}`} className="flex min-h-9 cursor-pointer list-none items-center gap-2 px-3 py-1.5 transition-colors hover:bg-hover outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-md:min-h-11 [&::-webkit-details-marker]:hidden">
       <I.ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden="true" />
       <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
       <span className="shrink-0 font-medium">
@@ -91,7 +91,7 @@ function ChatTool({ x }) {
       <span className="min-w-0 flex-1 truncate t-data text-muted-foreground">
         {x.input}
       </span>
-      {!r ? <Dot kind="busy" pulse />
+      {!r ? <Dot kind="busy" />
         : r.denied ? <I.ShieldAlert className="size-3.5 shrink-0 text-bad" aria-hidden="true" />
         : r.error ? <I.CircleX className="size-3.5 shrink-0 text-bad" aria-hidden="true" /> : <I.Check className="size-3.5 shrink-0 text-ok" aria-hidden="true" />}
     </summary>
@@ -99,7 +99,7 @@ function ChatTool({ x }) {
       <div className="break-all t-data">
         {x.input}
       </div>
-      {r ? <pre className={cn('max-h-72 overflow-auto whitespace-pre-wrap break-words border bg-term p-2.5 t-code text-term-foreground scrollbar-thin', r.error && 'border-bad/50')}>
+      {r ? <pre className={cn('max-h-72 overflow-auto whitespace-pre-wrap break-words bg-term p-2.5 t-code text-term-foreground scrollbar-thin', r.error && 'shadow-[inset_3px_0_0_var(--bad)]')}>
         {r.text || '(sem saída)'}
       </pre> : null}
     </div>
@@ -110,7 +110,7 @@ function ChatTool({ x }) {
 // subtipos de erro do claude -p que o dono entende sem o nome cru
 const SUBTYPE = { error_max_turns: 'teto de turnos', error_max_budget_usd: 'teto de custo' };
 function Aviso({ icon: Icon, tone, children }) {
-  return <div className={cn('flex items-start gap-2.5 border px-3 py-2.5 t-body', tone === 'bad' ? 'border-bad/50' : 'border-warn/50')}>
+  return <div className={cn('flex items-start gap-2.5 bg-popover px-3 py-2.5 t-body', tone === 'bad' ? 'shadow-[inset_3px_0_0_var(--bad)]' : 'shadow-[inset_3px_0_0_var(--warn)]')}>
     <Icon className={cn('mt-0.5 size-4 shrink-0', tone === 'bad' ? 'text-bad' : 'text-warn')} aria-hidden="true" />
     <div className="min-w-0 flex-1">
       {children}
@@ -121,7 +121,7 @@ function Aviso({ icon: Icon, tone, children }) {
 // `copy` é o texto da resposta inteira do turno (as falas do Claude desde a pergunta), para copiar de uma vez
 function ChatItem({ x, copy, onApprove }) {
   if (x.k === 'user') return <div className="mt-3 flex flex-col items-end gap-1 first:mt-0">
-    <div className="max-w-[88%] whitespace-pre-wrap break-words bg-muted px-3.5 py-2.5 t-prose leading-6">
+    <div className="max-w-[88%] whitespace-pre-wrap break-words bg-muted px-3.5 py-2.5 t-prose">
       {x.text}
     </div>
     {x.remote ? <span className="flex items-center gap-1 t-meta text-muted-foreground">
@@ -138,7 +138,7 @@ function ChatItem({ x, copy, onApprove }) {
       {x.text}
     </span>
   </Aviso>;
-  if (x.k === 'stderr') return <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words border bg-term p-2.5 t-code text-term-muted scrollbar-thin">
+  if (x.k === 'stderr') return <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words bg-term p-2.5 t-code text-term-muted scrollbar-thin">
     {x.text}
   </pre>;
   if (x.k === 'end') return <div className="flex items-center gap-2 t-meta text-muted-foreground">
@@ -161,7 +161,7 @@ function ChatItem({ x, copy, onApprove }) {
       </span>
     </Aviso> : null}
     <div className="flex items-center gap-2 border-t pt-1">
-      <span className="min-w-0 flex-1 font-mono t-micro text-muted-foreground tnum">
+      <span className="min-w-0 flex-1 t-data text-muted-foreground">
         {[usd4(x.cost), tokLine(x.tokens), x.ms != null ? dur(x.ms / 1000) : ''].filter(Boolean).join(' · ')}
       </span>
       {copy ? <CopyButton text={copy} label="Copiar a resposta" /> : null}
@@ -171,16 +171,16 @@ function ChatItem({ x, copy, onApprove }) {
 }
 
 // o rótulo da sessão: o que ela está fazendo ou de onde veio, depois quando e quanto custou
-function SessionRow({ s, on, onPick, onDelete }) {
+function SessionRow({ s, on, onDelete, onPick }) {
   const label = s.running ? 'respondendo' : s.remote ? 'pelo acesso remoto' : null;
-  return <li className={cn('group relative flex items-start gap-1 border-b border-l-2 transition-colors hover:bg-accent/60', on ? 'border-l-foreground bg-accent/40' : 'border-l-transparent')}>
-    <button type="button" onClick={() => onPick(s.id)} aria-current={on || undefined} className="min-w-0 flex-1 cursor-pointer py-2.5 pl-3 text-left outline-none after:absolute after:inset-0 focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-ring">
+  return <li className={cn('group relative flex items-start gap-1 border-b last:border-b-0 transition-colors hover:bg-hover', on && 'item-ativo')}>
+    <button type="button" onClick={() => onPick(s.id)} aria-current={on || undefined} className="min-w-0 flex-1 cursor-pointer py-2.5 pl-2 text-left outline-none after:absolute after:inset-0 focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-ring">
       <span className="block truncate t-label">
         {s.title}
       </span>
       <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 t-meta text-muted-foreground tnum">
         {label ? <span className={cn('inline-flex items-center gap-1.5', s.running && 'text-foreground')}>
-          {s.running ? <Dot kind="busy" pulse /> : <I.Globe className="size-3" aria-hidden="true" />}
+          {s.running ? <Dot kind="busy" /> : <I.Globe className="size-3" aria-hidden="true" />}
           {label}
           <span aria-hidden="true">·</span>
         </span> : null}
@@ -199,26 +199,26 @@ function SessionRow({ s, on, onPick, onDelete }) {
 
 function SessionList({ ov, sid, onPick, onNew, onDelete }) {
   const running = ov.sessions.filter((s) => s.running).length;
-  return <Card className="min-h-0 flex-1 gap-0" data-tour-step-id="claude-conversas">
+  return <Card className="min-h-0 flex-1 gap-2" data-tour-step-id="claude-conversas">
     <CardHeader title="Conversas" summary={ov.sessions.length ? (running ? `${running} respondendo` : String(ov.sessions.length)) : undefined}
       action={<Button size="xs" variant="outline" icon={I.Plus} onClick={onNew}>Nova</Button>} />
-    <CardContent className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+    <CardContent className="-mx-2 min-h-0 flex-1 overflow-y-auto scrollbar-thin">
       {ov.sessions.length ? <ul>
         {ov.sessions.map((s) => <SessionRow key={s.id} s={s} on={s.id === sid} onPick={onPick} onDelete={onDelete} />)}
-      </ul> : <Empty icon={I.MessageSquare} title="Nenhuma conversa ainda">A primeira mensagem abre uma.</Empty>}
+      </ul> : <div className="px-2"><Empty icon={I.MessageSquare} title="Nenhuma conversa ainda">A primeira mensagem abre uma.</Empty></div>}
     </CardContent>
   </Card>;
 }
 
 function Intro({ ov }) {
-  return <div className="grid gap-3 t-prose leading-6" data-tour-step-id="claude-intro">
+  return <div className="grid gap-3 t-prose" data-tour-step-id="claude-intro">
     <p>
       {'Claude Code em '}
-      <span className="font-mono text-[0.85em]">{ov.clone || 'repositório'}</span>
+      <code className="bg-muted px-1.5 py-0.5 t-code">{ov.clone || 'repositório'}</code>
       {', via '}
-      <span className="font-mono text-[0.85em]">claude -p</span>
+      <code className="bg-muted px-1.5 py-0.5 t-code">claude -p</code>
       {' em auto mode: roda no clone principal e executa comandos e edições sem pedir confirmação. O hook '}
-      <span className="font-mono text-[0.85em]">hades guard</span>
+      <code className="bg-muted px-1.5 py-0.5 t-code">hades guard</code>
       {' continua barrando o que barra numa sessão interativa.'}
     </p>
     <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 t-body text-muted-foreground">
@@ -266,11 +266,11 @@ function TermMode({ ov, resume, onResume, term, mobile }) {
   if (!term) return <div className="grid flex-1 place-content-center t-meta text-muted-foreground" aria-busy="true">Consultando o terminal…</div>;
   if (!term.enabled) {
     const r = refusalOf({ code: 'term_disabled' }, 403);
-    return <div className="grid flex-1 place-content-center justify-items-center gap-3 p-6 text-center" role="status" data-claude-term="disabled">
-      <I.SquareTerminal className="size-6 text-muted-foreground" aria-hidden="true" />
-      <div className="t-section">{r.title}</div>
-      <p className="max-w-md t-body text-muted-foreground">{r.hint}</p>
-      <a className="t-body text-info hover:underline" href="#/config">Abrir Configurações</a>
+    return <div className="grid flex-1 place-content-center p-6" role="status" data-claude-term="disabled">
+      <Empty icon={I.SquareTerminal} title={r.title}>
+        {r.hint}{' '}
+        <a className="underline decoration-line underline-offset-4 hover:text-primary" href="#/config">Abrir Configurações</a>
+      </Empty>
     </div>;
   }
   const live = tid || spec;
@@ -278,11 +278,11 @@ function TermMode({ ov, resume, onResume, term, mobile }) {
     <div className="flex flex-wrap items-end gap-3 border-b px-4 py-2.5 max-md:px-2">
       <div className="grid min-w-0 gap-1 t-meta text-muted-foreground">
         Pasta
-        <Select label="Pasta" value={dir} disabled={!!live} onChange={setCwd} className="max-w-64" items={roots.map((r) => ({ value: r, label: baseName(r) }))} />
+        <Select size="sm" label="Pasta" value={dir} disabled={!!live} onChange={setCwd} className="max-w-64" items={roots.map((r) => ({ value: r, label: baseName(r) }))} />
       </div>
       <div className="grid min-w-0 gap-1 t-meta text-muted-foreground">
         Sessão
-        <Select label="Retomar uma sessão" value={spec?.resume || resume || ''} disabled={!!live} onChange={(v) => onResume(v || null)} className="max-w-64"
+        <Select size="sm" label="Retomar uma sessão" value={spec?.resume || resume || ''} disabled={!!live} onChange={(v) => onResume(v || null)} className="max-w-64"
           items={[{ value: '', label: 'Nova sessão' }, ...known.map((s) => ({ value: s.claudeSession, label: s.title }))]} />
       </div>
       {live ? <Button size="sm" variant="outline" icon={I.X} onClick={close}>{exited ? 'Fechar' : 'Encerrar'}</Button>
@@ -293,7 +293,7 @@ function TermMode({ ov, resume, onResume, term, mobile }) {
     {live ? <PtyTerminal key={spec ? JSON.stringify(spec) : tid} className="min-h-0 flex-1" id={spec ? undefined : tid} open={spec || undefined}
       apiRef={api} onOpened={(sess) => keep(sess.id)} onExit={() => setExited(true)}
       onState={(ph) => { if (ph.kind === 'refused') { setErr(ph.refusal); if (ph.refusal.kind !== 'disabled') { keep(null); setSpec(null); } } }} />
-      : <div className="grid flex-1 place-content-center p-6 t-body text-muted-foreground">Escolha a pasta e a sessão e abra o Claude Code aqui.</div>}
+      : <div className="grid flex-1 place-content-center p-6"><Empty icon={I.SquareTerminal} title="Escolha a pasta e a sessão e abra o Claude Code aqui." /></div>}
     {live && mobile ? <HadesCore.Mobile.TermKeyBar api={api} attention /> : null}
   </div>;
 }
@@ -417,7 +417,7 @@ function Claude() {
   const cur = ov.sessions.find((s) => s.id === sid);
   const busy = st.running || !!cur?.running;
   const how = [ov.model ? modelLabel(ov.model) : null, ov.effort ? 'esforço ' + (EFFORT[ov.effort] || ov.effort) : null, 'auto mode'].filter(Boolean).join(' · ');
-  return <div className={cn('flex gap-6 max-md:[&_button]:min-h-11 max-md:[&_button]:min-w-11', !mobile && 'h-[calc(100dvh-14rem)] min-h-[420px]')} data-claude-mobile={mobile ? nav.level : undefined}>
+  return <div className={cn('flex gap-6 max-md:[&_button:not([data-chip-x])]:min-h-11 max-md:[&_button:not([data-chip-x])]:min-w-11', !mobile && 'h-[calc(100dvh-14rem)] min-h-[420px]')} data-claude-mobile={mobile ? nav.level : undefined}>
     <aside className="hidden w-72 shrink-0 flex-col md:flex">
       <SessionList ov={ov} sid={sid} onPick={pick} onNew={() => startNew(false)} onDelete={del} />
     </aside>
@@ -426,7 +426,7 @@ function Claude() {
       <SessionList ov={ov} sid={sid} onPick={pick} onNew={() => startNew(false)} onDelete={del} />
     </div> : null}
     {mobile && !detailOn ? null : <section aria-label="Conversa" style={detailOn ? { top: vbox.top, left: vbox.left, width: vbox.width, height: vbox.height } : undefined}
-      className={cn('flex min-w-0 flex-1 flex-col overflow-hidden border', detailOn && 'fixed z-40 flex-none border-0 bg-background')}>
+      className={cn('flex min-w-0 flex-1 flex-col overflow-hidden', detailOn ? 'fixed z-40 flex-none bg-background' : 'cantos bg-card/96')}>
       <header className="flex min-h-14 items-center gap-3 border-b px-4 py-2.5 max-md:px-2" data-tour-step-id="claude-cabecalho">
         <Button variant="ghost" size="icon-sm" className="md:hidden" aria-label="Voltar às conversas" icon={I.ArrowLeft} onClick={nav.leave} />
         <div className="min-w-0 flex-1">
@@ -443,7 +443,7 @@ function Claude() {
           <span><Button size="xs" variant="outline" icon={I.SquareTerminal} disabled={busy} onClick={() => toTerminal(cur.claudeSession)} className="max-md:hidden">Continuar no terminal</Button></span>
         </Tip> : null}
         {busy ? <span className="flex shrink-0 items-center gap-1.5 t-label" role="status">
-          <Dot kind="busy" pulse />
+          <Dot kind="busy" />
           respondendo
         </span> : ov.active ? <span className="shrink-0 t-meta text-muted-foreground tnum max-sm:hidden">
           {`${ov.active} de ${ov.max} conversas respondendo agora`}
@@ -466,22 +466,22 @@ function Claude() {
       <div className="border-t px-4 py-3 max-md:px-2 max-md:py-2" data-tour-step-id="claude-envio">
         <div className={COLUNA}>
           {files.length ? <ul className="mb-2 flex flex-wrap gap-1.5" aria-label="Anexos desta mensagem">
-            {files.map((f) => <li key={f.file} className="flex items-center gap-1.5 border px-2 py-1 t-meta">
+            {files.map((f) => <li key={f.file} className="flex items-center gap-1.5 bg-popover px-2 py-1 t-meta">
               <I.Paperclip className="size-3" aria-hidden="true" />
               <span className="max-w-48 truncate font-mono">{f.name}</span>
               <span className="text-muted-foreground tnum">{kb(f.bytes)}</span>
-              <button type="button" aria-label={`Tirar o anexo ${f.name}`} onClick={() => setFiles((p) => p.filter((x) => x.file !== f.file))} className="cursor-pointer outline-none focus-visible:outline-2 focus-visible:outline-ring"><I.X className="size-3" aria-hidden="true" /></button>
+              <button type="button" data-chip-x aria-label={`Tirar o anexo ${f.name}`} onClick={() => setFiles((p) => p.filter((x) => x.file !== f.file))} className="cursor-pointer outline-none focus-visible:outline-2 focus-visible:outline-ring"><I.X className="size-3" aria-hidden="true" /></button>
             </li>)}
           </ul> : null}
           <div className="flex items-end gap-2">
           <input ref={pick_} type="file" multiple accept={ATTACH_ACCEPT} className="hidden" onChange={(e) => { attach([...e.target.files]); e.target.value = ''; }} />
-          <Button type="button" variant="outline" size="icon" icon={I.Paperclip} aria-label="Anexar arquivo (imagem ou texto)" title="Anexar arquivo (imagem ou texto)" disabled={busy} onClick={() => pick_.current?.click()} />
+          <Button type="button" variant="outline" size="icon-sm" icon={I.Paperclip} aria-label="Anexar arquivo (imagem ou texto)" title="Anexar arquivo (imagem ou texto)" disabled={busy} onClick={() => pick_.current?.click()} />
           <div className="min-w-0 flex-1">
           {PromptBar ? <PromptBar width={4000} radius={0} busy={busy} placeholder={busy ? 'Respondendo…' : 'Mensagem para o Claude'}
             sources={[]} commands={[]} models={[]} efforts={[]}
-            background="var(--card)" color="var(--foreground)" menuBackground="var(--popover)" sparkColor="var(--primary)"
+            background="var(--popover)" color="var(--foreground)" menuBackground="var(--popover)" sparkColor="var(--primary)"
             onSend={(t) => send(t)} onStop={stop} /> : <form className="flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); send(); }}>
-            <textarea ref={area} value={text} rows={1} aria-label="Mensagem para o Claude" placeholder={busy ? 'Respondendo…' : 'Mensagem para o Claude'} title="Enter envia, Shift+Enter quebra a linha" onInput={(e) => setText(e.target.value)} disabled={sending} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} className="max-h-[168px] min-h-10 min-w-0 flex-1 resize-none border border-border-strong bg-background px-3 py-2 text-base outline-none focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-ring md:text-sm" />
+            <textarea ref={area} value={text} rows={1} aria-label="Mensagem para o Claude" placeholder={busy ? 'Respondendo…' : 'Mensagem para o Claude'} title="Enter envia, Shift+Enter quebra a linha" onInput={(e) => setText(e.target.value)} disabled={sending} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} className="campo max-h-[168px] min-h-10 min-w-0 flex-1 resize-none px-3 py-2 t-body outline-none focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-ring max-md:text-base" />
             {busy ? <Button type="button" variant="destructive" icon={I.Square} onClick={stop}>Parar</Button>
               : <Button type="submit" icon={I.SendHorizontal} loading={sending} disabled={!text.trim()}>Enviar</Button>}
           </form>}

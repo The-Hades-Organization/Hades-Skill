@@ -99,9 +99,9 @@ function makeArgosLinks() {
     onKeyDown(event: { key: string; preventDefault(): void; stopPropagation(): void }): void;
   }
 
-  const ROOT = "absolute z-30 flex flex-col overflow-y-auto border border-border-strong bg-background t-body outline-none";
+  const ROOT = "absolute z-30 flex flex-col overflow-y-auto bg-popover shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] t-body outline-none";
   const FOCUS_RING = "outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring";
-  const BUTTON = `inline-flex min-h-7 cursor-pointer items-center justify-center border border-border px-2 t-meta transition-colors hover:bg-accent/60 max-md:min-h-11 ${FOCUS_RING}`;
+  const BUTTON = `inline-flex min-h-7 cursor-pointer items-center justify-center px-2 t-meta transition-colors hover:bg-secondary-hover max-md:min-h-11 ${FOCUS_RING} bg-secondary`;
 
   // o popover é uma ilha: ponteiro e roda dentro dele não chegam ao canvas (não arrastam, não dão zoom, não limpam a seleção)
   const stop = (event: { stopPropagation(): void }): void => event.stopPropagation();
@@ -112,7 +112,7 @@ function makeArgosLinks() {
     const kind = [row.end, row.meaning].filter(Boolean).join(" · ");
     const styleButton = (style: LinkStyle): ReactNode => h("button", {
       key: style, type: "button", "aria-pressed": row.style === style, onClick: () => ui.onStyle(row, style),
-      className: `${BUTTON} ${row.style === style ? "border-foreground bg-accent/40 text-foreground" : "text-muted-foreground"}`,
+      className: `${BUTTON} ${row.style === style ? "shadow-[inset_0_-2px_0_var(--primary)] text-foreground" : "text-muted-foreground"}`,
     }, L.LINK_STYLE_TEXT[style]);
     return h("li", { key: row.edgeId, "data-edge": row.edgeId, className: "flex flex-col gap-1 border-b border-border px-3 py-2 last:border-b-0" },
       h("div", { className: "flex min-w-0 items-start gap-1" },
@@ -124,7 +124,7 @@ function makeArgosLinks() {
         kind ? h("span", { className: "w-full truncate t-meta text-muted-foreground" }, kind) : null),
         h("button", {
           type: "button", "aria-label": `Remover conexão com ${row.label}`, title: "Remover conexão", onClick: () => ui.onRemove(row),
-          className: `${BUTTON} shrink-0 border-transparent text-muted-foreground hover:text-bad max-md:min-w-11`,
+          className: `${BUTTON} shrink-0 text-muted-foreground hover:text-bad max-md:min-w-11`,
         }, h("span", { "aria-hidden": "true", className: "text-base leading-none" }, "×"))),
       h("div", { className: "flex flex-wrap items-center gap-1" },
         h("div", { role: "group", "aria-label": `Estilo da conexão com ${row.label}`, className: "flex gap-1" }, ...L.LINK_STYLES.map(styleButton)),
@@ -140,9 +140,9 @@ function makeArgosLinks() {
       ref: ui.setRoot, role: "dialog", "aria-label": ui.title, tabIndex: -1, onKeyDown: ui.onKeyDown, ...SHIELD,
       className: ROOT, style: { left: ui.at.x, top: ui.at.y, width: ui.size.w, maxHeight: ui.size.h },
     },
-    h("div", { className: "sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-background px-3 py-1" },
+    h("div", { className: "sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-popover px-3 py-1" },
       h("span", { className: "t-meta-em text-muted-foreground" }, ui.rows.length > 0 ? `${ui.rows.length} ${ui.rows.length === 1 ? "conexão" : "conexões"}` : "Conexões"),
-      h("button", { type: "button", "aria-label": "Fechar conexões", onClick: ui.onClose, className: `${BUTTON} border-transparent text-muted-foreground max-md:min-w-11` },
+      h("button", { type: "button", "aria-label": "Fechar conexões", onClick: ui.onClose, className: `${BUTTON} text-muted-foreground max-md:min-w-11` },
         h("span", { "aria-hidden": "true", className: "text-base leading-none" }, "×"))),
     ui.rows.length === 0
       ? h("p", { className: "px-3 py-2 t-meta text-muted-foreground" }, EMPTY_LABEL)

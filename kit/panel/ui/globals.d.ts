@@ -178,6 +178,12 @@ interface HadesCoreApi extends HadesPanelApi {
   useTourPreview(id: string): unknown;
 }
 
+interface HadesPoeiraApi {
+  emitir(el: Element, modo?: "desfazer" | "apagar"): boolean;
+  graos(): number;
+  encerrar(): void;
+}
+
 interface Window {
   __TOKEN: string;
   HadesPanel: HadesPanelApi;
@@ -187,6 +193,8 @@ interface Window {
   Terminal: new (options?: Record<string, unknown>) => unknown;
   FitAddon: { FitAddon: new () => unknown };
   HadesFx?: Record<string, FC<Record<string, unknown>> | undefined>;
+  /** Camada de partículas e rajada ao sair (fx/poeira.tsx). */
+  HadesPoeira?: HadesPoeiraApi;
   /** Partes reutilizáveis (ui/parts/*.tsx), carregadas antes do app.js. */
   HadesParts?: { ErroExplicado?: PanelComponent } & Record<string, unknown>;
 }

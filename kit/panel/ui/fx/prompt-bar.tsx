@@ -139,58 +139,61 @@ function morphPoints(v: number): string {
 const CSS = `
 .pb{position:relative;box-sizing:border-box;color:var(--pb-fg);font:inherit;font-size:var(--fs-body)}
 .pb *{box-sizing:border-box}
-@media (pointer:coarse){.pb{font-size:var(--fs-section)}}
-.pb-box{position:relative;overflow:hidden;background:var(--pb-bg);border-radius:var(--pb-r);padding:12px;cursor:text}
+@media (pointer:coarse){.pb{font-size:1rem}}
+.pb-box{position:relative;overflow:hidden;background:var(--pb-bg);border-radius:var(--pb-r,0px);box-shadow:inset 0 -2px 0 var(--line,color-mix(in srgb,var(--pb-fg) 35%,transparent));padding:8px 10px;cursor:text;transition:box-shadow .15s}
+.pb-box:focus-within{box-shadow:inset 0 -2px 0 var(--pb-spark)}
 .pb-in{position:relative;display:flex;flex-direction:column;gap:8px}
-.pb-glow{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .5s;background:radial-gradient(circle at 0 100%,color-mix(in srgb,var(--pb-spark) 26%,transparent),transparent 70%)}
-.pb-glow[data-on]{opacity:1}
+.pb-in[data-compact]{flex-direction:row;align-items:center}
+.pb-glow{display:none}
 .pb-sparks{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.pb-ta{display:block;width:100%;resize:none;border:0;outline:0;background:transparent;color:inherit;font:inherit;line-height:${LINE_H}px;padding:0;margin:0;overflow-wrap:anywhere;overflow-y:hidden}
-.pb-ta::placeholder{color:color-mix(in srgb,var(--pb-fg) 45%,transparent);opacity:1}
+.pb-ta{display:block;width:100%;flex:1;min-width:0;resize:none;border:0;outline:0;background:transparent;color:inherit;font:inherit;line-height:${LINE_H}px;padding:0;margin:0;overflow-wrap:anywhere;overflow-y:hidden;caret-color:var(--pb-spark)}
+.pb-ta::placeholder{color:var(--muted-foreground,color-mix(in srgb,var(--pb-fg) 65%,var(--pb-bg)));opacity:1}
 .pb-bar{display:flex;align-items:center;gap:4px}
+.pb-in[data-compact] .pb-sp{display:none}
 .pb-sp{flex:1}
-.pb-tool{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:4px;height:28px;min-width:28px;padding:0 6px;border-radius:8px;justify-content:center;cursor:pointer;font-size:var(--fs-label);transition:background-color .16s,transform .16s cubic-bezier(.23,1,.32,1)}
-.pb-tool:hover,.pb-tool[aria-expanded=true],.pb-tool[aria-pressed=true]{background:color-mix(in srgb,var(--pb-fg) 8%,transparent)}
-.pb-tool:active{transform:scale(.94)}
-.pb-tool:focus-visible,.pb-send:focus-visible,.pb-x:focus-visible,.pb-slider:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
-.pb-send{all:unset;box-sizing:border-box;width:${SEND_SIZE}px;height:${SEND_SIZE}px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background-color .2s,color .2s,transform .16s cubic-bezier(.23,1,.32,1);background:color-mix(in srgb,var(--pb-fg) 12%,var(--pb-bg));color:color-mix(in srgb,var(--pb-fg) 55%,transparent)}
-.pb-send[data-armed]{background:var(--pb-fg);color:var(--pb-bg)}
-.pb-send:disabled{cursor:default}
+.pb-tool{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:4px;height:28px;min-width:28px;padding:0 6px;border-radius:0;justify-content:center;cursor:pointer;font-size:var(--fs-label);transition:background-color .15s}
+.pb-tool:hover,.pb-tool[aria-expanded=true],.pb-tool[aria-pressed=true]{background:color-mix(in srgb,var(--pb-fg) 10%,var(--pb-bg))}
+.pb-tool:focus-visible,.pb-send:focus-visible,.pb-x:focus-visible,.pb-slider:focus-visible{outline:2px dashed var(--ring,var(--pb-spark));outline-offset:2px}
+.pb-send{all:unset;box-sizing:border-box;width:${SEND_SIZE}px;height:${SEND_SIZE}px;border-radius:0;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background-color .15s,color .15s;background:color-mix(in srgb,var(--pb-fg) 12%,var(--pb-bg));color:var(--muted-foreground,color-mix(in srgb,var(--pb-fg) 65%,var(--pb-bg)))}
+.pb-send[data-armed]{background:var(--primary,var(--pb-fg));color:var(--primary-foreground,var(--pb-bg))}
+.pb-send[data-armed]:hover{background:var(--primary-hover,var(--primary,var(--pb-fg)))}
+.pb-send[data-busy]{background:var(--danger-soft,color-mix(in srgb,var(--bad,#ff6d53) 14%,var(--pb-bg)));color:var(--bad,var(--pb-fg))}
+.pb-send[data-busy]:hover{background:var(--danger-soft-hover,color-mix(in srgb,var(--bad,#ff6d53) 18%,var(--pb-bg)))}
+.pb-send:disabled{cursor:default;opacity:.55}
 .pb-chips{display:flex;flex-wrap:wrap;gap:6px}
-.pb-chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 4px 0 8px;border-radius:8px;background:color-mix(in srgb,var(--pb-fg) 8%,transparent);font-size:var(--fs-meta);animation:pb-in .2s cubic-bezier(.23,1,.32,1)}
+.pb-chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 4px 0 8px;border-radius:0;background:color-mix(in srgb,var(--pb-fg) 10%,var(--pb-bg));font-size:var(--fs-meta);animation:pb-in .2s cubic-bezier(.23,1,.32,1)}
 .pb-chip span{max-width:144px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pb-x{all:unset;box-sizing:border-box;display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;border-radius:6px;cursor:pointer}
-.pb-x:hover{background:color-mix(in srgb,var(--pb-fg) 12%,transparent)}
-.pb-menu{position:absolute;bottom:calc(100% + 8px);left:0;z-index:30;padding:4px;border-radius:12px;background:var(--pb-menu);color:var(--pb-fg);box-shadow:0 8px 28px rgb(0 0 0/.28),0 0 0 1px color-mix(in srgb,var(--pb-fg) 10%,transparent);transform-origin:bottom;animation:pb-menu .18s cubic-bezier(.23,1,.32,1)}
+.pb-x{all:unset;box-sizing:border-box;display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;border-radius:0;cursor:pointer}
+.pb-x:hover{background:color-mix(in srgb,var(--pb-fg) 12%,var(--pb-bg))}
+.pb-menu{position:absolute;bottom:calc(100% + 8px);left:0;z-index:30;padding:4px;border-radius:0;background:var(--pb-menu);color:var(--pb-fg);box-shadow:0 12px 32px -8px rgb(0 0 0/.7),inset 0 -2px 0 var(--pb-spark);transform-origin:bottom;animation:pb-menu .18s cubic-bezier(.23,1,.32,1)}
 .pb-list{position:relative}
-.pb-hl{position:absolute;left:0;right:0;top:0;height:${ROW_H}px;border-radius:8px;background:color-mix(in srgb,var(--pb-fg) 8%,transparent);pointer-events:none;transition:transform .22s cubic-bezier(.23,1,.32,1),opacity .15s}
-.pb-row{position:relative;display:flex;align-items:center;gap:8px;height:${ROW_H}px;padding:0 8px;border-radius:8px;cursor:pointer}
-.pb-ic{width:20px;display:inline-flex;justify-content:center;opacity:.7}
+.pb-hl{position:absolute;left:0;right:0;top:0;height:${ROW_H}px;border-radius:0;background:color-mix(in srgb,var(--pb-fg) 10%,var(--pb-menu));pointer-events:none;transition:transform .22s cubic-bezier(.23,1,.32,1),opacity .15s}
+.pb-row{position:relative;display:flex;align-items:center;gap:8px;height:${ROW_H}px;padding:0 8px;border-radius:0;cursor:pointer}
+.pb-ic{width:20px;display:inline-flex;justify-content:center;color:var(--muted-foreground,color-mix(in srgb,var(--pb-fg) 70%,var(--pb-menu)))}
 .pb-name{font-size:var(--fs-label);font-weight:500;white-space:nowrap}
-.pb-desc{font-size:var(--fs-meta);opacity:.55;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pb-tag{margin-left:auto;font-size:var(--fs-micro);opacity:.6}
-.pb-none{padding:8px;font-size:var(--fs-meta);opacity:.6}
+.pb-desc{font-size:var(--fs-meta);color:var(--muted-foreground,color-mix(in srgb,var(--pb-fg) 68%,var(--pb-menu)));min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pb-tag{margin-left:auto;font-size:var(--fs-micro);color:var(--muted-foreground,color-mix(in srgb,var(--pb-fg) 68%,var(--pb-menu)))}
+.pb-none{padding:8px;font-size:var(--fs-meta);color:var(--muted-foreground,color-mix(in srgb,var(--pb-fg) 68%,var(--pb-menu)))}
 .pb-eff{padding:12px;width:${EFFORT_W}px}
 .pb-eff-h{display:flex;align-items:center;gap:6px;font-size:var(--fs-label);margin-bottom:8px}
 .pb-eff-h b{font-weight:500}
-.pb-eff-ends{display:flex;justify-content:space-between;font-size:var(--fs-micro);opacity:.6;margin-bottom:6px}
-.pb-slider{position:relative;height:28px;touch-action:none;cursor:pointer;border-radius:11px}
-.pb-track{position:absolute;left:0;right:0;top:3px;height:22px;border-radius:11px;background:color-mix(in srgb,var(--pb-fg) 10%,transparent);overflow:hidden}
-.pb-fill{position:absolute;left:0;top:0;bottom:0;background:color-mix(in srgb,var(--pb-fg) 18%,transparent);transition:width .22s cubic-bezier(.23,1,.32,1),background-color .3s}
-.pb-dot{position:absolute;top:9px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:color-mix(in srgb,var(--pb-fg) 40%,transparent)}
-.pb-cur{position:absolute;top:0;width:${CURSOR_W}px;height:28px;border-radius:7px;background:var(--pb-fg);box-shadow:0 2px 6px rgb(0 0 0/.3);transition:left .22s cubic-bezier(.23,1,.32,1),background-color .3s}
+.pb-eff-ends{display:flex;justify-content:space-between;font-size:var(--fs-micro);color:var(--muted-foreground,color-mix(in srgb,var(--pb-fg) 68%,var(--pb-menu)));margin-bottom:6px}
+.pb-slider{position:relative;height:28px;touch-action:none;cursor:pointer;border-radius:0}
+.pb-track{position:absolute;left:0;right:0;top:3px;height:22px;border-radius:0;background:color-mix(in srgb,var(--pb-fg) 10%,var(--pb-menu));overflow:hidden}
+.pb-fill{position:absolute;left:0;top:0;bottom:0;background:color-mix(in srgb,var(--pb-fg) 18%,var(--pb-menu));transition:width .22s cubic-bezier(.23,1,.32,1),background-color .3s}
+.pb-dot{position:absolute;top:9px;width:4px;height:4px;margin-left:-2px;border-radius:0;transform:rotate(45deg);background:color-mix(in srgb,var(--pb-fg) 40%,var(--pb-menu))}
+.pb-cur{position:absolute;top:0;width:${CURSOR_W}px;height:28px;border-radius:0;background:var(--pb-fg);transition:left .22s cubic-bezier(.23,1,.32,1),background-color .3s}
 .pb-eq{display:inline-flex;align-items:center;gap:2px;height:14px}
-.pb-eq i{width:2.5px;height:14px;border-radius:1px;background:currentColor;transform-origin:center;animation:pb-eq .9s ease-in-out infinite}
+.pb-eq i{width:2.5px;height:14px;border-radius:0;background:currentColor;transform-origin:center;animation:pb-eq .9s ease-in-out infinite}
 .pb-eq i:nth-child(2){animation-delay:.15s}.pb-eq i:nth-child(3){animation-delay:.3s}
 .pb-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-@keyframes pb-menu{from{opacity:0;transform:translateY(4px) scale(.98)}}
-@keyframes pb-in{from{opacity:0;transform:scale(.96)}}
+@keyframes pb-menu{from{opacity:0;transform:translateY(4px)}}
+@keyframes pb-in{from{opacity:0}}
 @keyframes pb-eq{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}
 .pb[data-rm] .pb-menu,.pb[data-rm] .pb-chip,.pb[data-rm] .pb-eq i{animation:none}
 .pb[data-rm] .pb-hl{transition:opacity .15s}
 .pb[data-rm] .pb-fill,.pb[data-rm] .pb-cur{transition:background-color .3s}
 .pb[data-rm] .pb-tool,.pb[data-rm] .pb-send{transition:background-color .2s,color .2s}
-.pb[data-rm] .pb-tool:active{transform:none}
 `;
 
 function ensureStyle(): void {
@@ -204,7 +207,8 @@ function ensureStyle(): void {
 // ---------- ícones ----------
 function icon(spec: unknown, size: number): ReactNode {
   if (typeof spec === 'string') {
-    const Icon = LucideReact[spec];
+    const coreI = (window as unknown as { HadesCore?: { I?: Record<string, ComponentType<Record<string, unknown>>> } }).HadesCore?.I;
+    const Icon = coreI?.[spec] ?? LucideReact[spec];
     return Icon ? h(Icon, { size, 'aria-hidden': true }) : null;
   }
   return (spec ?? null) as ReactNode;
@@ -229,7 +233,7 @@ function SendIcon({ stop, reduced, morphMs, squash, tilt }: { stop: boolean; red
   const transform = `rotate(${dir.current * tilt * k}deg) scale(${1 - squash * k}, ${1 + squash * k})`;
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" style={{ transform }}>
-      <polygon points={morphPoints(v)} fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <polygon points={morphPoints(v)} fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="miter" strokeLinecap="square" />
     </svg>
   );
 }
@@ -392,8 +396,8 @@ function PromptBar(props: PromptBarProps) {
   const {
     placeholder = 'Pergunte qualquer coisa', sources = DEMO_SOURCES, commands = DEMO_COMMANDS, models = DEMO_MODELS, efforts = DEMO_EFFORTS,
     defaultModel = '', defaultEffort = '', busy = false, onSend, onStop, onAttach, onDictate, onEffortChange,
-    background = '#27272a', color = '#f5f5f5', menuBackground = '#323236', sparkColor = '#b39dff', sparkBoost = 1,
-    width = 400, radius = 16, maxRows = 5, morphDuration = 240, squash = 0.12, tilt = 8, pressScale = 0.96, className = '',
+    background = 'var(--popover)', color = 'var(--foreground)', menuBackground = 'var(--popover)', sparkColor = 'var(--primary)', sparkBoost = 1,
+    width = 400, radius = 0, maxRows = 5, morphDuration = 240, squash = 0.12, tilt = 8, pressScale = 1, className = '',
   } = props;
   ensureStyle();
   const reduced = !!useReducedMotion();
@@ -513,7 +517,7 @@ function PromptBar(props: PromptBarProps) {
       <div className="pb-box" onClick={(e) => { if (!(e.target instanceof Element) || !e.target.closest('button,[role=slider]')) focusField(); }}>
         <div className="pb-glow" data-on={sparksOn ? '' : undefined} />
         {sparksOn ? <Sparks color={sparkColor} boost={sparkBoost} energy={energy} /> : null}
-        <div className="pb-in">
+        <div className="pb-in" data-compact={sources.length === 0 && models.length === 0 && efforts.length === 0 && !onDictate && attachments.length === 0 ? '' : undefined}>
           {attachments.length > 0 ? (
             <div className="pb-chips">
               {attachments.map((name, i) => (
@@ -547,9 +551,8 @@ function PromptBar(props: PromptBarProps) {
                 onMouseDown={keepFocus} onClick={dictate}>
                 {listening ? <span className="pb-eq" aria-hidden="true"><i /><i /><i /></span> : icon('Mic', 16)}</button>
             ) : null}
-            <button type="button" className="pb-send" data-armed={armed ? '' : undefined} disabled={!armed} aria-label={sendLabel}
+            <button type="button" className="pb-send" data-armed={armed ? '' : undefined} data-busy={busy ? '' : undefined} disabled={!armed} aria-label={sendLabel}
               title={busy ? sendLabel : 'Enviar (Enter; Shift+Enter quebra a linha)'}
-              style={pressed && !reduced ? { transform: `scale(${pressScale})` } : undefined}
               onMouseDown={keepFocus}
               onPointerDown={(e) => { if (e.button === 0 && armed) setPressed(true); }}
               onPointerUp={() => setPressed(false)} onPointerLeave={() => setPressed(false)} onPointerCancel={() => setPressed(false)}

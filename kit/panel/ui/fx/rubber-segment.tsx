@@ -27,19 +27,17 @@ const GLIDE_REF = 75;
 const GLIDE_REF_SPEED_PX_S = 1000;
 
 const CSS = `
-.rs-root{position:relative;display:flex;flex:none;height:100%;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
-.rs-cell{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:.375rem;padding:0 .75rem;font-size:var(--fs-label);font-weight:500;white-space:nowrap;border:0 solid var(--border);border-left-width:1px}
-.rs-cell:first-child{border-left-width:0}
+.rs-root{position:relative;display:flex;gap:.25rem;flex:none;height:100%;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+.rs-cell{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:.375rem;padding:0 .75rem;font-size:var(--fs-label);font-weight:600;white-space:nowrap}
 .rs-cell>svg{width:1rem;height:1rem;flex:none}
-.rs-item{position:relative;appearance:none;background:none;margin:0;font-family:inherit;line-height:inherit;color:var(--muted-foreground);cursor:pointer;outline:none;touch-action:pan-x pan-y;transition:color 160ms,transform 160ms}
+.rs-item{position:relative;appearance:none;background:none;margin:0;font-family:inherit;line-height:inherit;color:var(--muted-foreground);cursor:pointer;outline:none;touch-action:pan-x pan-y;transition:color 160ms,background-color 160ms,transform 160ms}
 .rs-item[aria-selected=true]{cursor:default;color:var(--muted-foreground)}
 .rs-root[data-draggable] .rs-item[aria-selected=true]{cursor:grab;touch-action:pan-y}
 .rs-item[data-pressed]{transform:scale(${PRESS_SCALE})}
-.rs-item:focus-visible::after{content:"";position:absolute;inset:0;z-index:2;outline:2px solid var(--ring);outline-offset:-2px;pointer-events:none}
-.rs-lens{position:absolute;inset:0;z-index:1;display:flex;background:var(--muted);color:var(--foreground);pointer-events:none;clip-path:inset(0 0 0 100%)}
-.rs-lens .rs-cell{border-left-color:transparent}
+.rs-item:focus-visible::after{content:"";position:absolute;inset:0;z-index:2;outline:2px dashed var(--ring);outline-offset:-2px;pointer-events:none}
+.rs-lens{position:absolute;inset:0;z-index:1;display:flex;gap:.25rem;background:var(--secondary);box-shadow:inset 0 -2px 0 var(--primary);color:var(--foreground);pointer-events:none;clip-path:inset(0 0 0 100%)}
 .rs-root[data-drag],.rs-root[data-drag] *{cursor:grabbing!important}
-@media (hover:hover) and (pointer:fine){.rs-item[aria-selected=false]:hover{color:var(--foreground)}}
+@media (hover:hover) and (pointer:fine){.rs-item[aria-selected=false]:hover{color:var(--foreground);background:var(--hover)}}
 @media (prefers-reduced-motion:reduce){.rs-item{transition:none}}
 `;
 

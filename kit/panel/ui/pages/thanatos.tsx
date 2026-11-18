@@ -41,9 +41,9 @@ function semSecoes(md) {
   return out.join('\n').replace(/^\s*Gerado em [^\n]*\n/, '');
 }
 
-// as seções do .md no ritmo das seções da página (h2 de 1rem com filete), não no da Documentação
-const MD = 'md max-w-[70ch] [&_h2]:mt-8 [&_h2]:mb-3 [&_h2]:pb-2.5 [&_h2]:t-section [&_h2]:tracking-normal [&>h2:first-child]:mt-0';
-const ROW = 'grid w-full gap-1 border-b border-l-2 border-l-transparent px-3 py-2.5 text-left t-body transition-colors cursor-pointer hover:bg-accent/60 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
+// as seções do .md no ritmo das seções da página, com a inscrição que o .md já aplica
+const MD = 'md max-w-[70ch] [&_h2]:mt-8 [&_h2]:mb-3 [&>h2:first-child]:mt-0';
+const ROW = 'grid w-full gap-1 border-b px-3 py-2.5 text-left t-body transition-colors cursor-pointer hover:bg-hover outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
 const SRC = { git: 'git', gh: 'GitHub', diario: 'diário', fonte: 'fonte externa' };
 const BASIS = { fonte: 'início do incidente, segundo a fonte externa', intervalo: 'início do intervalo pedido',
   'primeiro-commit': 'primeiro commit da correção', 'abertura-da-pr': 'abertura da PR de correção' };
@@ -96,10 +96,10 @@ function LinhaDoTempo({ pm }) {
 function Documento({ doc, example }) {
   const pm = doc.postmortem;
   const html = useMemo(() => safeHtml(pm ? semSecoes(doc.markdown) : doc.markdown), [doc]);
-  if (!pm) return <article className="md max-w-[70ch]" dangerouslySetInnerHTML={{ __html: html }} />;
+  if (!pm) return <Card><article className="md max-w-[70ch]" dangerouslySetInnerHTML={{ __html: html }} /></Card>;
   const ttf = pm.fixData?.timeToFix;
   const prs = pm.fixData?.prs || [];
-  return <div className="grid gap-8">
+  return <Card className="gap-8">
     <header className="grid gap-2">
       <h2 className="flex flex-wrap items-center gap-x-3 gap-y-1 t-section-lg leading-snug">
         {example ? <ExampleSeal /> : null}
@@ -110,7 +110,7 @@ function Documento({ doc, example }) {
           pm.fixData?.commits?.length ? `${pm.fixData.commits.length} commit${pm.fixData.commits.length > 1 ? 's' : ''}` : null,
           pm.gaps?.length ? <span key="lac" className="text-warn">{`${pm.gaps.length} ${pm.gaps.length > 1 ? 'seções' : 'seção'} sem dado das PRs: edite o .md`}</span> : null,
           'gerado ' + ago(pm.createdAt)]} />
-      <p className="max-w-[70ch] t-prose leading-7 text-muted-foreground">
+      <p className="max-w-[70ch] t-prose text-muted-foreground">
         {pm.summary}
       </p>
     </header>
@@ -119,7 +119,7 @@ function Documento({ doc, example }) {
       <LinhaDoTempo pm={pm} />
     </section>
     <article className={MD} dangerouslySetInnerHTML={{ __html: html }} />
-  </div>;
+  </Card>;
 }
 
 function Thanatos() {
@@ -155,15 +155,15 @@ function Thanatos() {
     </Mono>
     {" (intervalo, com fuso)."}
   </Empty>;
-  return <div className="grid items-start gap-8 lg:grid-cols-[300px_minmax(0,1fr)]">
-    <Card className="gap-0 lg:sticky lg:top-20" data-tour-step-id="thanatos-lista">
+  return <div className="grid items-start gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
+    <Card className="gap-0 lg:sticky lg:top-[4.5rem]" data-tour-step-id="thanatos-lista">
       <CardHeader title="Post-mortems" summary={q ? `${shown.length} de ${list.length}` : `${list.length}`} action={example ? <ExampleSeal /> : null} />
       <div className="border-b py-2" data-tour-step-id="thanatos-filtro">
         <Input icon={I.Search} value={q} onInput={(e) => setQ(e.target.value)} placeholder="Filtrar por id ou título" aria-label="Filtrar post-mortems" />
       </div>
-      <CardContent className="overflow-y-auto scrollbar-thin max-lg:max-h-72 lg:max-h-[calc(100vh-14rem)]">
+      <CardContent className="overflow-y-auto scrollbar-thin max-lg:max-h-72 lg:max-h-[calc(100dvh-14rem)]">
         <nav aria-label="Post-mortems">
-          {shown.map((i) => { const on = selected === i.id; return <button key={i.id} type="button" onClick={() => setCur(i.id)} aria-current={on ? 'true' : undefined} className={cn(ROW, on && 'border-l-foreground bg-accent/40')}>
+          {shown.map((i) => { const on = selected === i.id; return <button key={i.id} type="button" onClick={() => setCur(i.id)} aria-current={on ? 'true' : undefined} className={cn(ROW, on && 'bg-accent')}>
             <span className={cn('line-clamp-2 text-pretty', on && 'font-medium')}>
               {i.title}
             </span>

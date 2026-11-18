@@ -37,7 +37,7 @@ function Evidencia({ v }) {
 function Problema({ c, aberta }) {
   if (!aberta || !c.problema) return <Evidencia v={c.problema} />;
   return <ul className="flex flex-col gap-1 whitespace-normal">
-    {c.problema.evidencia.map((e, i) => <li key={i} className="t-meta">
+    {(c.problema.evidencia || []).map((e, i) => <li key={i} className="t-meta">
       {e.conferido}
       {e.onde ? <span className="text-muted-foreground">{' em '}<Caminho>{e.onde}</Caminho></span> : null}
     </li>)}
@@ -70,7 +70,7 @@ function Bloco({ cabeca, guardas, historico }) {
           </tr>
         </thead>
         <tbody>
-          {linhas.map((c) => <Tr key={c.g.id} className={cn('cursor-pointer outline-none [&>td]:align-top focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring', aberta === c.g.id && 'bg-accent/40')} tabIndex={0} aria-expanded={aberta === c.g.id} onClick={() => setAberta(aberta === c.g.id ? null : c.g.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAberta(aberta === c.g.id ? null : c.g.id); } }}>
+          {linhas.map((c) => <Tr key={c.g.id} className={cn('cursor-pointer outline-none [&>td]:align-top focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring', aberta === c.g.id && 'bg-accent')} tabIndex={0} aria-expanded={aberta === c.g.id} onClick={() => setAberta(aberta === c.g.id ? null : c.g.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAberta(aberta === c.g.id ? null : c.g.id); } }}>
             <Td className="whitespace-normal">
               <Tip text={c.g.descricao || c.g.titulo}>
                 <span className="flex flex-col gap-0.5">
@@ -90,7 +90,7 @@ function Bloco({ cabeca, guardas, historico }) {
             <Td className="hidden text-right text-muted-foreground tnum md:table-cell">{c.ok}</Td>
             <Td className={cn('hidden text-right tnum md:table-cell', c.aviso ? 'text-warn' : 'text-muted-foreground')}>{c.aviso}</Td>
             <Td className="text-right tnum">
-              <span className={c.barra ? 'font-semibold text-bad' : 'text-muted-foreground'}>{c.barra}</span>
+              <span className={c.barra ? 'font-medium text-bad' : 'text-muted-foreground'}>{c.barra}</span>
               {c.invalido ? <Tip text="vereditos descartados (guarda quebrada ou fora do tempo)" className="ml-2 max-md:ml-0 max-md:flex">
                 <span className="t-meta text-warn">{c.invalido + ' inválido' + (c.invalido > 1 ? 's' : '')}</span>
               </Tip> : null}

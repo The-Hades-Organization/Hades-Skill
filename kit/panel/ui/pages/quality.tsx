@@ -1,14 +1,14 @@
 /* Página Qualidade (#/quality): usa a base (ui/app.js) pelo HadesCore e se registra pelo registerPage dela. */
 (() => {
 const { useState, useEffect, useCallback, I, cn, post, getJSON, ErroExplicado, Button, Card, CardHeader, CardContent, Switch, Input,
-  Progress, Mono, Tip, Empty, Dot, Menu, Choice, useWide, LinhaDeEstado, useApp, cfgNorm, Loading } = HadesCore;
+  Progress, Mono, Tip, Empty, Dot, Badge, Menu, Choice, useWide, LinhaDeEstado, useApp, cfgNorm, Loading } = HadesCore;
 
 // ------------------------------------------------------------------ Qualidade (catálogo global de regras, reference/quality.md)
-const Q_SEV = { bloqueante: ['bad', 'bloqueante', 'font-medium text-bad'], alta: ['warn', 'alta', 'text-foreground'], media: ['info', 'média', 'text-muted-foreground'], baixa: ['idle', 'baixa', 'text-muted-foreground'] };
+const Q_SEV = { bloqueante: ['bad', 'bloqueante', 'text-bad'], alta: ['warn', 'alta', 'text-foreground'], media: ['info', 'média', 'text-muted-foreground'], baixa: ['idle', 'baixa', 'text-muted-foreground'] };
 const Q_GROUP = { linguagem: 'Linguagem', framework: 'Framework', praticas: 'Práticas', estilo: 'Estilo', testes: 'Testes', banco: 'Banco' };
 const Q_PACK = { on: 'ligado', off: 'desligado', partial: 'parcial' };
-const ROW = 'border-b border-l-2 border-l-transparent transition-colors hover:bg-accent/60';
-const ROW_ON = 'border-l-foreground bg-accent/40';
+const ROW = 'border-b transition-colors';
+const ROW_ON = 'item-ativo';
 // pacotes (reference/quality.md §Pacotes): o interruptor grava a escolha de cada regra; o estado sai das regras
 function QualityPacks({ packs, pk, setPk, busy, act }) {
   if (!packs?.length) return null;
@@ -18,13 +18,13 @@ function QualityPacks({ packs, pk, setPk, busy, act }) {
       description="Mudar uma regra à parte deixa o pacote parcial." />
     <CardContent>
       <ul className="grid xl:grid-cols-2 xl:gap-x-8">
-        {packs.map((k) => <li key={k.id} className={cn(ROW, 'flex items-start gap-3 py-3 pr-1 pl-3', pk === k.id && ROW_ON)}>
+        {packs.map((k) => <li key={k.id} className={cn(ROW, 'flex items-start gap-3 py-3 pr-1 pl-3', pk === k.id ? ROW_ON : 'hover:bg-hover')}>
           <div className="pt-0.5">
             <Switch checked={k.state === 'on'} disabled={busy === 'p-' + k.id || !k.total} label={'Pacote ' + k.title + (k.state === 'partial' ? ' (parcial: ligar completa)' : '')} onChange={(v) => act('p-' + k.id, { action: v ? 'on' : 'off', pack: k.id }, `${k.title} ${v ? 'ligado' : 'desligado'}`)} />
           </div>
           <div className="grid min-w-0 flex-1 gap-1.5">
             <p className="flex flex-wrap items-baseline gap-x-2 t-body">
-              <span className="font-medium">
+              <span className="t-label">
                 {k.title}
               </span>
               <span className="t-meta text-muted-foreground">
@@ -53,13 +53,18 @@ function QualityPacks({ packs, pk, setPk, busy, act }) {
   </Card>;
 }
 
+// bloqueante é o único que fala alto (selo cheio); as demais severidades são ponto e palavra
+function SevMark({ kind, label, tone }) {
+  return kind === 'bad' ? <Badge variant="bad">{label}</Badge> : <span className={cn('inline-flex items-center gap-1.5', tone)}><Dot kind={kind} />{label}</span>;
+}
+
 function Rule({ r, busy, act, first }) {
   const [kind, label, tone] = Q_SEV[r.effSeverity] || Q_SEV.media;
   const off = r.state === 'off';
   const meta = [...(r.tags || [])];
   // hoje a severidade só ordena o bloco de regras injetado no brief; quem barra de verdade é o Cerberus
   const sevTip = `${label}: só ordena o bloco de regras injetado no brief (mais grave primeiro). Não barra nada sozinha.`;
-  return <li data-tour-step-id={first ? 'quality-regra' : undefined} className={cn(ROW, 'grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 py-2.5 pr-1 pl-3 md:grid-cols-[auto_minmax(0,17rem)_minmax(0,1fr)_6.5rem] md:gap-x-4')}>
+  return <li data-tour-step-id={first ? 'quality-regra' : undefined} className={cn(ROW, 'grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 py-2.5 pr-1 pl-3 md:grid-cols-[auto_minmax(0,17rem)_minmax(0,1fr)_6.5rem] hover:bg-hover md:gap-x-4')}>
     <div className="row-span-3 pt-0.5 md:row-span-1">
       <Switch checked={!off} disabled={busy === r.id} label={'Regra ' + r.id} onChange={(v) => act(r.id, { action: v ? 'on' : 'off', ids: [r.id] })} />
     </div>
@@ -68,10 +73,7 @@ function Rule({ r, busy, act, first }) {
         {r.id}
       </span>
       <Tip text={sevTip}>
-        <span className={cn('inline-flex shrink-0 items-center gap-1.5 t-meta md:hidden', tone)}>
-          <Dot kind={kind} />
-          {label}
-        </span>
+        <span className="inline-flex shrink-0 t-meta md:hidden"><SevMark kind={kind} label={label} tone={tone} /></span>
       </Tip>
     </div>
     <div className="min-w-0">
@@ -95,10 +97,7 @@ function Rule({ r, busy, act, first }) {
       </p> : null}
     </div>
     <Tip text={sevTip}>
-      <span className={cn('hidden items-center gap-1.5 self-start pt-0.5 t-meta md:inline-flex', tone)}>
-        <Dot kind={kind} />
-        {label}
-      </span>
+      <span className="hidden self-start pt-0.5 t-meta md:inline-flex"><SevMark kind={kind} label={label} tone={tone} /></span>
     </Tip>
   </li>;
 }
@@ -152,10 +151,7 @@ function Quality() {
               <span className="font-mono t-label">
                 {c.id}
               </span>
-              <span className="inline-flex items-center gap-1.5 t-meta text-warn">
-                <Dot kind="warn" />
-                {c.kind}
-              </span>
+              <Badge variant="warn">{c.kind}</Badge>
             </p>
             <p className="text-muted-foreground text-pretty">
               {c.detail + '.' + (c.note ? ' ' + c.note : '')}
@@ -170,7 +166,7 @@ function Quality() {
         <Input data-tour-step-id="quality-busca" icon={I.Search} className="basis-56 md:max-w-xs" placeholder="Buscar regra, tag ou severidade" aria-label="Buscar regra" value={q} spellcheck="false" onInput={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setQ(''); }} />
         <Choice wide={wide} label="Grupo" value={grp} onChange={setGrp} items={[{ value: '', label: 'Todos', count: found.length },
           ...x.groups.map((g) => ({ value: g, label: Q_GROUP[g] || g, count: found.filter((r) => r.group === g).length }))]} />
-        {pack ? <Button size="sm" variant="outline" icon={I.X} aria-label={'Tirar o filtro do pacote ' + pack.title} onClick={() => setPk('')}>
+        {pack ? <Button size="sm" variant="secondary" icon={I.X} aria-label={'Tirar o filtro do pacote ' + pack.title} onClick={() => setPk('')}>
           {'Pacote: ' + pack.title}
         </Button> : null}
         <span className="ml-auto flex items-center gap-2">
@@ -195,7 +191,7 @@ function Quality() {
         </CardContent>
       </Card>; })}
       {shown.length ? null : <Empty icon={I.SearchX} title={q ? `Nenhuma regra com "${q}".` : 'Nenhuma regra neste filtro.'}>
-        <Button size="xs" variant="outline" onClick={clear}>Limpar busca e filtros</Button>
+        <Button size="xs" variant="secondary" onClick={clear}>Limpar busca e filtros</Button>
       </Empty>}
     </section>
     <p data-tour-step-id="quality-comando" className="t-meta text-muted-foreground">

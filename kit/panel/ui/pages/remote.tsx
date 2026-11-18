@@ -1,22 +1,28 @@
 /* Página Acesso remoto (#/remote): usa a base (ui/app.js) pelo HadesCore e se registra pelo registerPage dela. */
 (() => {
-const { useState, useEffect, I, cn, getJSON, post, Button, CardHeader, Tip, CopyButton, Empty, Mono, Dot, Fio, Skeleton,
+const { useState, useEffect, I, cn, getJSON, post, Button, Badge, Card, CardHeader, Tip, CopyButton, Empty, Mono, Dot, Fio, Skeleton,
   LinhaDeEstado, useActions, useApp, dt, WidgetApk } = HadesCore;
 
-// estado no título da seção: ponto e palavra, como no resto do painel
-const Estado = ({ kind, children }) => <span className="inline-flex items-center gap-1.5">
-  <Dot kind={kind} pulse={kind === 'busy'} />
-  {children}
-</span>;
+// estado no título da seção: selo da base, com o ícone do estado
+const ESTADO_ICON = { ok: I.CircleCheck, warn: I.TriangleAlert, bad: I.CircleX, busy: I.LoaderCircle, idle: I.CircleStop, info: I.Info };
+const Estado = ({ kind, children }) => {
+  const Icon = ESTADO_ICON[kind] || I.CircleStop;
+  return <Badge variant={kind} className="gap-1.5">
+    <Icon className={cn(kind === 'busy' && 'animate-spin')} aria-hidden="true" />
+    {children}
+  </Badge>;
+};
 const jobRunning = (d, action) => (d?.jobs || []).some((j) => j.action === action && j.state === 'rodando');
 // uma só ação primária por bloco (Publicar painel, Baixar APK); gerar token e gerar APK ficam secundárias
 
-// valor copiável numa linha (URL, comando): mono, borda forte, copiar à direita
-function Valor({ children, copy, label }) {
-  return <div className="flex min-h-9 min-w-0 items-center gap-2 border border-border-strong bg-card pr-1 pl-3">
-    <code className="min-w-0 flex-1 truncate py-2 t-data">
+// valor copiável numa linha (URL, comando): mono, copiar à direita
+function Valor({ children, copy, label, href }) {
+  return <div className="flex min-h-8 min-w-0 items-center gap-2 bg-popover pr-1 pl-3">
+    {href ? <a href={href} target="_blank" rel="noopener" className="min-w-0 flex-1 truncate py-1.5 t-data underline decoration-line underline-offset-4 hover:text-primary hover:decoration-primary">
       {children}
-    </code>
+    </a> : <code className="min-w-0 flex-1 truncate py-1.5 t-data">
+      {children}
+    </code>}
     {copy ? <CopyButton text={copy} label={label} /> : null}
   </div>;
 }
@@ -28,13 +34,13 @@ function WidgetTunnel({ d, st }) {
   const exp = t.expiresAt ? Date.parse(t.expiresAt) : NaN;
   const expired = !Number.isNaN(exp) && exp < Date.now();
   const state = up && !expired ? ['ok', 'no ar'] : expired ? ['warn', 'acesso vencido'] : ['idle', 'fora do ar'];
+  const fullUrl = t.url ? `${t.url.replace(/\/$/, '')}/api/widget` : '';
   return <section className="grid content-start gap-3" aria-label="Túnel do widget" data-tour-step-id="remote-widget-tunel">
     <CardHeader as="h3" title="Túnel do widget" summary={<Estado kind={state[0]}>
       {state[1]}
     </Estado>} />
-    {!st ? <Skeleton className="h-9" /> : t.url ? <Valor copy={t.url} label="Copiar URL do widget">
-      {t.url}
-      /api/widget
+    {!st ? <Skeleton className="h-8" /> : t.url ? <Valor copy={fullUrl} label="Copiar URL do widget">
+      {fullUrl}
     </Valor> : <p className="t-body text-muted-foreground">
       {"Sem URL. No terminal: "}
       <Mono className="text-foreground">tunnel.sh widget-create</Mono>
@@ -70,7 +76,7 @@ function SecretSlots({ value, label, mask = false }) {
   const len = Math.min(String(value).length, 48);
   return <div className="min-w-0 flex-1 overflow-x-auto scrollbar-thin py-1">
     <Slots length={len} charset="text" value={String(value).slice(0, len)} mask={mask} disabled ariaLabel={mask ? label + ' (oculto)' : label}
-      slotSize={len > 24 ? 22 : 30} gap={len > 24 ? 3 : 5} radius={0} slotColor="var(--muted)" digitColor="var(--secondary-foreground)"
+      slotSize={len > 24 ? 22 : 30} gap={len > 24 ? 3 : 5} radius={0} slotColor="var(--card)" digitColor="var(--foreground)"
       accentColor="var(--secondary)" inkColor="var(--foreground)" dangerColor="var(--destructive)" />
   </div>;
 }
@@ -87,8 +93,8 @@ function WidgetToken({ st, fresh, onCreate, onRevoke }) {
       <Mono>GET /api/widget</Mono>
       : agentes, perguntas e eventos recentes. Aparece uma vez, ao gerar.
     </p>
-    {fresh ? <div role="status" className="grid gap-2 border border-warn/50 bg-warn/5 p-3">
-      <div className="flex items-center gap-2 border border-border-strong bg-background px-3 py-1">
+    {fresh ? <div role="status" className="grid gap-2 bg-popover p-3 shadow-[inset_3px_0_0_var(--warn)]">
+      <div className="flex items-center gap-2 bg-card px-3 py-1">
         <SecretSlots value={fresh} label="Token do widget" />
         <CopyButton text={fresh} label="Copiar token" />
       </div>
@@ -96,7 +102,7 @@ function WidgetToken({ st, fresh, onCreate, onRevoke }) {
         Copie agora: não aparece de novo.
       </p>
     </div> : null}
-    {st?.configured && !fresh ? <p className="t-body">
+    {!st ? <Skeleton className="h-5 w-40" /> : st.configured && !fresh ? <p className="t-body">
       {"Criado em "}
       <span className="tnum">
         {dt(Date.parse(st.createdAt) / 1000)}
@@ -161,13 +167,13 @@ function Remote({ d }) {
     Túnel e chave só se controlam pelo painel local.
   </Empty>;
   const tunnelState = moving ? ['busy', 'mexendo no túnel…'] : on ? ['ok', 'no ar'] : url ? ['idle', 'parado'] : ['idle', 'nunca publicado'];
-  return <div className="grid gap-10">
+  return <div className="grid gap-6">
     <div data-tour-step-id="remote-estado">
     <LinhaDeEstado main={on ? 'O painel abre fora da máquina' : url ? 'Túnel do painel parado' : 'O painel só abre nesta máquina'}
       rest={[info ? (info.hasKey ? 'chave de acesso criada' : 'sem chave de acesso') : null, st ? (st.configured ? 'widget com token' : 'widget sem token') : null]} />
     </div>
-    <div className="grid items-start gap-10 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] xl:gap-x-12">
-      <section className="grid content-start gap-4" aria-label="Túnel do painel" data-tour-step-id="remote-tunel">
+    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      <Card role="region" aria-label="Túnel do painel" data-tour-step-id="remote-tunel">
         <CardHeader title="Túnel do painel" summary={<Estado kind={tunnelState[0]}>
           {tunnelState[1]}
         </Estado>} />
@@ -176,12 +182,9 @@ function Remote({ d }) {
           Abre o painel fora da máquina por um devtunnel próprio, que vence 30 dias depois de criado.
         </p>
         {url ? <div className="grid gap-1.5" data-tour-step-id="remote-url">
-          <div className="flex min-h-9 min-w-0 items-center gap-2 border border-border-strong bg-card pr-1 pl-3">
-            <a href={url} target="_blank" rel="noopener" className="min-w-0 flex-1 truncate py-2 t-data underline-offset-3 hover:underline">
-              {url}
-            </a>
-            <CopyButton text={url} label="Copiar URL" />
-          </div>
+          <Valor href={url} copy={url} label="Copiar URL">
+            {url}
+          </Valor>
           <p className="t-meta text-muted-foreground">
             {on ? 'Entre com sua conta do GitHub e cole a chave.' : 'A URL volta ao publicar de novo.'}
           </p>
@@ -197,14 +200,14 @@ function Remote({ d }) {
             </Button>}
         </div>
         <ul className="grid border-t t-body" aria-label="Quem entra pelo túnel" data-tour-step-id="remote-travas">
-          {TRAVAS.map(([Icon, k, v]) => <li key={k} className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2.5 border-b py-2.5 md:grid-cols-[1rem_8.5rem_minmax(0,1fr)]">
+          {TRAVAS.map(([Icon, k, v]) => <li key={k} className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2.5 border-b last:border-b-0 last:pb-0 py-2.5 md:grid-cols-[1rem_8.5rem_minmax(0,1fr)]">
             <Icon className="mt-0.5 size-4 text-muted-foreground" aria-hidden="true" />
             <span className="font-medium">{k}</span>
             <span className="text-muted-foreground text-pretty max-md:col-start-2">{v}</span>
           </li>)}
         </ul>
-      </section>
-      <section className="grid content-start gap-4" aria-label="Chave de acesso" data-tour-step-id="remote-chave">
+      </Card>
+      <Card role="region" aria-label="Chave de acesso" data-tour-step-id="remote-chave">
         <CardHeader title="Chave de acesso" summary={info ? <Estado kind={info.hasKey ? 'ok' : 'idle'}>
           {info.hasKey ? 'criada' : 'sem chave'}
         </Estado> : null} />
@@ -212,29 +215,29 @@ function Remote({ d }) {
           Cole no navegador remoto. Trocar a chave derruba as sessões remotas.
         </p>
         {!info ? <Skeleton className="h-11" /> : info.hasKey ? <>
-          <div className="flex items-center gap-1 border border-border-strong bg-card py-1 pr-1 pl-3">
+          <div className="flex items-center gap-1 bg-popover py-1 pr-1 pl-3">
             <SecretSlots value={info.key} label="Chave de acesso" mask={!show} />
             <Tip text={show ? 'Esconder' : 'Mostrar'}>
               <Button variant="ghost" size="icon-xs" aria-label={show ? 'Esconder a chave' : 'Mostrar a chave'} aria-pressed={show} icon={show ? I.EyeOff : I.Eye} onClick={() => setShow(!show)} />
             </Tip>
             <CopyButton text={info.key} label="Copiar chave" />
           </div>
-          <Button variant="outline" icon={I.KeySquare} className="justify-self-start" onClick={() => run({ action: 'panel-tunnel', op: 'rotate' }, { title: 'Trocar a chave de acesso?', description: 'Quem está no painel remoto precisa entrar de novo com a chave nova.', icon: I.KeySquare, danger: true })}>Trocar chave</Button>
+          <Button variant="outline" icon={I.KeySquare} className="self-start" onClick={() => run({ action: 'panel-tunnel', op: 'rotate' }, { title: 'Trocar a chave de acesso?', description: 'Quem está no painel remoto precisa entrar de novo com a chave nova.', icon: I.KeySquare, danger: true })}>Trocar chave</Button>
         </> : <Empty icon={I.KeyRound} title="Sem chave ainda.">
           Nasce ao publicar o painel.
         </Empty>}
-      </section>
+      </Card>
     </div>
-    <div className="grid gap-4" data-tour-step-id="remote-widget">
+    <Card data-tour-step-id="remote-widget">
       <CardHeader title="Widget Android" summary="o celular lê sem abrir o painel" />
-      <div className="grid items-start gap-10 pt-2 md:grid-cols-2 xl:grid-cols-3 xl:gap-x-12">
+      <div className="grid items-start gap-6 border-t pt-4 md:grid-cols-2 xl:grid-cols-3">
         <WidgetToken st={st} fresh={fresh} onCreate={createToken} onRevoke={revokeToken} />
         <WidgetTunnel d={d} st={st} />
         <div data-tour-step-id="remote-apk">
           <WidgetApk d={d} />
         </div>
       </div>
-    </div>
+    </Card>
   </div>;
 }
 

@@ -1,6 +1,6 @@
 /* Bloco da Porta na página Cerberus (reference/cerberus/porta.md): o que saiu hoje, por momento, e o último veredito de cada guarda. */
 (() => {
-const { cn, Card, CardHeader, CardContent } = HadesCore;
+const { Card, CardHeader, CardContent, Leitura } = HadesCore;
 const { Efeito } = HadesCerberus;
 
 const MOMENTOS = [['push', 'Push'], ['release', 'Release'], ['consolidacao', 'Consolidação'], ['comentario', 'Comentário'], ['artefato', 'Artefato'], ['tunel', 'Túnel']];
@@ -27,21 +27,19 @@ function Bloco({ cabeca, guardas, historico }) {
     <CardHeader title="Porta: o que saiu hoje (UTC)" summary={`modo ${cabeca?.modo || '—'}`} />
     <CardContent className="grid gap-4">
       {/* célula só para o momento que teve saída; os calados viram uma linha, não uma fileira de zeros */}
-      {saidas.length ? <section aria-label="Saídas de hoje (UTC) por momento" className="flex flex-wrap border-t border-l sm:w-fit">
-        {saidas.map(({ id, nome, n, total }) => <div key={id} className="flex min-w-36 flex-1 flex-col gap-1 border-r border-b bg-card px-4 py-3 sm:w-44 sm:flex-none">
-          <span className="t-label text-muted-foreground">{nome}</span>
-          <span className="t-kpi leading-none tnum">{total}</span>
-          <span className="mt-1 flex flex-wrap gap-x-2 t-meta tnum">
+      {saidas.length ? <section aria-label="Saídas de hoje (UTC) por momento" className="cantos flex flex-wrap bg-popover [&>*]:min-w-40 [&>*]:flex-1 [&>*:not(:last-child)]:border-r [&>*:not(:last-child)]:border-border">
+        {saidas.map(({ id, nome, n, total }) => <Leitura key={id} label={nome} value={total}>
+          <span className="flex flex-wrap gap-x-2 t-meta tnum">
             {PARTES.filter(([k]) => n[k]).map(([k, l, c]) => <span key={k} className={c}>{`${n[k]} ${l}`}</span>)}
           </span>
-        </div>)}
+        </Leitura>)}
       </section> : null}
       {calados.length ? <p className="t-body text-muted-foreground">
         {saidas.length ? `Nada hoje (UTC) em ${lista(calados.map((m) => m.nome.toLowerCase()))}.` : 'Nada saiu hoje (UTC).'}
       </p> : null}
       <ul>
         {linhas.map(({ g, v }) => <li key={g.id} className="grid min-w-0 gap-x-4 gap-y-0.5 border-b py-2.5 last:border-b-0 sm:grid-cols-[7rem_1fr]">
-          <Efeito ef={v?.efeito} className={cn('self-start t-label sm:mt-0.5', !v && 'text-muted-foreground')} />
+          <Efeito ef={v?.efeito} className="self-start sm:mt-0.5" />
           <div className="grid min-w-0 gap-0.5">
             <span className="t-label">{g.titulo || g.id}</span>
             <span className="t-meta break-words text-muted-foreground">

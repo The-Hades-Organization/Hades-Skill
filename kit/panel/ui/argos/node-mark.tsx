@@ -25,7 +25,6 @@ const STATE_TONE = {
   MUTED: ['Sem som', 'bg-bad'],
 };
 const SPEAKER_TONE = { user: 'text-foreground', jarvis: 'text-info', sys: 'text-muted-foreground' };
-const PULSING = new Set(['LISTENING', 'SPEAKING', 'THINKING', 'PROCESSING']);
 
 /** Quanto esperar antes da tentativa `n` (0 = primeira). O teto repete. */
 const backoffMs = (attempt) => BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)];
@@ -121,10 +120,9 @@ function useMark() {
 
 function Orb({ state }) {
   const [label, tone] = (state && STATE_TONE[state.state]) || ['Sem estado', 'bg-muted-foreground'];
-  const pulse = state && PULSING.has(state.state);
   return (
     <div className="flex items-center gap-3">
-      <span aria-hidden="true" className={cn('size-10 shrink-0 rounded-full opacity-90', tone, pulse && 'motion-safe:animate-pulse')} />
+      <span aria-hidden="true" className={cn('size-10 shrink-0 cantos', tone)} />
       <div className="min-w-0 flex-1">
         <div className="t-meta-em truncate">{state ? state.name : 'Mark'}</div>
         <div className="t-meta text-muted-foreground" role="status">{label}{state && state.muted ? ' · microfone mudo' : ''}</div>
@@ -193,7 +191,7 @@ function Composer({ disabled, onSend }) {
         <input
           type="text" value={draft} maxLength={COMMAND_CHARS} disabled={disabled} aria-label="Pedido ao Mark" placeholder="Peça algo ao Mark"
           onChange={(event) => setDraft(event.target.value)}
-          className="min-w-0 flex-1 border bg-background px-2 py-1 t-body outline-none focus-visible:outline-2 focus-visible:outline-ring max-md:min-h-11"
+          className="min-w-0 flex-1 campo px-2 py-1 t-body outline-none focus-visible:outline-2 focus-visible:outline-ring max-md:min-h-11"
         />
         <Button size="sm" type="submit" icon={I.Send} disabled={disabled || busy || draft.trim() === ''} className="max-md:min-h-11">Enviar</Button>
       </div>

@@ -290,13 +290,14 @@ function makeArgosCanvas() {
   /** Cores lidas das variáveis do tema; o harness e a página definem as mesmas. */
   const THEME_VARS = {
     background: "--background", card: "--card", fg: "--foreground", muted: "--muted-foreground",
-    border: "--border", strong: "--border-strong", ring: "--ring", vivo: "--vivo",
+    border: "--border", strong: "--border-strong", ring: "--ring", vivo: "--busy", popover: "--popover", line: "--line",
   } as const;
   const THEME_FALLBACK: Record<keyof typeof THEME_VARS, string> = {
-    background: "#f9f2eb", card: "#fffaf5", fg: "#391a2c", muted: "#7a5a6a", border: "rgba(57,26,44,.14)", strong: "rgba(57,26,44,.3)", ring: "#c8264a", vivo: "#c8264a",
+    background: "#f8ecf1", card: "#fff8fb", fg: "#301423", muted: "#684b5b", border: "rgba(146,110,126,.32)", strong: "rgba(146,110,126,.58)", ring: "#391a2c", vivo: "#301423",
+    popover: "#f0dfe6", line: "#926e7e",
   };
   const PALETTE_VARS = ["--chart-1", "--chart-2", "--chart-3", "--chart-4", "--chart-5"];
-  const PALETTE_FALLBACK = ["#c8264a", "#2f6fb5", "#c08a1a", "#2f8a5f", "#9a4f7a"];
+  const PALETTE_FALLBACK = ["#391a2c", "#006585", "#8a4c00", "#006b40", "#926e7e"];
   /** Só a linha maior da grade é desenhada; ela some quando fica mais próxima que isto em pixels de tela (vira ruído). */
   const GRID_MIN_PX = 16;
   const GRID_MAJOR = 5;
@@ -313,12 +314,23 @@ function makeArgosCanvas() {
   const FONT_FALLBACK = "ui-sans-serif, system-ui, sans-serif";
   /** Preenchimento do nó trabalhando: o `--vivo` diluído no cartão, para o `--vivo` cheio e o anel ficarem só no que pede atenção. */
   const LIVE_FILL_PCT = 55;
-  /** Concluído e ocioso: o tom `muted` diluído no cartão, sem a mancha rosada de longe. */
-  const REST_FILL_PCT = 40;
+  /** Concluído e ocioso: o tom `muted` diluído no cartão (70% garante ≥ 3:1 sobre fundo, card e popover nos dois temas). */
+  const REST_FILL_PCT = 70;
   const mixOver = (color: string, pct: number, base: string): string => `color-mix(in oklch, ${color} ${pct}%, ${base})`;
   /** Conexões: espessura em unidades de mundo (corda, circuito) com piso em pixels de tela, e a abraçadeira em pixels. */
-  const ROPE_WIDTH = 3;
+  const ROPE_WIDTH = 2.5;
   const CIRCUIT_WIDTH = 2;
+  /** Aresta comum, pelo estado do destino: em repouso fina, trabalhando média e tracejada correndo, pedindo você grossa. */
+  const EDGE_WIDTH = { rest: 1.5, working: 2, attention: 2.5 } as const;
+  /** Tracejado da aresta que corre (traço e vão, em pixels de tela) e a velocidade dele, em pixels de tela por segundo. */
+  const FLOW_DASH_PX = [6, 5] as const;
+  const FLOW_PX_PER_S = 22;
+  /** Faixa de estado no topo do nó completo: espessura em unidades de mundo, com piso em pixels de tela. */
+  const STATE_BAND = 4;
+  const STATE_BAND_MIN_PX = 3;
+  /** Colchetes de canto do nó (o contorno do estilo, no lugar da caixa fechada): braço e traço em pixels de tela. */
+  const BRACKET_ARM_PX = 10;
+  const BRACKET_STROKE_PX = 2;
   const LINK_MIN_PX = 1.25;
   const CLAMP_PX = 11;
   /** Raio do acerto da abraçadeira, em pixels de tela (maior que o desenho: alvo de dedo). */
@@ -423,6 +435,8 @@ function makeArgosCanvas() {
     /** Uma corda simulada por conexão `rope`; `seen` é o último quadro em que ela esteve à vista. */
     const ropes = new Map<string, { rope: Rope; seen: number }>();
     let ropesAwake = true;
+    /** Há aresta trabalhando à vista no último desenho (o traço que corre pede o próximo quadro). */
+    let flowing = false;
     let renderNo = 0;
     let lastStepAt = 0;
     /** Conexões à vista no último quadro (o traço da abraçadeira cruza o que está desenhado). */
@@ -580,6 +594,9 @@ function makeArgosCanvas() {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     // ligar o movimento reduzido no meio de uma animação: vai ao destino já, sem terminar o trajeto
     const onReducedMotion = (): void => {
+      // o traço que corre para ou volta a correr junto com a preferência
+      dirty.edges = true;
+      requestFrame();
       if (!reducedMotion.matches || !animation) return;
       const { to } = animation;
       animation = undefined;
@@ -587,6 +604,14 @@ function makeArgosCanvas() {
     };
     reducedMotion.addEventListener("change", onReducedMotion);
     cleanups.push(() => reducedMotion.removeEventListener("change", onReducedMotion));
+    // aba escondida para o traço que corre; ao voltar, um quadro o retoma
+    const onVisibility = (): void => {
+      if (document.hidden || !flowing) return;
+      dirty.edges = true;
+      requestFrame();
+    };
+    document.addEventListener?.("visibilitychange", onVisibility);
+    cleanups.push(() => document.removeEventListener?.("visibilitychange", onVisibility));
 
     // ---- quadros: só quando algo muda (sem laço contínuo parado) ----
     const markAll = (): void => {
@@ -631,7 +656,7 @@ function makeArgosCanvas() {
       renderNo++;
       const links = L && linkEdges.length > 0 ? linkFrame(visibleWorld, now) : NO_LINKS;
       if (dirty.grid) drawGrid();
-      if (dirty.edges) drawEdges(visibleWorld, links.geoms);
+      if (dirty.edges) drawEdges(visibleWorld, links.geoms, now);
       if (dirty.nodes) drawNodes(visible, detail);
       if (dirty.overlay) drawOverlay();
       dirty.grid = dirty.edges = dirty.nodes = dirty.overlay = false;
@@ -639,8 +664,10 @@ function makeArgosCanvas() {
       positionProxy();
       const info: FrameInfo = { ms: performance.now() - t0, at: now, visible: visible.length, detail, ropes: { visible: links.ropes, stepped: links.stepped } };
       for (const listener of frameListeners) listener(info);
-      // só a física pede o próximo quadro, e só enquanto alguma corda à vista ainda balança
-      if (ropesAwake && links.stepped > 0) {
+      // só a física e o traço que corre pedem o próximo quadro: a corda enquanto balança, o traço enquanto há aresta
+      // trabalhando à vista (com movimento reduzido ou aba escondida, o tracejado fica parado e o laço não roda)
+      const flowRuns = flowing && !reducedMotion.matches && !document.hidden;
+      if ((ropesAwake && links.stepped > 0) || flowRuns) {
         dirty.edges = true;
         requestFrame();
       }
@@ -695,14 +722,21 @@ function makeArgosCanvas() {
       return { x: p.x + p.w / 2, y: p.y + p.h / 2 };
     };
 
-    function drawEdges(visibleWorld: Rect, links: readonly LinkGeom[]): void {
+    function drawEdges(visibleWorld: Rect, links: readonly LinkGeom[], now: number): void {
       const ctx = layers.edges;
       clear(ctx);
-      drawPlainEdges(ctx, visibleWorld);
+      flowing = false;
+      drawPlainEdges(ctx, visibleWorld, now);
       drawLinks(ctx, links, visibleWorld);
     }
 
-    function drawPlainEdges(ctx: CanvasRenderingContext2D, visibleWorld: Rect): void {
+    /** Peso da aresta pelo estado do destino (sem estado conhecido, ela fica fina como em repouso). */
+    const edgeWeight = (to: CanvasNode | undefined): keyof typeof EDGE_WIDTH => {
+      const bucket = to ? bucketFor(to) : undefined;
+      return bucket === "working" || bucket === "attention" ? bucket : "rest";
+    };
+
+    function drawPlainEdges(ctx: CanvasRenderingContext2D, visibleWorld: Rect, now: number): void {
       const edges = C.cullSegments(doc.edges, (edge) => {
         if (L?.isLinkEdge(edge)) return undefined;
         const a = centerOf(edge.from);
@@ -711,20 +745,31 @@ function makeArgosCanvas() {
       }, visibleWorld);
       if (edges.length === 0) return;
       worldTransform(ctx);
-      ctx.lineWidth = 1.5 / cam.k;
-      ctx.strokeStyle = colors.strong;
-      // com destaque, a aresta leva a opacidade da ponta mais apagada (um traço por nível, não por aresta)
-      const byAlpha = new Map<number, typeof edges>();
+      // um traço por grupo (opacidade, cor do destino, peso), não por aresta; com destaque, a opacidade é a da ponta mais apagada
+      const groups = new Map<string, { alpha: number; color: string; weight: keyof typeof EDGE_WIDTH; list: typeof edges }>();
       for (const edge of edges) {
         const from = byId.get(edge.from);
         const to = byId.get(edge.to);
         const alpha = emphasis && from && to ? Math.min(alphaOf(from), alphaOf(to)) : 1;
-        const list = byAlpha.get(alpha);
-        if (list) list.push(edge);
-        else byAlpha.set(alpha, [edge]);
+        const color = to ? fillOf(to) : colors.strong;
+        const weight = edgeWeight(to);
+        const key = `${alpha}|${color}|${weight}`;
+        const group = groups.get(key);
+        if (group) group.list.push(edge);
+        else groups.set(key, { alpha, color, weight, list: [edge] });
       }
-      for (const [alpha, list] of byAlpha) {
+      const dash = FLOW_DASH_PX.map((px) => px / cam.k);
+      for (const { alpha, color, weight, list } of groups.values()) {
+        const flows = weight === "working";
+        if (flows) {
+          ctx.setLineDash(dash);
+          // movimento reduzido: o tracejado fica parado (a alternativa parada do traço que corre)
+          ctx.lineDashOffset = reducedMotion.matches ? 0 : -((now / 1000) * FLOW_PX_PER_S) / cam.k;
+          flowing = true;
+        }
         ctx.globalAlpha = alpha;
+        ctx.lineWidth = EDGE_WIDTH[weight] / cam.k;
+        ctx.strokeStyle = color;
         ctx.beginPath();
         for (const edge of list) {
           const a = centerOf(edge.from) as Vec;
@@ -733,6 +778,10 @@ function makeArgosCanvas() {
           ctx.lineTo(b.x, b.y);
         }
         ctx.stroke();
+        if (flows) {
+          ctx.setLineDash([]);
+          ctx.lineDashOffset = 0;
+        }
       }
       ctx.globalAlpha = 1;
     }
@@ -832,7 +881,8 @@ function makeArgosCanvas() {
       ctx.lineJoin = "round";
       const radius = L?.CIRCUIT_RADIUS ?? 0;
       for (const link of links) {
-        const color = fillOf(link.from);
+        const to = byId.get(link.edge.to);
+        const color = to ? fillOf(to) : fillOf(link.from);
         ctx.globalAlpha = link.alpha;
         ctx.strokeStyle = color;
         ctx.beginPath();
@@ -845,7 +895,7 @@ function makeArgosCanvas() {
         ctx.lineWidth = Math.max(CIRCUIT_WIDTH, LINK_MIN_PX / cam.k);
         traceCircuit(ctx, link.points, radius);
         ctx.stroke();
-        // terminais do trilho: um ponto em cada borda
+        // terminais da conexão: um ponto em cada borda
         const pad = Math.max(3, 2 / cam.k);
         ctx.fillStyle = color;
         ctx.fillRect(link.a.x - pad, link.a.y - pad, 2 * pad, 2 * pad);
@@ -1046,7 +1096,7 @@ function makeArgosCanvas() {
       ctx.textAlign = "start";
     }
 
-    /** Cor da área: tinta fixa da paleta ampliada ou `chart-1`..`chart-5` do tema; sem cor válida, o cinza neutro do tema. */
+    /** Cor da área: tinta fixa da paleta ampliada ou `chart-1`..`chart-5` do tema; sem cor válida, o tom neutro do tema. */
     const areaInk = (n: CanvasNode): string => {
       const color = AREAS?.areaLook(n).color;
       if (color === undefined || AREAS === undefined) return colors.muted;
@@ -1083,13 +1133,30 @@ function makeArgosCanvas() {
     }
 
     /** Bloco (rótulo curto, fonte fixa de tela) ou nó completo (cabeçalho, rótulo e tipo em escala de mundo). */
+    /** Colchetes de canto (superior esquerdo e inferior direito) na cor da linha, no lugar da caixa fechada. */
+    function drawBrackets(ctx: CanvasRenderingContext2D, n: Rect): void {
+      const arm = Math.min(BRACKET_ARM_PX / cam.k, n.w / 3, n.h / 3);
+      const half = BRACKET_STROKE_PX / cam.k / 2;
+      ctx.lineWidth = 2 * half;
+      ctx.strokeStyle = colors.line;
+      ctx.beginPath();
+      ctx.moveTo(n.x + half, n.y + arm);
+      ctx.lineTo(n.x + half, n.y + half);
+      ctx.lineTo(n.x + arm, n.y + half);
+      ctx.moveTo(n.x + n.w - half, n.y + n.h - arm);
+      ctx.lineTo(n.x + n.w - half, n.y + n.h - half);
+      ctx.lineTo(n.x + n.w - arm, n.y + n.h - half);
+      ctx.stroke();
+    }
+
     function drawBlocks(ctx: CanvasRenderingContext2D, visible: readonly CanvasNode[], detail: Detail): void {
       const full = detail === "full";
       placedLabels = [];
       const header = full ? S.SELECTION_LIMITS.header : 0;
       const fontScreen = full ? Math.max(FULL_FONT * cam.k, MIN_LABEL_PX) : MIN_LABEL_PX;
       const fontWorld = fontScreen / cam.k;
-      const strip = full ? header : 4 / cam.k;
+      const strip = 4 / cam.k;
+      const band = Math.max(STATE_BAND, STATE_BAND_MIN_PX / cam.k);
       const pad = full ? 8 : 6 / cam.k;
       ctx.font = `${fontWorld}px ${fontFamily}`;
       ctx.textBaseline = "middle";
@@ -1105,21 +1172,29 @@ function makeArgosCanvas() {
           drawShapedBlock(ctx, n, shape, fontScreen, hair);
           continue;
         }
+        // corpo opaco; no completo, cabeçalho na superfície 2 com a faixa de estado no topo, e o nome em texto sobre ela
         ctx.fillStyle = colors.card;
         ctx.fillRect(n.x, n.y, n.w, n.h);
+        if (full) {
+          ctx.fillStyle = colors.popover;
+          ctx.fillRect(n.x, n.y, n.w, Math.min(header, n.h));
+        }
         ctx.fillStyle = fillOf(n);
-        if (full) ctx.fillRect(n.x, n.y, n.w, Math.min(header, n.h));
+        if (full) ctx.fillRect(n.x, n.y, n.w, Math.min(band, n.h));
         else ctx.fillRect(n.x, n.y, Math.min(strip, n.w), n.h);
-        ctx.lineWidth = hair;
-        ctx.strokeStyle = colors.strong;
-        if (n.locked) ctx.setLineDash([4 / cam.k, 3 / cam.k]);
-        ctx.strokeRect(n.x, n.y, n.w, n.h);
-        if (n.locked) ctx.setLineDash([]);
+        if (n.locked) {
+          // preso: o contorno tracejado é o sinal (não decoração), então fica
+          ctx.lineWidth = hair;
+          ctx.strokeStyle = colors.strong;
+          ctx.setLineDash([4 / cam.k, 3 / cam.k]);
+          ctx.strokeRect(n.x, n.y, n.w, n.h);
+          ctx.setLineDash([]);
+        } else drawBrackets(ctx, n);
         const textW = (n.w - (full ? 2 * pad : strip + 2 * pad)) * cam.k;
         const text = C.shortLabel(labelOf(n), textW, fontScreen);
         if (text && (full || n.h * cam.k >= fontScreen + 4)) {
-          ctx.fillStyle = full ? colors.background : colors.fg;
-          ctx.fillText(text, full ? n.x + pad : n.x + strip + pad, full ? n.y + Math.min(header, n.h) / 2 : n.y + Math.min(n.h / 2, pad + fontWorld / 2));
+          ctx.fillStyle = colors.fg;
+          ctx.fillText(text, full ? n.x + pad : n.x + strip + pad, full ? n.y + (Math.min(header, n.h) + band) / 2 : n.y + Math.min(n.h / 2, pad + fontWorld / 2));
           if (!full && SEM?.summaryFits(n.h * cam.k)) {
             const summary = summaryFor(n);
             const line = summary === undefined ? "" : C.shortLabel(summary, textW, fontScreen);
@@ -1314,7 +1389,7 @@ function makeArgosCanvas() {
       btn.tabIndex = -1;
       btn.dataset.canvasFocus = id;
       btn.setAttribute("aria-label", S.nodeName(node, labelOf(node), selected.has(id)));
-      btn.style.cssText = "position:absolute;left:0;top:0;padding:0;margin:0;border:0;background:transparent;pointer-events:none;outline:2px solid var(--ring, #c8264a);outline-offset:3px";
+      btn.style.cssText = "position:absolute;left:0;top:0;padding:0;margin:0;border:0;background:transparent;pointer-events:none;outline:2px dashed var(--ring, #391a2c);outline-offset:3px";
       a11yBox.appendChild(btn);
       proxy = btn;
       moveCamera(C.revealRect(cam, node, view), true);

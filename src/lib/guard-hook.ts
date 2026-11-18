@@ -14,6 +14,7 @@
 // hookSpecificOutput.additionalContext injeta a instrução.
 import { closeSync, mkdirSync, openSync, readSync, readdirSync, renameSync, statSync, writeFileSync, fstatSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { detectHookProvider } from "./agent-provider.ts";
 import { readText, firstLine, isFile, isDir } from "./fs.ts";
 import { compactAtOf, ctxCapOf } from "./ctx-cap.ts";
 import { guardRules, maskDataStatements, stripAgentText, stripHeredocBodies, type GuardRules } from "./guard-rules.ts";
@@ -520,7 +521,7 @@ function bashChecks(d: HookInput, cfg: Cfg, rules: GuardRules, env: HookEnv): st
 const additionalContext = (event: string, message: string): string =>
   `${pyDumps({ hookSpecificOutput: { hookEventName: event, additionalContext: message } }).replace(/[\u0080-￿]/g, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`)}\n`;
 
-function preTool(d: HookInput, cfg: Cfg, rules: GuardRules, env: HookEnv): string {
+function preToolMessage(d: HookInput, cfg: Cfg, rules: GuardRules, env: HookEnv): string {
   const input = (d.tool_input as Dict | undefined) ?? {};
   if (d.tool_name === "Write" || d.tool_name === "Edit" || d.tool_name === "NotebookEdit") {
     const path = String(input.file_path || input.notebook_path || "");
@@ -528,7 +529,11 @@ function preTool(d: HookInput, cfg: Cfg, rules: GuardRules, env: HookEnv): strin
   }
   if (d.tool_name !== "Bash" && d.tool_name !== "Read") return "";
   const pollWarning = d.tool_name === "Bash" ? bashChecks(d, cfg, rules, env) : undefined;
-  const message = [pollWarning, readWarning(d, cfg, rules, env)].filter(Boolean).join("\n");
+  return [pollWarning, readWarning(d, cfg, rules, env)].filter(Boolean).join("\n");
+}
+
+function preTool(d: HookInput, cfg: Cfg, rules: GuardRules, env: HookEnv): string {
+  const message = preToolMessage(d, cfg, rules, env);
   return message ? additionalContext("PreToolUse", message) : "";
 }
 
@@ -561,7 +566,7 @@ function contextTokensOf(text: string): number {
   const lines = text.split(/\r?\n/);
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const line = lines[i] as string;
-    if (!line.includes('"usage"')) continue;
+    if (!line.includes('"usage"') && !line.includes('"PLANNER_RESPONSE"')) continue;
     let entry: unknown;
     try {
       entry = JSON.parse(line);
@@ -570,6 +575,13 @@ function contextTokensOf(text: string): number {
     }
     if (typeof entry !== "object" || entry === null) continue;
     const e = entry as Dict;
+    if (e.type === "PLANNER_RESPONSE") {
+      const tokens = [e.input_tokens, e.cache_read_tokens, e.cache_write_tokens].reduce<number>(
+        (sum, v) => sum + (typeof v === "number" ? v : 0),
+        0,
+      );
+      if (tokens > 0) return tokens;
+    }
     const usage = e.type === "assistant" && !e.isSidechain ? ((e.message as Dict | undefined)?.usage as Dict | undefined) : undefined;
     if (usage) {
       return [usage.input_tokens, usage.cache_read_input_tokens, usage.cache_creation_input_tokens].reduce<number>(
@@ -585,7 +597,7 @@ function contextTokensOf(text: string): number {
  * Sugestão de `/compact` antes do teto: uma vez por sessão, quando o contexto cruza `HADES_CTX_COMPACT_AT` (abaixo do teto do
  * papel). Quem pode fechar a sessão (unidade curta) conclui; quem não pode compacta em vez de esperar o teto estourar.
  */
-function compactSuggestion(file: string, ctx: number, cap: number, role: string, registered: boolean, at: number | undefined): string {
+function compactSuggestionMessage(file: string, ctx: number, cap: number, role: string, registered: boolean, at: number | undefined): string {
   if (at === undefined || ctx < at) return "";
   const state = loadState(file);
   if (state.compactSuggested === true) return "";
@@ -596,7 +608,7 @@ function compactSuggestion(file: string, ctx: number, cap: number, role: string,
     ? "Se a unidade está perto de concluir, siga e conclua (a sessão fecha sozinha no DONE). Se ainda vai longe, deixe o handoff.md " +
       "atualizado e peça ao orquestrador um /compact: cada turno relê todo o contexto, e compactar agora sai mais barato que estacionar no teto."
     : "Se a tarefa ainda vai longe, sugira ao dono rodar /compact (cada turno relê todo o contexto); compactar agora sai mais barato que esperar o teto.";
-  return additionalContext("PostToolUse", head + tail);
+  return head + tail;
 }
 
 /**
@@ -629,16 +641,16 @@ function hasRewriteDenial(text: string): boolean {
   return false;
 }
 
-function rtkRewriteHint(file: string, tail: string): string {
+function rtkRewriteHintMessage(file: string, tail: string): string {
   if (!tail.includes("gave no verdict")) return "";
   const state = loadState(file);
   if (state.rtkRewriteHinted === true || !hasRewriteDenial(tail)) return "";
   state.rtkRewriteHinted = true;
   saveState(file, state);
-  return additionalContext("PostToolUse", REWRITE_HINT);
+  return REWRITE_HINT;
 }
 
-function postTool(d: HookInput, cfg: Cfg, env: HookEnv): string {
+function postToolMessage(d: HookInput, cfg: Cfg, env: HookEnv): string {
   const transcript = typeof d.transcript_path === "string" ? d.transcript_path : "";
   if ((cfg.HADES_CTX_GUARD ?? "1") !== "1" || !transcript) return "";
   const tail = transcriptTail(transcript);
@@ -647,9 +659,9 @@ function postTool(d: HookInput, cfg: Cfg, env: HookEnv): string {
   const { role, agent, recruit } = roleOf(cwd, env);
   const cap = ctxCapOf(role, (key) => cfg[key], recruit);
   const file = stateFile(env.home(), (d.session_id as string | undefined) || "x");
-  const rewrite = rtkRewriteHint(file, tail);
+  const rewrite = rtkRewriteHintMessage(file, tail);
   if (rewrite) return rewrite;
-  if (ctx < cap) return compactSuggestion(file, ctx, cap, role, agent !== undefined, compactAtOf((key) => cfg[key], cap));
+  if (ctx < cap) return compactSuggestionMessage(file, ctx, cap, role, agent !== undefined, compactAtOf((key) => cfg[key], cap));
   const state = loadState(file);
   const rewarn = intOf(cfg, "HADES_CTX_REWARN", "50000");
   const warned = typeof state.warnedAt === "number" ? state.warnedAt : 0;
@@ -678,14 +690,115 @@ function postTool(d: HookInput, cfg: Cfg, env: HookEnv): string {
       "resuma num arquivo de handoff o que importa para continuar e sugira ao dono rodar /clear (cada turno relê " +
       "todo o contexto). Não interrompa o trabalho por conta própria.";
   }
-  return additionalContext("PostToolUse", message);
+  return message;
+}
+
+function postTool(d: HookInput, cfg: Cfg, env: HookEnv): string {
+  const message = postToolMessage(d, cfg, env);
+  return message ? additionalContext("PostToolUse", message) : "";
+}
+
+// ------------------------------------------------------------------ fila de avisos e índice de transcript por cwd para o agy
+
+const cwdSlug = (cwd: string): string => cwd.replace(/\/+$/, "").replace(/[/.]/g, "-");
+
+function recordAgyTranscriptForCwd(h: string, cwd: string, transcriptPath: string): void {
+  try {
+    const dir = join(stateDir(h), "by-cwd");
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, `${cwdSlug(cwd) || "root"}.json`);
+    const tmp = `${file}.tmp`;
+    writeFileSync(tmp, JSON.stringify({ transcriptPath }));
+    renameSync(tmp, file);
+  } catch {
+    // índice acessório: nunca interrompe o hook
+  }
+}
+
+function enqueueAgyContext(h: string, sid: string, message: string): void {
+  if (!message) return;
+  const file = stateFile(h, sid);
+  const state = loadState(file);
+  const current = Array.isArray(state.pendingAgyContext)
+    ? (state.pendingAgyContext as unknown[]).filter((x): x is string => typeof x === "string" && x !== "")
+    : [];
+  if (!current.includes(message)) current.push(message);
+  state.pendingAgyContext = current;
+  saveState(file, state);
+}
+
+function dequeueAgyContext(h: string, sid: string): string | undefined {
+  const file = stateFile(h, sid);
+  const state = loadState(file);
+  const current = Array.isArray(state.pendingAgyContext)
+    ? (state.pendingAgyContext as unknown[]).filter((x): x is string => typeof x === "string" && x !== "")
+    : [];
+  if (current.length === 0) return undefined;
+  delete state.pendingAgyContext;
+  saveState(file, state);
+  return current.join("\n");
+}
+
+function decideAgy(rawInput: HookInput, cfg: Cfg, env: HookEnv, rules: GuardRules): HookResult {
+  const provider = detectHookProvider(rawInput);
+  const norm = provider.normalizeHookInput(rawInput);
+  const d: HookInput = { ...norm };
+  if (norm.cwd && norm.transcript_path) recordAgyTranscriptForCwd(env.home(), norm.cwd, norm.transcript_path);
+  const sid = (d.session_id as string | undefined) || "x";
+  try {
+    if (d.hook_event_name === "PreToolUse") {
+      const decides = env.decidingTools === undefined || env.decidingTools.includes(String(d.tool_name));
+      const message = decides ? preToolMessage(d, cfg, rules, env) : "";
+      if (message) enqueueAgyContext(env.home(), sid, message);
+      const formatted = provider.formatHookOutput(
+        {
+          exit: 0,
+          ...(message ? { additionalContext: message } : {}),
+        },
+        "PreToolUse",
+      );
+      env.journal?.(d, cfg, { exit: 0, stdout: formatted.stdout, stderr: "" });
+      return formatted;
+    }
+    if (d.hook_event_name === "PostToolUse") {
+      const readMsg = d.tool_name === "Read" || d.tool_name === "Bash" ? readWarning(d, cfg, rules, env) : undefined;
+      const ctxMsg = postToolMessage(d, cfg, env);
+      const combined = [readMsg, ctxMsg].filter(Boolean).join("\n");
+      if (combined) enqueueAgyContext(env.home(), sid, combined);
+      const formatted = provider.formatHookOutput({ exit: 0 }, "PostToolUse");
+      env.journal?.(d, cfg, formatted);
+      return formatted;
+    }
+    if (d.hook_event_name === "PostInvocation") {
+      const queued = dequeueAgyContext(env.home(), sid);
+      const formatted = provider.formatHookOutput(
+        {
+          exit: 0,
+          ...(queued ? { additionalContext: queued } : {}),
+        },
+        "PostInvocation",
+      );
+      env.journal?.(d, cfg, formatted);
+      return formatted;
+    }
+  } catch (error) {
+    if (error instanceof Block) {
+      env.journal?.(d, cfg, { exit: BLOCK_EXIT, stdout: "", stderr: error.message });
+      return provider.formatHookOutput({ exit: BLOCK_EXIT, blockReason: error.message }, String(d.hook_event_name));
+    }
+    throw error;
+  }
+  const formatted = provider.formatHookOutput({ exit: 0 }, String(norm.rawEventName || d.hook_event_name || ""));
+  env.journal?.(d, cfg, formatted);
+  return formatted;
 }
 
 // ------------------------------------------------------------------ entrada
 
-/** Decide uma chamada de ferramenta a partir do JSON que o Claude Code entrega ao hook. */
+/** Decide uma chamada de ferramenta a partir do JSON que o Claude Code (ou o agy) entrega ao hook. */
 export function decide(d: HookInput, env: HookEnv, rules: GuardRules = guardRules()): HookResult {
   const cfg = hookConfig();
+  if (detectHookProvider(d).id === "agy") return decideAgy(d, cfg, env, rules);
   const result = decideWith(d, cfg, env, rules);
   env.journal?.(d, cfg, result);
   return result;
@@ -707,7 +820,8 @@ function decideWith(d: HookInput, cfg: Cfg, env: HookEnv, rules: GuardRules): Ho
 
 /** `hades guard context <cwd>`: contexto atual da sessão mais recente daquele diretório (usado pelo hades-watch). */
 export function contextOfDir(cwd: string, h: string = home()): number {
-  const project = join(h, ".claude", "projects", cwd.replace(/\/+$/, "").replace(/[/.]/g, "-"));
+  const slug = cwdSlug(cwd);
+  const project = join(h, ".claude", "projects", slug);
   let newest: { file: string; mtime: number } | undefined;
   try {
     for (const name of readdirSync(project)) {
@@ -716,7 +830,17 @@ export function contextOfDir(cwd: string, h: string = home()): number {
       if (!newest || mtime >= newest.mtime) newest = { file: join(project, name), mtime };
     }
   } catch {
-    return 0;
+    // pasta do projeto no Claude Code pode não existir quando a sessão é só do agy
+  }
+  const byCwd = readObject(join(stateDir(h), "by-cwd", `${slug || "root"}.json`));
+  const agyTranscript = typeof byCwd?.transcriptPath === "string" ? byCwd.transcriptPath : "";
+  if (agyTranscript) {
+    try {
+      const mtime = statSync(agyTranscript).mtimeMs;
+      if (!newest || mtime >= newest.mtime) newest = { file: agyTranscript, mtime };
+    } catch {
+      // transcript ausente é ignorado
+    }
   }
   return newest ? contextTokens(newest.file) : 0;
 }

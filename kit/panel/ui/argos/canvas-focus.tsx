@@ -18,7 +18,7 @@ const focusPanelPx = (stageWidth) => Math.min(28 * REM_PX, Math.max(20 * REM_PX,
 const SHEET_MAX = 0.6;
 const TOUCH_MIN = 'max-md:min-h-11';
 const FOCUS_RING = 'outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring';
-const ICON_BUTTON = cn('inline-flex size-7 shrink-0 items-center justify-center text-muted-foreground transition-colors cursor-pointer hover:bg-accent/60 hover:text-foreground max-md:min-w-11', TOUCH_MIN, FOCUS_RING);
+const ICON_BUTTON = cn('inline-flex size-7 shrink-0 items-center justify-center text-muted-foreground transition-colors cursor-pointer hover:bg-hover hover:text-foreground max-md:min-w-11', TOUCH_MIN, FOCUS_RING);
 
 // o painel é uma ilha: ponteiro e roda dentro dele não chegam ao canvas (não arrastam, não dão zoom, não limpam a seleção)
 const stop = (e) => e.stopPropagation();
@@ -31,7 +31,7 @@ function Chip({ node, primary, onPrimary }) {
   const shape = node.shape || A.typeLook(node.type).shape;
   const look = node.state ? A.stateLook(node.state) : null;
   return <button type="button" aria-current={primary ? 'true' : undefined} title={node.label} onClick={() => onPrimary(node.id)}
-    className={cn('inline-flex min-w-0 max-w-full items-center gap-1.5 border px-2 py-1 text-left t-meta cursor-pointer transition-colors hover:bg-accent/60', TOUCH_MIN, FOCUS_RING, primary ? 'border-foreground bg-accent/40 text-foreground' : 'border-border text-muted-foreground')}>
+    className={cn('inline-flex min-w-0 max-w-full items-center gap-1.5 px-2 py-1 text-left t-meta cursor-pointer transition-colors hover:bg-secondary-hover bg-secondary', TOUCH_MIN, FOCUS_RING, primary ? 'shadow-[inset_0_-2px_0_var(--primary)] text-foreground' : 'text-muted-foreground')}>
     <Forma shape={shape} className={primary ? 'text-foreground' : 'text-muted-foreground'} />
     <span className="min-w-0 truncate">{node.label}</span>
     {look ? <span className={cn('inline-flex shrink-0 items-center gap-1', TONE_TEXT[look.tone])}>
@@ -60,7 +60,7 @@ function FocusPanel({ open, nodes, primaryId, onPrimary, onToggle, children, she
   if (!nodes || nodes.length === 0) return null;
   if (!open) {
     return <button ref={handle} type="button" aria-label="Expandir painel do nó" aria-expanded="false" onClick={() => toggle(true)} {...SHIELD}
-      className={cn('pointer-events-auto absolute right-0 z-20 flex flex-col items-center gap-1 border border-r-0 border-border-strong bg-card px-1 py-3 text-muted-foreground transition-colors cursor-pointer hover:bg-accent/60 hover:text-foreground max-md:min-w-11',
+      className={cn('pointer-events-auto absolute right-0 z-20 flex flex-col items-center gap-1 bg-popover shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] px-1 py-3 text-muted-foreground transition-colors cursor-pointer hover:bg-hover hover:text-foreground max-md:min-w-11',
         sheet ? 'bottom-20' : 'top-1/2 -translate-y-1/2', TOUCH_MIN, FOCUS_RING)}>
       <I.PanelRightOpen className="size-4" aria-hidden="true" />
       {nodes.length > 1 ? <span className="t-meta-em">{nodes.length}</span> : null}
@@ -77,10 +77,10 @@ function FocusPanel({ open, nodes, primaryId, onPrimary, onToggle, children, she
     }}
     style={sheet ? { maxHeight: `${SHEET_MAX * 100}%` } : { width: FOCUS_PANEL_WIDTH }}
     data-region="panel"
-    className={cn('elev-shadow pointer-events-auto absolute z-20 overflow-y-auto border-border bg-card text-card-foreground scrollbar-thin animate-fade-in focus:outline-none',
+    className={cn('bg-card shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] pointer-events-auto absolute z-20 overflow-y-auto text-card-foreground scrollbar-thin animate-fade-in focus:outline-none',
       sheet ? 'inset-x-0 bottom-0 border-t' : 'inset-y-0 right-0 border-l')}>
     {sheet ? <span aria-hidden="true" className="mx-auto mt-2 block h-1 w-10 bg-border-strong" /> : null}
-    <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b bg-card px-3 py-1">
+    <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b bg-popover px-3 py-1">
       <span className="t-meta-em text-muted-foreground">{nodes.length > 1 ? `${nodes.length} selecionados` : 'Painel do nó'}</span>
       <button type="button" aria-label="Recolher painel do nó" aria-expanded="true" onClick={() => toggle(false)} className={ICON_BUTTON}>
         <I.PanelRightClose className="size-4" aria-hidden="true" />

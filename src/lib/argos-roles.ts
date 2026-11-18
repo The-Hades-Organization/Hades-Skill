@@ -43,6 +43,7 @@ const invalid = (message: string): ArgosError => new ArgosError(ARGOS_ERROR_CODE
  */
 export const AGENT_KINDS: Readonly<Record<string, { model?: string; effort?: string; systemPrompt?: string; systemPromptFile?: string }>> = {
   claude: { model: "--model", effort: "--effort", systemPromptFile: "--append-system-prompt-file" },
+  agy: { model: "--model", effort: "--effort" },
   codex: { model: "--model" },
   gemini: { model: "--model" },
 };

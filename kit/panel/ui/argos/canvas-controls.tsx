@@ -84,8 +84,8 @@ function makeArgosCanvasControls() {
     ];
   }
 
-  const BUTTON_CLASS = "inline-flex size-8 cursor-pointer items-center justify-center t-label text-foreground outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring disabled:cursor-default disabled:opacity-40 max-md:size-11";
-  const LEVEL_CLASS = "inline-flex h-8 min-w-14 cursor-pointer items-center justify-center px-2 t-label tabular-nums text-foreground outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring max-md:h-11";
+  const BUTTON_CLASS = "inline-flex size-8 cursor-pointer items-center justify-center t-label text-foreground outline-none hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring disabled:cursor-default disabled:opacity-40 max-md:size-11";
+  const LEVEL_CLASS = "inline-flex h-8 min-w-14 cursor-pointer items-center justify-center px-2 t-label tabular-nums text-foreground outline-none hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring max-md:h-11";
 
   /** Árvore de elementos dos controles: pura, sem hooks, para o teste ler sem DOM. */
   function renderControls(ui: ControlsUi, items: readonly ControlItem[], said: string): ReactNode {
@@ -103,7 +103,7 @@ function makeArgosCanvasControls() {
   }
 
   const GLYPH: Record<ControlId, string> = { undo: "↶", redo: "↷", "zoom-out": "−", "zoom-level": "", "zoom-in": "+", fit: "⤢" };
-  const DEFAULT_CLASS = "absolute right-2 bottom-2 z-10 flex items-center elev-float bg-background";
+  const DEFAULT_CLASS = "absolute right-2 bottom-2 z-10 flex items-center elev-float bg-popover";
 
   function CanvasControls(props: CanvasControlsProps): ReactNode {
     const { api } = props;

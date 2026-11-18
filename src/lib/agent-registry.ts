@@ -1,6 +1,7 @@
 // Registro dos agentes e estado das entregas (lib.sh reg_get/reg_set/delivery_set) e as pequenas regras do hades agent
 // que mais de um subcomando usa.
 import { join } from "node:path";
+import { activeProvider } from "./agent-provider.ts";
 import { herdrRefOf, type HerdrRef } from "./argos-graph-ui.ts";
 import { AGENT_END_KIND, emitJournal } from "./journal.ts";
 import { die } from "./output.ts";
@@ -60,8 +61,11 @@ export function roleModelDefaults(role: string): { model?: string; effort?: stri
 
 /** O comando de start do dono, com modelo e esforço do papel (Configurações). */
 export function startCommand(name: string, pane: string, role: string): string {
+  const readCfg = (key: string): string | undefined => configValue(key, "") || undefined;
+  const provider = activeProvider(role, readCfg);
   const { model, effort } = roleModelDefaults(role);
-  return `! herdr agent start ${name} --kind claude --pane ${pane || "<pane>"} -- --permission-mode auto${model ? ` --model ${model}` : ""}${effort ? ` --effort ${effort}` : ""}`;
+  const tail = provider.buildInteractiveArgv({ permissionMode: "auto", model, effort, readConfig: readCfg }).join(" ");
+  return `! herdr agent start ${name} --kind ${provider.herdrKind} --pane ${pane || "<pane>"} -- ${tail}`;
 }
 
 export function roleCard(skillRoot: string, role: string): string {

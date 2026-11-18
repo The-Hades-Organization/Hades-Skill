@@ -2,7 +2,7 @@
  * O rio de Caronte: quem espera, quem roda e o que acabou, cada gate um fio; depois a memória da fila, a última hora,
  * o journal e o que roda fora da fila. */
 (() => {
-const { useState, useEffect, I, cn, GB, gb, mb, dur, getJSON, Button, Card, CardHeader, CardContent, Progress, Tip,
+const { useState, useEffect, I, cn, GB, gb, mb, dur, getJSON, Button, Badge, Card, CardHeader, CardContent, Progress, Tip,
   Empty, Table, Th, Td, Tr, AreaChart, Legend, Segmented, Fio, FIO_ESTADO, LinhaDeEstado, Dot, ago, Loading } = HadesCore;
 
 const kv = (row) => Object.fromEntries(row.slice(6).map((x) => { const i = x.indexOf('='); return i > 0 ? [x.slice(0, i), x.slice(i + 1)] : [x, true]; }));
@@ -118,6 +118,14 @@ function Lane({ title, count, empty, className, children }) {
   </section>;
 }
 function Rio({ running, waiting, remote, done }) {
+  const ocioso = !waiting.length && !running.length && !remote.length;
+  if (ocioso) return <div className="grid gap-6">
+    <Empty icon={I.Hourglass} title="Nada rodando, ninguém na fila" />
+    <section className="grid content-start gap-3" aria-label="Concluídos">
+      <h3 className="t-label">Concluídos</h3>
+      {done.length ? <ul className="-mt-3">{done.map((x, i) => <DoneRow key={x.ts + i} x={x} />)}</ul> : <p className="t-body text-muted-foreground">Nada concluído ainda.</p>}
+    </section>
+  </div>;
   return <div className={cn('grid gap-6 lg:grid-cols-3', remote.length > 0 && 'xl:grid-cols-4')}>
     <Lane title="Esperando" count={waiting.length} empty="Ninguém na fila.">
       {waiting.map((g) => <GateCard key={g.pid} g={g} />)}
@@ -154,12 +162,12 @@ function Lista({ gates }) {
     <tbody>
       {gates.map((g) => { const running = isRunning(g); const remote = isRemote(g); return <Tr key={g.pid}>
         <Td>
-          <div className="max-w-72">
+          <div className="max-w-40 md:max-w-72">
             <div className="truncate font-medium" title={g.label}>{g.label}</div>
             <div className="truncate t-meta text-muted-foreground">{gateMeta(g)}</div>
           </div>
         </Td>
-        <Td className={running || remote ? '' : 'text-muted-foreground'}>{remote ? 'rodando' : running ? 'rodando' : 'na fila'}</Td>
+        <Td>{remote || running ? <Badge variant="busy" icon={I.LoaderCircle} className="[&>svg]:animate-spin">rodando</Badge> : <Badge variant="warn">na fila</Badge>}</Td>
         <Td className="t-data text-muted-foreground">{where(g)}</Td>
         <Td className="text-right t-data">{dur(running ? g.runningFor : g.age)}</Td>
         <Td className="text-right t-data">{running ? mb(g.rss) : '—'}</Td>
@@ -227,13 +235,13 @@ function Journal({ journal }) {
     </Button>} />
     <CardContent>
       <Table className="max-h-[480px] overflow-y-auto">
-        <thead className="sticky top-0 bg-background">
+        <thead className="sticky top-0 bg-card">
           <tr className="border-b">
             <Th>Hora</Th>
             <Th>Evento</Th>
             <Th>Gate</Th>
-            <Th className="text-right">Reserva (GB)</Th>
-            <Th>Resultado</Th>
+            <Th className="text-right max-md:hidden">Reserva (GB)</Th>
+            <Th className="max-md:hidden">Resultado</Th>
           </tr>
         </thead>
         <tbody>
@@ -245,10 +253,7 @@ function Journal({ journal }) {
                 {new Date(ts).toLocaleTimeString('pt-BR')}
               </Td>
               <Td>
-                <span className={cn('inline-flex items-center gap-1.5 t-meta', tone || 'text-muted-foreground')}>
-                  <Ic className="size-3.5" aria-hidden="true" />
-                  {l}
-                </span>
+                <Badge variant={bad || tone === 'text-bad' ? 'bad' : tone === 'text-warn' ? 'warn' : 'secondary'} icon={Ic}>{l}</Badge>
               </Td>
               <Td>
                 <div className="max-w-72">
@@ -260,10 +265,10 @@ function Journal({ journal }) {
                   </div>
                 </div>
               </Td>
-              <Td className="text-right t-data">
+              <Td className="text-right t-data max-md:hidden">
                 {cost}
               </Td>
-              <Td>
+              <Td className="max-md:hidden">
                 {ev === 'done' ? <span className={cn('t-data', bad ? 'text-bad' : 'text-muted-foreground')}>
                   {`${bad ? (lostOf(r) ? `remoto perdido (${e.rc})` : exitText(e.rc)) : 'ok'} · ${e.dur || ''}`}
                 </span> : <span className="t-meta text-muted-foreground">
@@ -286,14 +291,12 @@ function Worker({ w }) {
     <Card variant="object" className="min-w-0 gap-3">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <Dot kind={w.reachable ? 'ok' : 'bad'} />
-        <span className="min-w-0 break-all font-medium">
+        <span className="min-w-0 break-words font-medium">
           {w.target}
         </span>
-        <span className={cn('t-meta', w.reachable ? 'text-muted-foreground' : 'font-medium text-bad')}>
-          {w.reachable ? 'acessível' : 'inacessível'}
-        </span>
+        <Badge variant={w.reachable ? 'ok' : 'bad'}>{w.reachable ? 'acessível' : 'inacessível'}</Badge>
         {labels.length ? <span className="ml-auto flex flex-wrap gap-1.5">
-          {labels.map((l) => <span key={l} className="border px-1.5 t-micro font-mono text-muted-foreground">{l}</span>)}
+          {labels.map((l) => <Badge key={l} variant="secondary">{l}</Badge>)}
         </span> : null}
       </div>
       {w.reachable ? null : <div className="grid gap-1 t-meta text-muted-foreground">
@@ -304,7 +307,7 @@ function Worker({ w }) {
           {w.stale && w.okAt ? `última leitura boa ${ago(w.okAt)} (em cache)` : 'nenhuma leitura boa ainda'}
         </span>
       </div>}
-      {st ? <div className={cn('grid gap-3', w.stale && 'opacity-60')}>
+      {st ? <div className={cn('grid gap-3',)}>
         <div className="grid gap-1.5">
           <div className="flex flex-wrap items-baseline justify-between gap-x-2 t-meta text-muted-foreground tnum">
             <span>memória livre</span>
@@ -322,7 +325,7 @@ function Worker({ w }) {
         {tools.length ? <div className="grid gap-1.5">
           <span className="t-meta text-muted-foreground">ferramentas no PATH do ssh</span>
           <ul className="flex flex-wrap gap-2">
-            {tools.map(([k, v]) => <li key={k} className="flex min-h-7 max-w-full items-center gap-1.5 border px-2 t-meta">
+            {tools.map(([k, v]) => <li key={k} className="flex min-h-7 max-w-full items-center gap-1.5 bg-secondary px-2 t-meta">
               <Dot kind={v === null ? 'bad' : 'ok'} />
               <span className="min-w-0 break-all font-mono">{k}</span>
               <span className={v === null ? 'font-medium text-bad' : 'min-w-0 break-all text-muted-foreground'}>{v === null ? 'ausente' : v || 'achada'}</span>
@@ -332,7 +335,7 @@ function Worker({ w }) {
         <div className="grid gap-1.5">
           <span className="t-meta text-muted-foreground">aquecimento por chave</span>
           {warm.length ? <ul className="flex flex-wrap gap-2">
-            {warm.map(([k, v]) => { const [l, kind] = WARM[v] || [v, 'idle']; return <li key={k} className="flex min-h-7 max-w-full items-center gap-1.5 border px-2 t-meta">
+            {warm.map(([k, v]) => { const [l, kind] = WARM[v] || [v, 'idle']; return <li key={k} className="flex min-h-7 max-w-full items-center gap-1.5 bg-secondary px-2 t-meta">
               <Dot kind={kind} />
               <span className="min-w-0 break-all font-mono">{k}</span>
               <span className="text-muted-foreground">{l}</span>
@@ -364,7 +367,7 @@ function Recent({ recent }) {
       {recent.length ? <ul className="-mt-2">
         {recent.slice(0, 6).map((r, i) => <li key={i} className="border-b last:border-0">
           <details className="group">
-            <summary className="flex cursor-pointer list-none items-center gap-2 py-2.5 t-body outline-none hover:bg-muted/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
+            <summary className="flex cursor-pointer list-none items-center gap-2 py-2.5 t-body outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
               <Dot kind={r.failed?.length ? 'bad' : r.done ? 'ok' : 'busy'} />
               <span className={cn('min-w-0 flex-1 truncate font-medium', r.failed?.length && 'text-bad')}>
                 {r.path.split('/')[0]}
@@ -376,7 +379,7 @@ function Recent({ recent }) {
             </summary>
             <div className="grid gap-1 pb-3 pl-4 font-mono t-micro break-all">
               {(r.failed || []).map((f, j) => <div key={j} className="text-bad">
-                {'✗ ' + f}
+                <span className="inline-flex items-center gap-1.5"><I.CircleX className="size-3.5 shrink-0" aria-hidden="true" />{f}</span>
               </div>)}
               <div className="text-muted-foreground">
                 {'último: ' + r.last}
@@ -395,7 +398,7 @@ function Bypass({ bypass }) {
     <CardContent>
       <ul className="grid gap-2">
         {bypass.map((p) => <li key={p.pid}>
-          <Card variant="object" className="gap-1 border-bad/40 p-3 t-meta">
+          <Card variant="object" className="cantos gap-1 p-3 [--c:var(--bad)] t-meta">
             <div className="flex justify-between gap-2">
               <b className="font-medium">{'pid ' + p.pid}</b>
               <span className="font-mono tnum">{`${mb(p.rss)} · ${Math.round(p.cpu)}%`}</span>
@@ -451,7 +454,7 @@ function Queue() {
   const done = doneGates(x.journal);
   const qSeries = [{ name: 'Rodando', color: 'var(--s1)', get: (p) => p.running, step: true }, { name: 'Esperando', color: 'var(--warn)', get: (p) => p.waiting, step: true, dash: true, fill: false }];
   const mSeries = [{ name: 'Memória dos gates', color: 'var(--s1)', get: (p) => p.gateRss / GB }, { name: 'Livre na máquina', color: 'var(--s2)', get: (p) => p.avail / GB, fill: false }];
-  return <div className="grid gap-8">
+  return <div className="grid gap-6">
     <div data-tour-step-id="queue-estado">
     <LinhaDeEstado main={running.length ? `${running.length} rodando` : 'nada rodando'}
       rest={[waiting.length ? `${waiting.length} esperando, o mais antigo há ${dur(oldest)}` : 'ninguém na fila',
@@ -475,7 +478,7 @@ function Queue() {
         <MemoryMeter x={x} />
       </CardContent>
     </Card>
-    <div className="grid gap-8 xl:grid-cols-2">
+    <div className="grid gap-6 xl:grid-cols-2">
       <Card data-tour-step-id="queue-grafico">
         <CardHeader title="Gates simultâneos" summary="última hora" />
         <CardContent className="grid gap-3">
@@ -491,9 +494,9 @@ function Queue() {
         </CardContent>
       </Card>
     </div>
-    <div className="grid gap-8 xl:grid-cols-[1.6fr_1fr]">
+    <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
       <Journal journal={journal} />
-      <div className="grid content-start gap-8">
+      <div className="grid content-start gap-6">
         {x.bypass.length ? <Bypass bypass={x.bypass} /> : null}
         <Recent recent={x.recent} />
         {x.locks.length ? <Locks locks={x.locks} /> : null}

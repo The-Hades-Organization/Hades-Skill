@@ -10,7 +10,7 @@ const PANEL_ID = 'argos-legend';
 
 function Section({ title, children }) {
   return <section className="grid gap-1">
-    <h3 className="t-micro uppercase tracking-[0.04em] text-muted-foreground">{title}</h3>
+    <h3 className="t-meta-em text-muted-foreground">{title}</h3>
     <ul className="grid gap-1 t-label">{children}</ul>
   </section>;
 }
@@ -50,15 +50,15 @@ function CanvasLegend() {
         </li>)}
       </Section>
       {createRows.length ? <Section title="Criar terminal (foco no canvas)">
-        {createRows.map((r) => <li key={r.kind} className="flex items-center justify-between gap-2"><span>{r.label}</span><kbd className="border border-border-strong bg-muted px-1 font-mono t-micro">{r.keys}</kbd></li>)}
+        {createRows.map((r) => <li key={r.kind} className="flex items-center justify-between gap-2"><span>{r.label}</span><kbd className="bg-muted px-1 font-mono t-micro">{r.keys}</kbd></li>)}
       </Section> : null}
       {drawRows.length ? <Section title="Desenho (editando)">
-        {drawRows.map((r) => <li key={r.key} className="flex items-center justify-between gap-2"><span>{r.label}</span><kbd className="border border-border-strong bg-muted px-1 font-mono t-micro">{r.keys}</kbd></li>)}
+        {drawRows.map((r) => <li key={r.key} className="flex items-center justify-between gap-2"><span>{r.label}</span><kbd className="bg-muted px-1 font-mono t-micro">{r.keys}</kbd></li>)}
       </Section> : null}
       <p className="t-meta text-muted-foreground">Longe, só a cor aparece. Amplie para ver forma, ícone e indicadores.</p>
     </div> : null}
     <Button size="sm" variant="outline" icon={I.Shapes} aria-expanded={open} aria-controls={open ? PANEL_ID : undefined}
-      className="bg-background max-md:min-h-11" onClick={() => (open ? close() : setOpen(true))}>Legenda</Button>
+      className="elev-float max-md:min-h-11" onClick={() => (open ? close() : setOpen(true))}>Legenda</Button>
   </div>;
 }
 

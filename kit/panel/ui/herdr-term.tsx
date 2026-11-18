@@ -142,7 +142,7 @@ function HerdrTerminal({ session, pane, apiRef, autoFocus = false, onState, clas
   return <div ref={box} data-herdr-term={state} className={cn('relative flex min-h-0 flex-1 flex-col', className)} onClick={onTap}>
     {frame && !lost && Tty ? <Tty frame={frame} focused={focused} onFocus={focusNow}
       onBlur={() => { if (!keep.current) setFocused(false); }} onInput={send} />
-      : <div className="flex min-h-0 flex-1 items-center justify-center border bg-term p-4 t-meta text-term-muted">
+      : <div className="flex min-h-0 flex-1 items-center justify-center bg-term p-4 t-meta text-term-muted">
         {state === 'connecting' ? 'conectando ao terminal…' : note}
       </div>}
     {note && frame && !lost && Tty ? <span role="status" className="shrink-0 px-2 py-1 t-meta text-term-warn">{note}</span> : null}

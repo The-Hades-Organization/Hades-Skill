@@ -7,12 +7,14 @@ import { randomBytes } from "node:crypto";
 import { constants as osConstants } from "node:os";
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
+import { activeProvider, type AgentProvider } from "../lib/agent-provider.ts";
 import { withFlock } from "../lib/flock.ts";
 import { stateDirFor } from "./review-record.ts";
 import { EXIT, HadesError, out, warn } from "../lib/output.ts";
-import { hadesHome, skillRoot } from "../lib/paths.ts";
-import { run } from "../lib/proc.ts";
+import { hadesHome, home, skillRoot } from "../lib/paths.ts";
+import { run, which } from "../lib/proc.ts";
 import { need } from "../lib/deps.ts";
+import { configValue } from "../lib/work.ts";
 import { acquireSlot, maxParallel, phaseFile, writePhase, type ReviewPhase, type Slot } from "../lib/review-queue.ts";
 import { LOOP_FINDINGS_RULE, parseFindings } from "../lib/review-loop.ts";
 
@@ -287,8 +289,8 @@ function tokens(result: Record<string, unknown>): Record_ {
     tokens: {
       input: field(usage, "input_tokens"),
       output: field(usage, "output_tokens"),
-      cacheRead: field(usage, "cache_read_input_tokens"),
-      cacheWrite: field(usage, "cache_creation_input_tokens"),
+      cacheRead: field(usage, "cache_read_input_tokens") || field(usage, "cache_read_tokens"),
+      cacheWrite: field(usage, "cache_creation_input_tokens") || field(usage, "cache_write_tokens"),
     },
   };
 }
@@ -357,8 +359,8 @@ interface StreamOutcome {
   code: number;
 }
 
-/** Roda o claude e lê o stream-json (stdout e stderr juntos, linha a linha) enquanto ele escreve. */
-function streamClaude(argv: string[], cwd: string, journal: Journal, env: NodeJS.ProcessEnv, onPublish: () => void): Promise<StreamOutcome> {
+/** Roda o claude (ou o provider ativo) e lê o stream-json (stdout e stderr juntos, linha a linha) enquanto ele escreve. */
+function streamClaude(argv: string[], cwd: string, journal: Journal, env: NodeJS.ProcessEnv, onPublish: () => void, provider?: AgentProvider): Promise<StreamOutcome> {
   return new Promise((resolve, reject) => {
     const [command = "", ...rest] = argv;
     const child = spawn(command, rest, { cwd, env, stdio: ["inherit", "pipe", "pipe"] });
@@ -377,9 +379,12 @@ function streamClaude(argv: string[], cwd: string, journal: Journal, env: NodeJS
         out(line.replace(/\s+$/, ""));
         return;
       }
-      const subChild = Boolean(event.parent_tool_use_id);
+      const subChild = Boolean(event.parent_tool_use_id || event.subagent_info);
       if (event.type === "system" && event.subtype === "init") {
         journal.update({ session: typeof event.session_id === "string" ? event.session_id : null });
+        journal.save();
+      } else if (event.type === "init") {
+        journal.update({ session: typeof event.conversation_id === "string" ? event.conversation_id : null });
         journal.save();
       } else if (event.type === "assistant") {
         const content = isRecord(event.message) && Array.isArray(event.message.content) ? event.message.content : [];
@@ -391,6 +396,17 @@ function streamClaude(argv: string[], cwd: string, journal: Journal, env: NodeJS
           }
           else if (block.type === "text" && !subChild && typeof block.text === "string" && block.text.trim()) {
             out(clip(block.text.trim(), TEXT_MAX));
+          }
+        }
+      } else if (event.type === "step_update" && provider) {
+        for (const parsed of provider.parseStreamLine(line, { includeDeltas: false })) {
+          if (parsed.t === "tool") {
+            const first = parsed.input ? (parsed.input.split(LINE_BREAKS)[0] ?? "") : "";
+            const formatted = `→ ${String(parsed.name)}: ${first ? clip(first, TOOL_ARG_MAX) : ""}`;
+            out((parsed.sub ? "  " : "") + formatted);
+            if (!parsed.sub && PUBLISH_TOOL.test(formatted)) onPublish();
+          } else if (parsed.t === "text" && !parsed.sub && parsed.text.trim()) {
+            out(clip(parsed.text.trim(), TEXT_MAX));
           }
         }
       } else if (event.type === "result") result = event;
@@ -412,15 +428,25 @@ function streamClaude(argv: string[], cwd: string, journal: Journal, env: NodeJS
   });
 }
 
-function claudeArgv(o: Options, prompt: string): string[] {
+function claudeArgv(o: Options, prompt: string, provider: AgentProvider = activeProvider("REVIEW", (k) => configValue(k, "") || undefined)): string[] {
   const allowed = ["Read", "Grep", "Glob", "Agent", "Bash(git:*)", "Bash(gh pr view:*)", "Bash(gh pr diff:*)"];
   if (o.post) allowed.push("Bash(gh api:*)", "Bash(hades review-record:*)", "Bash(hades cerberus avaliar comentario:*)");
   const denied = o.post ? [] : ["Bash(gh pr review:*)", "Bash(gh pr comment:*)"];
   denied.push("Bash(gh pr checkout:*)", "Bash(git push:*)", "Bash(gh pr merge:*)", "Bash(gh pr close:*)");
-  return [
-    "claude", "-p", prompt, "--model", MODELS[o.model], "--effort", o.effort, "--permission-mode", "auto",
-    "--output-format", "stream-json", "--verbose", "--allowedTools", ...allowed, "--disallowedTools", ...denied,
-  ];
+  const readCfg = (k: string): string | undefined => configValue(k, "") || undefined;
+  const bin = provider.id === "claude" ? "claude" : (provider.resolveBinary(readCfg, which, home()) ?? "agy");
+  return provider.buildPrintArgv({
+    bin,
+    prompt,
+    model: MODELS[o.model],
+    effort: o.effort,
+    permissionMode: "auto",
+    outputFormat: "stream-json",
+    verbose: true,
+    allowedTools: allowed,
+    disallowedTools: denied,
+    readConfig: readCfg,
+  });
 }
 
 function cleanup(wt: string, tmp: string, ref: string): void {
@@ -486,29 +512,34 @@ async function review(o: Options): Promise<number> {
       out(`worktree HEAD: ${sh(["git", "-C", tmp, "log", "-1", "--format=%h %s"]).trim()}`);
       return EXIT.ok;
     }
-    need("claude");
-    out(`$ claude -p /${o.cmd} --model ${MODELS[o.model]} --effort ${o.effort}${o.post ? " (publica)" : " (sem publicar)"}`);
+    const readCfg = (k: string): string | undefined => configValue(k, "") || undefined;
+    const provider = activeProvider("REVIEW", readCfg);
+    if (provider.id === "claude") need("claude");
+    else if (!provider.resolveBinary(readCfg, which, home())) throw new HadesError("dependência ausente: agy", 69);
+    const modelName = provider.id === "claude" ? MODELS[o.model] : provider.resolveModel(MODELS[o.model], "REVIEW", readCfg);
+    out(`$ ${provider.defaultBinary} -p /${o.cmd} --model ${modelName} --effort ${o.effort}${o.post ? " (publica)" : " (sem publicar)"}`);
     // a sessão às vezes chama `hades review-record` de fora do worktree (da pasta da skill, sem origin): o estado já vai resolvido
     const [owner = "", repo = ""] = slug.split("/");
     const env = { ...process.env, PATH: `${hadesShimDir()}:${process.env.PATH ?? ""}`, HADES_STATE: process.env.HADES_STATE ?? stateDirFor(owner, repo) };
     setPhase("revisão");
-    const { result, code } = await streamClaude(claudeArgv(o, prompt), tmp, journal, env, () => {
+    const { result, code } = await streamClaude(claudeArgv(o, prompt, provider), tmp, journal, env, () => {
       if (o.post && journal.rec.fase === "revisão") setPhase("publicação");
-    });
-    const text = typeof result?.result === "string" ? result.result : "";
+    }, provider);
+    const text = typeof result?.result === "string" ? result.result : typeof result?.response === "string" ? result.response : "";
     mkdirSync(journal.directory, { recursive: true });
     writeFileSync(join(journal.directory, `${rid}.md`), `${text.replace(TAIL_ALL, "").trimEnd()}\n`);
     const turns = result?.num_turns;
     const duration = result?.duration_ms;
-    const cost = result?.total_cost_usd;
+    const usageObj = isRecord(result?.usage) ? result.usage : undefined;
+    const cost = result?.total_cost_usd ?? usageObj?.total_usd;
     journal.update({ costUsd: cost ?? null, turns: turns ?? null, durationMs: duration ?? null, ...tokens(result ?? {}) } as Record_);
     const tail = TAIL_LINE.exec(text);
     if (tail) journal.update(parseTail(tail[1] ?? ""));
     else journal.update({ posted: null }); // a sessão não fechou com a linha do histórico: o painel mostra "?"
     if (o.loopRound !== undefined) journal.update({ achados: parseFindings(text).map((f) => ({ sev: f.sev, code: f.code, file: f.file, line: f.line })) });
-    const ok = code === 0 && result !== undefined && !result.is_error;
+    const ok = code === 0 && result !== undefined && !result.is_error && !result.error;
     journal.update({ state: ok ? "ok" : "falhou", ended: utcNow(), rc: code });
-    if (!ok) journal.update({ error: (typeof result?.subtype === "string" && result.subtype) || `claude saiu com ${code}` });
+    if (!ok) journal.update({ error: (typeof result?.subtype === "string" && result.subtype) || (typeof result?.error === "string" && result.error) || `claude saiu com ${code}` });
     journal.save();
     out(`\nrelatório: ${join(journal.directory, `${rid}.md`)}`);
     return ok ? EXIT.ok : EXIT.fail;

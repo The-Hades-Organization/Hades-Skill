@@ -1,6 +1,6 @@
 /* Página Consumo (#/usage): usa a base (ui/app.js) pelo HadesCore e se registra pelo registerPage dela. */
 (() => {
-const { useState, useEffect, I, cn, dur, getJSON, ErroExplicado, Button, CARD_SCROLL, Card, CardHeader, CardContent, Mono, Tip, Empty,
+const { useState, useEffect, I, cn, dur, getJSON, ErroExplicado, Button, Badge, CARD_SCROLL, Card, CardHeader, CardContent, Mono, Tip, Empty,
   Table, Th, Td, Tr, Legend, Dot, Regua, Leitura, LinhaDeEstado, useActions, Loading, niceTicksCovering } = HadesCore;
 
 // ================================================================== consumo de tokens
@@ -20,7 +20,7 @@ function Medidor({ value, mark, warn, label }) {
   const at = (v) => `${Math.min(100, 100 * v / max)}%`;
   return <div className="relative h-3" role="img" aria-label={label}>
     <div className="absolute inset-x-0 top-1 h-1 bg-border" />
-    <div className={cn('absolute top-1 left-0 h-1', warn ? 'bg-warn' : 'bg-foreground/70')} style={{ width: at(value) }} />
+    <div className={cn('absolute top-1 left-0 h-1', warn ? 'bg-warn' : 'bg-foreground')} style={{ width: at(value) }} />
     {mark != null ? <div className="absolute top-0 h-3 w-px bg-foreground" style={{ left: at(mark) }} /> : null}
   </div>;
 }
@@ -95,10 +95,10 @@ function JanelasDoPlano() {
       {x.janelas.map((j) => <div key={j.janela} className="grid gap-1.5">
         <div className="flex items-baseline justify-between gap-2">
           <span className="t-label">{j.rotulo}</span>
-          <span className={cn('t-section tnum', j.pct >= AVISO_PCT && 'text-warn')}>{pct1(j.pct)}</span>
+          <span className={cn('t-kpi', j.pct >= AVISO_PCT && 'text-warn')}>{pct1(j.pct)}</span>
         </div>
         <div className="h-1.5 bg-border" role="img" aria-label={`${j.rotulo}: ${pct1(j.pct)} usado`}>
-          <div className={cn('h-full', j.pct >= AVISO_PCT ? 'bg-warn' : 'bg-foreground/70')} style={{ width: `${Math.min(100, j.pct)}%` }} />
+          <div className={cn('h-full', j.pct >= AVISO_PCT ? 'bg-warn' : 'bg-foreground')} style={{ width: `${Math.min(100, j.pct)}%` }} />
         </div>
         <span className="t-meta text-muted-foreground tnum">renova {j.renova} · medido há {dur(j.idadeS)}</span>
       </div>)}
@@ -147,24 +147,24 @@ function Estimated() {
           <Mono>
             {p.path.split('/').pop()}
           </Mono>
-          {p.approved ? null : <span className="text-warn">plano alterado após a aprovação</span>}
+          {p.approved ? null : <Badge variant="warn">plano alterado após a aprovação</Badge>}
         </p>
         <Table>
           <thead>
             <tr className="border-b">
               <Th className="pl-0">Unidade</Th>
-              <Th className="w-1/3">Faixa e real</Th>
-              <Th className="text-right">Estimado p25–p75</Th>
+              <Th className="w-1/3 max-md:hidden">Faixa e real</Th>
+              <Th className="text-right max-md:hidden">Estimado p25–p75</Th>
               <Th className="text-right">Real</Th>
               <Th className="pr-0 text-right">% do p75</Th>
             </tr>
           </thead>
           <tbody>
-            {p.units.map((u) => { const [label, tone] = LEVEL_UI[u.level] || LEVEL_UI.ok; const vivo = u.real?.state === 'working';
+            {p.units.map((u) => { const [label] = LEVEL_UI[u.level] || LEVEL_UI.ok; const vivo = u.real?.state === 'working';
               return <Tr key={u.unit}>
                 <Td className="pl-0">
                   <span className="inline-flex items-center gap-2 font-medium">
-                    {vivo ? <Dot kind="busy" pulse /> : null}
+                    {vivo ? <Dot kind="busy" /> : null}
                     {u.unit}
                   </span>
                   {vivo || u.estimate?.confidence === 'baixa' || u.estimate?.confidence === 'nenhuma' ? <span className="block t-meta text-muted-foreground">
@@ -172,10 +172,10 @@ function Estimated() {
                       u.estimate?.confidence === 'baixa' || u.estimate?.confidence === 'nenhuma' ? `confiança ${u.estimate.confidence}` : null].filter(Boolean).join(' · ')}
                   </span> : null}
                 </Td>
-                <Td>
+                <Td className="max-md:hidden">
                   <RangeBar unit={u} />
                 </Td>
-                <Td className="text-right text-muted-foreground">
+                <Td className="text-right text-muted-foreground max-md:hidden">
                   {u.estimate?.costP75 == null ? '—' : `${usd2(u.estimate.costP25)} – ${usd2(u.estimate.costP75)}`}
                 </Td>
                 <Td className="text-right font-medium">
@@ -183,12 +183,8 @@ function Estimated() {
                 </Td>
                 <Td className="pr-0 text-right">
                   {u.pct == null ? '—' : <>
-                    <span className={cn(u.level !== 'ok' && 'font-medium', tone)}>
-                      {`${Math.floor(u.pct)}%`}
-                    </span>
-                    {u.level !== 'ok' ? <span className="block t-meta text-muted-foreground">
-                      {label}
-                    </span> : null}
+                    <span className="tnum">{`${Math.floor(u.pct)}%`}</span>
+                    {u.level !== 'ok' ? <Badge variant={u.level === 'ask' ? 'bad' : 'warn'} className="ml-2">{label}</Badge> : null}
                   </>}
                 </Td>
               </Tr>; })}
@@ -207,8 +203,8 @@ function Acompanhamento({ d }) {
   const row = (label, g) => <Tr key={label}>
     <Td className="pl-0">{label}</Td>
     <Td className="text-right tabular-nums">{g.turns.toLocaleString('pt-BR')}</Td>
-    <Td className="text-right tabular-nums">{total ? Math.round(100 * g.turns / total) + '%' : '—'}</Td>
-    <Td className="text-right tabular-nums">{ktok(g.ctxAvg)}</Td>
+    <Td className="text-right tabular-nums max-md:hidden">{total ? Math.round(100 * g.turns / total) + '%' : '—'}</Td>
+    <Td className="text-right tabular-nums max-md:hidden">{ktok(g.ctxAvg)}</Td>
     <Td className="pr-0 text-right tabular-nums">{usd(g.cost)}</Td>
   </Tr>;
   return <Card>
@@ -220,8 +216,8 @@ function Acompanhamento({ d }) {
           <tr className="border-b">
             <Th className="pl-0">Grupo</Th>
             <Th className="text-right">Turnos</Th>
-            <Th className="text-right">% dos turnos</Th>
-            <Th className="text-right">Contexto médio (tokens)</Th>
+            <Th className="text-right max-md:hidden">% dos turnos</Th>
+            <Th className="text-right max-md:hidden">Contexto médio (tokens)</Th>
             <Th className="pr-0 text-right">Custo (US$)</Th>
           </tr>
         </thead>
@@ -239,9 +235,9 @@ function ContextoFixo({ d }) {
   if (!f) return null;
   const peak = Math.max(1, ...f.byDay.map((y) => y.median));
   const stat = (label, value, hint) => <div key={label} className="min-w-0">
-    <div className="t-micro text-muted-foreground">{label}</div>
-    <div className="text-lg font-medium tabular-nums">{value}</div>
-    {hint ? <div className="t-micro text-muted-foreground">{hint}</div> : null}
+    <div className="t-meta text-muted-foreground">{label}</div>
+    <div className="t-kpi">{value}</div>
+    {hint ? <div className="t-meta text-muted-foreground">{hint}</div> : null}
   </div>;
   return <Card>
     <CardHeader title="Contexto fixo" summary={`${f.sessions.toLocaleString('pt-BR')} sessões em ${d.days} dias`}
@@ -253,25 +249,25 @@ function ContextoFixo({ d }) {
         {stat('Piso do custo', f.floor.share == null ? '—' : f.floor.share.toFixed(1).replace('.', ',') + '%', `${usd(f.floor.floorCost)} de ${usd(f.floor.cost)}`)}
         {stat('Sessões medidas', f.floor.sessions.toLocaleString('pt-BR'), `${f.floor.turns.toLocaleString('pt-BR')} turnos`)}
       </div>
-      <p className="t-micro text-muted-foreground">Contexto fixo × custo: {f.floor.method}.</p>
+      <p className="t-meta text-muted-foreground">Contexto fixo × custo: {f.floor.method}.</p>
       <div>
-        <div className="mb-2 t-micro text-muted-foreground">Mediana por dia (da primeira resposta)</div>
+        <div className="mb-2 t-meta text-muted-foreground">Mediana por dia (da primeira resposta)</div>
         <ul className="grid gap-1" aria-label="Mediana do contexto fixo por dia">
-          {f.byDay.map((y) => <li key={y.day} className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2 t-micro tabular-nums">
+          {f.byDay.map((y) => <li key={y.day} className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2 t-meta tnum">
             <span className="text-muted-foreground">{ddmm(y.day)}</span>
             <Medidor value={y.median} mark={peak} label={`${ddmm(y.day)}: mediana ${ktok(y.median)}, p90 ${ktok(y.p90)}, ${y.sessions} sessões`} />
             <span className="text-right">{ktok(y.median)}</span>
           </li>)}
         </ul>
       </div>
-      <ul className="grid gap-3" aria-label="Contexto fixo por repositório, papel e modelo">
+      <ul className={cn('grid gap-3', CARD_SCROLL)} aria-label="Contexto fixo por repositório, papel e modelo">
         {f.groups.map((g) => <li key={g.repo + g.role + g.model} className="grid gap-1 border-t pt-3">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3">
             <span className="min-w-0 font-medium"><Mono title={g.repo}>{g.repo}</Mono></span>
             <span className="tabular-nums">{ktok(g.median)} <span className="text-muted-foreground">· p90 {ktok(g.p90)}</span></span>
           </div>
-          <div className="t-micro text-muted-foreground">{roleLabel(g.role)} · {g.model} · {g.sessions.toLocaleString('pt-BR')} sessões</div>
-          {g.parts ? <div className="t-micro text-muted-foreground">
+          <div className="t-meta text-muted-foreground">{roleLabel(g.role)} · {g.model} · {g.sessions.toLocaleString('pt-BR')} sessões</div>
+          {g.parts ? <div className="t-meta text-muted-foreground">
             {Object.keys(PART_LABEL).filter((k) => g.parts[k] != null).map((k) => `${PART_LABEL[k]} ${kb(g.parts[k])}`).join(' · ')} (estimativa por tamanho)
           </div> : null}
         </li>)}
@@ -301,10 +297,10 @@ function ResumidoresRtk() {
         <ul className="grid gap-2" aria-label="Worktrees com filtro do rtk sem confiança">
           {x.shown.map((w) => <li key={w.dir} className="grid min-w-0 gap-1 border-t pt-2">
             <Mono className="break-all">{w.command}</Mono>
-            <span className="t-micro text-muted-foreground">{w.state === 'alterado' ? 'filtro mudou depois de confiado' : 'filtro gerado, ainda não confiado'}</span>
+            <span className="t-meta text-muted-foreground">{w.state === 'alterado' ? 'filtro mudou depois de confiado' : 'filtro gerado, ainda não confiado'}</span>
           </li>)}
         </ul>
-        {x.more ? <p className="t-micro text-muted-foreground">+{x.more} outras; rode <Mono>hades rtk status</Mono> em cada pasta.</p> : null}
+        {x.more ? <p className="t-meta text-muted-foreground">+{x.more} outras; rode <Mono>hades rtk status</Mono> em cada pasta.</p> : null}
       </> : <p className="t-body text-muted-foreground">Nenhuma worktree de agente com filtro gerado e não confiado.</p>}
     </CardContent>
   </Card>;
@@ -334,7 +330,7 @@ function Usage() {
   const pollPct = 100 * d.total.pollCost / d.total.cost;
   const comPct = d.byRole.some((r) => r.pct5h != null || r.pctWeek != null);
   const maxShare = Math.max(1, ...d.byRole.map((r) => r.share));
-  return <div className="grid gap-8">
+  return <div className="grid gap-6">
     <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
       <div className="grid min-w-0 flex-1 basis-80 gap-1" data-tour-step-id="usage-resumo">
         <LinhaDeEstado main={`${usd(perDay)} por dia (equivalente em API, estimativa)`}
@@ -369,7 +365,7 @@ function Usage() {
       </Leitura>
     </Regua>
     </div>
-    <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className="grid items-start gap-6 2xl:grid-cols-[minmax(0,1fr)_20rem]">
       <Card data-tour-step-id="usage-papel">
         <CardHeader title="Por papel" summary={`${usd(d.total.cost)} em ${d.days} dias`}
           description={`${tok(d.total.read)} tokens lidos do cache, mais ${tok(d.total.write)} gravados no cache e ${tok(d.total.output)} de saída.${comPct ? ' ~% = parte estimada da janela, pela calibração tokens → %; + = só os modelos calibrados.' : ''}`} />
@@ -380,12 +376,12 @@ function Usage() {
                 <Th className="pl-0">Papel</Th>
                 <Th className="text-right">Sessões</Th>
                 <Th className="text-right">Custo (US$)</Th>
-                <Th>Parte do custo</Th>
-                {comPct ? <Th className="text-right">~5 h</Th> : null}
-                {comPct ? <Th className="text-right">~semana</Th> : null}
+                <Th className="max-md:hidden">Parte do custo</Th>
+                {comPct ? <Th className="text-right max-md:hidden">~5 h</Th> : null}
+                {comPct ? <Th className="text-right max-md:hidden">~semana</Th> : null}
                 <Th className="text-right">Polling (% do custo)</Th>
-                <Th className="text-right">Contexto médio (tokens)</Th>
-                <Th className="pr-0 text-right">Máximo (tokens)</Th>
+                <Th className="text-right max-md:hidden">Contexto médio (tokens)</Th>
+                <Th className="pr-0 text-right max-md:hidden">Máximo (tokens)</Th>
               </tr>
             </thead>
             <tbody>
@@ -399,28 +395,28 @@ function Usage() {
                 <Td className="text-right">
                   {usd(r.cost)}
                 </Td>
-                <Td>
+                <Td className="max-md:hidden">
                   <span className="flex items-center gap-2">
                     <span className="h-1.5 w-12 shrink-0 bg-border" aria-hidden="true">
-                      <span className="block h-full bg-foreground/70" style={{ width: `${100 * r.share / maxShare}%` }} />
+                      <span className="block h-full bg-foreground" style={{ width: `${100 * r.share / maxShare}%` }} />
                     </span>
                     <span className="text-muted-foreground">
                       {String(r.share).replace('.', ',') + '%'}
                     </span>
                   </span>
                 </Td>
-                {comPct ? <Td className="text-right text-muted-foreground">{pctEst(r.pct5h, r.pct5hPartial)}</Td> : null}
-                {comPct ? <Td className="text-right text-muted-foreground">{pctEst(r.pctWeek, r.pctWeekPartial)}</Td> : null}
+                {comPct ? <Td className="text-right text-muted-foreground max-md:hidden">{pctEst(r.pct5h, r.pct5hPartial)}</Td> : null}
+                {comPct ? <Td className="text-right text-muted-foreground max-md:hidden">{pctEst(r.pctWeek, r.pctWeekPartial)}</Td> : null}
                 <Td className={cn('text-right', r.pollShare > POLL_LIMIT && 'font-medium text-warn')}>
                   {String(r.pollShare).replace('.', ',') + '%'}
                 </Td>
-                <Td className="text-right">
+                <Td className="text-right max-md:hidden">
                   {ktok(r.ctxAvg)}
                   {base ? <span className="block t-meta text-muted-foreground">
                     {'base ' + ktok(base.ctxAvg)}
                   </span> : null}
                 </Td>
-                <Td className="pr-0 text-right text-muted-foreground">
+                <Td className="pr-0 text-right text-muted-foreground max-md:hidden">
                   {ktok(r.ctxMax)}
                 </Td>
               </Tr>; })}
@@ -446,8 +442,8 @@ function Usage() {
           <thead>
             <tr className="border-b">
               <Th className="pl-0">Sessão</Th>
-              <Th>Papel</Th>
-              <Th className="text-right">Turnos</Th>
+              <Th className="max-md:hidden">Papel</Th>
+              <Th className="text-right max-md:hidden">Turnos</Th>
               <Th className="text-right">Máximo (tokens)</Th>
               <Th className="pr-0 text-right">Teto (tokens)</Th>
             </tr>
@@ -457,10 +453,10 @@ function Usage() {
               <Td className="pl-0 font-medium">
                 <Mono title={s.cwd}>{s.cwd.replace(/\/+$/, '').split('/').pop() || s.cwd}</Mono>
               </Td>
-              <Td className="text-muted-foreground">
+              <Td className="text-muted-foreground max-md:hidden">
                 {roleLabel(s.role)}
               </Td>
-              <Td className="text-right">
+              <Td className="text-right max-md:hidden">
                 {s.turns.toLocaleString('pt-BR')}
               </Td>
               <Td className="text-right font-medium text-warn">
@@ -481,18 +477,18 @@ function Usage() {
           <thead>
             <tr className="border-b">
               <Th className="pl-0">Sessão</Th>
-              <Th className="text-right">Unidades</Th>
+              <Th className="text-right max-md:hidden">Unidades</Th>
               <Th className="text-right">Sessões</Th>
-              <Th className="text-right">Turnos</Th>
+              <Th className="text-right max-md:hidden">Turnos</Th>
               <Th className="pr-0 text-right">Custo (US$)</Th>
             </tr>
           </thead>
           <tbody>
             {[['Reaproveitadas', d.reuse.reused], ['Novas', d.reuse.fresh]].map(([label, b]) => <Tr key={label}>
               <Td className="pl-0 font-medium">{label}</Td>
-              <Td className="text-right">{b.units.toLocaleString('pt-BR')}</Td>
+              <Td className="text-right max-md:hidden">{b.units.toLocaleString('pt-BR')}</Td>
               <Td className="text-right">{b.sessions.toLocaleString('pt-BR')}</Td>
-              <Td className="text-right">{b.turns.toLocaleString('pt-BR')}</Td>
+              <Td className="text-right max-md:hidden">{b.turns.toLocaleString('pt-BR')}</Td>
               <Td className="pr-0 text-right">{usd(b.cost)}</Td>
             </Tr>)}
           </tbody>
@@ -507,14 +503,14 @@ function Usage() {
             <tr className="border-b">
               <Th className="pl-0">Agente</Th>
               <Th>Papel</Th>
-              <Th>Modelos</Th>
+              <Th className="max-md:hidden">Modelos</Th>
               <Th className="text-right">Custo (US$)</Th>
-              {comPct ? <Th className="text-right">~5 h</Th> : null}
-              {comPct ? <Th className="text-right">~semana</Th> : null}
-              <Th className="text-right">Turnos</Th>
-              <Th className="text-right">Contexto médio (tokens)</Th>
-              <Th className="text-right">Máximo (tokens)</Th>
-              <Th className="pr-0 text-right">Polling (US$)</Th>
+              {comPct ? <Th className="text-right max-md:hidden">~5 h</Th> : null}
+              {comPct ? <Th className="text-right max-md:hidden">~semana</Th> : null}
+              <Th className="text-right max-md:hidden">Turnos</Th>
+              <Th className="text-right max-md:hidden">Contexto médio (tokens)</Th>
+              <Th className="text-right max-md:hidden">Máximo (tokens)</Th>
+              <Th className="pr-0 text-right max-md:hidden">Polling (US$)</Th>
             </tr>
           </thead>
           <tbody>
@@ -529,7 +525,7 @@ function Usage() {
               <Td className="text-muted-foreground">
                 {roleLabel(a.role)}
               </Td>
-              <Td>
+              <Td className="max-md:hidden">
                 <Mono className={a.divergence?.models.length ? 'font-medium text-warn' : 'text-muted-foreground'}>
                   {Object.keys(a.models).join(', ')}
                 </Mono>
@@ -543,19 +539,19 @@ function Usage() {
               <Td className="text-right">
                 {usd(a.cost)}
               </Td>
-              {comPct ? <Td className="text-right text-muted-foreground">{pctEst(a.pct5h, a.pct5hPartial)}</Td> : null}
-              {comPct ? <Td className="text-right text-muted-foreground">{pctEst(a.pctWeek, a.pctWeekPartial)}</Td> : null}
-              <Td className="text-right">
+              {comPct ? <Td className="text-right text-muted-foreground max-md:hidden">{pctEst(a.pct5h, a.pct5hPartial)}</Td> : null}
+              {comPct ? <Td className="text-right text-muted-foreground max-md:hidden">{pctEst(a.pctWeek, a.pctWeekPartial)}</Td> : null}
+              <Td className="text-right max-md:hidden">
                 {a.turns.toLocaleString('pt-BR')}
               </Td>
-              <Td className={cn('text-right', a.ctxAvg > CTX_LIMIT && 'font-medium text-warn')}>
+              <Td className={cn('text-right max-md:hidden', a.ctxAvg > CTX_LIMIT && 'font-medium text-warn')}>
                 {ktok(a.ctxAvg)}
               </Td>
-              <Td className={cn('text-right', a.overCap ? 'font-medium text-warn' : 'text-muted-foreground')}>
+              <Td className={cn('text-right max-md:hidden', a.overCap ? 'font-medium text-warn' : 'text-muted-foreground')}>
                 {ktok(a.ctx_max)}
-                {a.overCap ? <div className="t-meta">acima do teto de {ktok(a.ctxCap)}</div> : null}
+                {a.overCap ? <div><Badge variant="warn">acima do teto de {ktok(a.ctxCap)}</Badge></div> : null}
               </Td>
-              <Td className="pr-0 text-right">
+              <Td className="pr-0 text-right max-md:hidden">
                 {usd(a.poll_cost)}
               </Td>
             </Tr>)}

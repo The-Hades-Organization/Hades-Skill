@@ -1,7 +1,7 @@
 /* Página Branch e PRs (#/code): usa a base (ui/app.js) pelo HadesCore e se registra pelo registerPage dela. */
 (() => {
 const { useState, useEffect, useMemo, useCallback, I, cn, Button, Card, CardHeader, CardContent,
-  Empty, Mono, CopyButton, Menu, Tip, Dot, Fio, LinhaDeEstado, useApp, useActions, ago, Segmented, PrPicker } = HadesCore;
+  Empty, Mono, CopyButton, Menu, Tip, Dot, Fio, LinhaDeEstado, useApp, useActions, ago, Choice, useWide, Badge, PrPicker } = HadesCore;
 
 const plural = (n, one, many) => `${n.toLocaleString('pt-BR')} ${n === 1 ? one : many}`;
 // a trança: a base e cada PR são fios que se juntam num nó, a hades/local. Fio medido = já está na branch;
@@ -78,8 +78,8 @@ function Base({ d }) {
         Rode o Fetch.
       </Empty>}
       {dev.newCommits ? <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t pt-3 t-body">
-        <span className="inline-flex min-w-0 flex-1 basis-56 items-baseline gap-2">
-          <Dot kind="warn" className="translate-y-px" />
+        <span className="inline-flex min-w-0 flex-1 basis-56 items-center gap-2">
+          <Badge variant="warn">atrás</Badge>
           <span className="text-pretty">
             <span className="font-medium tnum">
               {plural(dev.newCommits, 'commit', 'commits')}
@@ -88,9 +88,9 @@ function Base({ d }) {
           </span>
         </span>
         {b.headsChanged ? null : <Button size="xs" variant="outline" icon={I.RefreshCw} disabled={busy} title={REFAZ} onClick={() => openDialog('update')}>Atualizar</Button>}
-      </div> : dev.newCommits === 0 ? <p className="flex items-baseline gap-2 border-t pt-3 t-body text-muted-foreground">
-        <Dot kind="ok" className="translate-y-px" />
-        {`Em dia com a ${bn}.`}
+      </div> : dev.newCommits === 0 ? <p className="flex items-center gap-2 border-t pt-3 t-body text-muted-foreground">
+        <Badge variant="ok">em dia</Badge>
+        {`com a ${bn}`}
       </p> : null}
     </CardContent>
   </Card>;
@@ -110,6 +110,7 @@ function Code({ d }) {
   useEffect(() => { if (!dirty) { setSel(new Set(current)); setMode(b.developOnly ? 'develop' : 'prs'); } }, [current, b.developOnly, dirty]);
   const toggle = (n) => { setDirty(true); setSel((s) => { const x = new Set(s); x.has(n) ? x.delete(n) : x.add(n); return x; }); };
   const onItems = useCallback((items) => setSeen((m) => { const x = new Map(m); items.forEach((p) => x.set(p.number, p.title)); return x; }), []);
+  const wide = useWide(768);
   const bn = b.baseName || 'develop';   // o modo segue "develop"; o texto diz a base do perfil
   const dev = b.develop || {};
   // selos de compilado só quando o plugin diz o que pede rebuild (services.paths, web.paths); snapshot sem paths: mostra
@@ -133,23 +134,23 @@ function Code({ d }) {
   const nApplied = b.developOnly ? 0 : applied.size;
   const blocked = mode === 'prs' && !sel.size;
   const pendente = !dirty && ([...current].some((n) => !applied.has(n)) || [...applied].some((n) => !current.has(n)));
-  return <div className="grid gap-8">
+  return <div className="grid gap-6">
     <LinhaDeEstado main={nApplied ? `hades/local = ${bn} + ${plural(nApplied, 'PR', 'PRs')}` : `hades/local = só a ${bn}`}
       rest={[dev.newCommits ? <span key="novos" className="text-warn">{plural(dev.newCommits, 'commit', 'commits') + ` na ${bn} que a hades/local não tem`}</span>
         : dev.newCommits === 0 ? `em dia com a ${bn}` : null,
       b.conflicts ? <span key="conf" className="text-bad">{plural(b.conflicts, 'conflito', 'conflitos')}</span> : null,
       dirty ? 'seleção alterada, falta salvar' : null]} />
-    <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <Card data-tour-step-id="code-selecao">
         <CardHeader title="O que entra na branch"
-          action={<Segmented value={mode} onChange={(v) => { setMode(v); setDirty(true); }} items={[{ value: 'develop', label: `Só ${bn}` }, { value: 'prs', label: `${bn} + PRs` }]} />} />
+          action={<Choice wide={wide} label="O que entra na branch" value={mode} onChange={(v) => { setMode(v); setDirty(true); }} items={[{ value: 'develop', label: `Só ${bn}` }, { value: 'prs', label: `${bn} + PRs` }]} />} />
         <CardContent>
           {mode === 'develop' ? <Empty icon={I.GitBranch} title={`${bn} pura.`}>
             Sem PRs por cima.
           </Empty> : <PrPicker sel={sel} toggle={toggle} applied={applied} inSet={current} onItems={onItems} />}
         </CardContent>
       </Card>
-      <div className="grid content-start gap-8 xl:sticky xl:top-20">
+      <div className="grid content-start gap-6">
         <Card data-tour-step-id="code-local">
           <CardHeader title="hades/local" summary={dirty ? 'seleção alterada, ainda não salva' : pendente ? 'salva, falta atualizar' : 'aplicada (igual ao prs.list)'}
             action={<>

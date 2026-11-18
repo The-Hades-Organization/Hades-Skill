@@ -4,7 +4,7 @@
 export const TERM_PATHS = { list: "/api/term", open: "/api/term/open", close: "/api/term/close", socket: "/api/term/ws" } as const;
 export const TERM_PROTOCOL_VERSION = 1;
 
-export const TERM_KINDS = ["shell", "claude", "herdr-client"] as const;
+export const TERM_KINDS = ["shell", "claude", "agy", "herdr-client"] as const;
 export type TermKind = (typeof TERM_KINDS)[number];
 
 /** Códigos estáveis de recusa: o cliente ramifica por eles, nunca pelo texto. Só ganham valores. */

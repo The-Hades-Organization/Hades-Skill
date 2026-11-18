@@ -19,7 +19,7 @@ const BIN = join(T, "bin");
 const PLAN = join(T, "plano.md");
 const LOG = join(T, "plano.log.md");
 const saved: Record<string, string | undefined> = {};
-const ENV_KEYS = ["HOME", "HADES_DATA", "HADES_WORK_ROOT", "HADES_CLAUDE_SETTINGS", "PATH", "HADES_ORCH_AUTONOMY", "HADES_ORCH_AUTO_START"];
+const ENV_KEYS = ["HOME", "HADES_DATA", "HADES_WORK_ROOT", "HADES_CLAUDE_SETTINGS", "PATH", "HADES_ORCH_AUTONOMY", "HADES_ORCH_AUTO_START", "HADES_AGENT_PROVIDER", "HADES_AGY_SKIP_PERMISSIONS"];
 
 function setLevel(level: number, autoStart = 0): void {
   writeFileSync(join(DATA, "config.env"), `HADES_ORCH_AUTONOMY=${level}\nHADES_ORCH_AUTO_START=${autoStart}\n`);
@@ -43,6 +43,8 @@ beforeAll(() => {
   process.env.HADES_CLAUDE_SETTINGS = SETTINGS;
   delete process.env.HADES_ORCH_AUTONOMY;
   delete process.env.HADES_ORCH_AUTO_START;
+  delete process.env.HADES_AGENT_PROVIDER;
+  delete process.env.HADES_AGY_SKIP_PERMISSIONS;
 });
 afterAll(() => {
   for (const k of ENV_KEYS) {

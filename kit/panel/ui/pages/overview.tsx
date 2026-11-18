@@ -2,7 +2,7 @@
  * De cima para baixo: quem espera por você, o estado e as ações do ciclo, a régua de leituras, o que fia agora e o que
  * pede atenção, a última hora e o ambiente (endereços, diagnóstico e disco). */
 (() => {
-const { useState, useEffect, useCallback, I, cn, PLUGIN, pluginList, GB, MB, gb, dur, dt, pct, getJSON, ago,
+const { useState, useEffect, useCallback, I, cn, Badge, PLUGIN, pluginList, GB, MB, gb, dur, dt, pct, getJSON, ago,
   Button, Dot, Card, CardHeader, CardContent, Mono, Tip, Empty, AreaChart, Legend, OVERALL, useApp, useActions,
   CopyButton, Segmented, Fio, FIO_ESTADO, Regua, Leitura, Tracos, liveThreads, jobFio } = HadesCore;
 
@@ -45,12 +45,12 @@ const resting = (d) => d.overall === 'stopped' || d.paused;
 // ------------------------------------------------------------------ espera por você
 function WaitingForYou({ n, go }) {
   if (!n) return null;
-  return <section aria-label="Espera por você" data-tour-step-id="overview-espera" className="flex flex-wrap items-center gap-x-4 gap-y-3 border border-vivo/50 bg-card px-4 py-3">
-    <I.Hand className="size-4 shrink-0 text-vivo" aria-hidden="true" />
+  return <section aria-label="Espera por você" data-tour-step-id="overview-espera" className="flex flex-wrap items-center gap-x-4 gap-y-3 cantos [--c:var(--warn)] bg-card/96 px-5 py-4">
+    <I.Hand className="size-4 shrink-0 text-warn" aria-hidden="true" />
     <div className="min-w-0 flex-1">
       <h2 className="t-section">
         {"Espera por você "}
-        <span className="t-data text-vivo">
+        <span className="t-data text-warn">
           {n}
         </span>
       </h2>
@@ -169,7 +169,7 @@ function Leituras({ d, go }) {
 // a linha inteira abre o alvo (link esticado); passar o mouse ou focar revela início e duração
 function NowRow({ kind, name, when, fio, who, more, onClick, href }) {
   const target = 'min-w-0 flex-1 truncate text-left t-label outline-none after:absolute after:inset-0 focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-ring cursor-pointer';
-  return <li className="group relative border-b py-3 last:border-b-0 hover:bg-muted/40">
+  return <li className="group relative border-b py-3 last:border-b-0 hover:bg-hover">
     <div className="flex items-baseline gap-2">
       <span className="w-[4.5rem] shrink-0 truncate t-meta text-muted-foreground">
         {kind}
@@ -186,7 +186,7 @@ function NowRow({ kind, name, when, fio, who, more, onClick, href }) {
         <span className="min-w-0 flex-1 truncate">
           {who}
         </span>
-        {more ? <span className="max-w-[60%] truncate font-mono tnum md:invisible md:group-focus-within:visible md:group-hover:visible">
+        {more ? <span className="max-w-[60%] truncate font-mono tnum max-md:hidden md:invisible md:group-focus-within:visible md:group-hover:visible">
           {more}
         </span> : null}
       </div>
@@ -205,7 +205,7 @@ function Agora({ d, threads }) {
     const took = dur((j.ended || d.t) - j.started);
     return <NowRow key={j.id} kind={ACTION_LABEL[j.action] || j.action} name={j.title} onClick={() => openJob(j.id)} fio={jobFio(j, d.jobs)}
       when={j.state === 'rodando' ? took : ago(j.ended || j.started)}
-      who={j.state === 'falhou' ? `falhou · saída ${j.rc}` : FIO_ESTADO[jobFio(j, d.jobs).s]}
+      who={j.state === 'falhou' ? <Badge variant="bad">{`falhou · saída ${j.rc}`}</Badge> : FIO_ESTADO[jobFio(j, d.jobs).s]}
       more={`início ${dt(j.started)} · ${took}`} />;
   };
   const rows = [...live.map(jobRow), ...gates, ...herdr];
@@ -262,7 +262,7 @@ function Atencao({ d, go, endpoints }) {
             <div className="t-body">
               {x.text}
             </div>
-            {x.copy ? <div className="mt-1.5 flex items-center gap-1 bg-term py-1 pr-1 pl-3 text-term-foreground [&_button:hover]:bg-white/10 [&_button:hover]:text-term-foreground">
+            {x.copy ? <div className="mt-1.5 flex items-center gap-1 bg-term py-1 pr-1 pl-3 text-term-foreground [&_button:hover]:bg-term-foreground/10 [&_button:hover]:text-term-foreground">
               <Mono className="min-w-0 flex-1 truncate text-term-foreground">
                 {x.copy}
               </Mono>
@@ -318,7 +318,7 @@ function UltimaHora({ d }) {
 function Gaveta({ name, summary, action, children, ...rest }) {
   return <li {...rest} className="relative border-b last:border-b-0">
     <details className="group/g">
-      <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-3 py-1.5 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-md:pb-2.5 md:flex-nowrap md:pr-40 [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-3 py-1.5 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-md:pb-2.5 md:flex-nowrap md:pr-28 [&::-webkit-details-marker]:hidden">
         <I.ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open/g:rotate-90" aria-hidden="true" />
         <span className="w-24 shrink-0 t-label max-md:flex max-md:min-h-8 max-md:items-center">
           {name}
@@ -494,17 +494,17 @@ function Overview({ d, go }) {
   const threads = liveThreads(d);
   const busy = d.jobs.some((j) => j.state === 'rodando' && j.exclusive) || d.skillProcs.length > 0;
   const endpoints = endpointList(d);
-  return <div className="grid gap-8">
+  return <div className="grid gap-6">
     <WaitingForYou n={d.herdr?.blocked || 0} go={go} />
     <Estado d={d} threads={threads} busy={busy} />
     <div data-tour-step-id="overview-leituras">
       <Leituras d={d} go={go} />
     </div>
-    <div className="grid gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
       <Agora d={d} threads={threads} />
       <Atencao d={d} go={go} endpoints={endpoints} />
     </div>
-    <div className="grid gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
       <UltimaHora d={d} />
       <Ambiente d={d} endpoints={endpoints} />
     </div>

@@ -6,6 +6,7 @@
 // do libc carregado sob demanda. Gravar nunca falha nem atrasa o hook: erro de disco ou de lock é engolido e contado.
 import { appendFileSync, closeSync, fstatSync, mkdirSync, openSync, readdirSync, readSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
+import { detectHookProvider } from "./agent-provider.ts";
 import { LOCK_EX, LOCK_NB, LOCK_UN, sysFlock } from "./flock.ts";
 import { firstLine, readText } from "./fs.ts";
 import { hadesHome } from "./paths.ts";
@@ -144,8 +145,12 @@ function toolFailed(response: unknown): boolean {
 
 const PERMISSION_TOOL = /\buse\s+([A-Za-z][\w:.-]*)/i;
 
-/** Evento do diário a partir do JSON que o Claude Code entrega ao hook; undefined para evento que não gravamos. */
-export function eventOfHook(input: Dict, agent: string, now: Date): JournalEvent | undefined {
+/** Evento do diário a partir do JSON que o Claude Code (ou o agy) entrega ao hook; undefined para evento que não gravamos. */
+export function eventOfHook(rawInput: Dict, agent: string, now: Date): JournalEvent | undefined {
+  const input =
+    typeof rawInput.hook_event_name === "string"
+      ? rawInput
+      : (detectHookProvider(rawInput).normalizeHookInput(rawInput) as unknown as Dict);
   const base = { v: JOURNAL_VERSION, ts: now.toISOString(), agent, session: str(input.session_id), source: "guard" as const, cwd: str(input.cwd) };
   const tool = str(input.tool_name);
   const toolInput = isObject(input.tool_input) ? input.tool_input : {};

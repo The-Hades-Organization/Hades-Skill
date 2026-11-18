@@ -6,6 +6,7 @@
 //      hades moirai estimate <plan.md> [--write] [--deep] [--json] [--mode skill|projeto]
 import { closeSync, openSync, readdirSync, readSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { activeProvider } from "../lib/agent-provider.ts";
 import { workRoot } from "../lib/cerberus.ts";
 import { isDir, isFile, readText, realpathMissingOk } from "../lib/fs.ts";
 import { guardRules } from "../lib/guard-rules.ts";
@@ -218,11 +219,22 @@ export function collectHistory(params: Params, now: Date = new Date(), windowDay
 export type DeepRunner = (prompt: string) => string | null;
 
 function claudeRunner(): DeepRunner {
-  const model = configValue("HADES_MODEL_ORCHESTRATOR", "claude-opus-5-5");
-  const bin = configValue("HADES_CHAT_BIN", "") || "claude";
+  const readCfg = (key: string): string | undefined => configValue(key, "") || undefined;
+  const provider = activeProvider("ORCHESTRATOR", readCfg);
+  const rawModel = configValue("HADES_MODEL_ORCHESTRATOR", "claude-opus-5-5");
+  const model = provider.id === "claude" ? rawModel : provider.resolveModel(rawModel, "ORCHESTRATOR", readCfg);
+  const bin = provider.id === "claude" ? (configValue("HADES_CHAT_BIN", "") || "claude") : (provider.resolveBinary(readCfg, (cmd) => cmd, home()) ?? "agy");
   const timeoutMs = Math.max(1, intKey("HADES_MOIRAI_DEEP_TIMEOUT_S", 180)) * 1000;
   return (prompt) => {
-    const r = run(bin, ["-p", "--model", model, "--allowedTools", "Read Grep Glob", prompt], { cwd: skillRoot, timeoutMs, maxBuffer: 8 << 20 });
+    const args = provider.buildPrintArgv({
+      bin,
+      prompt,
+      model,
+      readOnly: true,
+      allowedTools: ["Read Grep Glob"],
+      readConfig: readCfg,
+    }).slice(1);
+    const r = run(bin, args, { cwd: skillRoot, timeoutMs, maxBuffer: 8 << 20 });
     if (r.timedOut) warn(`moirai --deep: o estimador passou de ${timeoutMs / 1000}s (HADES_MOIRAI_DEEP_TIMEOUT_S)`);
     return r.status === 0 ? r.stdout : null;
   };

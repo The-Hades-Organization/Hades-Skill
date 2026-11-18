@@ -2,7 +2,7 @@
  * Formulário longo: índice das seções fixo à esquerda, busca e filtros no topo, cada configuração uma linha (rótulo,
  * para que serve, chave e padrão), e a barra de salvar só quando há alteração. */
 (() => {
-const { useState, useEffect, useRef, useCallback, I, cn, gb, mb, post, getJSON, ErroExplicado, Button, Dot, Card, CardHeader,
+const { useState, useEffect, useRef, useCallback, I, cn, gb, mb, post, getJSON, ErroExplicado, Button, Badge, Dot, Card, CardHeader,
   CardContent, Switch, Input, Mono, Tip, Empty, Dialog, DialogHeader, DialogFooter, useApp, route, useActions,
   Segmented, Checkbox, CFG_APPLY, modelLabel, cfgNorm, slugify, Loading, Select } = HadesCore;
 
@@ -25,8 +25,8 @@ function NotifyTools() {
   useEffect(() => { load(); }, [load]);
   return <div className="grid gap-3 border-b py-4">
     <div className="flex flex-wrap items-center gap-2">
-      <Button size="sm" variant="outline" icon={I.Bell} onClick={() => run({ action: 'notify', op: 'test' }).then(() => setTimeout(load, 3000))}>Testar notificação</Button>
-      <Button size="sm" variant="outline" icon={I.RefreshCw} onClick={() => run({ action: 'notify', op: 'rotate' }, { title: 'Trocar o tópico do ntfy?', description: 'O tópico atual deixa de receber; assine o novo no celular.', icon: I.RefreshCw, danger: true }).then(() => setTimeout(load, 3000))}>Trocar tópico</Button>
+      <Button size="sm" variant="secondary" icon={I.Bell} onClick={() => run({ action: 'notify', op: 'test' }).then(() => setTimeout(load, 3000))}>Testar notificação</Button>
+      <Button size="sm" variant="secondary" icon={I.RefreshCw} onClick={() => run({ action: 'notify', op: 'rotate' }, { title: 'Trocar o tópico do ntfy?', description: 'O tópico atual deixa de receber; assine o novo no celular.', icon: I.RefreshCw, danger: true }).then(() => setTimeout(load, 3000))}>Trocar tópico</Button>
     </div>
     {st?.subscribe ? <div className="flex flex-wrap items-start gap-4 t-meta text-muted-foreground">
       {st.qr ? <img src="/api/notify/qr" alt="QR para assinar o tópico no app ntfy" className="size-28 bg-white p-1" /> : null}
@@ -127,7 +127,7 @@ function CfgExportDialog({ open, onClose }) {
       </label>
     </div>
     <DialogFooter>
-      <Button variant="outline" onClick={onClose}>Cancelar</Button>
+      <Button variant="secondary" onClick={onClose}>Cancelar</Button>
       <Button icon={I.Download} loading={busy} onClick={go}>Baixar</Button>
     </DialogFooter>
   </Dialog>;
@@ -162,7 +162,7 @@ function CfgImportDialog({ plan, onClose, onApply, busy }) {
       </ul> : null}
     </div>
     <DialogFooter>
-      <Button variant="outline" onClick={onClose}>Cancelar</Button>
+      <Button variant="secondary" onClick={onClose}>Cancelar</Button>
       <Button icon={I.Save} loading={busy} disabled={!ch.length} onClick={onApply}>
         {ch.length ? `Gravar ${plural(ch.length, 'mudança', 'mudanças')}` : 'Gravar'}
       </Button>
@@ -192,11 +192,11 @@ function CfgIndex({ groups }) {
   }, [ids]);
   return <>
     <nav aria-label="Seções das configurações" data-tour-step-id="config-indice" className="hidden lg:sticky lg:top-28 lg:block lg:max-h-[calc(100dvh-8rem)] lg:self-start lg:overflow-y-auto scrollbar-thin">
-      <ul className="border-l">
+      <ul>
         {groups.map((x) => <li key={x.id}>
           <button type="button" aria-current={cur === x.id ? 'location' : undefined} onClick={() => { setCur(x.id); goTo(x.id); }}
-            className={cn('-ml-px flex w-full items-center gap-2 border-l-2 py-1.5 pr-2 pl-3 text-left t-label transition-colors cursor-pointer outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
-              cur === x.id ? 'border-l-foreground bg-accent/40 font-medium text-foreground' : 'border-l-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground')}>
+            className={cn('flex w-full items-center gap-2 py-1.5 pr-2 pl-3 text-left t-label transition-colors cursor-pointer outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+              cur === x.id ? 'item-ativo font-medium text-foreground' : 'text-muted-foreground hover:bg-hover hover:text-foreground')}>
             <span className="min-w-0 flex-1 truncate">{x.g}</span>
             {x.dirty ? <Tip text={plural(x.dirty, 'alteração não salva', 'alterações não salvas')}><Dot kind="warn" /></Tip> : null}
             <span className="font-mono t-micro text-muted-foreground tnum">{x.n}</span>
@@ -222,16 +222,16 @@ function InheritedDefault() {
 function CfgRow({ it, value, saved, onChange, first, pinned }) {
   const unsaved = value !== saved;
   const altered = value !== it.default;
-  return <li data-tour-step-id={first ? 'config-linha' : undefined} className={cn('grid gap-x-8 gap-y-3 border-b py-4 transition-colors last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto]', unsaved && 'bg-accent/40 -mx-3 px-3')}>
+  return <li data-tour-step-id={first ? 'config-linha' : undefined} className={cn('grid gap-x-8 gap-y-3 border-b py-4 transition-colors last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto]', unsaved && 'bg-accent -mx-3 px-3')}>
     <div className="grid min-w-0 content-start gap-1">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
         <h3 className="t-label">{it.label}</h3>
-        {unsaved ? <span className="inline-flex items-center gap-1.5 t-meta text-warn"><Dot kind="warn" />não salvo</span>
+        {unsaved ? <Badge variant="warn">não salvo</Badge>
           : altered ? <span className="inline-flex items-center gap-1.5 t-meta text-muted-foreground"><Dot kind="info" />fora do padrão</span> : null}
       </div>
       {it.desc ? <p className="max-w-[70ch] t-body text-muted-foreground">{it.desc}</p> : null}
       <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1 t-meta text-muted-foreground">
-        <Mono className="whitespace-nowrap text-foreground/80 select-all">{it.key}</Mono>
+        <Mono className="whitespace-nowrap text-foreground select-all">{it.key}</Mono>
         <span className="min-w-0">{'padrão '}<Mono className="[overflow-wrap:anywhere]">{it.default || 'vazio'}</Mono></span>
         <ApplyLabel apply={it.apply} />
       </div>
@@ -344,11 +344,11 @@ function Config({ d }) {
   };
   const toApply = pending.filter((k) => k !== 'next' && k !== 'hooks');
   const setOne = (key) => (x) => setDraft((cur) => ({ ...cur, [key]: x }));
-  const filterBtn = (f, label) => <Button size="sm" variant="outline" aria-pressed={filt.includes(f)} className={cn(filt.includes(f) && 'bg-muted text-foreground')} icon={filt.includes(f) ? I.Check : undefined} onClick={() => toggleFilt(f)}>
+  const filterBtn = (f, label) => <Button size="sm" variant="secondary" aria-pressed={filt.includes(f)} className={cn(filt.includes(f) && 'shadow-[inset_0_-2px_0_var(--primary)]')} icon={filt.includes(f) ? I.Check : undefined} onClick={() => toggleFilt(f)}>
     {label}
   </Button>;
   return <div className="grid gap-6">
-    <div className="z-20 -mx-4 flex flex-wrap items-center gap-2 border-b bg-background/95 px-4 pb-3 backdrop-blur-sm md:sticky md:top-12 md:-mx-6 md:px-6 md:py-2 lg:-mx-8 lg:px-8">
+    <div className="z-20 -mx-4 flex flex-wrap items-center gap-2 border-b bg-background px-4 pb-3 md:sticky md:top-12 md:-mx-6 md:px-6 md:py-2 lg:-mx-8 lg:px-8">
       <Input id="cfg-search" data-tour-step-id="config-busca" icon={I.Search} className="basis-full sm:max-w-sm sm:basis-64" placeholder="Buscar por nome, chave ou descrição" aria-label="Buscar configuração" aria-keyshortcuts="/" value={q} spellcheck="false" onInput={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { if (q) setQ(''); else e.target.blur(); } }} />
       <span data-tour-step-id="config-filtros" className="inline-flex flex-wrap gap-2">
         {filterBtn('alt', 'Só fora do padrão')}
@@ -358,8 +358,8 @@ function Config({ d }) {
         {shown.length === items.length ? `${items.length} configurações · ${altered} fora do padrão` : `${shown.length} de ${items.length}`}
       </span>
       <div data-tour-step-id="config-exportar" className="ml-auto flex gap-2">
-        <Button size="sm" variant="outline" icon={I.Download} className="max-sm:w-11 max-sm:px-0" onClick={() => setExp(true)}><span className="max-sm:sr-only">Exportar</span></Button>
-        <Button size="sm" variant="outline" icon={I.Upload} className="max-sm:w-11 max-sm:px-0" onClick={() => fileIn.current?.click()}><span className="max-sm:sr-only">Importar</span></Button>
+        <Tip text="Exportar"><Button size="sm" variant="secondary" icon={I.Download} className="max-sm:w-11 max-sm:px-0" onClick={() => setExp(true)}><span className="max-sm:sr-only">Exportar</span></Button></Tip>
+        <Tip text="Importar"><Button size="sm" variant="secondary" icon={I.Upload} className="max-sm:w-11 max-sm:px-0" onClick={() => fileIn.current?.click()}><span className="max-sm:sr-only">Importar</span></Button></Tip>
         <input ref={fileIn} type="file" accept=".env,.txt,text/plain" className="hidden" onChange={pickFile} />
       </div>
     </div>
@@ -379,7 +379,7 @@ function Config({ d }) {
                 <span className="t-body">{APPLY_WHAT[k] || `Falta aplicar: ${CFG_APPLY[k]?.label || k}`}</span>
                 <span className="t-meta text-muted-foreground">{items.filter((it) => it.apply === k && fix.includes(it.key)).map((it) => it.label).join(', ')}</span>
               </span>
-              <Button size="sm" variant={k === 'slice' ? 'default' : 'outline'} icon={CFG_APPLY[k]?.icon || I.Zap} disabled={!applyBtn[k]} onClick={applyBtn[k]}>
+              <Button size="sm" variant={k === 'slice' ? 'default' : 'secondary'} icon={CFG_APPLY[k]?.icon || I.Zap} disabled={!applyBtn[k]} onClick={applyBtn[k]}>
                 {APPLY_BUTTON[k] || CFG_APPLY[k]?.button || CFG_APPLY[k]?.label || k}
               </Button>
             </>}
@@ -405,7 +405,7 @@ function Config({ d }) {
         </section>)}
       </div>
     </div> : <Empty icon={I.SearchX} title="Nenhuma configuração encontrada">
-      <Button size="sm" variant="outline" onClick={() => { setQ(''); setFilt([]); }}>Limpar busca e filtros</Button>
+      <Button size="sm" variant="secondary" onClick={() => { setQ(''); setFilt([]); }}>Limpar busca e filtros</Button>
     </Empty>}
     <p data-tour-step-id="config-rodape" className="border-t pt-4 t-meta text-muted-foreground">
       {'Salvo em '}
@@ -418,7 +418,7 @@ function Config({ d }) {
       <Mono className="whitespace-nowrap">unset K</Mono>
       .
     </p>
-    {dirty.length ? <div role="region" aria-label="Alterações não salvas" data-tour-step-id="config-salvar" className="sticky bottom-[calc(1rem+var(--dock,0rem))] z-20 ml-auto flex w-fit max-w-full items-center gap-3 border border-border-strong bg-popover px-4 py-2.5 max-md:w-full max-md:px-3">
+    {dirty.length ? <div role="region" aria-label="Alterações não salvas" data-tour-step-id="config-salvar" className="sticky! cantos bottom-[calc(1rem+var(--dock,0rem))] z-20 ml-auto flex w-fit max-w-full items-center gap-3 bg-popover shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)] px-4 py-2.5 max-md:w-full max-md:px-3">
       <span className="inline-flex min-w-0 flex-1 items-center gap-2 t-body">
         <Dot kind="warn" />
         <span className="sm:hidden">{`${dirty.length} não salva${dirty.length > 1 ? 's' : ''}`}</span>

@@ -1,28 +1,31 @@
 /* Página Notificações (#/notify): usa a base (ui/app.js) pelo HadesCore e se registra pelo registerPage dela. */
 (() => {
-const { useState, useEffect, useRef, useCallback, I, cn, getJSON, ErroExplicado, Button, Dot, Card, CardHeader, CardContent, Mono, Empty,
+const { useState, useEffect, useRef, useCallback, I, cn, getJSON, ErroExplicado, Button, Badge, Dot, Card, CardHeader, CardContent, Mono, Empty,
   LinhaDeEstado, Loading } = HadesCore;
 
 // ================================================================== notificações (notify.sh)
 const NOTIFY_SEV = { info: 'info', warn: 'warn', error: 'bad' };
-const CANAL = { desktop: 'desktop', ntfy: 'celular' };
-const LINK = 'inline-flex items-center gap-1.5 t-label whitespace-nowrap underline-offset-3 hover:underline outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11';
+const NOTIFY_WORD = { info: 'informativo', warn: 'atenção', error: 'erro' };
+const ESTADO_ICON = { ok: I.CircleCheck, warn: I.TriangleAlert, bad: I.CircleX, idle: I.CircleStop, info: I.Info };
+const CANAL = { desktop: 'desktop', ntfy: 'celular', phone: 'celular' };
+const LINK = 'inline-flex items-center gap-1.5 t-label whitespace-nowrap underline decoration-line underline-offset-4 hover:text-primary hover:decoration-primary outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11';
 const quando = (ts) => { const d = new Date(ts * 1000);
   return d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); };
 const falhou = (v) => !/^(ok|enviad|silêncio|silencio|-)/i.test(String(v));
 
-// canal ou peça do vigia: nome, estado em palavras com o ponto e o detalhe apagado
+// canal ou peça do vigia: nome, estado no selo e o detalhe apagado
 function Linha({ nome, kind, estado, children, ...rest }) {
-  return <li {...rest} className="grid gap-x-4 gap-y-0.5 border-b py-2.5 t-body sm:grid-cols-[7rem_minmax(0,1fr)]">
+  const Icon = ESTADO_ICON[kind] || I.CircleStop;
+  return <li {...rest} className="grid gap-x-4 gap-y-0.5 border-b last:border-b-0 py-2.5 t-body sm:grid-cols-[7rem_minmax(0,1fr)]">
     <span className="font-medium">
       {nome}
     </span>
-    <div className="grid min-w-0 gap-0.5">
-      <span className={cn('inline-flex items-center gap-1.5', kind === 'bad' ? 'text-bad' : kind === 'warn' ? 'text-warn' : kind === 'idle' ? 'text-muted-foreground' : '')}>
-        <Dot kind={kind} />
+    <div className="grid min-w-0 gap-1.5">
+      <Badge variant={kind} className="gap-1.5 justify-self-start">
+        <Icon aria-hidden="true" />
         {estado}
-      </span>
+      </Badge>
       <span className="min-w-0 t-body text-muted-foreground break-words">
         {children}
       </span>
@@ -44,17 +47,17 @@ function Notify() {
   const fontes = Object.entries(st.sources || {}).filter(([, v]) => v.err);
   const unit = st.unit || 'hds-notify';
   const falhas = st.history.filter((h) => Object.values(h.channels || {}).some(falhou)).length;
-  return <div className="grid gap-8">
+  return <div className="grid gap-6">
     <div data-tour-step-id="notify-estado">
-    <LinhaDeEstado main={!st.enabled ? 'vigia desligado' : on ? 'vigia ativo' : `vigia ${st.unitState || 'parado'}`}
+    <LinhaDeEstado className="tnum" main={!st.enabled ? 'vigia desligado' : on ? 'vigia ativo' : `vigia ${st.unitState || 'parado'}`}
       rest={[on && st.beatAge != null ? `último ciclo há ${st.beatAge} s` : null,
         st.quiet ? (st.quietNow ? <span key="q" className="text-foreground">{`em silêncio agora, até o fim de ${st.quiet}`}</span> : `silêncio ${st.quiet}`) : null,
         `${st.history.length} recente${st.history.length === 1 ? '' : 's'}`,
         falhas ? <span key="f" className="text-bad">{`${falhas} com canal falhando`}</span> : null,
         fontes.length ? <span key="e" className="text-bad">{`${fontes.length} checagem${fontes.length > 1 ? 'ns' : ''} com erro`}</span> : null]} />
     </div>
-    <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-      <Card className="gap-0" data-tour-step-id="notify-canais">
+    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <Card className="gap-2" data-tour-step-id="notify-canais">
         <CardHeader title="Canais" summary={`vigia ${unit}`}
           action={<a href="#/config?q=notifica" data-tour-step-id="notify-configurar" className={LINK}>
             Configurar
@@ -103,27 +106,29 @@ function Notify() {
           </ul>
         </CardContent>
       </Card>
-      <Card className="gap-0" data-tour-step-id="notify-historico">
+      <Card className="gap-2" data-tour-step-id="notify-historico">
         <CardHeader title="Últimas notificações" summary="as 50 mais recentes, por canal" />
-        <CardContent>
+        <CardContent className="max-h-[28rem] overflow-y-auto scrollbar-thin">
           {st.history.length ? <ol aria-live="polite">
             {st.history.map((h) => { const novo = visto.current && !visto.current.has(chave(h)); const canais = Object.entries(h.channels || {});
-              return <li key={chave(h)} className={cn('grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 border-b py-2.5', novo && 'motion-safe:animate-fade-in')}>
+              return <li key={chave(h)} className={cn('grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 border-b last:border-b-0 py-2.5', novo && 'motion-safe:animate-emergir')}>
                 <Dot kind={NOTIFY_SEV[h.sev] || 'idle'} className="mt-1.5" />
+                <span className="sr-only">{NOTIFY_WORD[h.sev] || 'notificação'}</span>
                 <div className="min-w-0">
                   <p className="t-body">
                     <span className="font-medium">
                       {h.event}
                     </span>
-                    {h.obj ? <span className="ml-2 font-mono t-label text-muted-foreground">
+                    {h.obj ? <Mono className="ml-2 text-muted-foreground">
                       {h.obj}
-                    </span> : null}
+                    </Mono> : null}
                   </p>
                   {h.text ? <p className="mt-0.5 t-body text-muted-foreground break-words">
                     {h.text}
                   </p> : null}
                   {canais.length ? <p className="mt-1 flex flex-wrap gap-x-3 t-meta text-muted-foreground">
-                    {canais.map(([k, v]) => <span key={k} className={cn(falhou(v) && 'text-bad')}>
+                    {canais.map(([k, v]) => <span key={k} className={cn('inline-flex items-center gap-1', falhou(v) && 'text-bad')}>
+                      {falhou(v) ? <I.CircleX className="size-3 shrink-0" aria-hidden="true" /> : null}
                       {`${CANAL[k] || k}: ${v}`}
                     </span>)}
                   </p> : null}
@@ -134,7 +139,7 @@ function Notify() {
               </li>; })}
           </ol> : <Empty icon={I.Bell} title="Nada enviado ainda.">
             {"Em Configurações → Notificações, use "}
-            <a href="#/config?q=notifica" className="underline underline-offset-3 hover:no-underline">Testar notificação</a>
+            <a href="#/config?q=notifica" className={LINK}>Testar notificação</a>
             {": o aviso de teste aparece aqui."}
           </Empty>}
         </CardContent>

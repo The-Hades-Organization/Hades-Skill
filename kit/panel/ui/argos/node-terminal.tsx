@@ -92,22 +92,22 @@ function TerminalTab({ session, pane, hasAgent, live, pollMs }) {
     </Tip> : null}
     <div className="relative flex min-h-0 flex-1">
       <pre ref={box} onScroll={onScroll} tabIndex={0} aria-label="Saída do terminal" aria-live="off"
-        className="min-h-32 flex-1 overflow-auto border bg-term p-3 t-data leading-relaxed whitespace-pre text-term-foreground scrollbar-thin outline-none focus-visible:outline-2 focus-visible:outline-ring">
+        className="min-h-32 flex-1 overflow-auto bg-term p-3 t-data leading-relaxed whitespace-pre text-term-foreground scrollbar-thin outline-none focus-visible:outline-2 focus-visible:outline-ring">
         {error && !out ? `não consegui ler o terminal: ${error}` : out ? (out.text || NO_OUTPUT) : 'carregando…'}
       </pre>
-      {!atEnd ? <Button size="xs" variant="outline" icon={I.ArrowDownToLine} className="absolute right-3 bottom-3 bg-background" onClick={toEnd}>Ir para o fim</Button> : null}
+      {!atEnd ? <Button size="xs" variant="outline" icon={I.ArrowDownToLine} className="absolute right-3 bottom-3 shadow-[0_12px_32px_-8px_rgb(0_0_0/.7)]" onClick={toEnd}>Ir para o fim</Button> : null}
     </div>
     {error && out ? <span className="t-meta text-bad" role="status">Sem atualizar: {error}</span> : null}
     <textarea value={text} rows={2} aria-label="Texto para o terminal" placeholder={hasAgent ? 'Prompt (Ctrl+Enter envia)' : 'Texto para o terminal (Ctrl+Enter envia)'}
       onInput={(e) => setText(e.target.value)} onKeyDown={onKeyDown}
-      className="min-h-14 max-h-40 min-w-0 resize-y border border-border-strong bg-background px-3 py-2 text-base outline-none focus-visible:outline-2 focus-visible:outline-ring md:text-sm" />
+      className="min-h-14 max-h-40 min-w-0 resize-y campo px-3 py-2 t-body outline-none focus-visible:outline-2 focus-visible:outline-ring" />
     <div className="flex flex-wrap items-center gap-2">
       {hasAgent ? <Button size="sm" icon={I.SendHorizontal} loading={busy} disabled={!text.trim()} onClick={() => send('prompt')}>Enviar prompt</Button> : null}
       <Button size="sm" variant="outline" icon={I.Type} loading={busy} disabled={!text.trim()} onClick={() => send('text')}>Digitar sem Enter</Button>
       <Button size="sm" variant="ghost" icon={I.RefreshCw} onClick={load}>Atualizar</Button>
     </div>
     <div className="flex flex-wrap gap-1.5" role="group" aria-label="Teclas de atalho">
-      {KEYS.map((k) => <Button key={k[1]} size="xs" variant={k[3] ? 'ghost-destructive' : 'outline'} className={k[3] ? 'border' : ''} icon={k[2]} disabled={busy}
+      {KEYS.map((k) => <Button key={k[1]} size="xs" variant={k[3] ? 'ghost-destructive' : 'outline'} icon={k[2]} disabled={busy}
         aria-label={k[4] ? k[0] : undefined} title={k[4] ? k[0] : undefined} onClick={() => key(k)}>
         {k[4] ? null : k[0]}
       </Button>)}
@@ -126,7 +126,7 @@ function ConversationTab({ conversation }) {
     {omitted > 0 || invalid > 0 ? <span className="t-meta text-muted-foreground">
       {omitted > 0 ? `${omitted} entradas mais antigas fora da lista` : ''}{omitted > 0 && invalid > 0 ? ' · ' : ''}{invalid > 0 ? `${invalid} linhas do diário ignoradas` : ''}
     </span> : null}
-    <ol ref={box} className="min-h-32 flex-1 overflow-auto border p-2 scrollbar-thin" aria-label="Conversa do agente">
+    <ol ref={box} className="min-h-32 flex-1 overflow-auto p-2 scrollbar-thin" aria-label="Conversa do agente">
       {entries.map((e, i) => <li key={`${e.ts}-${i}`} className="grid grid-cols-[auto_1fr] gap-x-2 border-b py-1 last:border-b-0">
         <span className="t-data text-muted-foreground">{hms(e.ts)}</span>
         <span className={cn('t-body break-words', ENTRY_TONE[e.role])}>
@@ -143,7 +143,7 @@ function FilesTab({ files, onOpenFile }) {
   return <ul className="grid gap-1" aria-label="Arquivos do agente">
     {files.map((f) => <li key={f.path}>
       <button type="button" disabled={!onOpenFile} onClick={() => onOpenFile && onOpenFile(f)}
-        className="flex w-full items-center gap-2 border px-3 py-2 text-left t-body outline-none hover:bg-accent/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-md:min-h-11 disabled:cursor-default">
+        className="flex w-full items-center gap-2 px-3 py-2 text-left t-body outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-md:min-h-11 disabled:cursor-default">
         <I.FileText aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
         <span className="t-meta-em">{ROLE_WORD[f.role] || f.role}</span>
         <Mono className="min-w-0 flex-1 truncate text-muted-foreground">{f.path}</Mono>
@@ -169,13 +169,13 @@ function NodeTerminal({ session, pane, hasAgent = false, conversation = null, fi
     <div role="tablist" aria-label="Terminal, conversa e arquivos" className="flex items-center gap-1 border-b">
       {TABS.map(([id, label], i) => <button key={id} ref={(el) => { refs.current[id] = el; }} type="button" role="tab" id={`nt-tab-${id}`} aria-selected={tab === id} aria-controls={`nt-panel-${id}`}
         tabIndex={tab === id ? 0 : -1} onClick={() => setTab(id)} onKeyDown={(e) => move(e, i)}
-        className={cn('t-body px-3 py-1.5 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-md:min-h-11 border-b-2',
-          tab === id ? 'border-foreground font-medium text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')}>
+        className={cn('t-label px-3 py-1.5 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-md:min-h-11',
+          tab === id ? 'bg-secondary shadow-[inset_0_-2px_0_var(--primary)] text-foreground' : 'text-muted-foreground hover:bg-hover hover:text-foreground')}>
         {label}
         {id === 'files' && files.length ? <span className="ml-1 t-meta text-muted-foreground">{files.length}</span> : null}
       </button>)}
       <span className="ml-auto flex items-center gap-1.5 t-meta text-muted-foreground">
-        <Dot kind={live ? 'busy' : 'idle'} pulse={live} />
+        <Dot kind={live ? 'busy' : 'idle'} />
         {live ? 'ao vivo' : 'parado'}
       </span>
     </div>
@@ -773,13 +773,13 @@ function AgentTtyNode({ input, host, fallback, agentView, grow }) {
   const body = view !== 'terminal' ? agentView(view, input) : ttyBody({ host, input, target, grow });
   return <div className="flex h-full min-h-0 flex-col bg-card" data-agent-tty={input.id}>
     <div className="flex shrink-0 items-center gap-1.5 border-b px-2 t-meta max-lg:h-11!" style={{ height: TTY_HEADER_PX }}>
-      {jump ? <kbd aria-label={`Alt+${jump} foca este terminal`} className="inline-flex h-5 min-w-5 items-center justify-center border border-border-strong bg-muted px-1 font-mono t-micro text-foreground">{jump}</kbd> : null}
+      {jump ? <kbd aria-label={`Alt+${jump} foca este terminal`} className="inline-flex h-5 min-w-5 items-center justify-center bg-muted px-1 font-mono t-micro text-foreground">{jump}</kbd> : null}
       <span className="min-w-0 flex-1 truncate t-body-strong" title={node.label}>{node.label}</span>
       <span className="shrink-0 text-muted-foreground">{word}</span>
       {attention ? <span role="img" aria-label="pede atenção" title="pede atenção" className="size-2 shrink-0 rounded-full bg-bad" /> : null}
       <span role="group" aria-label="Vista do nó" className="flex shrink-0 items-center">
         {VIEWS.map(([id, label, Icon]) => <button key={id} type="button" aria-pressed={view === id} aria-label={label} title={label} onClick={() => pick(id)}
-          className={cn('inline-flex size-6 items-center justify-center outline-none max-lg:size-11 hover:bg-accent/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+          className={cn('inline-flex size-6 items-center justify-center outline-none max-lg:size-11 hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
             view === id ? 'text-foreground' : 'text-muted-foreground')}>
           <Icon aria-hidden="true" className="size-3.5" />
         </button>)}
@@ -994,19 +994,19 @@ function TerminalNode({ input, host, deps }) {
   const jump = target && host.alt() ? host.jumpNumbers().get(input.id) : undefined;
   const inputError = target ? host.inputErrorOf(input.id) : null;
   const word = window.CanvasModel.argos.stateLook(target ? host.statusOf(input.id) : 'unknown').word;
-  return <div className={cn('flex h-full min-h-0 flex-col bg-card', d.shell && 'border-2 border-info')} data-terminal-node={input.id} data-terminal-shell={d.shell ? 'true' : undefined} style={terminalThemeStyle(input.data, dark)}>
+  return <div className="flex h-full min-h-0 flex-col bg-card" data-terminal-node={input.id} data-terminal-shell={d.shell ? 'true' : undefined} style={terminalThemeStyle(input.data, dark)}>
     <div className="flex shrink-0 items-center gap-1.5 border-b px-2 t-meta max-lg:h-11!" style={{ height: TTY_HEADER_PX, boxShadow: d.color ? `inset 0 3px 0 ${d.color}` : undefined }}>
-      {jump ? <kbd aria-label={`Alt+${jump} foca este terminal`} className="inline-flex h-5 min-w-5 items-center justify-center border border-border-strong bg-muted px-1 font-mono t-micro text-foreground">{jump}</kbd> : null}
+      {jump ? <kbd aria-label={`Alt+${jump} foca este terminal`} className="inline-flex h-5 min-w-5 items-center justify-center bg-muted px-1 font-mono t-micro text-foreground">{jump}</kbd> : null}
       <Icon aria-hidden="true" className="size-3.5 shrink-0" style={d.color ? { color: d.color } : undefined} />
       <span className="min-w-0 flex-1 truncate t-body-strong" title={name}>{name}</span>
-      {d.shell ? <span title="Shell: terminal comum, sem agente" data-terminal-shell-mark className="inline-flex shrink-0 items-center gap-0.5 border border-info px-1 t-micro text-info">
+      {d.shell ? <span title="Shell: terminal comum, sem agente" data-terminal-shell-mark className="inline-flex shrink-0 items-center gap-0.5 px-1 t-micro bg-info text-background font-semibold">
         <I.SquareTerminal aria-hidden="true" className="size-3" />shell</span> : null}
-      {d.orchestrator ? <span title="Orquestrador: comanda recrutas pelo hades canvas" className="inline-flex shrink-0 items-center gap-0.5 border border-primary px-1 t-micro text-primary">
+      {d.orchestrator ? <span title="Orquestrador: comanda recrutas pelo hades canvas" className="inline-flex shrink-0 items-center gap-0.5 px-1 t-micro bg-secondary text-foreground font-semibold">
         <I.Network aria-hidden="true" className="size-3" />Orquestrador</span> : null}
       {d.role ? <span title={`Papel: ${role ? role.name : d.role}`} className="max-w-28 shrink-0 truncate t-micro text-muted-foreground">{role ? role.name : d.role}</span> : null}
       {d.shell ? null : <span title={modelLabel.title} data-terminal-model className="max-w-32 shrink-0 truncate t-micro text-muted-foreground">{modelLabel.text}</span>}
       {links ? <button type="button" aria-label={`${links} ${links === 1 ? 'conexão' : 'conexões'}`} title="Conexões" onClick={() => deps.onConnections(input.id)}
-        className="inline-flex h-5 shrink-0 items-center justify-center gap-0.5 px-1 text-muted-foreground outline-none max-lg:h-11 max-lg:min-w-11! hover:bg-accent/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
+        className="inline-flex h-5 shrink-0 items-center justify-center gap-0.5 px-1 text-muted-foreground outline-none max-lg:h-11 max-lg:min-w-11! hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
         <I.Cable aria-hidden="true" className="size-3" />{links}
       </button> : null}
       {d.shell ? (target ? null : <span className="shrink-0 text-muted-foreground">sem pane</span>) : <span className="shrink-0 text-muted-foreground">{target ? word : 'sem pane'}</span>}

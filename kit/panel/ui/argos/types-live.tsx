@@ -347,7 +347,7 @@ const ROLE_TONE: Record<string, string> = { user: "text-foreground", agent: "tex
 const CHANGE_WORD: Record<string, string> = { A: "novo", M: "mudado", D: "apagado", T: "tipo" };
 const BODY = "flex h-full min-h-0 flex-col gap-2 overflow-hidden p-2 t-body";
 const LINK = "underline underline-offset-2 outline-none focus-visible:outline-2 focus-visible:outline-ring";
-const ROW_BTN = "flex w-full items-center gap-2 px-2 py-1 text-left t-body outline-none hover:bg-accent/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-md:min-h-11 disabled:cursor-default";
+const ROW_BTN = "flex w-full items-center gap-2 px-2 py-1 text-left t-body outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring max-md:min-h-11 disabled:cursor-default";
 
 function Note(props: { children: ReactNode; tone?: string; status?: boolean }): ReactNode {
   return h("p", { className: `t-meta ${props.tone ?? "text-muted-foreground"}`, ...(props.status ? { role: "status" } : {}) }, props.children);
@@ -489,7 +489,7 @@ function AgentFileNode(props: { deps: LiveDeps; node: NodeRenderInput }): ReactN
   if (!agent || path === undefined || !roleOk) return h("div", { className: BODY }, h(Note, { tone: "text-bad", status: true }, `${ERROR_TEXT[LIVE_ERRORS.badData]} Caminho ou papel inválido.`));
   const missing = state.status === "ok" && state.data === false;
   return h("button", {
-    type: "button", disabled: !deps.onOpen, className: `${ROW_BTN} size-full flex-col items-start justify-center border`,
+    type: "button", disabled: !deps.onOpen, className: `${ROW_BTN} size-full flex-col items-start justify-center`,
     onClick: () => deps.onOpen?.({ kind: "file", agent: agent.name, path, role }),
   },
   h("span", { className: "t-meta-em" }, role),

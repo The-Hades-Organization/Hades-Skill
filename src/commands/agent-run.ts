@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { compactLine, contextOfWorktree, costOfWorktree, lastEventLabel, lastJournalEvent } from "./agent-status.ts";
+import { activeProvider } from "../lib/agent-provider.ts";
 import { settled } from "../lib/caronte.ts";
 import { afterFreshSession, deliverySet, isoNow, jqText, journalAgentEnd, regUpdate, roleCard } from "../lib/agent-registry.ts";
 import { phaseQuality } from "../lib/agent-project.ts";
@@ -122,7 +123,10 @@ export function escalate(args: string[], work: WorkEnv): number {
   const why = needArg(args[1], "motivo");
   const worktree = registered(work, name);
   need("herdr");
-  const model = configValue("HADES_MODEL_ESCALATE", "claude-opus-5-5") || "claude-opus-5-5";
+  const readCfg = (key: string): string | undefined => configValue(key, "") || undefined;
+  const provider = activeProvider("ESCALATE", readCfg);
+  const rawModel = configValue("HADES_MODEL_ESCALATE", "claude-opus-5-5") || "claude-opus-5-5";
+  const model = provider.id === "claude" ? rawModel : provider.resolveModel(rawModel, "ESCALATE", readCfg);
   const effort = configValue("HADES_EFFORT_ESCALATE", "high") || "high";
   const old = regGet(work, name, "pane");
   // nunca /model na sessão: ele grava o modelo como padrão global do ~/.claude/settings.json. A escalada é uma sessão
@@ -133,8 +137,9 @@ export function escalate(args: string[], work: WorkEnv): number {
   if (!pane) die(`não consegui abrir o painel novo ao lado de ${old}`);
   herdr(["pane", "close", old]);
   regUpdate(work, name, (r) => ({ ...r, pane, escalated: model, escalatedWhy: why, escalatedAt: isoNow(), state: "allocated" }));
+  const tail = provider.buildInteractiveArgv({ permissionMode: "auto", model, effort, readConfig: readCfg }).join(" ");
   out(`${name} estacionou; painel novo ${pane}. O dono inicia a sessão de escalada:`);
-  out(`   ! herdr agent start ${name} --kind claude --pane ${pane} -- --permission-mode auto --model ${model} --effort ${effort}`);
+  out(`   ! herdr agent start ${name} --kind ${provider.herdrKind} --pane ${pane} -- ${tail}`);
   out(`depois: hades agent resume ${name} "Escalada para ${model}: ${why}. Resolva o ponto escalado e siga o fluxo."`);
   return 0;
 }

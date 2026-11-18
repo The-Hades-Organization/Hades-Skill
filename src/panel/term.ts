@@ -6,6 +6,7 @@ import { randomBytes } from "node:crypto";
 import { accessSync, appendFileSync, constants, mkdirSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, sep } from "node:path";
+import { providerOf } from "../lib/agent-provider.ts";
 import { which } from "../lib/proc.ts";
 import { createRateLimiter } from "./argos-terminals.ts";
 import { createRing, type Ring } from "./term-ring.ts";
@@ -222,6 +223,14 @@ export function createTerm(deps: TermDeps) {
     return which("claude");
   }
 
+  function agyBin(): string | undefined {
+    const cfg = deps.config();
+    const configured = (cfg.HADES_AGY_BIN ?? "").replace(/^~(?=$|\/)/, homedir());
+    if (configured) return isExecutable(configured) ? configured : undefined;
+    const bin = providerOf("agy").resolveBinary((key) => cfg[key], which, homedir());
+    return bin && isExecutable(bin) ? bin : undefined;
+  }
+
   /** argv em lista, nunca string de shell. undefined = o binário do tipo não existe nesta máquina. */
   function commandFor(req: OpenRequest): string[] | undefined {
     const override = deps.command?.(req.kind, req);
@@ -230,7 +239,12 @@ export function createTerm(deps: TermDeps) {
     if (req.kind === "claude") {
       const bin = claudeBin();
       if (!bin) return undefined;
-      return [bin, "--permission-mode", "auto", ...(req.resume ? ["--resume", req.resume] : [])];
+      return providerOf("claude").buildInteractiveArgv({ bin, permissionMode: "auto", resumeSessionId: req.resume });
+    }
+    if (req.kind === "agy") {
+      const bin = agyBin();
+      if (!bin) return undefined;
+      return providerOf("agy").buildInteractiveArgv({ bin, permissionMode: "auto", resumeSessionId: req.resume });
     }
     const herdr = which("herdr");
     const session = req.session ?? DEFAULT_HERDR_SESSION;
@@ -249,7 +263,7 @@ export function createTerm(deps: TermDeps) {
     const extra = { resume: text("resume"), session: text("session") };
     if (extra.resume !== undefined && !RESUME_ID.test(extra.resume)) throw new TermError(TERM_CODES.badRequest, "resume inválido");
     if (extra.session !== undefined && !HERDR_SESSION.test(extra.session)) throw new TermError(TERM_CODES.badRequest, "session inválida");
-    if (extra.resume !== undefined && kind !== "claude") throw new TermError(TERM_CODES.badRequest, "resume só vale para o tipo claude");
+    if (extra.resume !== undefined && kind !== "claude" && kind !== "agy") throw new TermError(TERM_CODES.badRequest, "resume só vale para o tipo claude");
     if (extra.session !== undefined && kind !== "herdr-client") throw new TermError(TERM_CODES.badRequest, "session só vale para o tipo herdr-client");
     return {
       kind: kind as TermKind, cwd: typeof body.cwd === "string" ? body.cwd : undefined,

@@ -1,9 +1,9 @@
 /* Página Cerberus (#/cerberus): usa a base (ui/app.js) pelo HadesCore e se registra pelo registerPage dela.
  * Os blocos das cabeças (ui/cerberus/<cabeça>.js, reference/cerberus.md) se registram por HadesCerberus.registerBlock.
- * As três cabeças são objetos (cartão); o resto da página fica no chão: o que barrou, as exceções e o histórico. */
+ * As três cabeças são objetos (cartão); o que barrou, as exceções e o histórico são cartões de seção. */
 (() => {
 const { useState, useEffect, useCallback, useMemo, I, cn, post, getJSON, ErroExplicado, Button, Dot, Card, CardHeader, CardContent,
-  Mono, Tip, Empty, Table, Th, Td, Tr, Dialog, DialogHeader, DialogFooter, Choice, useWide, useApp, ago, Loading, CFG_ICON,
+  Mono, Tip, Empty, Table, Th, Td, Tr, Dialog, DialogHeader, DialogFooter, Choice, Badge, useWide, useApp, ago, Loading, CFG_ICON,
   LinhaDeEstado, Tracos, useTourPreview, ExampleSeal, Select } = HadesCore;
 
 CFG_ICON.Cerberus ??= I.Cerberus;   // ícone do grupo Cerberus em Configurações
@@ -27,9 +27,12 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const Caminho = ({ children, className }) => <Mono className={cn('[overflow-wrap:anywhere]', className)}>
   {String(children ?? '').split(/(?<=\/)/).map((p, i) => <React.Fragment key={i}>{i ? <wbr /> : null}{p}</React.Fragment>)}
 </Mono>;
-const Efeito = ({ ef, className }) => {
+// o efeito do veredito é estado, com a palavra (a cor nunca é o único sinal): em lista e tabela, ponto e palavra;
+// `selo` (diálogo do veredito) põe o selo cheio, para não gritar em cinquenta linhas
+const Efeito = ({ ef, className, selo }) => {
   const [k, l] = CB_EFFECT[ef] || ['idle', ef || 'sem veredito'];
-  return <span className={cn('inline-flex items-center gap-1.5 whitespace-nowrap', k === 'bad' && 'font-medium text-bad', className)}>
+  if (selo) return <Badge variant={k} className={className}>{l}</Badge>;
+  return <span className={cn('inline-flex items-center gap-1.5 whitespace-nowrap', k === 'bad' && 'font-medium text-bad', k === 'warn' && 'text-warn', k === 'idle' && 'text-muted-foreground', className)}>
     <Dot kind={k} />
     {l}
   </span>;
@@ -75,7 +78,7 @@ class BlockBoundary extends React.Component {
   static getDerivedStateFromError(err) { return { err }; }
   componentDidCatch(err) { console.error(`cerberus: bloco ${this.props.cab} falhou`, err); }
   render() {
-    return this.state.err ? <Empty icon={I.TriangleAlert} title={`Erro no bloco da ${this.props.nome}`}>
+    return this.state.err ? <Empty tour={false} icon={I.TriangleAlert} title={`Erro no bloco da ${this.props.nome}`}>
       Detalhe no console do navegador.
     </Empty> : this.props.children;
   }
@@ -159,7 +162,7 @@ function Verdict({ sel, x, onClose }) {
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 border-y py-3 t-body">
         <dt className="text-muted-foreground">Efeito</dt>
         <dd className="flex flex-wrap items-center gap-x-2">
-          <Efeito ef={sel.efeito} />
+          <Efeito ef={sel.efeito} selo />
           {sel.efeito !== sel.resultado ? <span className="t-meta text-muted-foreground">{`a guarda disse ${sel.resultado}, o modo ${sel.modo} decidiu`}</span> : null}
         </dd>
         {sel.invalido ? <>
@@ -177,7 +180,7 @@ function Verdict({ sel, x, onClose }) {
         <Evidence items={sel.evidencia} />
       </section> : null}
       {sel.excecao ? <section className="grid gap-1 t-body">
-        <h3 className="flex items-center gap-2 font-semibold"><Dot kind="info" />Liberado por exceção</h3>
+        <h3 className="flex items-center gap-2 t-body-strong"><Badge variant="info">liberado</Badge>por exceção</h3>
         <p className="text-pretty">{sel.excecao.motivo}</p>
         <span className="t-meta text-muted-foreground">
           <Mono className="whitespace-nowrap">{sel.excecao.id}</Mono>
@@ -242,11 +245,11 @@ function History({ x, example }) {
             </Tr>)}
           </tbody>
         </Table>
-        {rows.length > n ? <Button size="sm" variant="outline" className="justify-self-center" onClick={() => setN(n + CB_PAGE)}>
+        {rows.length > n ? <Button size="sm" variant="secondary" className="justify-self-center" onClick={() => setN(n + CB_PAGE)}>
           {`Mostrar mais ${Math.min(CB_PAGE, rows.length - n)} de ${rows.length - n}`}
         </Button> : null}
-      </> : <Empty icon={I.ShieldCheck} title={x.historico.length ? 'Nenhum veredito com este filtro' : 'Nenhum veredito ainda'}>
-        {cab || ef ? <Button size="sm" variant="outline" onClick={() => { setCab(''); setEf(''); }}>Limpar filtros</Button> : 'Cada push, release, plugin e DONE avaliado aparece aqui.'}
+      </> : <Empty tour={false} icon={I.ShieldCheck} title={x.historico.length ? 'Nenhum veredito com este filtro' : 'Nenhum veredito ainda'}>
+        {cab || ef ? <Button size="sm" variant="secondary" onClick={() => { setCab(''); setEf(''); }}>Limpar filtros</Button> : 'Cada push, release, plugin e DONE avaliado aparece aqui.'}
       </Empty>}
     </CardContent>
     <Verdict sel={sel} x={x} onClose={() => setSel(null)} />
@@ -272,7 +275,7 @@ function Barred({ x, example }) {
   </Card>;
 }
 
-const CTL = 'h-8 w-full min-w-0 border border-border-strong bg-background px-3 t-body outline-none focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-bad max-md:h-11';
+const CTL = 'campo h-8 w-full min-w-0 px-3 max-md:h-11';
 function OpenException({ x, open, onClose, onDone }) {
   const { toast } = useApp();
   const guards = x.guardas.filter((g) => g.tipo !== 'regra');
@@ -302,19 +305,19 @@ function OpenException({ x, open, onClose, onDone }) {
     <DialogHeader title="Abrir exceção" description={`Deixa passar o próximo veredito barra desta guarda neste momento (só um), se acontecer nas próximas ${x.ttlH || 24} h. O motivo fica registrado.`} />
     <div className="grid gap-4">
       <label className="grid gap-1.5 t-body">
-        <span className="font-medium">Guarda</span>
+        <span className="t-label">Guarda</span>
         <Select size="sm" label="Guarda" className="w-full min-w-0" value={gk} onChange={setGk} placeholder="Escolha a guarda…"
           items={x.cabecas.flatMap((c) => guards.filter((it) => it.cabeca === c.id).map((it) => ({ value: `${it.cabeca}/${it.id}`, label: `${it.titulo} (${it.id})`, group: c.nome })))} />
       </label>
       <label className="grid gap-1.5 t-body">
-        <span className="font-medium">Momento</span>
+        <span className="t-label">Momento</span>
         <Select size="sm" label="Momento" className="w-full min-w-0" value={momento} disabled={!g} onChange={setMomento} placeholder="Escolha a guarda primeiro"
           items={(g ? g.momentos : []).map((m) => ({ value: m, label: CB_MOMENTO[m] ? `${CB_MOMENTO[m]} (${m})` : m }))} />
       </label>
       <label className="grid gap-1.5 t-body">
-        <span className="font-medium">
+        <span className="t-label">
           {'Alvo '}
-          <span className="font-normal text-muted-foreground">(opcional)</span>
+          <span className="t-body text-muted-foreground">(opcional)</span>
         </span>
         <input className={cn(CTL, 't-data')} value={alvo} placeholder="pr=12" spellcheck="false" aria-invalid={!alvoOk} aria-describedby="cb-alvo-ajuda" onInput={(e) => setAlvo(e.target.value)} />
         <span id="cb-alvo-ajuda" className={cn('t-meta', alvoOk ? 'text-muted-foreground' : 'text-bad')}>
@@ -322,8 +325,8 @@ function OpenException({ x, open, onClose, onDone }) {
         </span>
       </label>
       <label className="grid gap-1.5 t-body">
-        <span className="font-medium">Motivo</span>
-        <textarea rows={3} value={motivo} maxlength={500} aria-describedby="cb-motivo-ajuda" onInput={(e) => setMotivo(e.target.value)} className={cn(CTL, 'h-auto py-2 max-md:h-auto')} />
+        <span className="t-label">Motivo</span>
+        <textarea rows={3} value={motivo} maxlength={500} aria-describedby="cb-motivo-ajuda" onInput={(e) => setMotivo(e.target.value)} className={cn(CTL, 't-body h-auto py-2 max-md:h-auto')} />
         <span id="cb-motivo-ajuda" className="t-meta text-muted-foreground tnum">
           {falta > 0 ? `Obrigatório: faltam ${plural(falta, 'caractere', 'caracteres')}.` : `${motivo.length} de 500 caracteres.`}
         </span>
@@ -331,7 +334,7 @@ function OpenException({ x, open, onClose, onDone }) {
       {g && momento && alvoOk ? <p className="t-body" role="status">{`Vai liberar: um veredito barra de ${g.cabeca}/${g.id} em ${momento}, ${pairs.length ? 'só para ' + pairs.join(' ') : 'para o próximo alvo, qualquer que seja'}, por até ${x.ttlH || 24} h.`}</p> : null}
     </div>
     <DialogFooter>
-      <Button variant="outline" onClick={onClose}>Cancelar</Button>
+      <Button variant="secondary" onClick={onClose}>Cancelar</Button>
       <Button icon={I.KeyRound} disabled={!ok} loading={busy} onClick={submit}>Abrir exceção</Button>
     </DialogFooter>
   </Dialog>;
@@ -346,17 +349,14 @@ function Exceptions({ x, remote, example, onOpen }) {
       action={<span className="inline-flex items-center gap-2" data-tour-step-id="cerberus-abrir">
         {example ? <ExampleSeal /> : null}
         <Tip text={remote ? 'Só no painel local ou no terminal' : example ? 'Desligado durante o tour' : 'Libera um barra de uma guarda, uma vez'}>
-          <Button size="sm" variant="outline" icon={I.KeyRound} disabled={remote || example} onClick={onOpen}>Abrir exceção</Button>
+          <Button size="sm" variant="secondary" icon={I.KeyRound} disabled={remote || example} onClick={onOpen}>Abrir exceção</Button>
         </Tip>
       </span>} />
     {x.excecoes.length ? <CardContent>
       <ul className="-mt-2">
         {[...x.excecoes].reverse().map((e) => { const [k, l] = st(e); return <li key={e.id} className="grid min-w-0 gap-1 border-b py-3 last:border-b-0">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-            <span className={cn('inline-flex items-center gap-1.5 t-body', k === 'info' ? 'font-medium' : 'text-muted-foreground')}>
-              <Dot kind={k} pulse={k === 'info'} />
-              {l}
-            </span>
+            <Badge variant={k}>{l}</Badge>
             <Mono className="whitespace-nowrap t-label">{`${e.cabeca}/${e.guarda}`}</Mono>
             <span className="t-meta text-muted-foreground">{'em ' + e.momento}</span>
             <span className="t-meta text-muted-foreground tnum sm:ml-auto">{`${e.origem} · ${ago(e.aberta)}`}</span>
@@ -395,7 +395,7 @@ function Cerberus() {
   const barras = x.historico.filter((r) => r.efeito === 'barra').length;
   const abertas = x.excecoes.filter((e) => !e.usada && !(e.expira < now)).length;
   const ultimo = x.historico[x.historico.length - 1];
-  return <div className="grid gap-8">
+  return <div className="grid gap-6">
     <div className="grid gap-2" data-tour-step-id="cerberus-estado">
       {exemplo ? <span className="justify-self-start"><ExampleSeal /></span> : null}
       <LinhaDeEstado main={x.erros.length ? <span className="text-bad">{plural(x.erros.length, 'arquivo do registro com erro', 'arquivos do registro com erro')}</span>
@@ -418,14 +418,14 @@ function Cerberus() {
         </ul>
       </CardContent>
     </Card> : null}
-    {x.cabecas.length ? <div className="grid gap-4 lg:grid-cols-3 lg:gap-y-0" data-tour-step-id="cerberus-cabecas">
+    {x.cabecas.length ? <div className="grid gap-6 lg:grid-cols-3 lg:gap-y-0" data-tour-step-id="cerberus-cabecas">
       {x.cabecas.map((c) => <HeadCard key={c.id} c={c} guards={byHead(c.id, x.guardas)} hist={byHead(c.id, x.historico)} />)}
-    </div> : <Empty icon={I.ShieldOff} title="Nenhuma cabeça registrada">Registro vazio.</Empty>}
+    </div> : <Empty tour={false} icon={I.ShieldOff} title="Nenhuma cabeça registrada">Registro vazio.</Empty>}
     {(exemplo ? [] : x.cabecas.filter((c) => reg[c.id])).map((c) => { const Bloco = reg[c.id];
       return <BlockBoundary key={'bloco-' + c.id} cab={c.id} nome={c.nome}>
         <Bloco cabeca={{ id: c.id, nome: c.nome, modo: c.modo }} guardas={byHead(c.id, x.guardas)} historico={byHead(c.id, x.historico)} />
       </BlockBoundary>; })}
-    <div className="grid items-start gap-8 xl:grid-cols-2">
+    <div className="grid items-start gap-6 xl:grid-cols-2">
       <Barred x={x} example={!!exemplo} />
       <Exceptions x={x} remote={remote} example={!!exemplo} onOpen={() => setOpening(true)} />
     </div>

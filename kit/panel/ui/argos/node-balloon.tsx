@@ -139,9 +139,9 @@ function makeArgosNodeBalloon() {
 
   type BalloonState = { phase: "idle" } | { phase: "sending" } | { phase: "error"; code: string; message: string };
 
-  const BOX = "elev-float absolute z-20 flex flex-col gap-2 bg-background p-2 t-body";
-  const FIELD = "min-h-20 w-full resize-y border border-border-strong bg-background px-2 py-1.5 text-base outline-none focus-visible:outline-2 focus-visible:outline-ring md:text-sm";
-  const BTN = "inline-flex min-h-8 cursor-pointer items-center justify-center border border-border-strong px-3 t-label outline-none hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-40 max-md:min-h-11";
+  const BOX = "elev-float bg-popover absolute z-20 flex flex-col gap-2 p-2 t-body";
+  const FIELD = "min-h-20 w-full resize-y campo px-2 py-1.5 t-body outline-none focus-visible:outline-2 focus-visible:outline-ring";
+  const BTN = "inline-flex min-h-8 cursor-pointer items-center justify-center px-3 t-label outline-none hover:bg-secondary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-40 max-md:min-h-11 bg-secondary";
 
   interface BalloonUi {
     h: ReactApi["createElement"];

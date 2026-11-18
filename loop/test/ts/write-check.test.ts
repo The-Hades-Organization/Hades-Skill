@@ -1,7 +1,7 @@
 // `hades write-check` (reference/escrita.md): cada regra pega o que promete e deixa passar código, aspas retas e comentário.
 import { afterAll, describe, expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
-import { checar, mascarar } from "../../../src/commands/write-check";
+import { checar, mascarar, vazamentos } from "../../../src/commands/write-check";
 import { Rig } from "./lib/rig";
 
 const codigos = (t: string, o = {}) => checar(t, o).map((a) => a.codigo);
@@ -112,5 +112,18 @@ describe("write-check: CLI", () => {
     const j = JSON.parse(r.hades(["write-check", "--json", p]).out) as { achados: { codigo: string }[] }[];
     expect(j[0]!.achados.map((a) => a.codigo)).toEqual(["negrito-de-rotulo"]);
     expect(r.hades(["write-check", "--changelog", p]).rc).toBe(0);
+  });
+});
+
+describe("write-check --saida: vazamento de gate", () => {
+  test("pega worker, gate-lock, --where e host, até entre crases", () => {
+    expect(vazamentos("Gate rodou no worker `hades-450r`.").length).toBe(1);
+    expect(vazamentos("passou via `gate-lock run`").length).toBe(1);
+    expect(vazamentos("usei --where remoto").length).toBe(1);
+    expect(vazamentos("| Passo | Escopo | Resultado |\n| lint | diff | passou |")).toEqual([]);
+  });
+  test("--maxWorkers do jest não barra", () => {
+    expect(vazamentos("integração com `--maxWorkers=2` passou")).toEqual([]);
+    expect(vazamentos("jest --maxWorkers 50% no worker")).toHaveLength(1);
   });
 });

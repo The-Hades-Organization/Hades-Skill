@@ -50,6 +50,8 @@ Resolver thread e mutação GraphQL (o `gh` não tem comando próprio):
 gh api graphql -f query='mutation($t:ID!){ resolveReviewThread(input:{threadId:$t}){ thread{ isResolved } } }' -F t=<threadId>
 ```
 
+Resposta de thread não cita worker, fila nem onde o gate rodou (`gates.md` §1.1).
+
 Responder dentro da thread (mantem o encadeamento, não cria comentário solto):
 
 ```bash

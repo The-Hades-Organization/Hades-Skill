@@ -7,6 +7,7 @@ import { EXIT, out, warn } from "../lib/output.ts";
 export type Gravidade = "bloqueante" | "aviso";
 export interface Achado { linha: number; codigo: string; gravidade: Gravidade; trecho: string; reparo: string }
 export interface Opcoes { changelog?: boolean }
+export interface Vazamento { linha: number; trecho: string }
 
 interface Regra { codigo: string; gravidade: Gravidade; re: RegExp; reparo: string; historico?: boolean }
 
@@ -115,15 +116,31 @@ export function checar(texto: string, o: Opcoes = {}): Achado[] {
   return achados.sort((a, b) => a.linha - b.linha);
 }
 
-const USO = "uso: hades write-check [--changelog] [--json] <arquivo>...   (0 limpo · 1 achados · 2 uso)";
+// Texto que sai da máquina (gates.md §1.1): varre o texto cru, inclusive o que está entre crases, porque é onde o vazamento mora.
+// `--maxWorkers` do jest é argumento de teste e não conta.
+const VAZAMENTO = /(?<![\p{L}\p{N}-])(?:gate-lock|gate lock|--where|workers?|hades-[0-9a-z]{2,}|despacho remoto)(?![\p{L}\p{N}-])/giu;
+
+export function vazamentos(texto: string): Vazamento[] {
+  const achados: Vazamento[] = [];
+  texto.split("\n").forEach((l, i) => {
+    const limpa = l.replace(/--maxWorkers(?:=\S*)?/gi, " ".repeat(0));
+    const m = new RegExp(VAZAMENTO.source, VAZAMENTO.flags).exec(limpa);
+    if (m) achados.push({ linha: i + 1, trecho: limpa.slice(Math.max(0, m.index - 12), m.index + m[0].length + 24).trim() });
+  });
+  return achados;
+}
+
+const USO = "uso: hades write-check [--changelog] [--saida] [--json] <arquivo>...   (0 limpo · 1 achados · 2 uso)";
 
 export function writeCheckCommand(args: string[]): number {
   const o: Opcoes = {};
   let json = false;
+  let saida = false;
   const arquivos: string[] = [];
   for (const a of args) {
     if (a === "--changelog") o.changelog = true;
     else if (a === "--json") json = true;
+    else if (a === "--saida") saida = true;
     else if (a === "-h" || a === "--help") { out(USO); return EXIT.ok; }
     else if (a.startsWith("--")) { warn(`opção desconhecida: ${a}\n${USO}`); return EXIT.usage; }
     else arquivos.push(a);
@@ -131,6 +148,15 @@ export function writeCheckCommand(args: string[]): number {
   if (arquivos.length === 0) { warn(USO); return EXIT.usage; }
   const faltando = arquivos.filter((f) => !existsSync(f));
   if (faltando.length) { warn(`arquivo inexistente: ${faltando.join(", ")}`); return EXIT.usage; }
+  if (saida) {
+    const achados = arquivos.flatMap((arquivo) => vazamentos(readFileSync(arquivo, "utf8")).map((v) => ({ arquivo, ...v })));
+    if (json) out(JSON.stringify(achados, null, 2));
+    else {
+      for (const a of achados) out(`${a.arquivo}:${a.linha}: bloqueante [vazamento-de-gate] ${a.trecho} => tire worker, gate-lock, --where e onde o gate rodou (gates.md §1.1)`);
+      out(achados.length === 0 ? "write-check --saida: limpo" : `write-check --saida: ${achados.length} bloqueante(s)`);
+    }
+    return achados.length === 0 ? EXIT.ok : EXIT.fail;
+  }
   const resultado = arquivos.map((arquivo) => ({ arquivo, achados: checar(readFileSync(arquivo, "utf8"), o) }));
   const total = resultado.reduce((n, r) => n + r.achados.length, 0);
   if (json) out(JSON.stringify(resultado, null, 2));

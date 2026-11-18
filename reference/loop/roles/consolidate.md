@@ -17,6 +17,8 @@ Gate único, um comando por vez, pela fila, em segundo plano:
 - Falha de gate vai para a PR dona do código (o orquestrador repassa ao agente dela); você espelha por `merge` e
   roda de novo só o que falhou. Só o que nasce da combinação das PRs se corrige aqui.
 - Review nas originais é corrigido nelas e espelhado aqui por merge.
+- Corpo da PR, comentário e commit da consolidação não citam worker, `gate-lock`, `--where` nem onde o gate rodou; a tabela de gate
+  fica em Passo, Escopo e Resultado (`gates.md` §1.1).
 - Lembre o dono: merge da consolidação com "Create a merge commit".
 
 ## Esperar, estacionar, escalar

@@ -106,7 +106,7 @@ Guarde o relatório final em `<work>/review-agents-<branch>.md` — o passo 10 p
 ## Passo 9 — push e PR
 
 Guarda de push de `gates.md` §2, e então `gh pr create --base <base> --head <branch> --title "<titulo>" --body-file
-<arquivo>`. O titulo segue `commit.format`/`card` do perfil; o corpo carrega o que a PR entrega, a spec/ID de origem
+<arquivo>`. O titulo segue `commit.format`/`card` do perfil; o corpo (sem citar worker, fila nem onde o gate rodou: `gates.md` §1.1) carrega o que a PR entrega, a spec/ID de origem
 (`commit.footer`), os testes e o gate que rodaram e as notas de rollout (`ref deliver` tem o modelo do projeto). PR
 com mudança visual leva screenshot ou video.
 

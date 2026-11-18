@@ -142,6 +142,9 @@ da skill (pode ter remote; push nunca é automático), branch `skill/<u>`, em `~
   anteriores, memórias úteis, dono de cada arquivo compartilhado entre agentes paralelos.
 - **Empilhamento**, quando houver.
 
+Todo brief que manda escrever PR, comentário, commit ou card repete, em uma linha, que o texto não cita worker, `gate-lock`, `--where`
+nem onde o gate rodou (`gates.md` §1.1, que é quem define a regra).
+
 Confira contra a spec antes de prescrever nomes de eventos e contratos: brief que inventa nome é retrabalho.
 Brief com comando de teste ou lint se escreve com a ferramenta de escrita de arquivo, não com heredoc no Bash: o hook
 da fila barra o texto do comando.

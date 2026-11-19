@@ -139,3 +139,32 @@ describe("rotas", () => {
     expect(svg.stale).toBe(true);
   });
 });
+
+describe("convert", () => {
+  const convertBin = `cat "$2" > /dev/null; printf '%s\\n' '{"format":"cardinal","version":${CARDINAL_FORMAT_MAX},"app":"conv","project":{"models":[{"diagram":{}}]}}'`;
+  const conv = (t: ReturnType<typeof setup>, body: unknown) => t.routes.action("/api/canvas-cardinal/convert", post("convert", body), local) as Promise<Response>;
+  test("devolve o texto convertido sem gravar arquivo", async () => {
+    const t = setup(convertBin);
+    const res = await conv(t, { from: "text", text: "entity A" });
+    const body = await json(res);
+    expect(res.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.text as string).toContain('"conv"');
+    expect(existsSync(t.file)).toBe(false);
+  });
+  test("linguagem fora da lista e corpo inválido: 400", async () => {
+    const t = setup(convertBin);
+    expect((await conv(t, { from: "nosql", text: "x" })).status).toBe(400);
+    expect((await conv(t, { from: "text" })).status).toBe(400);
+    expect((await conv(t, { from: "text", text: "x", arrange: "sim" })).status).toBe(400);
+  });
+  test("sem binário: 503 cardinal_unavailable", async () => {
+    const res = await conv(setup(undefined), { from: "sql", text: "create table a(id int)" });
+    expect(res.status).toBe(503);
+    expect((await json(res)).code).toBe(CARDINAL_ROUTE_ERRORS.unavailable);
+  });
+  test("saída que não é um .cardinal: recusada (400)", async () => {
+    const res = await conv(setup("printf 'lixo'"), { from: "text", text: "x" });
+    expect(res.status).toBe(400);
+  });
+});

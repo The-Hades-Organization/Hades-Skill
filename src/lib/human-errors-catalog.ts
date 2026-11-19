@@ -258,6 +258,36 @@ export const HUMAN_ERRORS: Readonly<Record<string, HumanError>> = {
     action: "Ligue o desenho direto ao seu terminal no Argos e repita a edição.",
     ref: "reference/argos.md §Desenho (`canvas-drawing.ts`)",
   },
+  canvas_cardinal_no_access: {
+    title: "Esse terminal não alcança o diagrama",
+    cause: "Um diagrama só é lido por quem está ligado a ele por uma conexão (direta ou em cadeia), ou o id não existe.",
+    action: "Ligue o diagrama ao seu terminal no Argos e confira o id com `hades canvas cardinal list`.",
+    ref: "reference/argos.md §Nó `cardinal`",
+  },
+  canvas_cardinal_write_direct_only: {
+    title: "Só se edita o diagrama ligado direto ao terminal",
+    cause: "Pela cadeia o diagrama só se lê; editar exige conexão direta.",
+    action: "Ligue o diagrama direto ao seu terminal no Argos e repita a edição.",
+    ref: "reference/argos.md §Nó `cardinal`",
+  },
+  canvas_cardinal_conflict: {
+    title: "O diagrama mudou enquanto você gravava",
+    cause: "Outra origem (o editor, o app nativo ou outro agente) alterou o mesmo arquivo no meio da gravação.",
+    action: "Releia o diagrama com `hades canvas cardinal read` e refaça a edição sobre a versão nova.",
+    ref: "reference/argos.md §Nó `cardinal`",
+  },
+  canvas_cardinal_source_invalid: {
+    title: "A origem do diagrama não foi lida",
+    cause: "O arquivo de `--from-*` não existe, passa de 4 MiB, não é texto ou o formato não cabe nessa opção.",
+    action: "Confira o caminho; `--from-prisma` pede um arquivo `.prisma` (pasta de schema não entra por aqui).",
+    ref: "reference/argos.md §Nó `cardinal`",
+  },
+  recruit_missing_cardinal: {
+    title: "Não achei esse diagrama entre os ligados a você",
+    cause: "O id ou o nome não é de um diagrama ligado direto ao orquestrador neste canvas.",
+    action: "Veja os diagramas com `hades canvas cardinal list` ou crie um com `hades canvas cardinal new`.",
+    ref: "reference/argos.md §Nó `cardinal`",
+  },
   canvas_from_json_invalid: {
     title: "`--from-json` não leu o arquivo",
     cause: "O arquivo não existe, passa de 1 MiB, não é JSON ou não é uma lista de elementos (ou `{ \"elements\": [...] }`).",

@@ -43,6 +43,8 @@ const PARSE_ERRORS_MAX = 50;
 const SVG_TYPE = "image/svg+xml";
 const PNG_TYPE = "image/png";
 const INDEX_FILE = ".index.json";
+/** Linguagens de entrada de `cardinal convert --from` que a rota aceita (`nosql` e os formatos de outros programas ficam de fora). */
+const CONVERT_SOURCES: readonly string[] = ["text", "mermaid", "prisma", "sql"];
 const INDEX_VERSION = 1;
 export const CARDINAL_LIST_LIMITS = { fallback: 50, max: 200 } as const;
 
@@ -671,6 +673,35 @@ export function createCanvasCardinalRoutes(dir: string, deps: CardinalDeps): Car
     }
   }
 
+  // ---- conversão ----
+
+  /** `POST /api/canvas-cardinal/convert`: texto de uma linguagem de entrada vira o texto de um `.cardinal` novo; não grava nada. */
+  async function convert(req: Request): Promise<Response> {
+    const body = await jsonBody(req);
+    if (body instanceof Response) return body;
+    const { from, text, arrange } = body;
+    if (typeof text !== "string" || typeof from !== "string" || !CONVERT_SOURCES.includes(from) || (arrange !== undefined && typeof arrange !== "boolean")) {
+      return refusal(INVALID_STATUS, CARDINAL_ROUTE_ERRORS.invalidBody);
+    }
+    if (new TextEncoder().encode(text).length > CARDINAL_LIMITS.bodyBytes) return refusal(TOO_LARGE_STATUS, CARDINAL_ROUTE_ERRORS.tooLarge);
+    const tmp = mkdtempSync(join(tmpdir(), "hades-cardinal-convert-"));
+    try {
+      const input = join(tmp, "in.txt");
+      writeFileSync(input, text, { mode: FILE_MODE });
+      const out = await runCommand(["convert", input, "--from", from, ...(arrange === true ? ["--arrange"] : []), "-o", "-"], new Uint8Array(0));
+      if (out instanceof Response) return out;
+      if (out.length > CARDINAL_LIMITS.bodyBytes) return refusal(TOO_LARGE_STATUS, CARDINAL_ROUTE_ERRORS.tooLarge);
+      const converted = new TextDecoder("utf-8", { fatal: true }).decode(out);
+      requireWritableEnvelope(converted);
+      return send(OK_STATUS, { ok: true, text: converted });
+    } catch (error) {
+      if (error instanceof TypeError) return refusal(BAD_GATEWAY_STATUS, CARDINAL_ROUTE_ERRORS.failed, { reason: "output" });
+      return failure(error);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  }
+
   // ---- adoção ----
 
   /** Aponta para um arquivo de fora sem movê-lo; apontar de novo para o mesmo arquivo devolve o mesmo nome. */
@@ -794,6 +825,7 @@ export function createCanvasCardinalRoutes(dir: string, deps: CardinalDeps): Car
       if (!parts) return undefined;
       if (req.method !== "POST") return Promise.resolve(send(NOT_FOUND_STATUS, { error: "not found" }));
       if (parts.length === 1 && parts[0] === "link") return link(req, caller);
+      if (parts.length === 1 && parts[0] === "convert") return convert(req);
       if (parts.length === 3 && parts[2] === "edit" && parts[0] !== "" && parts[1] !== "") return edit(parts[0] as string, parts[1] as string, req, caller);
       if (parts.length === 3 && parts[2] === "export" && parts[0] !== "" && parts[1] !== "") return exportImage(parts[0] as string, parts[1] as string, req, caller);
       return Promise.resolve(send(NOT_FOUND_STATUS, { error: "not found" }));

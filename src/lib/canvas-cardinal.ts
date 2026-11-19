@@ -1,7 +1,8 @@
 // Nó `cardinal` do canvas (reference/argos.md §Nó cardinal): o diagrama é um arquivo `.cardinal` (JSON do Cardinal) e o nó só
 // aponta para ele. O Hades não interpreta o conteúdo: lê o envelope (`format`, `version`, `app`) para exibir e recusar versão
 // futura, e o resto passa por um programa do Cardinal. Lógica pura, sem dependência de Node, como `canvas-note.ts`.
-import { type CanvasDoc, type CanvasNode, LINK_EDGE_KIND } from "./canvas-doc.ts";
+import { CANVAS_LIMITS, type CanvasDoc, type CanvasNode, LINK_EDGE_KIND, validateCanvasDoc } from "./canvas-doc.ts";
+import { type AtomicOp, opCreate } from "./canvas-history.ts";
 import { NOTE_READER_TYPES, type NoteWriter, requireWriterId } from "./canvas-note.ts";
 
 export const CARDINAL_TYPE = "cardinal";
@@ -211,4 +212,27 @@ export function canWriteCardinal(doc: CanvasDoc, nodeId: string, writer: NoteWri
 export function canReadCardinal(doc: CanvasDoc, nodeId: string, readerId: string | undefined): boolean {
   if (findCardinalNode(doc, nodeId) === undefined) return false;
   return readerId === undefined || readableCardinalsOf(doc, readerId).some((entry) => entry.id === nodeId);
+}
+
+/** Tamanho do nó de um diagrama criado pela CLI. */
+export const CARDINAL_FRAME = Object.freeze({ w: 420, h: 300 });
+
+export interface CardinalNodeInput {
+  id: string;
+  /** Nome do arquivo `.cardinal` a que o nó aponta (sem a extensão). */
+  name: string;
+  title?: string;
+  x: number;
+  y: number;
+  z?: number;
+}
+
+/** O nó `cardinal` novo conferido pelas regras do documento (id, caixa, limite de nós) e pelas do `data`. */
+export function createCardinalNode(doc: CanvasDoc, input: CardinalNodeInput): { op: AtomicOp; node: CanvasNode } {
+  const data = readCardinalData({ cardinal: input.name, ...(input.title !== undefined && { title: input.title }) });
+  if (doc.nodes.length >= CANVAS_LIMITS.nodes) return fail(CARDINAL_ERRORS.invalidData, "limite de nós do documento atingido");
+  if (doc.nodes.some((existing) => existing.id === input.id)) return fail(CARDINAL_ERRORS.invalidData, "já existe nó com esse id");
+  const raw: CanvasNode = { id: input.id, type: CARDINAL_TYPE, x: input.x, y: input.y, ...CARDINAL_FRAME, z: input.z ?? 0, data: { ...data }, locked: false, blurred: false };
+  const [node] = validateCanvasDoc({ v: doc.v, rev: 0, nodes: [raw], edges: [], groups: [] }).nodes;
+  return { op: opCreate(doc, [node as CanvasNode]), node: node as CanvasNode };
 }

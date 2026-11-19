@@ -528,8 +528,21 @@ Exemplo: `GET /api/canvas-cardinal/default/c1` → `{"name":"arquitetura-pagamen
 | `GET /api/canvas-cardinal/<canvas>/<nó>/svg[?as=]` | `{ name, rev, svg, svgRev, stale }`: SVG guardado ao lado (gerado na hora se não existe); defasado vem com `stale: true`, a regeneração fica para o `export`/`edit` |
 | `POST /api/canvas-cardinal/<canvas>/<nó>/edit` | corpo `{ "text": "<texto do diagrama>", "rev": "<rev lida>", "diagram": 0, "as": { "agent": "<id>" } }`; aplica o texto com `cardinal apply` e grava; `{ ok, name, rev, bytes, attempts, svg }` |
 | `POST /api/canvas-cardinal/<canvas>/<nó>/export` | corpo `{ "format": "svg" \| "png", "diagram": 0, "as": {…} }`; devolve a imagem com `X-Cardinal-Rev` |
+| `POST /api/canvas-cardinal/convert` | corpo `{ "from": "text" \| "mermaid" \| "prisma" \| "sql", "text": "<origem>", "arrange": true }`; roda `cardinal convert --from X -o -` e devolve `{ ok, text }` (o `.cardinal` novo, sem gravar); só `from` dessa lista, `text` até `CARDINAL_LIMITS.bodyBytes`; sem binário 503 `cardinal_unavailable` |
 
 `edit` exige `rev` e dá 409 `cardinal_stale_revision` se a primeira leitura não bate; só as repetições (até `CARDINAL_EDIT_ATTEMPTS` = 3, quando o arquivo muda durante o `apply`) seguem os bytes novos. O `apply` apaga o que não está no texto: o agente envia o diagrama completo. Exemplo: `POST …/default/c1/edit` com `{"text":"…","rev":"9f2c…"}` → `{"ok":true,"name":"arquitetura-pagamentos","rev":"b71e…","bytes":2210,"attempts":1,"svg":true}`.
+
+**CLI do agente** (`hades canvas cardinal`, `src/commands/canvas.ts`; mesmas regras de `canvas drawing`: a cadeia só se lê, a escrita exige ligação direta, o que não se alcança responde como inexistente):
+
+- `new <título> [--link-to <recruta>]… [--from-file arq|--from-text arq|-|--from-mermaid arq|--from-prisma arq|--from-sql arq] [--arrange]` (só o orquestrador): cria o nó `cardinal` perto dele, ligado a ele e aos recrutas citados, e o arquivo. O nome é o slug do título (`-2`, `-3` se já existe). Sem origem, semeia `model conceptual "<título>"` por `convert`; sem binário sai 1 com `cardinal_unavailable` e nada é criado. Origem lida até 1 MiB; `--from-prisma` só aceita arquivo.
+- `list`: diretos e da cadeia, com `rev`, versão e nº de diagramas.
+- `read <c> [--json|--file] [--diagram n]`: texto do diagrama (`describe`), o JSON bruto ou o caminho do arquivo.
+- `apply <c> --text <arq|-> [--diagram n]`: aplica o texto com `edit`; releitura da `rev` e até 3 tentativas em 409 (last-writer-wins, como nota).
+- `export <c> --svg|--png [-o caminho] [--diagram n]`: SVG vai à saída padrão sem `-o`; PNG exige `-o`.
+- `adopt <caminho> [--title t] [--link-to …]`: adota um `.cardinal` de fora (`/link`) e cria o nó; arquivo já com nó reaproveita o nó.
+- `link|unlink <c> <recruta>`: liga/desliga o recruta a diagrama ligado direto ao orquestrador.
+
+Recusas: `canvas_cardinal_no_access`, `canvas_cardinal_write_direct_only`, `canvas_cardinal_conflict`, `canvas_cardinal_source_invalid`, `recruit_missing_cardinal`. Não há `export --to-artifacts`: o `export` só imprime ou grava um arquivo.
 
 **SVG ao lado.** `$D/canvas-cardinal/<nome>.svg` e `<nome>.svg.rev` (a `rev` do `.cardinal` de onde saiu), regenerados após `edit` e no `export` svg do diagrama padrão. Falha ao regenerar só é logada: a gravação do `.cardinal` não desfaz.
 

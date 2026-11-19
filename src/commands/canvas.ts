@@ -3,19 +3,21 @@
 // são do orquestrador (D7) sobre os recrutas dele; `notify` manda uma notificação ao dono. O nó de quem chama se resolve
 // pelo pane do herdr em que o processo roda (HERDR_PANE_ID e a sessão do socket). Tudo passa pelas rotas do painel: o
 // documento muda por `CanvasOp` (desfazer volta exatamente ao anterior) e a escrita na nota é conferida no servidor.
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
 import { type CanvasDoc, type CanvasNode, readCanvasDoc } from "../lib/canvas-doc.ts";
 import { applyOp, type CanvasOp } from "../lib/canvas-history.ts";
 import { areaReport } from "../lib/canvas-areas.ts";
 import { OrganizeError, organizeCanvas, organizeOp, organizeSummary, parseAreaRules } from "../lib/canvas-organize.ts";
 import { canReadDrawing, canWriteDrawing, DrawingError, isDrawingNode, readableDrawingsOf, readDrawingTitle, sceneOfNodeSafe } from "../lib/canvas-drawing.ts";
+import { canReadCardinal, canWriteCardinal, findCardinalNode, readableCardinalsOf } from "../lib/canvas-cardinal.ts";
 import { LinkError } from "../lib/canvas-links.ts";
 import { directNotesOf, hasNoteAccess, noteChainFrom, NoteError, readableNotesOf } from "../lib/canvas-note.ts";
 import {
   type AgentRecordView, concludedAgentAt, findNote, type HerdrTarget, identityPrompt, isOrchestrator, nodeName, nodesAtTarget, planConnect, planDismiss, planJoin, planLeave, planReassign,
   planNewDrawing, planNewNote, planRecruit, RECRUIT_ERRORS, requireFreshNoteName, RecruitError, recruitsOf, requireOrchestrator, requireRecruit, requireSharedNote, terminalTargetOf,
 } from "../lib/canvas-recruit.ts";
+import { planLinkCardinal, planNewCardinal, planUnlinkCardinal } from "../lib/canvas-recruit-cardinal.ts";
 import { labelsText, opensPr, prReadyPromptBlock, prReadyValues, type PrReadyValues } from "../lib/brief-pr.ts";
 import { effectiveConfig } from "../lib/config.ts";
 import { findStateDir } from "../lib/kit.ts";
@@ -42,6 +44,19 @@ export const USAGE = `Uso: hades canvas <subcomando> [--canvas <id>]
   drawing remove <d> <elemento>               apaga (conector preso fica no lugar)
   drawing text <d> <elemento> <texto>         troca o texto de um elemento de texto
   drawing export <d> --svg                    imagem SVG do desenho na saída padrão
+  cardinal new <título> [--link-to <recruta>]… [--from-file <.cardinal>|--from-text <arquivo|->|--from-mermaid <arq>|--from-prisma <arq>|--from-sql <arq>] [--arrange]
+                                              (orquestrador) cria o diagrama (nó e arquivo) perto de você, ligado a você e aos recrutas citados
+  cardinal list                               diagramas que o seu terminal lê (diretos e encadeados), com rev e versão
+  cardinal read <c> [--json|--file] [--diagram n]
+                                              texto canônico do diagrama (--json: o describe; --file: caminho do .cardinal)
+  cardinal apply <c> --text <arquivo|-> [--diagram n]
+                                              substitui o diagrama pelo texto (diagrama ligado direto a você; envie o texto inteiro)
+  cardinal export <c> --svg|--png [-o <caminho>] [--diagram n]
+                                              imagem do diagrama; sem -o o SVG sai na saída padrão (PNG pede -o)
+  cardinal adopt <caminho> [--title t] [--link-to <recruta>]…
+                                              (orquestrador) cria um nó para um .cardinal que já existe no disco (o arquivo não se move)
+  cardinal link <c> <recruta>                 (orquestrador) liga o recruta ao diagrama já ligado a você
+  cardinal unlink <c> <recruta>               (orquestrador) desfaz a ligação
   area list                                   áreas do canvas e quem está em cada uma (somente leitura)
   organize [--dry-run]                        reorganiza o canvas em áreas por orquestrador (--canvas: padrão "default";
                                               --dry-run imprime áreas, medidas e FORA sem gravar)
@@ -83,6 +98,10 @@ export const CANVAS_CLI_ERRORS = {
   drawingConflict: "canvas_drawing_conflict",
   canvasNotFound: "canvas_not_found",
   fromJsonInvalid: "canvas_from_json_invalid",
+  cardinalNoAccess: "canvas_cardinal_no_access",
+  cardinalWriteDirect: "canvas_cardinal_write_direct_only",
+  cardinalConflict: "canvas_cardinal_conflict",
+  cardinalSourceInvalid: "canvas_cardinal_source_invalid",
 } as const;
 export type CanvasCliErrorCode = (typeof CANVAS_CLI_ERRORS)[keyof typeof CANVAS_CLI_ERRORS];
 
@@ -105,6 +124,10 @@ const ERROR_TEXT: Readonly<Record<CanvasCliErrorCode, string>> = {
   [CANVAS_CLI_ERRORS.drawingConflict]: "o desenho mudou enquanto você gravava: tente de novo",
   [CANVAS_CLI_ERRORS.canvasNotFound]: "o painel não tem esse canvas",
   [CANVAS_CLI_ERRORS.fromJsonInvalid]: "--from-json não leu o arquivo como lista de elementos",
+  [CANVAS_CLI_ERRORS.cardinalNoAccess]: "nenhuma conexão liga o seu terminal a esse diagrama (nem pela cadeia)",
+  [CANVAS_CLI_ERRORS.cardinalWriteDirect]: "só se edita o diagrama ligado direto ao seu terminal (a cadeia só se lê)",
+  [CANVAS_CLI_ERRORS.cardinalConflict]: "o diagrama mudou enquanto você gravava: releia e tente de novo",
+  [CANVAS_CLI_ERRORS.cardinalSourceInvalid]: "a origem do diagrama não foi lida",
   [CANVAS_CLI_ERRORS.noteFileExists]: "já existe um arquivo de nota com esse nome: escolha outro nome",
 };
 
@@ -136,6 +159,8 @@ const isDict = (value: unknown): value is Dict => typeof value === "object" && v
 export interface PanelReply {
   status: number;
   body: unknown;
+  /** Corpo cru, só quando a resposta é uma imagem (a exportação do diagrama); `body` fica `null`. */
+  bytes?: Uint8Array;
 }
 
 export interface CanvasCliDeps {
@@ -148,6 +173,8 @@ export interface CanvasCliDeps {
   stdin(): Promise<string>;
   /** O texto de um arquivo local (`--from-json`); o real recusa o que passa do teto. */
   readText(path: string): string;
+  /** Grava bytes num arquivo local (`cardinal export -o`). */
+  writeFile?(path: string, bytes: Uint8Array): void;
   /** A entrada padrão é um pipe ou arquivo (não o teclado)? Sem isso, `note new` não a lê. Ausente: lê. */
   stdinPiped?(): boolean;
   /** Assignee, labels e reviewers das Configurações (e do perfil do projeto) para o bloco "PR pronta" do recruta. */
@@ -167,8 +194,8 @@ interface Parsed {
   flags: Map<string, string[]>;
 }
 
-const VALUE_FLAGS = new Set(["canvas", "name", "role", "preset", "agent", "model", "effort", "cwd", "instructions", "note", "prompt", "pane", "to", "text", "title", "link-to", "new-note", "x", "y", "w", "h", "from", "to", "points", "fill", "stroke", "width", "size", "id", "from-json"]);
-const BOOL_FLAGS = new Set(["only", "append", "no-role", "no-instructions", "json", "svg", "dry-run"]);
+const VALUE_FLAGS = new Set(["canvas", "name", "role", "preset", "agent", "model", "effort", "cwd", "instructions", "note", "prompt", "pane", "to", "text", "title", "link-to", "new-note", "x", "y", "w", "h", "from", "to", "points", "from-file", "from-text", "from-mermaid", "from-prisma", "from-sql", "diagram", "o", "fill", "stroke", "width", "size", "id", "from-json"]);
+const BOOL_FLAGS = new Set(["only", "append", "no-role", "no-instructions", "json", "svg", "png", "file", "arrange", "dry-run"]);
 
 class UsageError extends Error {}
 
@@ -181,11 +208,11 @@ function parseArgs(args: readonly string[]): Parsed {
       positional.push(...args.slice(i + 1));
       break;
     }
-    if (!arg.startsWith("--")) {
+    if (!arg.startsWith("--") && arg !== "-o") {
       positional.push(arg);
       continue;
     }
-    const key = arg.slice(2);
+    const key = arg === "-o" ? "o" : arg.slice(2);
     if (BOOL_FLAGS.has(key)) flags.set(key, ["1"]);
     else if (VALUE_FLAGS.has(key)) {
       const value = args[i + 1];
@@ -894,6 +921,242 @@ async function drawingExport(deps: CanvasCliDeps, at: Located, p: Parsed): Promi
   return EXIT.ok;
 }
 
+// ---- diagramas do Cardinal ----
+
+const CARDINAL_BASE = "/api/canvas-cardinal";
+/** Origens de `cardinal new` que passam pelo `cardinal convert`, na linguagem que o binário chama. */
+const CARDINAL_SOURCES = [["from-text", "text"], ["from-mermaid", "mermaid"], ["from-prisma", "prisma"], ["from-sql", "sql"]] as const;
+const CARDINAL_NAME_CHARS = 64;
+const CARDINAL_NAME_TRIES = 50;
+const CARDINAL_LIST_PAGE = 200;
+
+const cardinalPath = (canvas: string, nodeId: string, tail = ""): string => `${CARDINAL_BASE}/${encodeURIComponent(canvas)}/${encodeURIComponent(nodeId)}${tail}`;
+const cardinalLabel = (doc: CanvasDoc, id: string): string => findCardinalNode(doc, id)?.data.title ?? findCardinalNode(doc, id)?.data.cardinal ?? id;
+
+/** Os diagramas que o processo que chama alcança (diretos e cadeia), sem repetir. */
+function readableCardinals(at: Located): { id: string; via: string | null }[] {
+  const out: { id: string; via: string | null }[] = [];
+  for (const node of at.me) for (const entry of readableCardinalsOf(at.doc, node.id)) if (!out.some((seen) => seen.id === entry.id)) out.push(entry);
+  return out;
+}
+
+/** O diagrama por id do nó, nome do arquivo ou título; o que não existe e o que não se alcança respondem igual. */
+function cardinalOrFail(at: Located, ref: string): CanvasNode {
+  const reachable = readableCardinals(at).flatMap((entry) => at.doc.nodes.filter((n) => n.id === entry.id));
+  const hit = reachable.find((n) => n.id === ref) ?? reachable.find((n) => findCardinalNode(at.doc, n.id)?.data.cardinal === ref)
+    ?? reachable.find((n) => cardinalLabel(at.doc, n.id).toLowerCase() === ref.toLowerCase());
+  return hit ?? failWith(CANVAS_CLI_ERRORS.cardinalNoAccess, ref);
+}
+
+const cardinalReader = (at: Located, node: CanvasNode): CanvasNode => at.me.find((n) => canReadCardinal(at.doc, node.id, n.id)) ?? failWith(CANVAS_CLI_ERRORS.cardinalNoAccess, node.id);
+const cardinalWriter = (at: Located, node: CanvasNode, ref: string): CanvasNode => at.me.find((n) => canWriteCardinal(at.doc, node.id, { kind: "agent", id: n.id })) ?? failWith(CANVAS_CLI_ERRORS.cardinalWriteDirect, ref);
+
+const diagramFlag = (p: Parsed): number | undefined => {
+  const value = numberFlag(p, "diagram");
+  return value === undefined || (Number.isInteger(value) && value >= 0) ? value : fail(new UsageError("--diagram pede um inteiro não negativo"));
+};
+
+async function cardinalList(deps: CanvasCliDeps, at: Located): Promise<number> {
+  const found = readableCardinals(at);
+  if (found.length === 0) {
+    deps.out("nenhum diagrama ligado ao seu terminal");
+    return EXIT.ok;
+  }
+  const facts = new Map<string, Dict>();
+  for (const me of at.me) {
+    const reply = await panelJson(deps, "GET", `${CARDINAL_BASE}/${encodeURIComponent(at.canvas)}?as=${encodeURIComponent(me.id)}`);
+    if (reply.status !== STATUS.ok || !isDict(reply.body) || !Array.isArray(reply.body.nodes)) return refused(reply);
+    for (const row of reply.body.nodes) if (isDict(row) && typeof row.id === "string" && !facts.has(row.id)) facts.set(row.id, row);
+  }
+  for (const entry of found) {
+    const row = facts.get(entry.id);
+    const via = entry.via === null ? "direto" : `cadeia de ${cardinalLabel(at.doc, entry.via)}`;
+    const state = row === undefined ? "sem arquivo" : row.exists === false ? "sem arquivo" : `rev ${String(row.rev)}\tv${String(row.version)}\t${String(row.diagrams)} diagrama(s)`;
+    deps.out(`${entry.id}\t${cardinalLabel(at.doc, entry.id)}\t${via}\t${state}`);
+  }
+  return EXIT.ok;
+}
+
+async function cardinalRead(deps: CanvasCliDeps, at: Located, p: Parsed): Promise<number> {
+  const ref = p.positional[2] ?? fail(new UsageError("cardinal read <c> [--json|--file] [--diagram n]"));
+  const node = cardinalOrFail(at, ref);
+  const as = encodeURIComponent(cardinalReader(at, node).id);
+  if (has(p, "file")) {
+    const reply = await panelJson(deps, "GET", `${cardinalPath(at.canvas, node.id)}?as=${as}`);
+    if (reply.status !== STATUS.ok || !isDict(reply.body) || typeof reply.body.path !== "string") return refused(reply);
+    deps.out(reply.body.path);
+    return EXIT.ok;
+  }
+  const diagram = diagramFlag(p);
+  const reply = await panelJson(deps, "GET", `${cardinalPath(at.canvas, node.id, "/describe")}?as=${as}${diagram === undefined ? "" : `&diagram=${diagram}`}`);
+  if (reply.status !== STATUS.ok || !isDict(reply.body) || !isDict(reply.body.describe)) return refused(reply);
+  const describe = reply.body.describe;
+  if (has(p, "json")) {
+    deps.out(JSON.stringify(describe));
+    return EXIT.ok;
+  }
+  const diagrams = Array.isArray(describe.diagrams) ? describe.diagrams.filter(isDict) : [];
+  const picked = diagrams.find((d) => d.index === (diagram ?? 0)) ?? diagrams[0];
+  if (picked === undefined || typeof picked.text !== "string") return failWith(CANVAS_CLI_ERRORS.panelRefused, "o describe não trouxe o texto do diagrama");
+  if (diagrams.length > 1 || diagram !== undefined) deps.err(`diagrama ${String(picked.index ?? 0)} "${String(picked.name ?? "")}"${diagrams.length > 1 ? ` (o arquivo tem mais de um: --diagram n escolhe)` : ""}`);
+  deps.out(picked.text);
+  return EXIT.ok;
+}
+
+async function cardinalApply(deps: CanvasCliDeps, at: Located, p: Parsed): Promise<number> {
+  const ref = p.positional[2] ?? fail(new UsageError("cardinal apply <c> --text <arquivo|->"));
+  const source = flag(p, "text") ?? fail(new UsageError("cardinal apply <c> --text <arquivo|->"));
+  const diagram = diagramFlag(p);
+  const node = cardinalOrFail(at, ref);
+  const writer = cardinalWriter(at, node, ref);
+  const text = source === "-" ? await deps.stdin() : sourceText(deps, source);
+  for (let attempt = 1; ; attempt++) {
+    const current = await panelJson(deps, "GET", `${cardinalPath(at.canvas, node.id)}?as=${encodeURIComponent(writer.id)}`);
+    if (current.status !== STATUS.ok || !isDict(current.body) || typeof current.body.rev !== "string") return refused(current);
+    const reply = await panelJson(deps, "POST", cardinalPath(at.canvas, node.id, "/edit"), { text, rev: current.body.rev, ...(diagram !== undefined && { diagram }), as: { agent: writer.id } });
+    if (reply.status === STATUS.ok && isDict(reply.body)) {
+      deps.out(`diagrama ${String(reply.body.name)} gravado (rev ${String(reply.body.rev)})`);
+      return EXIT.ok;
+    }
+    if (reply.status !== STATUS.conflict) return refused(reply);
+    if (attempt >= WRITE_ATTEMPTS) return failWith(CANVAS_CLI_ERRORS.cardinalConflict, node.id);
+  }
+}
+
+async function cardinalExport(deps: CanvasCliDeps, at: Located, p: Parsed): Promise<number> {
+  const usage = "cardinal export <c> --svg|--png [-o <caminho>] [--diagram n]";
+  const ref = p.positional[2] ?? fail(new UsageError(usage));
+  if (has(p, "svg") === has(p, "png")) return fail(new UsageError(usage));
+  const format = has(p, "png") ? "png" : "svg";
+  const target = flag(p, "o");
+  if (format === "png" && target === undefined) return fail(new UsageError("cardinal export --png pede -o <caminho> (imagem binária)"));
+  const diagram = diagramFlag(p);
+  const node = cardinalOrFail(at, ref);
+  const reply = await panelJson(deps, "POST", cardinalPath(at.canvas, node.id, "/export"), { format, ...(diagram !== undefined && { diagram }), as: { agent: cardinalReader(at, node).id } });
+  if (reply.status !== STATUS.ok || reply.bytes === undefined) return refused(reply);
+  if (target === undefined) {
+    deps.out(new TextDecoder().decode(reply.bytes));
+    return EXIT.ok;
+  }
+  (deps.writeFile ?? fail(new UsageError("este ambiente não grava arquivos")))(target, reply.bytes);
+  deps.out(`${format} do diagrama ${node.id} gravado em ${target}`);
+  return EXIT.ok;
+}
+
+/** O texto de um arquivo de origem; falha de leitura (inexistente, grande demais) vira o erro da origem. */
+function sourceText(deps: CanvasCliDeps, path: string): string {
+  try {
+    return deps.readText(path);
+  } catch (error) {
+    if (error instanceof CanvasCliError) return failWith(CANVAS_CLI_ERRORS.cardinalSourceInvalid, `${path}: passa do limite`);
+    if (error instanceof Error && "code" in error && typeof error.code === "string") return failWith(CANVAS_CLI_ERRORS.cardinalSourceInvalid, `${path}: ${error.code}`);
+    throw error;
+  }
+}
+
+/** O nome do arquivo a partir do título: minúsculas, sem acento, letras, números e hífen; vazio vira `diagrama`. */
+export function cardinalNameFrom(title: string): string {
+  const slug = title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, CARDINAL_NAME_CHARS - 4).replace(/-+$/, "");
+  return slug === "" ? "diagrama" : slug;
+}
+
+/** Os nomes de arquivo que o painel já conhece (pasta padrão e adotados), para não sobrescrever um diagrama alheio. */
+async function knownCardinalFiles(deps: CanvasCliDeps): Promise<Set<string>> {
+  const names = new Set<string>();
+  let after: string | null = null;
+  do {
+    const reply = await panelJson(deps, "GET", `${CARDINAL_BASE}?limit=${CARDINAL_LIST_PAGE}${after === null ? "" : `&after=${encodeURIComponent(after)}`}`);
+    if (reply.status !== STATUS.ok || !isDict(reply.body) || !Array.isArray(reply.body.files)) return refused(reply);
+    for (const file of reply.body.files) if (isDict(file) && typeof file.name === "string") names.add(file.name);
+    after = typeof reply.body.next === "string" ? reply.body.next : null;
+  } while (after !== null);
+  return names;
+}
+
+async function freshCardinalName(deps: CanvasCliDeps, doc: CanvasDoc, wanted: string): Promise<string> {
+  const taken = await knownCardinalFiles(deps);
+  for (const node of doc.nodes) {
+    const used = findCardinalNode(doc, node.id)?.data.cardinal;
+    if (used !== undefined) taken.add(used);
+  }
+  for (let i = 1; i <= CARDINAL_NAME_TRIES; i++) {
+    const candidate = i === 1 ? wanted : `${wanted}-${i}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  return failWith(CANVAS_CLI_ERRORS.cardinalSourceInvalid, `sem nome livre para ${wanted}`);
+}
+
+/** O texto do `.cardinal` novo: o arquivo dado, a conversão da origem escolhida, ou um modelo vazio com o título. */
+async function cardinalSeed(deps: CanvasCliDeps, p: Parsed, title: string): Promise<string> {
+  const chosen = [...(["from-file", ...CARDINAL_SOURCES.map(([key]) => key)] as const)].filter((key) => has(p, key));
+  if (chosen.length > 1) return fail(new UsageError("escolha uma só origem: --from-file, --from-text, --from-mermaid, --from-prisma ou --from-sql"));
+  const key = chosen[0];
+  if (key === "from-file") return sourceText(deps, flag(p, "from-file") as string);
+  const language = CARDINAL_SOURCES.find(([name]) => name === key)?.[1] ?? "text";
+  const given = key === undefined ? undefined : (flag(p, key) as string);
+  const text = given === undefined ? `model conceptual "${title.replace(/["\\]/g, "\\$&")}"` : given === "-" ? await deps.stdin() : sourceText(deps, given);
+  const reply = await panelJson(deps, "POST", `${CARDINAL_BASE}/convert`, { from: language, text, ...(has(p, "arrange") && { arrange: true }) }, CANVAS_CLI_TIMEOUTS.startMs);
+  if (reply.status !== STATUS.ok || !isDict(reply.body) || typeof reply.body.text !== "string") return refused(reply);
+  return reply.body.text;
+}
+
+async function createCardinalFile(deps: CanvasCliDeps, canvas: string, nodeId: string, writerId: string, text: string): Promise<void> {
+  const reply = await panelJson(deps, "PUT", cardinalPath(canvas, nodeId), { text, rev: null, as: { agent: writerId } });
+  if (reply.status !== STATUS.ok) refused(reply);
+}
+
+async function cardinalNew(deps: CanvasCliDeps, at: Located, p: Parsed): Promise<number> {
+  const title = p.positional[2] ?? fail(new UsageError("cardinal new <título> [--link-to <recruta>]… [--from-file …|--from-text …|…]"));
+  if (title.trim() === "" || [...title].length > 80) return fail(new UsageError("o título do diagrama tem de ter de 1 a 80 caracteres"));
+  const orchestrator = orchestratorOf(at);
+  const seed = await cardinalSeed(deps, p, title);
+  const name = await freshCardinalName(deps, at.doc, cardinalNameFrom(title));
+  const placed = await commit(deps, at, (doc) => {
+    const plan = planNewCardinal(doc, { callerId: orchestrator.id, name, title, linkTo: p.flags.get("link-to") ?? [] });
+    return { op: plan.op, result: plan };
+  });
+  await createCardinalFile(deps, at.canvas, placed.result.node.id, orchestrator.id, seed);
+  const { node, recruits } = placed.result;
+  deps.out(`diagrama ${node.id} "${title}": arquivo ${name}, em (${node.x}, ${node.y}), ligado a ${[nodeName(orchestrator), ...recruits.map(nodeName)].join(", ")}`);
+  return EXIT.ok;
+}
+
+async function cardinalAdopt(deps: CanvasCliDeps, at: Located, p: Parsed): Promise<number> {
+  const path = p.positional[2] ?? fail(new UsageError("cardinal adopt <caminho> [--title t] [--link-to <recruta>]…"));
+  const orchestrator = orchestratorOf(at);
+  const file = resolve(path);
+  const adopted = await panelJson(deps, "POST", `${CARDINAL_BASE}/link`, { path: file });
+  if (adopted.status !== STATUS.ok || !isDict(adopted.body) || typeof adopted.body.name !== "string") return refused(adopted);
+  const name = adopted.body.name;
+  const known = at.doc.nodes.find((n) => findCardinalNode(at.doc, n.id)?.data.cardinal === name);
+  if (known) {
+    deps.out(`diagrama ${known.id}: ${file} já tinha nó`);
+    return EXIT.ok;
+  }
+  const title = flag(p, "title") ?? basename(file).replace(/\.cardinal$/i, "").slice(0, 80);
+  const placed = await commit(deps, at, (doc) => {
+    const plan = planNewCardinal(doc, { callerId: orchestrator.id, name, title, linkTo: p.flags.get("link-to") ?? [] });
+    return { op: plan.op, result: plan };
+  });
+  const { node, recruits } = placed.result;
+  deps.out(`diagrama ${node.id} "${title}": adotou ${file}, em (${node.x}, ${node.y}), ligado a ${[nodeName(orchestrator), ...recruits.map(nodeName)].join(", ")}`);
+  return EXIT.ok;
+}
+
+async function cardinalLink(deps: CanvasCliDeps, at: Located, p: Parsed, undo: boolean): Promise<number> {
+  const [cardinalRef, recruitRef] = [p.positional[2], p.positional[3]];
+  if (cardinalRef === undefined || recruitRef === undefined) return fail(new UsageError(`cardinal ${undo ? "unlink" : "link"} <c> <recruta>`));
+  const orchestrator = orchestratorOf(at);
+  const { result } = await commit(deps, at, (doc) => {
+    const plan = (undo ? planUnlinkCardinal : planLinkCardinal)(doc, orchestrator.id, recruitRef, cardinalRef);
+    return { op: plan.op, result: plan };
+  });
+  const [who, what] = [nodeName(result.recruit), cardinalLabel(at.doc, result.cardinal.id)];
+  if (undo) deps.out(result.op === undefined ? `${who} não estava ligado a ${what}` : `${who} desligado de ${what}`);
+  else deps.out(result.op === undefined ? `${who} já estava ligado a ${what}` : `${who} ligado a ${what}`);
+  return EXIT.ok;
+}
+
 // ---- entrada ----
 
 type Handler = (deps: CanvasCliDeps, at: Located, p: Parsed) => Promise<number>;
@@ -939,6 +1202,10 @@ const NOTE_HANDLERS: Readonly<Record<string, Handler>> = { list: noteList, read:
 const DRAWING_HANDLERS: Readonly<Record<string, Handler>> = {
   new: drawingNew, list: drawingList, read: drawingRead, add: drawingAdd, move: drawingMove, remove: drawingRemove, text: drawingText, export: drawingExport,
 };
+const CARDINAL_HANDLERS: Readonly<Record<string, Handler>> = {
+  new: cardinalNew, list: cardinalList, read: cardinalRead, apply: cardinalApply, export: cardinalExport, adopt: cardinalAdopt,
+  link: (deps, at, p) => cardinalLink(deps, at, p, false), unlink: (deps, at, p) => cardinalLink(deps, at, p, true),
+};
 const AREA_HANDLERS: Readonly<Record<string, Handler>> = { list: areaList };
 const HANDLERS: Readonly<Record<string, Handler>> = { recruit, connect, reassign, dismiss, notify: notifyOwner };
 
@@ -958,6 +1225,7 @@ export async function runCanvas(args: readonly string[], deps: CanvasCliDeps): P
   const standalone = command !== undefined && Object.hasOwn(STANDALONE, command) ? STANDALONE[command] : undefined;
   const handler = standalone ? undefined : command === "note" ? (sub !== undefined && Object.hasOwn(NOTE_HANDLERS, sub) ? NOTE_HANDLERS[sub] : undefined)
     : command === "drawing" ? (sub !== undefined && Object.hasOwn(DRAWING_HANDLERS, sub) ? DRAWING_HANDLERS[sub] : undefined)
+    : command === "cardinal" ? (sub !== undefined && Object.hasOwn(CARDINAL_HANDLERS, sub) ? CARDINAL_HANDLERS[sub] : undefined)
     : command === "area" ? (sub !== undefined && Object.hasOwn(AREA_HANDLERS, sub) ? AREA_HANDLERS[sub] : undefined)
     : command !== undefined && Object.hasOwn(HANDLERS, command) ? HANDLERS[command] : undefined;
   if (!handler && !standalone) {
@@ -1036,6 +1304,7 @@ function realDeps(): CanvasCliDeps {
   return {
     async panel(method, path, body, timeoutMs = CANVAS_CLI_TIMEOUTS.panelMs) {
       const res = await request(method, path, body, timeoutMs);
+      if ((res.headers.get("content-type") ?? "").startsWith("image/")) return { status: res.status, body: null, bytes: new Uint8Array(await res.arrayBuffer()) };
       const text = await res.text();
       let parsed: unknown = null;
       try {
@@ -1059,6 +1328,9 @@ function realDeps(): CanvasCliDeps {
       const file = resolve(path);
       if (statSync(file).size > FROM_JSON_MAX_BYTES) return failWith(CANVAS_CLI_ERRORS.fromJsonInvalid, `${path}: passa de ${FROM_JSON_MAX_BYTES} bytes`);
       return readFileSync(file, "utf8");
+    },
+    writeFile(path, bytes) {
+      writeFileSync(resolve(path), bytes, { mode: 0o600 });
     },
     stdin: () => Bun.stdin.text(),
     stdinPiped: () => !process.stdin.isTTY,

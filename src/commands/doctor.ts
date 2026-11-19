@@ -31,6 +31,10 @@ import { diskProbe, findMemoryDir } from "../lib/memory-index.ts";
 import { serviceManager } from "../lib/service-manager.ts";
 import { FILTERS_REL, planWorktree, policyAdvice, rtkBinary, rtkConfig, settingsFor, trustState, type RtkBinary } from "../lib/rtk-filters.ts";
 import { registeredWorktrees, trustCommand, trustSummary, untrustedWorktrees } from "../lib/rtk-trust.ts";
+import { diskShortage } from "../lib/gate-remote/dispatch.ts";
+import { minDiskGbOf } from "../lib/gate-remote/warm.ts";
+import { installedStacks } from "../lib/profile.ts";
+import { parseWorkerStatus, parseWorkers, WORKER_STATUS_ARGS, type WorkerStatus } from "../panel/gatewatch-proc.ts";
 import { fixedContextNow } from "./usage.ts";
 import { judgeFixedContext } from "../lib/usage-fixo.ts";
 
@@ -530,6 +534,45 @@ function checkPanel(r: Report, ctx: Ctx): void {
   checkHerdrServer(r, unit);
 }
 
+const WORKER_SSH_TIMEOUT_MS = 6000;
+
+/** Lê o `worker status --json` de um worker por ssh (BatchMode, sem pergunta); undefined = não respondeu ou fora do contrato. */
+function readWorkerStatus(target: string): WorkerStatus | undefined {
+  const argv = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=4", "-o", "ServerAliveInterval=2", "-o", "ServerAliveCountMax=1", "--", target, ...WORKER_STATUS_ARGS];
+  const result = run("ssh", argv, { timeoutMs: WORKER_SSH_TIMEOUT_MS });
+  return result.status === 0 ? parseWorkerStatus(result.stdout) : undefined;
+}
+
+/**
+ * Uma linha de aviso por worker com disco abaixo do mínimo das stacks. Worker que não responde ou é antigo (sem os campos de
+ * disco) não gera linha: o que o doctor não mediu, ele não afirma. Sem worker abaixo do limite, a linha única `workers-disco` é ok.
+ */
+export function workerDiskItems(targets: readonly string[], minDiskGb: number, read: (target: string) => WorkerStatus | undefined): Item[] {
+  const g = "Gate remoto";
+  const items: Item[] = [];
+  let checked = 0;
+  for (const target of targets) {
+    const status = read(target);
+    if (status?.diskFreeGb === undefined) continue;
+    checked += 1;
+    const shortage = diskShortage(status, minDiskGb);
+    if (shortage !== undefined) {
+      items.push({ level: "warn", group: g, id: "workers-disco", msg: `${target}: ${shortage}`, fix: `liberar espaço no worker (worktrees e node_modules antigos em $HADES_WORKER_FS_ROOT ou ~/.cache/hades-worker); reference/gate-remoto-worker.md §Problemas comuns` });
+    }
+  }
+  if (items.length === 0 && checked > 0) items.push({ level: "ok", group: g, id: "workers-disco", msg: `${checked} worker(s) com disco acima de ${minDiskGb} GB`, fix: "" });
+  return items;
+}
+
+/** Fora do `--quick` (cada worker é uma ida ao ssh). Sem `HADES_GATE_WORKERS` ou sem mínimo declarado nas stacks, a linha não aparece. */
+function checkWorkers(r: Report, quick: boolean): void {
+  if (quick) return;
+  const targets = parseWorkers(configValue("HADES_GATE_WORKERS", "")).map((w) => w.target);
+  const minDiskGb = minDiskGbOf(installedStacks().values());
+  if (targets.length === 0 || minDiskGb <= 0) return;
+  for (const item of workerDiskItems(targets, minDiskGb, readWorkerStatus)) r.add(item.level, item.group, item.id, item.msg, item.fix);
+}
+
 /**
  * Painel ativo: o servidor do herdr responde? Três desfechos: no ar (ok), fora do ar (o painel o sobe ao criar terminal) e
  * cliente incompatível (`protocol_mismatch`: o servidor pode estar no ar, o que falha é o binário que o CLI chamou).
@@ -805,6 +848,7 @@ export function doctorCommand(args: string[]): number {
   checkSettingsDefault(report);
   checkPanel(report, ctx);
   checkMark(report, ctx);
+  checkWorkers(report, quick);
   for (const e of extensionDoctorItems()) report.add(e.level, "Extensões", e.id, e.msg, e.fix);
   checkBoot(report, ctx);
   checkCleaning(report, ctx);

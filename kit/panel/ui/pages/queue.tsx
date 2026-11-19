@@ -284,6 +284,7 @@ function Journal({ journal }) {
 const WARM = { ready: ['pronto', 'ok'], warming: ['aquecendo', 'warn'], failed: ['falhou', 'bad'] };
 function Worker({ w }) {
   const st = w.status, free = st ? st.memFreeGb : 0, total = st ? st.memTotalGb : 0;
+  const diskFree = st && st.diskFreeGb != null ? st.diskFreeGb : 0, lowDisk = !!st && st.diskFreeGb != null && w.minDiskGb > 0 && st.diskFreeGb < w.minDiskGb;
   const labels = st ? st.labels : w.labels;
   const warm = st ? Object.entries(st.warm || {}) : [];
   const tools = st && st.tools ? Object.entries(st.tools) : [];
@@ -318,6 +319,17 @@ function Worker({ w }) {
           </div>
           <Progress value={total ? Math.round((1 - free / total) * 100) : 0} kind={total && free / total < 0.15 ? 'warn' : 'ok'} />
         </div>
+        {st.diskFreeGb != null ? <div className="grid gap-1.5" data-testid="worker-disk">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-2 t-meta text-muted-foreground tnum">
+            <span>{'disco livre'}{lowDisk ? <b className="ml-2 font-medium text-bad">{`abaixo do mínimo (${w.minDiskGb} GB)`}</b> : null}</span>
+            <span>
+              <b className={cn('font-mono font-medium', lowDisk ? 'text-bad' : 'text-foreground')}>{diskFree.toFixed(1).replace('.', ',')}</b>
+              {st.diskTotalGb ? ` de ${st.diskTotalGb.toFixed(1).replace('.', ',')} GB` : ' GB'}
+            </span>
+          </div>
+          {st.diskTotalGb ? <Progress value={Math.round((1 - diskFree / st.diskTotalGb) * 100)} kind={lowDisk ? 'bad' : 'ok'} /> : null}
+          {st.inodesFree != null ? <span className="t-meta text-muted-foreground tnum">{`inodes livres ${st.inodesFree.toLocaleString('pt-BR')}`}</span> : null}
+        </div> : null}
         <div className="flex flex-wrap gap-x-4 gap-y-1 t-meta text-muted-foreground tnum">
           <span>{'fila '}<b className="font-mono font-medium text-foreground">{st.queue}</b></span>
           <span>{'CPUs '}<b className="font-mono font-medium text-foreground">{st.cpus}</b></span>

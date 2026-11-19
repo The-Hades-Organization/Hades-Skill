@@ -4,6 +4,25 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.52.0 — 2026-11-19
+
+Issues #138, #133 (itens 2 e 4) e #137 (item 1): com o disco do worker cheio, o gate remoto parava sem diagnóstico. O
+`status` não mostrava o disco, o push ao espelho guardava só "failed to push some refs", e a marcação `ready` sobrevivia à
+remoção do `node_modules`, então o job pulava o preparo e falhava sem módulos. Medido em 18–19/11: nove worktrees de gate
+com 32 GB encheram os 89 GB do worker.
+
+- **Disco no `worker status --json`:** `diskFreeGb`, `diskTotalGb` e `inodesFree` do sistema de arquivos de
+  `$HADES_WORKER_FS_ROOT`. Worker antigo, sem os campos, não é recusado.
+- **Recusa antes do envio:** `refuseWorker` e o `eligible` do modo `auto` saem com rc 75 e
+  `worker sem disco: <livre> GB < <mínimo> GB` abaixo de `remote.minDiskGb` da stack (node-nx: 8 GB).
+- **Causa do push:** `pushFailure` guarda as linhas `remote:`/`error:`/`! [remote rejected]` e mapeia `unpacker error`,
+  `No space left` e `Out of diskspace` para `worker sem disco`.
+- **Painel e doctor:** disco no cartão do worker da Fila de gates, em vermelho abaixo do mínimo (360/768 px); linha
+  `workers-disco` no `doctor`.
+- **Fila do worker:** conta só ticket de processo vivo.
+- **`ready` conferido:** a marcação só vale se o `cwd` e a instalação (`remote.installed`; node: `node_modules/.package-lock.json`
+  ou `.bin`) existem; senão é apagada e o preparo roda de novo.
+
 ## 6.51.0 — 2026-11-19
 
 Issue #136: um repositório git aninhado no worktree de outro projeto tinha fila de gates própria, com orçamento de

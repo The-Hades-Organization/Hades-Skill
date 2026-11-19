@@ -55,7 +55,10 @@ ssh -o BatchMode=yes -- <host> status --json
 ```
 
 A saída é um JSON com `host`, `labels`, `memFreeGb`, `memTotalGb`, `cpus`, `queue`, `warm` (por chave: `ready`, `warming` ou
-`failed`) e `tools` (ferramentas das stacks do worker no PATH do ssh; §Toolchain). O painel lê esse comando a cada 15 s enquanto a página está aberta, com limite de 4 s por worker, e mostra na página Fila
+`failed`) e `tools` (ferramentas das stacks do worker no PATH do ssh; §Toolchain). Campos aditivos de disco: `diskFreeGb`,
+`diskTotalGb` e `inodesFree`, do sistema de arquivos de `$HADES_WORKER_FS_ROOT` (sem a variável, de `~/.cache/hades-worker`);
+worker antigo não os manda e o cliente não o recusa por isso. `warm` só lista como `ready` a chave cujo ambiente ainda existe
+(worktree e a prova da instalação, `remote.installed` da stack); `queue` conta só ticket de processo vivo. O painel lê esse comando a cada 15 s enquanto a página está aberta, com limite de 4 s por worker, e mostra na página Fila
 de gates:
 
 | O que aparece | Significa |
@@ -63,6 +66,7 @@ de gates:
 | Worker **inacessível**, com a última leitura em cache | o ssh falhou ou estourou o limite; a fila local segue normal |
 | `remote:<host>` no item | o gate roda no worker; o item não entra na soma de memória local |
 | `remoto perdido (75)` no histórico | o worker sumiu no meio do gate; o gate terminou com saída 75 |
+| Disco livre do worker, em vermelho abaixo de `remote.minDiskGb` | o gate recusa com 75 (`worker sem disco`) até liberar espaço; o `doctor` avisa na linha `workers-disco` |
 
 ## Toolchain
 
@@ -112,5 +116,10 @@ marcador de "construído". O retorno é tar completo na v1.
 - `Permission denied (publickey)`: a chave não está no `authorized_keys` do usuário certo, ou o `IdentityFile` do `~/.ssh/config`
   não aponta para ela.
 - `worker sem ferramenta no PATH do ssh não interativo` ou `npm: command not found`: veja §Toolchain.
+- `worker sem disco: <livre> GB < <mínimo> GB` (rc 75, antes do envio): o livre do worker está abaixo de `remote.minDiskGb` da stack
+  (8 GB no `node-nx`). Apague worktrees e `node_modules` antigos no worker (`git worktree remove` no espelho, depois `git worktree prune`).
+  Com o disco cheio demais para o status responder, o push falha com o mesmo motivo `worker sem disco`, trazendo as linhas
+  `remote:`/`error:`/`! [remote rejected]` do git (`unpacker error`, `No space left`). Marcação `warm` de ambiente apagado à mão não
+  engana mais: o worker confere o worktree e a instalação antes de pular o preparo e, faltando, apaga a marcação e prepara de novo.
 - Resposta fora do contrato: a Hades do worker está desatualizada. Atualize a skill no worker.
 - Fila local parada e worker ocioso: `HADES_GATE_WHERE` está em `local`. Use `auto` ou passe `--where <host>` no gate.

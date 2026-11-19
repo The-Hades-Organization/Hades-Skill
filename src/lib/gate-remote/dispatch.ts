@@ -1,6 +1,6 @@
 // Política de despacho do `gate-lock run`: local ou worker, e quais workers aquecer. Pura: quem consulta a rede e o
 // relógio é o cliente (client.ts); aqui entra o que foi observado e sai a decisão.
-import type { WorkerSpec } from "./protocol.ts";
+import { REASON_DISK, type WorkerSpec } from "./protocol.ts";
 import { missingTools } from "./toolchain.ts";
 
 export type WarmState = "ready" | "warming" | "failed";
@@ -19,6 +19,10 @@ export interface WorkerStatus {
    * Valor = versão achada; null = ausente. Sem o campo (worker antigo) ou sem a chave, o cliente não sabe e não recusa.
    */
   tools?: Record<string, string | null>;
+  /** Aditivo: disco do sistema de arquivos de `$HADES_WORKER_FS_ROOT` (ou `~/.cache/hades-worker`). Worker antigo não traz: o cliente não recusa. */
+  diskFreeGb?: number;
+  diskTotalGb?: number;
+  inodesFree?: number;
 }
 
 /** O que a etapa exige de quem a roda fora: rótulos (`docker`), memória livre mínima e ferramentas no PATH. */
@@ -26,6 +30,14 @@ export interface Affinity {
   labels: string[];
   minMemGb: number;
   requires: string[];
+  /** disco livre mínimo do worker (GB), `remote.minDiskGb` da stack; ausente ou 0 = sem exigência */
+  minDiskGb?: number;
+}
+
+/** Motivo de recusa por disco; undefined = serve (ou o worker é antigo e não informa disco). */
+export function diskShortage(status: WorkerStatus, minDiskGb: number | undefined): string | undefined {
+  if (minDiskGb === undefined || minDiskGb <= 0 || status.diskFreeGb === undefined) return undefined;
+  return status.diskFreeGb < minDiskGb ? `${REASON_DISK}: ${status.diskFreeGb} GB < ${minDiskGb} GB` : undefined;
 }
 
 export type Where = { mode: "local" } | { mode: "auto" } | { mode: "host"; host: string };
@@ -65,7 +77,7 @@ function eligible(candidate: Candidate, affinity: Affinity): candidate is Candid
   if (candidate.status === undefined) return false;
   const labels = labelsOf(candidate);
   const toolsOk = missingTools(candidate.status.tools, affinity.requires).length === 0;
-  return toolsOk && affinity.labels.every((label) => labels.includes(label)) && candidate.status.memFreeGb >= affinity.minMemGb;
+  return toolsOk && diskShortage(candidate.status, affinity.minDiskGb) === undefined && affinity.labels.every((label) => labels.includes(label)) && candidate.status.memFreeGb >= affinity.minMemGb;
 }
 
 function betterThan(a: WorkerStatus, hostA: string, b: WorkerStatus, hostB: string): boolean {

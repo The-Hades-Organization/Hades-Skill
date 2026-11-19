@@ -3,7 +3,7 @@
 // antes de qualquer coisa rodar. Nada aqui usa shell sobre texto do job: o comando do job é `argv` entregue ao
 // `gate-lock` do próprio worker (admissão, teto systemd, pico e journal são os de lá).
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statfsSync, writeFileSync } from "node:fs";
 import { cpus, hostname, homedir, tmpdir, totalmem } from "node:os";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
@@ -14,10 +14,11 @@ import {
   PROTOCOL_VERSION, ProtocolError, RC_NOT_RUN, REASON_TOOL, decodePayload, formatTrailer, mirrorPath, parseWorkerCommand, workerHeadroomGb, type Job, type OutRequest, type WarmRequest,
 } from "../lib/gate-remote/protocol.ts";
 import { MANIFEST_NAME, MANIFEST_VERSION, ManifestError, hashTree, type Manifest, type ManifestDir } from "../lib/gate-remote/manifest.ts";
-import { badPassEnv, claimSlot, expandEnv, readKeyFiles, readWarm, remoteSpecOf, warmKey, warmStates, writeWarm, type RemoteSpec } from "../lib/gate-remote/warm.ts";
+import { badPassEnv, claimSlot, clearWarm, expandEnv, readKeyFiles, environmentPresent, readWarm, remoteSpecOf, warmKey, warmStates, writeWarm, type RemoteSpec, type WarmRecord } from "../lib/gate-remote/warm.ts";
 import { HadesError, warn } from "../lib/output.ts";
 import { journalWorkRoot } from "../lib/journal.ts";
-import { memAvailableMb, which } from "../lib/proc.ts";
+import { memAvailableMb, sameProcess, which } from "../lib/proc.ts";
+import { field, parseTicket } from "../lib/gate.ts";
 import { installedStacks } from "../lib/profile.ts";
 import { selfCli } from "../lib/paths.ts";
 import { missingTools, pathWithToolchain, probeTools, toolchainDirs, type ToolReport } from "../lib/gate-remote/toolchain.ts";
@@ -72,14 +73,30 @@ function detectLabels(): string[] {
   return [...labels].sort();
 }
 
+/** Ticket de fila vive enquanto o processo que o criou vive (`pid` + `pstart`, como o `gate-lock status`); o resto é lixo de uma queda. */
+function liveTicket(path: string): boolean {
+  try {
+    const ticket = parseTicket(readFileSync(path, "utf8"));
+    return sameProcess(field(ticket, "pid"), field(ticket, "pstart"));
+  } catch {
+    return false;
+  }
+}
+
+/** Tickets vivos nas filas dadas (cada raiz tem `locks/gate-queue`). */
+export function liveQueueLength(roots: readonly string[]): number {
+  let total = 0;
+  for (const root of roots) {
+    const dir = join(root, "locks", "gate-queue");
+    total += listSafe(dir).filter((name) => name.endsWith(".t") && liveTicket(join(dir, name))).length;
+  }
+  return total;
+}
+
 /** Tickets de todas as filas do worker (por projeto ou da máquina): é o que "queue" do status conta. */
 function queueLength(): number {
   const roots = process.env.HADES_WORK ? [process.env.HADES_WORK] : listSafe(journalWorkRoot()).map((name) => join(journalWorkRoot(), name));
-  let total = 0;
-  for (const root of roots) {
-    total += listSafe(join(root, "locks", "gate-queue")).filter((name) => name.endsWith(".t")).length;
-  }
-  return total;
+  return liveQueueLength(roots);
 }
 
 function listSafe(dir: string): string[] {
@@ -90,12 +107,29 @@ function listSafe(dir: string): string[] {
   }
 }
 
+const oneDecimal = (n: number): number => Math.round(n * 10) / 10;
+
+/** Disco do sistema de arquivos onde o worker grava (raiz da jaula ou `~/.cache/hades-worker`); sem leitura possível, sem os campos. */
+export function diskOf(path: string): Pick<WorkerStatus, "diskFreeGb" | "diskTotalGb" | "inodesFree"> {
+  let probe = path;
+  while (!existsSync(probe) && dirname(probe) !== probe) probe = dirname(probe);
+  try {
+    const fs = statfsSync(probe);
+    return {
+      diskFreeGb: oneDecimal((fs.bavail * fs.bsize) / 1024 ** 3), diskTotalGb: oneDecimal((fs.blocks * fs.bsize) / 1024 ** 3), inodesFree: Number(fs.ffree),
+    };
+  } catch {
+    return {};
+  }
+}
+
 export function workerStatus(): WorkerStatus {
   loadToolchain();
-  const oneDecimal = (n: number): number => Math.round(n * 10) / 10;
+  const base = physical(baseDir());
   return {
+    ...diskOf(fsRoot() === "" ? base : fsRoot()),
     host: hostname(), labels: detectLabels(), memFreeGb: oneDecimal(memAvailableMb() / MB_PER_GB), memTotalGb: oneDecimal(totalmem() / MB_PER_GB ** 3),
-    cpus: cpus().length, queue: queueLength(), warm: warmStates(physical(baseDir())), tools: probeTools(requiredTools(), process.env.PATH ?? ""),
+    cpus: cpus().length, queue: queueLength(), warm: warmStates(base, readyStillThere), tools: probeTools(requiredTools(), process.env.PATH ?? ""),
   };
 }
 
@@ -142,6 +176,26 @@ function specOfStack(name: string): RemoteSpec | undefined {
   return name === "" ? undefined : remoteSpecOf(installedStacks().get(name));
 }
 
+/** Stack de uma chave de aquecimento (`<stack>-<16 hex>`; o nome da stack pode ter hífen). */
+const stackOfKey = (key: string): string => key.slice(0, key.lastIndexOf("-"));
+
+/** Registro `ready` cujo ambiente ainda existe; os outros estados passam como estão (quem decide é quem os lê). */
+function readyStillThere(record: WarmRecord): boolean {
+  return record.state !== "ready" || environmentPresent(specOfStack(stackOfKey(record.key)), physical(record.cwd));
+}
+
+/**
+ * A chave está pronta de verdade? A marcação sozinha não basta: limpeza manual ou `gc` tira o worktree ou o `node_modules` e a
+ * marcação sobrevive. Ambiente sumido apaga a marcação e a chave volta a ser fria (o chamador prepara de novo).
+ */
+function confirmedReady(base: string, key: string): boolean {
+  const record = readWarm(base, key);
+  if (record?.state !== "ready") return false;
+  if (readyStillThere(record)) return true;
+  clearWarm(base, key);
+  return false;
+}
+
 function keyOf(stack: string, spec: RemoteSpec, cwd: string): string {
   return warmKey({ stack, scope: cwd, files: readKeyFiles(physical(cwd), spec.key) });
 }
@@ -173,7 +227,7 @@ async function warmRequestRun(request: WarmRequest, foreground: boolean): Promis
     if (lacking !== undefined) die(`warm: ${lacking}`, RC_NOT_RUN);
     const key = keyOf(request.stack, spec, request.cwd);
     const base = physical(baseDir());
-    if (readWarm(base, key)?.state === "ready") return 0;
+    if (confirmedReady(base, key)) return 0;
     if (!foreground) {
       // o preparo segue sozinho: a ida ao ssh que pediu volta já
       const payload = Buffer.from(JSON.stringify({ request, key }), "utf8").toString("base64url");
@@ -254,7 +308,7 @@ async function execJob(job: Job): Promise<number> {
     if (badName !== undefined) return refuse(job, `remote.passEnv da stack deste worker traz ${badName}, que não pode atravessar`, started);
     if (spec !== undefined && spec.prepare.length > 0) {
       const key = keyOf(job.stack, spec, job.cwd);
-      if (readWarm(physical(baseDir()), key)?.state !== "ready") {
+      if (!confirmedReady(physical(baseDir()), key)) {
         if (!job.warmInline) return refuse(job, "ambiente frio para esta chave (o aquecimento não terminou)", started);
         if (prepareAndRecord(job, spec, key) !== 0) return refuse(job, "preparo do ambiente falhou", started);
       }

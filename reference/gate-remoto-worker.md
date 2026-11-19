@@ -57,7 +57,20 @@ ssh -o BatchMode=yes -- <host> status --json
 A saída é um JSON com `host`, `labels`, `memFreeGb`, `memTotalGb`, `cpus`, `queue`, `warm` (por chave: `ready`, `warming` ou
 `failed`) e `tools` (ferramentas das stacks do worker no PATH do ssh; §Toolchain). Campos aditivos de disco: `diskFreeGb`,
 `diskTotalGb` e `inodesFree`, do sistema de arquivos de `$HADES_WORKER_FS_ROOT` (sem a variável, de `~/.cache/hades-worker`);
-worker antigo não os manda e o cliente não o recusa por isso. `warm` só lista como `ready` a chave cujo ambiente ainda existe
+worker antigo não os manda e o cliente não o recusa por isso. Campos aditivos de recursos (só declaram; o despacho não decide por eles):
+`os` (`name` = `PRETTY_NAME` de `/etc/os-release`, ou `os.type() os.release()`; `kernel`; `arch`), `diskUsedGb` e `diskUsedPct`
+(do mesmo `statfs` do disco livre), `cpuModel`, `load1`/`load5`/`load15`, `cpuUsedPct` (amostra de `/proc/stat` em ~200 ms),
+`memUsedGb`/`memUsedPct` (total menos `MemAvailable`) e `swapTotalGb`/`swapFreeGb`. Sem `/proc` (macOS), os campos de CPU
+e swap somem; o status nunca falha por isso, e o cliente e o painel mostram "—" onde o campo falta.
+
+```json
+{"host":"w1","os":{"name":"Ubuntu 24.04.1 LTS","kernel":"6.8.0-48-generic","arch":"x64"},"diskFreeGb":30.8,"diskTotalGb":88.4,
+ "diskUsedGb":57.6,"diskUsedPct":65,"cpuModel":"AMD Ryzen 7 7435HS","cpus":16,"load1":0.18,"load5":0.52,"load15":0.86,
+ "cpuUsedPct":1,"memFreeGb":12.6,"memTotalGb":15.3,"memUsedGb":2.8,"memUsedPct":18,"swapTotalGb":15.3,"swapFreeGb":15.3,
+ "queue":0,"warm":{},"labels":[],"tools":{}}
+```
+
+`warm` só lista como `ready` a chave cujo ambiente ainda existe
 (worktree e a prova da instalação, `remote.installed` da stack); `queue` conta só ticket de processo vivo. O painel lê esse comando a cada 15 s enquanto a página está aberta, com limite de 4 s por worker, e mostra na página Fila
 de gates:
 
@@ -66,6 +79,8 @@ de gates:
 | Worker **inacessível**, com a última leitura em cache | o ssh falhou ou estourou o limite; a fila local segue normal |
 | `remote:<host>` no item | o gate roda no worker; o item não entra na soma de memória local |
 | `remoto perdido (75)` no histórico | o worker sumiu no meio do gate; o gate terminou com saída 75 |
+| SO, CPU (% e carga), RAM usada/total e swap do worker | recursos declarados; "—" quando o worker é antigo e não os manda |
+| Disco usado do worker, ao lado do disco livre | `diskUsedGb` (%) do mesmo sistema de arquivos |
 | Disco livre do worker, em vermelho abaixo de `remote.minDiskGb` | o gate recusa com 75 (`worker sem disco`) até liberar espaço; o `doctor` avisa na linha `workers-disco` |
 
 ## Toolchain

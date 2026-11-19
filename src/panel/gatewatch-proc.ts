@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { readText } from "../lib/fs.ts";
 import { WORKER_STATUS_COMMAND } from "../lib/gate-remote/transport.ts";
 import { minDiskGbOf } from "../lib/gate-remote/warm.ts";
+import { parseRecursos, type WorkerRecursos } from "../lib/worker-recursos.ts";
 import { installedStacks } from "../lib/profile.ts";
 import { exec } from "./exec.ts";
 import { CGROUP_ROOT, meminfo, parsePsCommands, procIds, readLines } from "./system.ts";
@@ -331,7 +332,7 @@ export async function infraUsage(table: ProcTable, hostPattern: RegExp, names: D
 // ---------------------------------------------------------------- workers remotos (leitura do `hades worker status --json`)
 
 export type WarmState = "ready" | "warming" | "failed";
-export interface WorkerStatus {
+export interface WorkerStatus extends WorkerRecursos {
   host: string;
   labels: string[];
   memFreeGb: number;
@@ -411,7 +412,7 @@ export function parseWorkerStatus(text: string): WorkerStatus | undefined {
   if (o.warm !== null && typeof o.warm === "object" && !Array.isArray(o.warm)) {
     for (const [k, v] of Object.entries(o.warm)) if (typeof v === "string" && WARM_STATES.includes(v)) warm[k] = v as WarmState;
   }
-  const status: WorkerStatus = { host: o.host, labels, memFreeGb, memTotalGb, cpus, queue, warm };
+  const status: WorkerStatus = { host: o.host, labels, memFreeGb, memTotalGb, cpus, queue, warm, ...parseRecursos(o) };
   for (const name of ["diskFreeGb", "diskTotalGb", "inodesFree"] as const) {
     const value = finite(o[name]);
     if (value !== undefined) status[name] = value;

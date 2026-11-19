@@ -14,6 +14,7 @@ import { gcWorker } from "../lib/gate-remote/client.ts";
 import { sshCommand } from "../lib/gate-remote/transport.ts";
 import { JOB_REF_PREFIX } from "../lib/gate-remote/ship.ts";
 import type { WorkerStatus } from "../lib/gate-remote/dispatch.ts";
+import { collectRecursos, formatRecursos } from "../lib/worker-recursos.ts";
 import {
   PROTOCOL_VERSION, ProtocolError, RC_NOT_RUN, REASON_TOOL, decodePayload, formatTrailer, gcRequest, mirrorPath, parseWorkerCommand, workerHeadroomGb, isHost, type GcRequest, type Job, type OutRequest, type WarmRequest,
 } from "../lib/gate-remote/protocol.ts";
@@ -151,8 +152,10 @@ export function diskOf(path: string): Pick<WorkerStatus, "diskFreeGb" | "diskTot
 export function workerStatus(): WorkerStatus {
   loadToolchain();
   const base = physical(baseDir());
+  const disk = diskOf(fsRoot() === "" ? base : fsRoot());
   return {
-    ...diskOf(fsRoot() === "" ? base : fsRoot()),
+    ...disk,
+    ...collectRecursos(disk),
     host: hostname(), labels: detectLabels(), memFreeGb: oneDecimal(memAvailableMb() / MB_PER_GB), memTotalGb: oneDecimal(totalmem() / MB_PER_GB ** 3),
     cpus: cpus().length, queue: queueLength(), warm: warmStates(base, readyStillThere), tools: probeTools(requiredTools(), process.env.PATH ?? ""),
   };
@@ -597,6 +600,7 @@ function printStatus(json: boolean): number {
   if (json) process.stdout.write(`${JSON.stringify(s)}\n`);
   else {
     process.stdout.write(`worker ${s.host}: rótulos [${s.labels.join(", ")}] · memória livre ${s.memFreeGb}/${s.memTotalGb} GB · ${s.cpus} CPUs · fila ${s.queue}\n`);
+    for (const line of formatRecursos(s)) process.stdout.write(`  ${line}\n`);
     for (const [key, state] of Object.entries(s.warm)) process.stdout.write(`  ${key}\t${state}\n`);
   }
   return 0;

@@ -4,6 +4,17 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.54.0 — 2026-11-19
+
+Pedido do dono: o worker de gates declara o SO e o estado de disco, CPU e RAM. Antes o `status` trazia só disco livre,
+RAM livre e a contagem de CPUs.
+
+- `hades worker status` (texto e `--json`) declara SO (nome de `/etc/os-release`, kernel, arquitetura), disco usado/total
+  e %, CPU (modelo, núcleos, carga 1/5/15 e % em uso amostrado de `/proc/stat` em 200 ms) e RAM usada/total, % e swap.
+- O cartão Workers do painel mostra os mesmos campos (lido em 360 px).
+- Campos aditivos e opcionais: worker antigo segue lido e aparece com "—"; sem `/proc` o campo some e o status não
+  falha. Só declaração: o despacho do gate não decide por CPU/RAM.
+
 ## 6.53.0 — 2026-11-19
 
 Issues #138 (item 2), #133 (itens 1 e 3) e #137 (item 2): o worker não tinha como liberar disco sozinho; nove worktrees

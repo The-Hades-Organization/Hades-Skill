@@ -4,6 +4,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import * as cerberus from "../lib/cerberus.ts";
 import { ConfigError, type ConfigStore, effective, exportText, plan, save } from "../lib/config-catalog.ts";
+import { ENGINE_KEY, drawingEngine, type EngineView } from "../lib/drawing-engine.ts";
+import { realDeps } from "../lib/extension.ts";
 import { readText } from "../lib/fs.ts";
 import * as quality from "../lib/quality.ts";
 import { run } from "../lib/proc.ts";
@@ -47,7 +49,27 @@ export const configValues = (env: PanelEnv): Record<string, string> => {
   }
 };
 
-export const configState = (env: PanelEnv): Json => ({ items: effective(store(env)), path: join(env.dir, "config.env") });
+// o julgamento do motor roda o binário (até 5 s por comando): guarda o resultado por pouco tempo
+const ENGINE_TTL_MS = 10_000;
+const engineCache = new Map<string, { at: number; view: EngineView }>();
+
+export function engineState(env: PanelEnv, now: () => number = Date.now): EngineView {
+  const hit = engineCache.get(env.dir);
+  if (hit !== undefined && now() - hit.at < ENGINE_TTL_MS) return hit.view;
+  const view = drawingEngine(realDeps(process.env, store(env)));
+  engineCache.set(env.dir, { at: now(), view });
+  return view;
+}
+
+/** O seletor só aparece com a extensão saudável; quem já o mudou do padrão continua vendo, para poder voltar. */
+export function visibleItems(items: ReturnType<typeof effective>, engine: EngineView): ReturnType<typeof effective> {
+  return items.filter((it) => it.key !== ENGINE_KEY || engine.usable || it.changed);
+}
+
+export const configState = (env: PanelEnv): Json => {
+  const engine = engineState(env);
+  return { items: visibleItems(effective(store(env)), engine), path: join(env.dir, "config.env"), engine };
+};
 
 export function configExport(env: PanelEnv, query: Record<string, string>, remote: boolean): Uint8Array {
   if (remote && query.identity === "1") throw new BadRequest("contas e caminhos desta máquina só se exportam pelo painel local");

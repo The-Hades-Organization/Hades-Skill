@@ -3,6 +3,7 @@
 // Nada daqui instala: o comando de instalação é texto para o dono (reference/extensoes.md §Página do painel).
 import { ConfigError, type ConfigStore } from "../lib/config-catalog.ts";
 import { loadManifests, realDeps, setEnabled, statusOf, type ExtensionDeps, type ExtensionStatus } from "../lib/extension.ts";
+import { drawingEngine } from "../lib/drawing-engine.ts";
 import type { PanelEnv } from "./env.ts";
 
 type Dict = Record<string, unknown>;
@@ -48,18 +49,21 @@ export function createExtensionsRoutes(opts: ExtensionsRoutesDeps): ExtensionsRo
   const now = opts.now ?? Date.now;
   const store: ConfigStore = { dir: opts.env.dir, kit: opts.env.dir };
   const deps = opts.deps ?? ((): ExtensionDeps => realDeps(process.env, store));
-  let cached: { at: number; statuses: ExtensionStatus[] } | undefined;
+  let cached: { at: number; statuses: ExtensionStatus[]; engine: Dict } | undefined;
 
-  function statuses(): ExtensionStatus[] {
-    if (cached !== undefined && now() - cached.at < LIST_TTL_MS) return cached.statuses;
+  function snapshot(): { statuses: ExtensionStatus[]; engine: Dict } {
+    if (cached !== undefined && now() - cached.at < LIST_TTL_MS) return cached;
     const d = deps();
-    const fresh = loadManifests().extensions.map((e) => statusOf(e.manifest, d));
-    cached = { at: now(), statuses: fresh };
+    const fresh = { at: now(), statuses: loadManifests().extensions.map((e) => statusOf(e.manifest, d)), engine: { ...drawingEngine(d) } };
+    cached = fresh;
     return fresh;
   }
 
   return {
-    list: () => ({ version: JSON_VERSION, extensions: statuses() }),
+    list: () => {
+      const { statuses, engine } = snapshot();
+      return { version: JSON_VERSION, extensions: statuses, drawingEngine: engine };
+    },
     act(body, remote) {
       if (remote) throw new ExtPanelRefused(EXT_PANEL_ERRORS.localOnly, "ligar e desligar extensões só se faz pelo painel local", 403);
       const { op, name } = body;

@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "name": "cardinal",
+  "description": "Cardinal: editor de diagramas de dados. O nó de diagrama do canvas e os comandos de agente falam com ele por processo e por iframe.",
+  "binary": { "names": ["cardinal"], "configKey": "HADES_CARDINAL_BIN" },
+  "version": { "command": ["cardinal", "--version"], "min": "0.1.0" },
+  "capabilities": ["canvas.diagram"],
+  "install": { "text": "O Cardinal ainda não tem release: compile o binário no clone local (cargo build --release -p cardinal), deixe-o no PATH ou aponte HADES_CARDINAL_BIN nas Configurações, e compile o editor web (crates/cardinal/web, build-wasm.sh) apontando HADES_CARDINAL_WEB para a pasta dist/." },
+  "health": { "command": ["cardinal", "--check"] },
+  "configKeys": ["HADES_CARDINAL_BIN", "HADES_CARDINAL_WEB", "HADES_DRAWING_ENGINE"],
+  "enableKey": "HADES_EXT_CARDINAL"
+}

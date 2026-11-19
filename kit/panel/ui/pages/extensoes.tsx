@@ -5,7 +5,7 @@
 const { useState, useEffect, useCallback, I, cn, post, getJSON, Badge, Switch, Mono, Empty, Card, CardHeader, CopyButton, LinhaDeEstado, Loading, useApp } = HadesCore;
 
 // código estável do problema → palavra curta; o código em si aparece ao lado, para quem ramifica por ele
-const EXT_CAP = { 'canvas.terminal': 'terminal no canvas', voice: 'voz', window: 'janela do desktop' };
+const EXT_CAP = { 'canvas.terminal': 'terminal no canvas', 'canvas.diagram': 'diagrama no canvas', voice: 'voz', window: 'janela do desktop' };
 const extKind = (e) => (!e.installed ? 'idle' : e.problems.length ? 'warn' : 'secondary');
 const extWord = (e) => (!e.installed ? 'não instalada' : e.problems.length ? 'com problema' : 'instalada');
 
@@ -103,6 +103,10 @@ function Extensoes({ d }) {
       {remote ? <p role="note" className="flex items-start gap-2 t-body">
         <I.Eye className="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
         <span><span className="font-medium">Só leitura pelo acesso remoto.</span><span className="text-muted-foreground"> Ligar e desligar só pelo painel local.</span></span>
+      </p> : null}
+      {x.drawingEngine && x.drawingEngine.configured === 'cardinal' && x.drawingEngine.effective === 'hades' ? <p role="status" className="flex items-start gap-2 t-body">
+        <I.TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden="true" />
+        <span><span className="font-medium">Motor de desenho: hades.</span> <span className="text-muted-foreground">{x.drawingEngine.reason ? x.drawingEngine.reason.message : 'o Cardinal não está disponível'}</span>{x.drawingEngine.reason ? <>{' '}<Mono className="text-muted-foreground">{x.drawingEngine.reason.code}</Mono></> : null}</span>
       </p> : null}
       {err ? <p className="t-body text-bad" role="status">Sem atualizar: {err}. Mostrando a última lista.</p> : null}
     </div>

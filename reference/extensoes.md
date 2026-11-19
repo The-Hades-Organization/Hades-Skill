@@ -1,6 +1,6 @@
 # Extensões
 
-Uma extensão é uma ferramenta externa da máquina, com binário próprio (herdr, Mark), que a Hades detecta e consome. Um plugin
+Uma extensão é uma ferramenta externa da máquina, com binário próprio (herdr, Mark, Cardinal), que a Hades detecta e consome. Um plugin
 é código do pacote de um projeto que roda no painel (`reference/projects.md` §Plugin do Hades); os dois não se misturam: a
 extensão não traz código para a Hades executar, só o manifesto que descreve o binário.
 
@@ -19,7 +19,7 @@ e um código estável (`ext.manifest.*`).
 | `binary.names` | lista de nomes | binários aceitos, o primeiro achado no PATH vale |
 | `binary.configKey` | chave ou ausente | chave de configuração que aponta o binário (ex.: `HADES_HERDR_BIN`) |
 | `version` | `{command, min}` ou `null` | comando de versão em argv (sem shell; o primeiro item é um de `binary.names`) e versão mínima `x.y.z`; `null` quando a ferramenta não tem como medir |
-| `capabilities` | lista fechada | `canvas.terminal`, `voice`, `window` (capacidade nova entra em `CAPABILITIES`, em `src/lib/extension-manifest.ts`, antes de qualquer manifesto) |
+| `capabilities` | lista fechada | `canvas.terminal`, `canvas.diagram`, `voice`, `window` (capacidade nova entra em `CAPABILITIES`, em `src/lib/extension-manifest.ts`, antes de qualquer manifesto) |
 | `install.text` | texto | instrução para o dono; a sessão nunca a executa |
 | `health` | `{command}` ou `null` | comando de saúde em argv; sai com 0 quando está bem |
 | `configKeys` | lista de chaves | chaves próprias do catálogo (`kit/config.tsv`) |
@@ -71,6 +71,41 @@ Rotas (`src/panel/routes-ext.ts`):
 
 O POST exige o token da sessão e o painel local. Recusas, com código estável: `ext.local-only` (403, acesso remoto),
 `ext.bad-request` (400, operação ou nome inválido), `ext.unknown` (404), `ext.config-invalid` (400, a configuração recusou o valor).
+
+## Cardinal
+
+`extensions/cardinal/extension.json`: editor de diagramas de dados. O Cardinal é GPL-3.0 e o Hades é MIT, então nada dele entra
+aqui: só se fala com ele por processo (o binário `cardinal`, por argv, sem shell) e, mais adiante, por iframe (o build web).
+O arquivo `.cardinal` é a fonte da verdade; o Hades nunca o converte para formato próprio.
+
+- **Manifesto:** capacidade `canvas.diagram`; `binary.configKey` `HADES_CARDINAL_BIN`; versão por `cardinal --version`
+  (saída `cardinal 0.1.0 (format 2)`, mínima `0.1.0`); saúde por `cardinal --check`.
+- **Chaves** (`kit/config.tsv`, grupo Extensões): `HADES_EXT_CARDINAL` (1), `HADES_CARDINAL_BIN` (vazio),
+  `HADES_CARDINAL_WEB` (vazio; pasta `dist/` do build web, fora do repositório) e `HADES_DRAWING_ENGINE` (`hades`).
+- **Dois pedaços independentes:** o binário serve às operações de agente; o build web serve ao editor embutido. Sem o binário
+  o usuário ainda edita (com o build web); sem o build web o agente ainda trabalha.
+- **Build web no doctor:** além da linha `ext-cardinal`, o `hades doctor` traz `ext-cardinal-web`: `ok` quando
+  `HADES_CARDINAL_WEB` está vazio ou aponta uma pasta com `index.html`; aviso quando aponta uma pasta sem ele.
+
+### Motor de desenho efetivo
+
+`HADES_DRAWING_ENGINE` é só o pedido. O motor efetivo (`src/lib/drawing-engine.ts`, `drawingEngine`) é calculado: `cardinal`
+vale quando a extensão está ligada **e** (o binário está saudável **ou** o build web existe). Senão o efetivo é `hades` e há uma
+razão com código estável:
+
+| Código | Quando |
+|---|---|
+| `engine.extension-off` | `HADES_EXT_CARDINAL=0` |
+| `engine.extension-missing` | o manifesto não está nesta instalação |
+| `ext.binary-missing`, `ext.version-unreadable`, `ext.version-below-min`, `ext.health-failed` | o primeiro problema do binário, sem build web que o supra |
+
+O padrão é `hades` até a unidade 17 do plano de integração: instalar a extensão não muda o fluxo de ninguém. Os nós de desenho
+existentes seguem intactos; com o motor `cardinal` aparecem como "motor do Hades desligado" (unidades seguintes).
+
+Onde aparece: `GET /api/extensions` ganha `drawingEngine: {configured, effective, usable, reason}`; `GET /api/config` ganha o
+mesmo em `engine` e **omite** o item `HADES_DRAWING_ENGINE` enquanto o Cardinal não está utilizável (o item continua visível se
+o dono já o mudou do padrão, para poder voltar). A página Extensões mostra o aviso quando se pediu `cardinal` e o efetivo é `hades`.
+O julgamento roda o binário, por isso fica em cache por 10 s.
 
 ## Extensão mínima de exemplo
 

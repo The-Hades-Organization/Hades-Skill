@@ -177,6 +177,12 @@ ao mesmo tempo, muito além dos ~8 GB livres depois do desktop e dos agentes). A
   (`HADES_GATE_BUDGET_GB`), `MemAvailable` >= custo + **2 GB** de reserva, pressão de memória
   (`/proc/pressure/memory`) baixa, e — se o gate for pesado — nenhum outro pesado rodando. **Nunca
   dois testes na máquina** continua valendo: agora como regra de "um pesado por vez".
+- **O orçamento vale para a máquina; a fila e o painel são por projeto.** Cada repositório tem a sua fila
+  (`<work-root>/<owner__repo>/locks`), e é nela que o painel lê. Mas a admissão soma ao custo da própria fila o dos
+  gates `running` **vivos** das outras filas de `<work-root>/*/locks/gate-queue`; ticket morto de outra fila não conta.
+  Repositório aninhado no worktree de outro projeto tem origin próprio e, portanto, fila própria: o `run` avisa em
+  stderr qual fila usou, e o `status` do projeto de fora traz a linha `outras filas: N gates, X GB (<slug>: ...)`.
+  Com `HADES_GATE_SCOPE=maquina` há uma fila só e nada se soma.
 - **Etapa da stack (`--step <stack>:<etapa>`).** Kind, custo e paralelismo vêm do pacote de stack do projeto
   (`reference/stacks.md`); `--cost-gb` explícito vence. O hook barra o comando cru das etapas das stacks do
   perfil (sem perfil, de todas as instaladas). Sem `origin` a fila é a da máquina (`work/_maquina`).

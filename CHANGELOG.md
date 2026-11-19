@@ -4,6 +4,21 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.51.0 — 2026-11-19
+
+Issue #136: um repositório git aninhado no worktree de outro projeto tinha fila de gates própria, com orçamento de
+memória independente, e o `status` e o painel do projeto de fora não o viam. Dois projetos ativos chegavam a admitir
+16 GB numa máquina de 15 GB.
+
+- **Orçamento pela máquina.** A fila continua por repositório (fila e painel seguem por projeto), mas a admissão soma ao
+  custo da própria fila o dos tickets `running` vivos (`alive(pid, pstart)`) das outras filas em
+  `<work-root>/*/locks/gate-queue` (`src/lib/gate-outras-filas.ts`). Ticket morto ou em espera não conta; pasta ilegível
+  vira lista vazia. Com `HADES_GATE_SCOPE=maquina` nada muda.
+- **`gate-lock status`** mostra `outras filas: N gates, X GB (<slug>: …)`.
+- **`gate-lock run`** avisa em stderr quando o `cwd` é um repositório aninhado com origin diferente e diz qual fila usou.
+- **Fora:** o limite de gates pesados (`HADES_GATE_HEAVY_MAX`) continua por fila; a página Fila de gates não mudou.
+- Docs: `reference/loop/gates.md` §3.2, `reference/config.md` (`HADES_GATE_BUDGET_GB`, `HADES_GATE_SCOPE`).
+
 ## 6.50.0 — 2026-11-18
 
 Pedido do dono: o que sai da máquina não revela onde o gate rodou.

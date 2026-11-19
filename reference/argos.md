@@ -492,6 +492,38 @@ sem aviso): o terminal ficava vivo e invisível.
   `registry` do stream e depois de cada releitura do documento; um toast avisa uma vez por órfão novo.
 - **Fora desta entrega.** Guardar revisões anteriores do documento (item 4 da issue).
 
+## Nó `cardinal` (diagrama do Cardinal)
+
+Extensão `cardinal` (`reference/extensoes.md`). O nó `cardinal` é um tipo livre do documento (`[a-z][a-z0-9_-]{0,39}`) cujo `data` aponta para um arquivo `.cardinal`:
+
+```json
+{ "id": "c1", "type": "cardinal", "data": { "cardinal": "arquitetura-pagamentos", "title": "Arquitetura de pagamentos", "agent": "agent:proj:impl-1" } }
+```
+
+`cardinal` é o nome (`[A-Za-z0-9][A-Za-z0-9_-]*`, até 64), `title` é só rótulo do nó e `agent` é opcional (vínculo no `data`, como na nota). Campo desconhecido é recusado (`cardinal_invalid_data`). Código: `src/lib/canvas-cardinal.ts` (sem Node), `src/panel/canvas-cardinal.ts` (rotas), `src/panel/cardinal-watch.ts` (vigia).
+
+**O `.cardinal` é opaco.** O painel guarda bytes e lê só o envelope `{ format: "cardinal", version, app, project.models }` para exibir e recusar versão futura; nunca converte o conteúdo. `CARDINAL_FORMAT_MAX` (2) é o `format` de `cardinal --version`.
+
+**Arquivos.** `$D/canvas-cardinal/<nome>.cardinal` (0600, gravação por tmp + rename) ou arquivo de fora adotado pelo índice `$D/canvas-cardinal/.index.json` (`{ v: 1, files: { <nome>: { path } } }`). Arquivo adotado mantém a permissão que tinha. Teto: 4 MiB por arquivo (`CARDINAL_LIMITS.bodyBytes`). O hash não fica no nó: `rev` são 16 hex do conteúdo, calculados a cada leitura (o documento tem `rev` própria).
+
+**Rotas** (`/api/canvas-cardinal`, mesmas chave e token de sessão das demais; o agente só no painel local):
+
+| Rota | O que faz |
+|---|---|
+| `GET /api/canvas-cardinal?limit=&after=` | arquivos conhecidos, por nome, em páginas (`files[]`, `next`); limite acima de 200 é 400 |
+| `GET /api/canvas-cardinal/<canvas>[?as=<agente>]` | os nós `cardinal` do canvas (`nodes[]`: `id`, `name`, `exists`, `rev`, `version`, `diagrams`) |
+| `GET /api/canvas-cardinal/<canvas>/<nó>[?as=<agente>]` | `{ name, text, rev, updatedAt, bytes, format, version, app, diagrams, supported, valid, location, path }` |
+| `PUT /api/canvas-cardinal/<canvas>/<nó>` | corpo `{ "text": "<.cardinal>", "rev": null \| "<rev>", "as": { "agent": "<id>" } }`; `rev: null` cria; `{ ok, name, rev, bytes }` |
+| `POST /api/canvas-cardinal/link` | corpo `{ "path": "/abs/x.cardinal" }`; adota sem mover; `{ ok, name, path, created }`; só local |
+
+Exemplo: `GET /api/canvas-cardinal/default/c1` → `{"name":"arquitetura-pagamentos","rev":"9f2c…","version":2,"diagrams":2,"supported":true,"location":"default",…}`; `PUT` com `rev` velha → 409 `cardinal_stale_revision` com a `rev` atual.
+
+**Erros** (`CARDINAL_ROUTE_ERRORS` e `CARDINAL_ERRORS`, só ganham valores): `cardinal_invalid_body`, `cardinal_too_large` (413), `cardinal_not_found` (404), `cardinal_stale_revision` (409), `cardinal_agent_local_only` (403), `cardinal_unreadable` (500: link simbólico, não UTF-8, local fora das raízes), `cardinal_local_only` (403), `cardinal_invalid_path`, `cardinal_exists`, `cardinal_invalid_query`, `cardinal_invalid_name`, `cardinal_invalid_data`, `cardinal_invalid_envelope`, `cardinal_format_too_new` (o PUT recusa versão futura; o GET devolve `supported: false`).
+
+**Escopo.** O dono lê e escreve em qualquer nó. O agente (`as`) só no nó em que `data.agent` é ele; fora do escopo (nó inexistente, de outro tipo, de outro agente) é 404 igual, para não revelar existência. `link` e `as` são só locais (remoto: 403). A adoção só aceita `.cardinal` regular (sem link simbólico), com a pasta (caminho real) dentro das raízes (pasta pessoal) e fora de `$D/canvas-cardinal/`. O caminho guardado é conferido de novo a cada uso.
+
+**Vigia e SSE.** `createCardinalWatch` guarda o carimbo (mtime:tamanho) de cada arquivo conhecido; quando muda, relê e compara a `rev`. Usa `fs.watch` nas pastas (acelera) e uma varredura a cada 2 s (garante). Gravação feita pela própria rota entra por `learn` e não ecoa. Arquivo criado, alterado ou apagado por fora (app nativo, editor, `git checkout`) vira, em `/api/canvas/stream`, o evento `cardinal` com `{ "name", "rev", "source": "panel" \| "disk" }` (`rev: null` = saiu do disco); o aviso não leva o conteúdo, a página relê pela rota. Arquivo adotado entra no vigia depois do `link`.
+
 ## Vários canvases e exportação
 
 O dono pode ter vários canvases por instância. O **padrão** (`default`) é o documento único de antes: o mesmo

@@ -26,6 +26,8 @@ import { createCanvasRoutes } from "./canvas.ts";
 import { createCanvasHub } from "./canvas-stream.ts";
 import { createCanvasContentRoutes } from "./canvas-content.ts";
 import { createCanvasDrawingsRoutes } from "./canvas-drawings.ts";
+import { createCanvasCardinalRoutes } from "./canvas-cardinal.ts";
+import { createCardinalWatch } from "./cardinal-watch.ts";
 import { createCanvasNotesRoutes } from "./canvas-notes.ts";
 import { DEFAULT_CANVAS_ID } from "../lib/canvas-store.ts";
 import { readCanvasDoc } from "../lib/canvas-doc.ts";
@@ -211,6 +213,18 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     loadDoc: (canvasId) => canvasNotesDeps.loadDoc(canvasId),
     patchNodeData: (canvasId, nodeId, rev, check, data) => canvas.patchNodeData(canvasId, nodeId, rev, check, data),
   });
+  // os diagramas Cardinal são nós do documento que apontam para arquivos `.cardinal`; o vigia avisa por SSE (`cardinal`) quando um muda
+  const cardinalWatchRef: { current?: ReturnType<typeof createCardinalWatch> } = {};
+  const canvasCardinal = createCanvasCardinalRoutes(env.dir, {
+    loadDoc: (canvasId) => canvasNotesDeps.loadDoc(canvasId),
+    onWrite: (name, rev) => {
+      cardinalWatchRef.current?.learn(name, rev);
+      canvasHub.publishCardinal(name, rev, "panel");
+    },
+  });
+  const cardinalWatch = createCardinalWatch({ files: () => canvasCardinal.files(), onChange: (name, rev) => canvasHub.publishCardinal(name, rev, "disk") });
+  cardinalWatchRef.current = cardinalWatch;
+  cardinalWatch.start();
   const canvasPortal = createCanvasPortalRoutes({
     hosts: () => {
       const publicHost = auth.publicHost();
@@ -426,6 +440,9 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     if (noteRead) return noteRead;
     const drawingRead = canvasDrawings.get(path, query, { remote });
     if (drawingRead) return drawingRead;
+    if (path === "/api/canvas-cardinal") return canvasCardinal.list(query);
+    const cardinalRead = canvasCardinal.get(path, query, { remote });
+    if (cardinalRead) return cardinalRead;
     const manyCanvases = canvas.getMany(path);
     if (manyCanvases) return manyCanvases;
     if (path === "/api/caronte" || path.startsWith("/api/caronte/plan/")) {
@@ -598,6 +615,8 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     if (method === "PUT") {
       const noteWrite = canvasNotes.write(path, req, { remote });
       if (noteWrite) return noteWrite;
+      const cardinalWrite = canvasCardinal.write(path, req, { remote });
+      if (cardinalWrite) return cardinalWrite;
       if (path === "/api/canvas") return canvas.put(req, { remote });
       return (await canvas.writeMany(method, path, queryOf(url), req, { remote })) ?? send(404, { error: "not found", code: PANEL_ERRORS.notFound });
     }
@@ -606,6 +625,8 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
     if (noteAction) return noteAction;
     const drawingEdit = canvasDrawings.post(path, req, { remote });
     if (drawingEdit) return drawingEdit;
+    const cardinalAction = canvasCardinal.action(path, req, { remote });
+    if (cardinalAction) return cardinalAction.then((res) => { if (res.ok) cardinalWatch.refresh(); return res; });
     // os POST de /api/canvases/* (criar, renomear, apagar, importar) leem o próprio corpo, como o PUT
     const manyWrite = canvas.writeMany(method, path, queryOf(url), req, { remote });
     if (manyWrite) return manyWrite;
@@ -809,5 +830,5 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
   gatewatch.start();
   term.start();
   const widgetListener = widget.serve();
-  return { stop: () => { sampler.stop(); gatewatch.stop(); term.stop(); pluginHost.stop(); widgetListener?.stop(); herdrStream.stop(); mark.close(); markVoice.close(); void server.stop(true); }, port: server.port ?? port, token };
+  return { stop: () => { cardinalWatch.stop(); sampler.stop(); gatewatch.stop(); term.stop(); pluginHost.stop(); widgetListener?.stop(); herdrStream.stop(); mark.close(); markVoice.close(); void server.stop(true); }, port: server.port ?? port, token };
 }

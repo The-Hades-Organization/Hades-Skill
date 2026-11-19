@@ -1,6 +1,6 @@
 // Empurrão do canvas (reference/argos.md §Releitura do documento): um stream SSE aberto pela página do Argos que avisa
 // `{ id, rev }` a cada gravação de documento (da tela, da CLI `hades canvas` ou de agente: todas passam pelo PUT do painel) e
-// `registry` quando o registro de terminais do canvas muda. O aviso não leva o documento: a página relê pela rota de
+// `registry` quando o registro de terminais do canvas muda e `cardinal` `{ name, rev, source }` quando um arquivo `.cardinal` muda. O aviso não leva o documento: a página relê pela rota de
 // sempre, então o corpo continua sob o teto e a validação do GET. O polling da página fica como reserva.
 import { send } from "./http.ts";
 
@@ -23,6 +23,8 @@ export interface CanvasHub {
   publishCanvas(id: string, rev: number): void;
   /** O registro de terminais do canvas mudou (criar, fechar, trocar papel). */
   publishRegistry(): void;
+  /** O arquivo `.cardinal` `name` está na revisão `rev` (`null` = saiu do disco); `source` diz quem gravou: a rota ou o disco. */
+  publishCardinal(name: string, rev: string | null, source: "panel" | "disk"): void;
   /** Resposta SSE para a requisição; fecha quando ela aborta. */
   open(req: Request): Response;
   /** Fecha todos os streams e o timer (desligamento). */
@@ -102,6 +104,7 @@ export function createCanvasHub(options: CanvasHubOptions = {}): CanvasHub {
   return {
     publishCanvas: (id, rev) => broadcast(frame("canvas", { id, rev })),
     publishRegistry: () => broadcast(frame("registry", {})),
+    publishCardinal: (name, rev, source) => broadcast(frame("cardinal", { name, rev, source })),
     open,
     close() {
       for (const client of [...clients]) client.end();

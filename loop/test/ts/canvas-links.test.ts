@@ -45,6 +45,17 @@ describe("canvas-links: quem conecta e o que significa", () => {
     expect(linkMeaning("note", "agent")).toBe("note-access");
   });
 
+  test("diagrama cardinal: acesso com terminal, cadeia com diagrama, cruzado com nota ou desenho é recusado", () => {
+    expect(linkMeaning("agent", "cardinal")).toBe("cardinal-access");
+    expect(linkMeaning("terminal", "cardinal")).toBe("cardinal-access");
+    expect(linkMeaning("cardinal", "agent")).toBe("cardinal-access");
+    expect(linkMeaning("cardinal", "cardinal")).toBe("cardinal-chain");
+    for (const other of ["note", "drawing"]) {
+      expect(linkMeaning("cardinal", other)).toBeUndefined();
+      expect(linkMeaning(other, "cardinal")).toBeUndefined();
+    }
+  });
+
   test("nota com nota é cadeia", () => {
     expect(linkMeaning("note", "note")).toBe("chain");
   });

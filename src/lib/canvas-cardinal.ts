@@ -1,8 +1,8 @@
 // Nó `cardinal` do canvas (reference/argos.md §Nó cardinal): o diagrama é um arquivo `.cardinal` (JSON do Cardinal) e o nó só
 // aponta para ele. O Hades não interpreta o conteúdo: lê o envelope (`format`, `version`, `app`) para exibir e recusar versão
 // futura, e o resto passa por um programa do Cardinal. Lógica pura, sem dependência de Node, como `canvas-note.ts`.
-import { type CanvasDoc, type CanvasNode } from "./canvas-doc.ts";
-import { type NoteWriter, requireWriterId } from "./canvas-note.ts";
+import { type CanvasDoc, type CanvasNode, LINK_EDGE_KIND } from "./canvas-doc.ts";
+import { NOTE_READER_TYPES, type NoteWriter, requireWriterId } from "./canvas-note.ts";
 
 export const CARDINAL_TYPE = "cardinal";
 /** Valor do campo `format` do envelope. */
@@ -145,17 +145,70 @@ export function findCardinalNode(doc: CanvasDoc, nodeId: string): (Omit<CanvasNo
 /** O arquivo a que o nó aponta; `undefined` se o nó não existe, não é `cardinal` ou tem `data` inválido. */
 export const cardinalFileOf = (doc: CanvasDoc, nodeId: string): string | undefined => findCardinalNode(doc, nodeId)?.data.cardinal;
 
-/** O leitor é o agente ligado ao diagrama pelo `data` (como `NoteData.agent`; o agente do grafo não é nó do documento). A ligação por conexão entra na U8. */
-export const isCardinalAgent = (doc: CanvasDoc, nodeId: string, readerId: string): boolean => findCardinalNode(doc, nodeId)?.data.agent === readerId;
+const nodeAt = (doc: CanvasDoc, id: string): CanvasNode | undefined => doc.nodes.find((node) => node.id === id);
+/** A outra ponta de uma aresta `link` que toca `id`, ou `undefined`. */
+const otherEnd = (edge: CanvasDoc["edges"][number], id: string): string | undefined =>
+  edge.kind !== LINK_EDGE_KIND ? undefined : edge.from === id ? edge.to : edge.to === id ? edge.from : undefined;
 
-/** Escreve no diagrama: o dono sempre; o agente só se tem acesso de escrita. Nó inexistente ou de outro tipo: `false`. */
-export function canWriteCardinal(doc: CanvasDoc, nodeId: string, writer: NoteWriter): boolean {
-  if (findCardinalNode(doc, nodeId) === undefined) return false;
-  return writer.kind === "owner" || isCardinalAgent(doc, nodeId, writer.id);
+/**
+ * Os diagramas ligados direto ao leitor: os das conexões (`cardinal-access`), na ordem das arestas, e depois os que o ligam
+ * pelo `data.agent` (vale mesmo sem o leitor ser nó do documento: o agente do grafo não é). Leitor presente que não é agente
+ * nem terminal não tem nenhum.
+ */
+export function directCardinalsOf(doc: CanvasDoc, readerId: string): string[] {
+  const reader = nodeAt(doc, readerId);
+  if (reader && !NOTE_READER_TYPES.includes(reader.type)) return [];
+  const out: string[] = [];
+  for (const edge of reader ? doc.edges : []) {
+    const other = otherEnd(edge, readerId);
+    if (other !== undefined && nodeAt(doc, other)?.type === CARDINAL_TYPE && !out.includes(other)) out.push(other);
+  }
+  for (const node of doc.nodes) {
+    if (node.type === CARDINAL_TYPE && isDict(node.data) && node.data.agent === readerId && !out.includes(node.id)) out.push(node.id);
+  }
+  return out;
 }
 
-/** Lê o diagrama: o dono sempre; o agente se tem acesso de leitura. */
+/** A cadeia a partir do diagrama `nodeId` (ele primeiro), em largura pelas conexões cardinal↔cardinal; cada nó entra uma vez. */
+export function cardinalChainFrom(doc: CanvasDoc, nodeId: string): { id: string; via: string | null }[] {
+  if (nodeAt(doc, nodeId)?.type !== CARDINAL_TYPE) return [];
+  const out: { id: string; via: string | null }[] = [{ id: nodeId, via: null }];
+  const seen = new Set([nodeId]);
+  for (let i = 0; i < out.length; i++) {
+    const from = (out[i] as { id: string }).id;
+    for (const edge of doc.edges) {
+      const other = otherEnd(edge, from);
+      if (other === undefined || seen.has(other) || nodeAt(doc, other)?.type !== CARDINAL_TYPE) continue;
+      seen.add(other);
+      out.push({ id: other, via: from });
+    }
+  }
+  return out;
+}
+
+/** Tudo que o leitor alcança: os diagramas diretos e as cadeias deles, sem repetir (o direto vence o de cadeia). */
+export function readableCardinalsOf(doc: CanvasDoc, readerId: string): { id: string; via: string | null }[] {
+  const direct = directCardinalsOf(doc, readerId);
+  const out = direct.map((id) => ({ id, via: null as string | null }));
+  const seen = new Set(direct);
+  for (const entry of direct) {
+    for (const hop of cardinalChainFrom(doc, entry)) {
+      if (seen.has(hop.id)) continue;
+      seen.add(hop.id);
+      out.push(hop);
+    }
+  }
+  return out;
+}
+
+/** Escreve no diagrama: o dono sempre; o agente só se está ligado direto a ele (a cadeia só se lê). Nó inexistente ou de outro tipo: `false`. */
+export function canWriteCardinal(doc: CanvasDoc, nodeId: string, writer: NoteWriter): boolean {
+  if (findCardinalNode(doc, nodeId) === undefined) return false;
+  return writer.kind === "owner" || directCardinalsOf(doc, writer.id).includes(nodeId);
+}
+
+/** Lê o diagrama: o dono sempre; o agente se o alcança, direto ou pela cadeia. */
 export function canReadCardinal(doc: CanvasDoc, nodeId: string, readerId: string | undefined): boolean {
   if (findCardinalNode(doc, nodeId) === undefined) return false;
-  return readerId === undefined || isCardinalAgent(doc, nodeId, readerId);
+  return readerId === undefined || readableCardinalsOf(doc, readerId).some((entry) => entry.id === nodeId);
 }

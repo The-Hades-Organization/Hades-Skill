@@ -7,7 +7,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type CanvasDoc, validateCanvasDoc } from "../../../src/lib/canvas-doc";
 import {
-  CARDINAL_ERRORS, CARDINAL_FORMAT_MAX, CARDINAL_LIMITS, CardinalError, canReadCardinal, canWriteCardinal, readCardinalData, readEnvelope,
+  CARDINAL_ERRORS, CARDINAL_FORMAT_MAX, CARDINAL_LIMITS, CardinalError, canReadCardinal, canWriteCardinal, cardinalChainFrom, directCardinalsOf, readableCardinalsOf,
+  readCardinalData, readEnvelope,
 } from "../../../src/lib/canvas-cardinal";
 import { OWNER } from "../../../src/lib/canvas-note";
 import { CARDINAL_BODY_BYTES, CARDINAL_ROUTE_ERRORS, createCanvasCardinalRoutes, revisionOf } from "../../../src/panel/canvas-cardinal";
@@ -83,6 +84,45 @@ describe("canvas-cardinal (lib): dados, envelope e acesso", () => {
     expect(canReadCardinal(withAgent, "c1", "t2")).toBe(false);
     expect(canWriteCardinal(DOC, "n1", OWNER)).toBe(false);
     expect(canWriteCardinal(DOC, "nada", OWNER)).toBe(false);
+  });
+});
+
+describe("canvas-cardinal (lib): acesso por conexão", () => {
+  const edge = (id: string, from: string, to: string): Dict => ({ id, from, to, kind: "link" });
+  const linked = (edges: Dict[]): CanvasDoc =>
+    validateCanvasDoc({
+      v: 1, rev: 0, groups: [], edges,
+      nodes: [node("agent:p:a1", "agent", {}), node("agent:p:a2", "agent", {}), node("c1", "cardinal", { cardinal: "um" }), node("c2", "cardinal", { cardinal: "dois" }),
+        node("c3", "cardinal", { cardinal: "tres" }), node("c4", "cardinal", { cardinal: "quatro", agent: "agent:p:a1" }), node("n1", "note", { note: "x" })],
+    });
+  const DOC2 = linked([edge("e1", "agent:p:a1", "c1"), edge("e2", "c1", "c2")]);
+
+  test("ligado direto: lê e escreve; ordem das arestas e depois data.agent", () => {
+    expect(directCardinalsOf(DOC2, "agent:p:a1")).toEqual(["c1", "c4"]);
+    expect(canReadCardinal(DOC2, "c1", "agent:p:a1")).toBe(true);
+    expect(canWriteCardinal(DOC2, "c1", { kind: "agent", id: "agent:p:a1" })).toBe(true);
+  });
+
+  test("pela cadeia: só lê", () => {
+    expect(cardinalChainFrom(DOC2, "c1")).toEqual([{ id: "c1", via: null }, { id: "c2", via: "c1" }]);
+    expect(readableCardinalsOf(DOC2, "agent:p:a1").map((e) => e.id)).toEqual(["c1", "c4", "c2"]);
+    expect(canReadCardinal(DOC2, "c2", "agent:p:a1")).toBe(true);
+    expect(canWriteCardinal(DOC2, "c2", { kind: "agent", id: "agent:p:a1" })).toBe(false);
+  });
+
+  test("fora do escopo: outro agente, diagrama solto, nota no meio", () => {
+    expect(canReadCardinal(DOC2, "c1", "agent:p:a2")).toBe(false);
+    expect(canReadCardinal(DOC2, "c3", "agent:p:a1")).toBe(false);
+    expect(directCardinalsOf(DOC2, "n1")).toEqual([]);
+    expect(directCardinalsOf(DOC2, "c1")).toEqual([]);
+    expect(cardinalChainFrom(DOC2, "n1")).toEqual([]);
+  });
+
+  test("dono lê e escreve em qualquer um; laço na cadeia não prende", () => {
+    expect(canReadCardinal(DOC2, "c3", undefined)).toBe(true);
+    expect(canWriteCardinal(DOC2, "c3", OWNER)).toBe(true);
+    const loop = linked([edge("e1", "agent:p:a1", "c1"), edge("e2", "c1", "c2"), edge("e3", "c2", "c1")]);
+    expect(cardinalChainFrom(loop, "c1").map((e) => e.id)).toEqual(["c1", "c2"]);
   });
 });
 

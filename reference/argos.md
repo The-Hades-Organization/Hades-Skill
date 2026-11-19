@@ -520,7 +520,7 @@ Exemplo: `GET /api/canvas-cardinal/default/c1` → `{"name":"arquitetura-pagamen
 
 **Erros** (`CARDINAL_ROUTE_ERRORS` e `CARDINAL_ERRORS`, só ganham valores): `cardinal_invalid_body`, `cardinal_too_large` (413), `cardinal_not_found` (404), `cardinal_stale_revision` (409), `cardinal_agent_local_only` (403), `cardinal_unreadable` (500: link simbólico, não UTF-8, local fora das raízes), `cardinal_local_only` (403), `cardinal_invalid_path`, `cardinal_exists`, `cardinal_invalid_query`, `cardinal_invalid_name`, `cardinal_invalid_data`, `cardinal_invalid_envelope`, `cardinal_format_too_new` (o PUT recusa versão futura; o GET devolve `supported: false`).
 
-**Escopo.** O dono lê e escreve em qualquer nó. O agente (`as`) só no nó em que `data.agent` é ele; fora do escopo (nó inexistente, de outro tipo, de outro agente) é 404 igual, para não revelar existência. `link` e `as` são só locais (remoto: 403). A adoção só aceita `.cardinal` regular (sem link simbólico), com a pasta (caminho real) dentro das raízes (pasta pessoal) e fora de `$D/canvas-cardinal/`. O caminho guardado é conferido de novo a cada uso.
+**Escopo.** O dono lê e escreve em qualquer nó. O agente (`as`) escreve só no diagrama ligado direto a ele (conexão `cardinal-access` ou `data.agent`) e lê também os da cadeia (`cardinal-chain`, `readableCardinalsOf`; a listagem do agente já sai filtrada assim); fora do escopo (nó inexistente, de outro tipo, fora da cadeia do agente) é 404 igual, para não revelar existência. `link` e `as` são só locais (remoto: 403). A adoção só aceita `.cardinal` regular (sem link simbólico), com a pasta (caminho real) dentro das raízes (pasta pessoal) e fora de `$D/canvas-cardinal/`. O caminho guardado é conferido de novo a cada uso.
 
 **Vigia e SSE.** `createCardinalWatch` guarda o carimbo (mtime:tamanho) de cada arquivo conhecido; quando muda, relê e compara a `rev`. Usa `fs.watch` nas pastas (acelera) e uma varredura a cada 2 s (garante). Gravação feita pela própria rota entra por `learn` e não ecoa. Arquivo criado, alterado ou apagado por fora (app nativo, editor, `git checkout`) vira, em `/api/canvas/stream`, o evento `cardinal` com `{ "name", "rev", "source": "panel" \| "disk" }` (`rev: null` = saiu do disco); o aviso não leva o conteúdo, a página relê pela rota. Arquivo adotado entra no vigia depois do `link`.
 
@@ -3315,10 +3315,12 @@ popover em `kit/panel/ui/argos/canvas-links.tsx` (`window.ArgosLinks`).
 | nota ↔ nota | `chain` | nota encadeada: quem lê a nota de entrada percorre a cadeia |
 | terminal ↔ desenho | `drawing-access` | o agente do terminal lê e edita o desenho pela CLI do painel (`hades canvas drawing`) |
 | desenho ↔ desenho | `drawing-chain` | desenho encadeado: a leitura segue a cadeia (nota ↔ desenho não conecta) |
+| terminal ↔ diagrama `cardinal` | `cardinal-access` | o agente do terminal lê e grava o diagrama pelas rotas `/api/canvas-cardinal` |
+| diagrama ↔ diagrama | `cardinal-chain` | diagrama encadeado: a leitura segue a cadeia, a escrita fica no ligado direto (diagrama ↔ nota e diagrama ↔ desenho não conectam) |
 | terminal ↔ terminal | — | recusado (`links_no_reader`): nesta versão não há leitor dessa conexão |
 | outro tipo de nó | — | recusado (`links_no_reader`) |
 
-Terminal é o nó `agent` ou o nó `terminal` (o que a ferramenta Terminal da barra cria); nota é o nó `note`. Os códigos
+Terminal é o nó `agent` ou o nó `terminal` (o que a ferramenta Terminal da barra cria); nota é o nó `note` e diagrama é o nó `cardinal`. Os códigos
 de erro (`LINK_ERRORS`, prefixo `links_`) só ganham valores; o texto ao dono sai de `LINK_ERROR_TEXT`.
 
 **Forma no documento (aditiva).** `CanvasEdge` ganhou dois campos opcionais, aceitos só quando `kind` é `link`:

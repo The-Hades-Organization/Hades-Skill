@@ -65,7 +65,8 @@
     ],
     "env": {
       "NX_CACHE_DIRECTORY": "{cache}/nx/{repo}/{key}/{slot}",
-      "NX_DAEMON": "false"
+      "NX_DAEMON": "false",
+      "NPM_CONFIG_CACHE": "{cache}/npm"
     },
     "passEnv": ["NG_BUILD_MAX_WORKERS", "NODE_OPTIONS"]
   },

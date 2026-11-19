@@ -7,7 +7,7 @@ import { isAbsolute, join, normalize, relative, sep } from "node:path";
 import { specFor } from "../gate.ts";
 
 export const PROTOCOL_VERSION = 1;
-export const WORKER_COMMANDS = ["exec", "status", "warm", "out", "git-receive-pack"] as const;
+export const WORKER_COMMANDS = ["exec", "status", "warm", "out", "gc", "git-receive-pack"] as const;
 export type WorkerCommandName = (typeof WORKER_COMMANDS)[number];
 
 /** Rc que o gate-lock já usa para "não rodou" (EX_TEMPFAIL, sysexits.h). */
@@ -247,8 +247,49 @@ export interface OutRequest {
   dirs: boolean;
 }
 
+/** Pedido de limpeza do worker: libera `freeGb` ou todas as worktrees ociosas (`allIdle`); exatamente um dos dois. */
+export interface GcRequest {
+  freeGb: number | undefined;
+  allIdle: boolean;
+  keepWarm: boolean;
+  dryRun: boolean;
+}
+
+const GC_FREE_GB_MAX = 100_000;
+
+/** Linha do comando `gc` como o cliente a envia (a inversa de `gcRequest`). */
+export function gcCommandLine(request: GcRequest): string {
+  const parts = ["gc", request.allIdle ? "--all-idle" : `--free-gb ${request.freeGb ?? 0}`];
+  if (request.keepWarm) parts.push("--keep-warm");
+  if (request.dryRun) parts.push("--dry-run");
+  return parts.join(" ");
+}
+
+/** Argumentos do `gc` (depois do nome): lista fechada de opções, sem payload; o `gc` roda sem escrever, então a validação é só esta. */
+export function gcRequest(args: readonly string[]): GcRequest {
+  let freeGb: number | undefined;
+  let allIdle = false;
+  let keepWarm = false;
+  let dryRun = false;
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (arg === "--all-idle") allIdle = true;
+    else if (arg === "--keep-warm") keepWarm = true;
+    else if (arg === "--dry-run") dryRun = true;
+    else if (arg === "--free-gb") {
+      const raw = args[i + 1] ?? "";
+      if (!/^[0-9]{1,6}$/.test(raw) || Number(raw) < 1 || Number(raw) > GC_FREE_GB_MAX) throw new ProtocolError(`gc: --free-gb exige inteiro de 1 a ${GC_FREE_GB_MAX}`);
+      freeGb = Number(raw);
+      i += 1;
+    } else throw new ProtocolError(`gc: opção fora da lista: ${String(arg).slice(0, 40)}`);
+  }
+  if (allIdle === (freeGb !== undefined)) throw new ProtocolError("gc: use --free-gb N ou --all-idle (um dos dois)");
+  return { freeGb, allIdle, keepWarm, dryRun };
+}
+
 export type WorkerRequest =
   | { kind: "status" }
+  | { kind: "gc"; request: GcRequest }
   | { kind: "exec"; job: Job }
   | { kind: "warm"; request: WarmRequest }
   | { kind: "out"; request: OutRequest }
@@ -291,6 +332,7 @@ export function parseWorkerCommand(original: string, home: string): WorkerReques
     return { kind: "receive-pack", path };
   }
   const parts = original.split(" ");
+  if (parts[0] === "gc") return { kind: "gc", request: gcRequest(parts.slice(1)) };
   const [name, arg, ...extra] = parts;
   if (!(WORKER_COMMANDS as readonly string[]).includes(name ?? "") || extra.length > 0) throw new ProtocolError(`subcomando fora da lista: ${(name ?? "").slice(0, 40)}`);
   if (name === "status") {

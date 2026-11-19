@@ -8,16 +8,20 @@ import { cpus, hostname, homedir, tmpdir, totalmem } from "node:os";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { withFlockAsync } from "../lib/flock.ts";
+import { formatGcReport, runGc, type GcOptions } from "../lib/worker-gc.ts";
+import { configValue } from "../lib/work.ts";
+import { gcWorker } from "../lib/gate-remote/client.ts";
+import { sshCommand } from "../lib/gate-remote/transport.ts";
 import { JOB_REF_PREFIX } from "../lib/gate-remote/ship.ts";
 import type { WorkerStatus } from "../lib/gate-remote/dispatch.ts";
 import {
-  PROTOCOL_VERSION, ProtocolError, RC_NOT_RUN, REASON_TOOL, decodePayload, formatTrailer, mirrorPath, parseWorkerCommand, workerHeadroomGb, type Job, type OutRequest, type WarmRequest,
+  PROTOCOL_VERSION, ProtocolError, RC_NOT_RUN, REASON_TOOL, decodePayload, formatTrailer, gcRequest, mirrorPath, parseWorkerCommand, workerHeadroomGb, isHost, type GcRequest, type Job, type OutRequest, type WarmRequest,
 } from "../lib/gate-remote/protocol.ts";
 import { MANIFEST_NAME, MANIFEST_VERSION, ManifestError, hashTree, type Manifest, type ManifestDir } from "../lib/gate-remote/manifest.ts";
 import { badPassEnv, claimSlot, clearWarm, expandEnv, readKeyFiles, environmentPresent, readWarm, remoteSpecOf, warmKey, warmStates, writeWarm, type RemoteSpec, type WarmRecord } from "../lib/gate-remote/warm.ts";
 import { HadesError, warn } from "../lib/output.ts";
-import { journalWorkRoot } from "../lib/journal.ts";
-import { memAvailableMb, sameProcess, which } from "../lib/proc.ts";
+import { emitJournal, journalWorkRoot } from "../lib/journal.ts";
+import { memAvailableMb, procStartTime, sameProcess, which } from "../lib/proc.ts";
 import { field, parseTicket } from "../lib/gate.ts";
 import { installedStacks } from "../lib/profile.ts";
 import { selfCli } from "../lib/paths.ts";
@@ -93,10 +97,31 @@ export function liveQueueLength(roots: readonly string[]): number {
   return total;
 }
 
+/** Pids dos tickets vivos nas filas dadas: o `gc` olha o cwd deles para saber qual worktree a fila segura. */
+function liveTicketPids(roots: readonly string[]): number[] {
+  const pids: number[] = [];
+  for (const root of roots) {
+    const dir = join(root, "locks", "gate-queue");
+    for (const name of listSafe(dir)) {
+      if (!name.endsWith(".t") || !liveTicket(join(dir, name))) continue;
+      try {
+        const pid = Number(field(parseTicket(readFileSync(join(dir, name), "utf8")), "pid"));
+        if (Number.isInteger(pid) && pid > 0) pids.push(pid);
+      } catch {
+        // o ticket sumiu entre a listagem e a leitura: saiu da fila
+      }
+    }
+  }
+  return pids;
+}
+
+function queueRoots(): string[] {
+  return process.env.HADES_WORK ? [process.env.HADES_WORK] : listSafe(journalWorkRoot()).map((name) => join(journalWorkRoot(), name));
+}
+
 /** Tickets de todas as filas do worker (por projeto ou da máquina): é o que "queue" do status conta. */
 function queueLength(): number {
-  const roots = process.env.HADES_WORK ? [process.env.HADES_WORK] : listSafe(journalWorkRoot()).map((name) => join(journalWorkRoot(), name));
-  return liveQueueLength(roots);
+  return liveQueueLength(queueRoots());
 }
 
 function listSafe(dir: string): string[] {
@@ -284,7 +309,26 @@ function refuse(job: Job, message: string, startedMs: number): number {
   return RC_NOT_RUN;
 }
 
+/** O job roda e, ao fim, o worker tenta liberar disco (nunca a worktree deste job; falha não muda o rc). */
 async function execJob(job: Job): Promise<number> {
+  const rc = await execJobHere(job);
+  autoGc(job.cwd);
+  return rc;
+}
+
+/**
+ * Marcadores por worktree ao lado do lock: `.job` (pid e início de quem roda, para o `gc` não apagar sob o job) e `.used`
+ * (último uso, para o `gc` apagar a mais antiga primeiro). Falha ao gravar só avisa: o lock já protege a worktree.
+ */
+function touchMarker(mirror: string, cwd: string, suffix: ".job" | ".used", content: string): void {
+  try {
+    writeFileSync(join(mirror, "hades-worktrees", `${worktreeId(cwd)}${suffix}`), content);
+  } catch (error) {
+    warn(`worker: marcador ${suffix} não gravado: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+async function execJobHere(job: Job): Promise<number> {
   const started = Date.now();
   const mirror = physical(mirrorPath(home(), job.repo));
   if (!existsSync(join(mirror, "HEAD"))) return refuse(job, "espelho inexistente (o código não foi enviado)", started);
@@ -298,35 +342,45 @@ async function execJob(job: Job): Promise<number> {
     } catch (error) {
       return refuse(job, error instanceof Error ? error.message : String(error), started);
     }
-    const spec = specOfStack(job.stack);
-    loadToolchain(physical(job.cwd));
-    const lacking = toolsRefusal(spec);
-    if (lacking !== undefined) return refuse(job, lacking, started);
-    const notAllowed = Object.keys(job.env).find((name) => !(spec?.passEnv ?? []).includes(name));
-    if (notAllowed !== undefined) return refuse(job, `variável ${notAllowed} não está em remote.passEnv da stack deste worker`, started);
-    const badName = badPassEnv(spec?.passEnv ?? []);
-    if (badName !== undefined) return refuse(job, `remote.passEnv da stack deste worker traz ${badName}, que não pode atravessar`, started);
-    if (spec !== undefined && spec.prepare.length > 0) {
-      const key = keyOf(job.stack, spec, job.cwd);
-      if (!confirmedReady(physical(baseDir()), key)) {
-        if (!job.warmInline) return refuse(job, "ambiente frio para esta chave (o aquecimento não terminou)", started);
-        if (prepareAndRecord(job, spec, key) !== 0) return refuse(job, "preparo do ambiente falhou", started);
-      }
-    }
-    const slot = spec === undefined ? undefined : claimSlot(physical(baseDir()), job.repo);
-    const resultFile = join(physical(baseDir()), "results", `${job.id}.txt`);
-    mkdirSync(dirname(resultFile), { recursive: true });
-    recordStart(dirname(resultFile), job.id, started);
+    touchMarker(mirror, job.cwd, ".job", `${process.pid} ${procStartTime(process.pid) ?? ""}\n`);
     try {
-      const rc = await runGateLock(job, spec, slot?.slot ?? 0, resultFile, spec === undefined ? undefined : keyOf(job.stack, spec, job.cwd));
-      if (rc === undefined) return 143;
-      emitTrailer(job, rc, readResult(resultFile).peakMb, started);
-      return rc;
+      return await execInWorktree(job, mirror, started);
     } finally {
-      slot?.release();
-      rmSync(resultFile, { force: true });
+      rmSync(join(mirror, "hades-worktrees", `${worktreeId(job.cwd)}.job`), { force: true });
+      touchMarker(mirror, job.cwd, ".used", `${new Date().toISOString()}\n`);
     }
   });
+}
+
+async function execInWorktree(job: Job, mirror: string, started: number): Promise<number> {
+  const spec = specOfStack(job.stack);
+  loadToolchain(physical(job.cwd));
+  const lacking = toolsRefusal(spec);
+  if (lacking !== undefined) return refuse(job, lacking, started);
+  const notAllowed = Object.keys(job.env).find((name) => !(spec?.passEnv ?? []).includes(name));
+  if (notAllowed !== undefined) return refuse(job, `variável ${notAllowed} não está em remote.passEnv da stack deste worker`, started);
+  const badName = badPassEnv(spec?.passEnv ?? []);
+  if (badName !== undefined) return refuse(job, `remote.passEnv da stack deste worker traz ${badName}, que não pode atravessar`, started);
+  if (spec !== undefined && spec.prepare.length > 0) {
+    const key = keyOf(job.stack, spec, job.cwd);
+    if (!confirmedReady(physical(baseDir()), key)) {
+      if (!job.warmInline) return refuse(job, "ambiente frio para esta chave (o aquecimento não terminou)", started);
+      if (prepareAndRecord(job, spec, key) !== 0) return refuse(job, "preparo do ambiente falhou", started);
+    }
+  }
+  const slot = spec === undefined ? undefined : claimSlot(physical(baseDir()), job.repo);
+  const resultFile = join(physical(baseDir()), "results", `${job.id}.txt`);
+  mkdirSync(dirname(resultFile), { recursive: true });
+  recordStart(dirname(resultFile), job.id, started);
+  try {
+    const rc = await runGateLock(job, spec, slot?.slot ?? 0, resultFile, spec === undefined ? undefined : keyOf(job.stack, spec, job.cwd));
+    if (rc === undefined) return 143;
+    emitTrailer(job, rc, readResult(resultFile).peakMb, started);
+    return rc;
+  } finally {
+    slot?.release();
+    rmSync(resultFile, { force: true });
+  }
 }
 
 /** Roda o `gate-lock` do worker sobre o job; undefined = a conexão caiu e o job foi derrubado (ninguém para ouvir o trailer). */
@@ -440,6 +494,80 @@ function outFiles(request: OutRequest): number {
   }
 }
 
+// --- limpeza (gc) ---
+
+const GC_MIN_FREE_KEY = "HADES_WORKER_GC_MIN_FREE_GB";
+const GC_IDLE_DAYS_KEY = "HADES_WORKER_GC_IDLE_DAYS";
+const GC_MIN_FREE_DEFAULT_GB = 20;
+const GC_IDLE_DEFAULT_DAYS = 3;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function gcEnv(): Parameters<typeof runGc>[0] {
+  return { base: physical(baseDir()), home: home(), physical, ticketPids: () => liveTicketPids(queueRoots()) };
+}
+
+/** Disco do sistema de arquivos do worker, o mesmo que o status mostra. */
+function workerDisk(): ReturnType<typeof diskOf> {
+  return diskOf(fsRoot() === "" ? physical(baseDir()) : fsRoot());
+}
+
+/** `gc` do comando forçado: JSON em stdout (`GcReport` + `diskFreeGb` depois). Sem checkout e sem escrita antes de apagar. */
+function gcServe(request: GcRequest): number {
+  const report = runGc(gcEnv(), { ...request, maintenanceAlways: true });
+  process.stdout.write(`${JSON.stringify({ ...report, diskFreeGb: workerDisk().diskFreeGb })}\n`);
+  return 0;
+}
+
+function nonNegativeInt(key: string, fallback: number): number {
+  const raw = configValue(key, String(fallback));
+  if (!/^[0-9]{1,6}$/.test(raw)) throw new Error(`${key} exige inteiro >= 0: '${raw}'`);
+  return Number(raw);
+}
+
+/**
+ * Limpeza ao fim de um job: disco livre abaixo do teto (libera a diferença) ou worktree ociosa há mais que o limite de dias.
+ * Nunca toca a worktree do job que acabou de rodar nem outra com job vivo. Falha vai ao stderr e ao journal e nunca muda o rc.
+ */
+export function autoGc(currentCwd: string, run: typeof runGc = runGc): void {
+  try {
+    const minFree = nonNegativeInt(GC_MIN_FREE_KEY, GC_MIN_FREE_DEFAULT_GB);
+    const idleDays = nonNegativeInt(GC_IDLE_DAYS_KEY, GC_IDLE_DEFAULT_DAYS);
+    const free = workerDisk().diskFreeGb;
+    const lacking = free !== undefined && minFree > 0 && free < minFree ? minFree - free : undefined;
+    if (lacking === undefined && idleDays === 0) return;
+    const options: GcOptions = {
+      freeGb: lacking, allIdle: false, keepWarm: false, dryRun: false, idleOlderThanMs: idleDays > 0 ? idleDays * DAY_MS : undefined, exclude: [currentCwd], maintenanceAlways: lacking !== undefined,
+    };
+    const report = run(gcEnv(), options);
+    if (report.removed.length > 0 || report.errors.length > 0) {
+      const summary = `gc após o job: ${report.removed.length} worktrees, ${report.freedGb} GB${report.errors.length > 0 ? `; erros: ${report.errors.join("; ")}` : ""}`;
+      emitJournal("gate", report.errors.length > 0 ? "gate.gc-erro" : "gate.gc", summary, { cwd: currentCwd, get: (key) => process.env[key] });
+      if (report.errors.length > 0) warn(`worker: ${summary}`);
+    }
+  } catch (error) {
+    const message = `gc após o job falhou: ${error instanceof Error ? error.message : String(error)}`;
+    warn(`worker: ${message}`);
+    emitJournal("gate", "gate.gc-erro", message, { cwd: currentCwd, get: (key) => process.env[key] });
+  }
+}
+
+/** `hades worker gc <host> ...`: pede a limpeza ao worker pelo mesmo transporte do status e imprime o resumo. */
+async function gcClient(args: readonly string[]): Promise<number> {
+  const [host = "", ...flags] = args;
+  if (!isHost(host)) die(`uso: hades worker gc <host> (--free-gb N | --all-idle) [--keep-warm] [--dry-run]; host inválido '${host.slice(0, 40)}'`);
+  let request: GcRequest;
+  try {
+    request = gcRequest(flags);
+  } catch (error) {
+    if (error instanceof ProtocolError) die(`${error.message}; uso: hades worker gc <host> (--free-gb N | --all-idle) [--keep-warm] [--dry-run]`);
+    throw error;
+  }
+  const result = await gcWorker(sshCommand(), host, request);
+  if ("error" in result) die(result.error, 1);
+  process.stdout.write(`${formatGcReport(result.report, { diskFreeGb: result.diskFreeGb })}\n`);
+  return result.report.errors.length > 0 ? 1 : 0;
+}
+
 // --- entradas ---
 
 async function serve(original: string): Promise<number> {
@@ -454,6 +582,8 @@ async function serve(original: string): Promise<number> {
       return warmRequestRun(request.request, false);
     case "out":
       return outFiles(request.request);
+    case "gc":
+      return gcServe(request.request);
     case "receive-pack": {
       const mirror = physical(request.path);
       ensureMirror(mirror);
@@ -472,11 +602,12 @@ function printStatus(json: boolean): number {
   return 0;
 }
 
-const WORKER_USAGE = `uso: hades worker exec | status [--json] | warm <stack>
+const WORKER_USAGE = `uso: hades worker exec | status [--json] | warm <stack> | gc <host> (--free-gb N | --all-idle) [--keep-warm] [--dry-run]
 
   exec    comando forçado da chave SSH do worker (command="hades worker exec"): lê SSH_ORIGINAL_COMMAND
   status  capacidade e ambientes aquecidos desta máquina como worker
-  warm    prepara o ambiente do worktree atual (npm ci, cargo fetch) para a stack e grava o estado`;
+  warm    prepara o ambiente do worktree atual (npm ci, cargo fetch) para a stack e grava o estado
+  gc      pede ao worker (pelo mesmo ssh do status) que apague worktrees ociosas e libere disco; --dry-run só lista`;
 
 export async function workerCommand(args: string[]): Promise<number> {
   const [sub, ...rest] = args;
@@ -488,6 +619,7 @@ export async function workerCommand(args: string[]): Promise<number> {
     }
     if (sub === "status") return printStatus(rest.includes("--json"));
     if (sub === "warm") return await warmHere(rest[0] ?? "");
+    if (sub === "gc") return await gcClient(rest);
     if (sub === "__warm-run") return await warmRun(rest[0] ?? "");
     warn(WORKER_USAGE);
     return USAGE_EXIT;

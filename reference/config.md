@@ -38,7 +38,7 @@ vão inteiras, para o grep achar.
 ### Fila de gates
 | Chaves | Aplicar |
 |---|---|
-| prefixo `HADES_GATE_`: `HADES_GATE_BUDGET_GB` (8; vale para a máquina: soma os gates vivos de todas as filas), `HADES_GATE_RESERVE_GB` (2), `HADES_GATE_HEADROOM_GB` (3), `HADES_GATE_PSI_MAX` (10), `HADES_GATE_HEAVY_MAX` (1), `HADES_GATE_PAR_LINT` (0), `HADES_GATE_PAR_BUILD` (0), `HADES_GATE_COST_MEASURED` (0), `HADES_GATE_PRIORITY` (0), `HADES_GATE_WINDOW` (vazio), `HADES_GATE_PROJECT_BUDGET_GB` (0), `HADES_GATE_SCOPE` (projeto \| maquina), `HADES_GATE_WHERE` (local), `HADES_GATE_WORKERS` (vazio), `HADES_GATE_AUTO_AFTER_S` (120), `HADES_GATE_OVERRUN_MIN` (90), `HADES_GATE_OVERRUN_FACTOR` (5) | próximo `gate-lock run` (lê o `config.sh` da instalação a cada chamada; variável exportada vence) |
+| prefixo `HADES_GATE_`: `HADES_GATE_BUDGET_GB` (8; vale para a máquina: soma os gates vivos de todas as filas), `HADES_GATE_RESERVE_GB` (2), `HADES_GATE_HEADROOM_GB` (3), `HADES_GATE_PSI_MAX` (10), `HADES_GATE_HEAVY_MAX` (1), `HADES_GATE_PAR_LINT` (0), `HADES_GATE_PAR_BUILD` (0), `HADES_GATE_COST_MEASURED` (0), `HADES_GATE_PRIORITY` (0), `HADES_GATE_WINDOW` (vazio), `HADES_GATE_PROJECT_BUDGET_GB` (0), `HADES_GATE_SCOPE` (projeto \| maquina), `HADES_GATE_WHERE` (local), `HADES_GATE_WORKERS` (vazio), `HADES_GATE_AUTO_AFTER_S` (120), `HADES_GATE_OVERRUN_MIN` (90), `HADES_GATE_OVERRUN_FACTOR` (5), `HADES_WORKER_GC_MIN_FREE_GB` (20), `HADES_WORKER_GC_IDLE_DAYS` (3) | próximo `gate-lock run` (lê o `config.sh` da instalação a cada chamada; variável exportada vence) |
 
 Os padrões são o comportamento de antes: 8 GB, um pesado por vez, FIFO.
 - `HADES_GATE_COST_MEASURED=1` troca o custo da etapa pelo maior pico das 5 últimas execuções.
@@ -49,6 +49,7 @@ Os padrões são o comportamento de antes: 8 GB, um pesado por vez, FIFO.
 - `HADES_GATE_WHERE` (`local`) escolhe onde o gate roda: `local`, `<host>` (`user@host`) ou `auto`. `gate-lock run --where` vence a chave.
 - `HADES_GATE_WORKERS` (vazio) lista os workers, `host[:rotulo+rotulo]` separados por vírgula; os rótulos casam com a afinidade da etapa.
 - `HADES_GATE_AUTO_AFTER_S` (120) é a espera local antes de o `auto` passar para um worker aquecido (`reference/loop/gates.md` §3.2).
+- `HADES_WORKER_GC_MIN_FREE_GB` (20) e `HADES_WORKER_GC_IDLE_DAYS` (3) valem no worker: ao fim de cada job ele apaga worktrees ociosas (`0` desliga a regra; `reference/gate-remoto-worker.md` §Limpeza).
 
 ### Subida (run-hades)
 | Chaves | Aplicar |

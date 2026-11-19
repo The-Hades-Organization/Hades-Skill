@@ -4,6 +4,23 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.53.0 — 2026-11-19
+
+Issues #138 (item 2), #133 (itens 1 e 3) e #137 (item 2): o worker não tinha como liberar disco sozinho; nove worktrees
+ociosas encheram os 89 GB do 450r em 18/11 e a limpeza foi à mão.
+
+- `hades worker gc <host> (--free-gb N | --all-idle) [--keep-warm] [--dry-run]` pede ao worker, pelo mesmo ssh do
+  `status`, que apague worktrees de gate ociosas, limpe `results/`, compacte o espelho e invalide o warm das removidas.
+  Roda no comando forçado sem checkout e sem escrever nada antes de apagar (o disco pode estar em 100%).
+- Nunca apaga worktree com job vivo: flock do `<id>.lock`, marcador `<id>.job` (pid + início) e cwd dos tickets vivos
+  da fila (via `/proc/<pid>/cwd`). A mais antiga sai primeiro (marcador `<id>.used`).
+- Limpeza automática ao fim de cada job (inclusive recusa): remove as ociosas há mais de
+  `HADES_WORKER_GC_IDLE_DAYS` (3) e, com o disco abaixo de `HADES_WORKER_GC_MIN_FREE_GB` (20), as mais antigas até
+  cobrir a diferença. Resultado no diário (`gate.gc` / `gate.gc-erro`).
+- Stack `node-nx`: `NPM_CONFIG_CACHE={cache}/npm`, cache do npm dentro da jaula do worker, compartilhado entre
+  worktrees. Store de `node_modules` por hardlink ficou de fora (#133 item 3): o cache poupa o download, não os ~4 GB
+  por worktree; o ganho de disco vem do gc.
+
 ## 6.52.0 — 2026-11-19
 
 Issues #138, #133 (itens 2 e 4) e #137 (item 1): com o disco do worker cheio, o gate remoto parava sem diagnóstico. O

@@ -110,7 +110,7 @@ const HELP = `hades <subcomando> [argumentos]
   wait ci|gate|queue|merged|review|answer|agent …   esperas que notificam, rode em segundo plano (hades wait)
   consolidate plan|merge|verify|comment|ready|after-merge …   PR de consolidação (hades consolidate)
   gate-lock run <kind> [--where local|<host>] [--out <arq>] [...] -- <cmd>|status|peak <label>   fila de admissão de gates, saída 75 = não admitido
-  worker exec|status [--json]|warm <stack>   lado do worker do gate remoto (comando forçado da chave SSH; reference/loop/gates.md §3.2)
+  worker exec|status [--json]|warm <stack>|gc <host> [--dry-run] [--free-gb N] [--keep-warm]   lado do worker do gate remoto e limpeza de disco (reference/gate-remoto-worker.md)
   stack-add propose|measure|save  propõe, mede e grava o pacote de stack de um repo (hades stack-add)
   project-init draft|save        rascunho e gravação do perfil de um repo (hades project-init)
   widget-apk [build|test|shots|list|new <id>|image|status]   APK do widget Android, num container Docker (kit/android/build.sh)

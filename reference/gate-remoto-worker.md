@@ -111,11 +111,26 @@ então remove o diretório anterior. Manifesto adulterado, `--fresh` velho, tran
 diretório anterior intacto. `--post-local` roda só depois da promoção. `HADES_GATE_RESULT_FILE` traz `sha=` para o
 marcador de "construído". O retorno é tar completo na v1.
 
+## Limpeza (gc)
+
+Cada worktree de worker guarda ~4 GB de `node_modules`. `hades worker gc <host> [--dry-run] [--free-gb N] [--keep-warm]` remove as
+ociosas pelo ssh (comando forçado da chave); `--dry-run` só lista. Rode sem argumento extra para aplicar as duas regras abaixo.
+
+- Remove: a worktree sem uso há mais de `HADES_WORKER_GC_IDLE_DAYS` (3), e, com o disco livre abaixo de `HADES_WORKER_GC_MIN_FREE_GB`
+  (20), as mais antigas até liberar a diferença. `--free-gb N` libera N GB removidos (soma dos tamanhos), não "livre ≥ N".
+  O warm da worktree removida também sai.
+- Nunca remove: a worktree com job vivo (lock `<id>.lock`, marcador `<id>.job` ou ticket cujo dono tem o cwd dentro dela) nem a do
+  job que acabou de rodar. `--keep-warm` poupa também a com warm `ready`/`warming`; ela aparece em `kept` com o motivo.
+- Automático: ao fim de cada job (inclusive recusas) o worker aplica as mesmas regras; só compacta o espelho e limpa results quando
+  algo saiu ou o disco está curto. Último uso = o maior entre o mtime de `<id>.used` e o da pasta. `0` numa das chaves desliga a regra.
+- O cache do npm do `node-nx` fica em `{cache}/npm` (`NPM_CONFIG_CACHE`): poupa só o download, não os ~4 GB por worktree.
+
 ## Problemas comuns
 
 - `Permission denied (publickey)`: a chave não está no `authorized_keys` do usuário certo, ou o `IdentityFile` do `~/.ssh/config`
   não aponta para ela.
 - `worker sem ferramenta no PATH do ssh não interativo` ou `npm: command not found`: veja §Toolchain.
+- Worker sem disco ou cheio: `hades worker gc <host> --dry-run` mostra o que sairia; sem a flag, remove (§Limpeza).
 - `worker sem disco: <livre> GB < <mínimo> GB` (rc 75, antes do envio): o livre do worker está abaixo de `remote.minDiskGb` da stack
   (8 GB no `node-nx`). Apague worktrees e `node_modules` antigos no worker (`git worktree remove` no espelho, depois `git worktree prune`).
   Com o disco cheio demais para o status responder, o push falha com o mesmo motivo `worker sem disco`, trazendo as linhas

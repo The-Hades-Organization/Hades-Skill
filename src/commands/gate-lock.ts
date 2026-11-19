@@ -21,6 +21,7 @@ import { memAvailableMb, pidAlive, procStartTime, run as runSync, sameProcess, w
 import { installedStacks, pyRepr, stepOf } from "../lib/profile.ts";
 import { OOM_SIGNAL_RCS, journalOomLines, oomKillsOf, rcAfterOom } from "../lib/oom-scope.ts";
 import { slugOfRemote } from "../lib/work.ts";
+import { nestedRepoNote, otherQueues, type OtherQueue, otherQueuesLine, totalOf } from "../lib/gate-outras-filas.ts";
 import { probeWorker, runRemote, warmWorker } from "../lib/gate-remote/client.ts";
 import { decide, shouldProbe, type Where } from "../lib/gate-remote/dispatch.ts";
 import { WHERE_LOCAL, checkOut, parseWhere, planOf, probeAll, type RemotePlan } from "../lib/gate-remote/plan.ts";
@@ -407,6 +408,12 @@ class Gate {
     this.env = env;
   }
 
+  /** GB em uso nas outras filas da máquina: a memória é uma só, o orçamento soma as filas (nada com scope maquina nem HADES_WORK). */
+  private otherQueuesGb(): number {
+    if (this.config.scope === "maquina" || this.env.HADES_WORK) return 0;
+    return totalOf(otherQueues(workRoot(this.env), dirname(this.queue.dir))).usedGb;
+  }
+
   /** Diário do agente (reference/journal.md): o label do gate é o nome do agente. O diário nunca muda a saída do gate. */
   private journalGate(op: string, kind: string, label: string, clone: string, detail: string): void {
     emitJournal("gate", `gate.${op}`, `${kind} ${label}${detail ? ` ${detail}` : ""}`, { agent: label, cwd: clone, get: (key) => this.config.exported.get(key) });
@@ -415,7 +422,7 @@ class Gate {
   private machineState(): MachineState {
     const legacy = this.queue.legacyUsage();
     return {
-      legacyUsedGb: legacy.usedGb, legacyHeavy: legacy.heavy, window: this.config.window,
+      legacyUsedGb: legacy.usedGb + this.otherQueuesGb(), legacyHeavy: legacy.heavy, window: this.config.window,
       inWindow: inWindow(this.config.window, nowMinutes()), availMb: memAvailableMb(), psi: psiSomeAvg10(),
     };
   }
@@ -812,7 +819,7 @@ function printQueue(queue: Queue, config: GateConfig, out: (line: string) => voi
 }
 
 /** A fila da máquina (`_maquina`) é de todos os projetos (a regressão da skill roda nela): o status de qualquer projeto a mostra também. */
-function status(queue: Queue, config: GateConfig, machine: Queue | undefined): number {
+function status(queue: Queue, config: GateConfig, machine: Queue | undefined, others: readonly OtherQueue[]): number {
   const out = (line: string): void => void process.stdout.write(`${line}\n`);
   out(`orcamento ${config.limits.budgetGb} GB | reserva ${config.limits.reserveGb} GB | MemAvailable ${memAvailableMb()} MB | PSI some avg10 ${psiSomeAvg10()}%`);
   let found = printQueue(queue, config, out);
@@ -823,6 +830,11 @@ function status(queue: Queue, config: GateConfig, machine: Queue | undefined): n
       out(`fila da máquina (${MACHINE_SLUG}):`);
       for (const line of lines) out(line);
     }
+  }
+  const othersLine = otherQueuesLine(others);
+  if (othersLine !== "") {
+    found = true;
+    out(othersLine);
   }
   if (!found) out("nenhum gate na fila nem rodando");
   return 0;
@@ -882,7 +894,8 @@ export async function gateLockCommand(args: string[]): Promise<number> {
     const queue = new Queue(locks);
     if (sub === "status") {
       const machineLocks = join(workRoot(env), MACHINE_SLUG, "locks");
-      return status(queue, config, env.HADES_WORK || machineLocks === locks ? undefined : new Queue(machineLocks));
+      const others = config.scope === "maquina" || env.HADES_WORK ? [] : otherQueues(workRoot(env), locks);
+      return status(queue, config, env.HADES_WORK || machineLocks === locks ? undefined : new Queue(machineLocks), others);
     }
     if (sub === "peak") return peak(queue, rest[0] ?? missingValue("peak exige o label"));
     if (sub !== "run") gateDie(`'${sub}' saiu na v2: o pid de shell efemero nao prova liveness. Use \`run <kind> -- bash -c '...'\` ou \`run gate\``);
@@ -900,6 +913,8 @@ export async function gateLockCommand(args: string[]): Promise<number> {
 async function runCommand(rest: string[], config: GateConfig, queue: Queue, env: NodeJS.ProcessEnv): Promise<number> {
   const { options, command } = parseRun(rest, config.priority);
   mkdirSync(dirname(queue.dir), { recursive: true });
+  const nested = nestedRepoNote(process.cwd());
+  if (nested !== "" && config.scope !== "maquina" && !env.HADES_WORK) note(nested);
   if (options.kind === "" && options.step === "") usage();
   const childEnv: NodeJS.ProcessEnv = { ...env };
   for (const [key, value] of config.exported) childEnv[key] ??= value;

@@ -11,6 +11,7 @@ export const CTYPES: Record<string, string> = {
   ".png": "image/png",
   ".json": "application/json",
   ".webmanifest": "application/manifest+json",
+  ".wasm": "application/wasm",
 };
 export const JSON_TYPE = "application/json";
 const NO_STORE = "no-store";
@@ -31,12 +32,21 @@ function withExplain(status: number, body: Body): Body {
   return { ...body, explain: { code, title, cause, action, ref } };
 }
 
-export function send(status: number, body: Body, contentType: string = JSON_TYPE, cache: string = NO_STORE): Response {
+/** Exceção de cabeçalhos de uma rota que o painel serve para outra origem (hoje só o build web do Cardinal). */
+export interface SendExtras {
+  /** moldura: `deny` (padrão, X-Frame-Options DENY) ou `self` (sem X-Frame-Options, `frame-ancestors 'self'`) */
+  frame?: "deny" | "self";
+  /** cabeçalhos a mais (Access-Control-Allow-Origin, Content-Encoding, Vary...) */
+  headers?: Record<string, string>;
+}
+
+export function send(status: number, body: Body, contentType: string = JSON_TYPE, cache: string = NO_STORE, extras: SendExtras = {}): Response {
   const shaped = withExplain(status, body);
   const payload = shaped instanceof Uint8Array || typeof shaped === "string" ? shaped : pyJsonDumps(shaped);
+  const frame: Record<string, string> = extras.frame === "self" ? { "Content-Security-Policy": "frame-ancestors 'self'" } : { "X-Frame-Options": "DENY" };
   return new Response(payload, {
     status,
-    headers: { "Content-Type": contentType, "Cache-Control": cache, "X-Frame-Options": "DENY" },
+    headers: { "Content-Type": contentType, "Cache-Control": cache, ...frame, ...extras.headers },
   });
 }
 

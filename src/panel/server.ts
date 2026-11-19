@@ -28,6 +28,7 @@ import { createCanvasContentRoutes } from "./canvas-content.ts";
 import { createCanvasDrawingsRoutes } from "./canvas-drawings.ts";
 import { createCanvasCardinalRoutes } from "./canvas-cardinal.ts";
 import { createCardinalWatch } from "./cardinal-watch.ts";
+import { createCardinalWebRoute } from "./ext-cardinal-web.ts";
 import { createCanvasNotesRoutes } from "./canvas-notes.ts";
 import { DEFAULT_CANVAS_ID } from "../lib/canvas-store.ts";
 import { readCanvasDoc } from "../lib/canvas-doc.ts";
@@ -384,7 +385,12 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
 
   const login = (message = ""): Response => send(message ? 401 : 200, new TextEncoder().encode(loginPage(message)), CTYPES[".html"]);
 
+  // o iframe do nó tem origem opaca e não manda cookie: o build web responde antes da chave (só arquivos do build, host já validado)
+  const cardinalWeb = createCardinalWebRoute({ dir: () => effectiveConfig(dir).get("HADES_CARDINAL_WEB") });
+
   async function get(req: Request, url: URL): Promise<Response> {
+    const staticBuild = cardinalWeb.serve(req, url);
+    if (staticBuild) return staticBuild;
     const remote = auth.isRemote(req.headers, port);
     const query = queryOf(url);
     const path = url.pathname;

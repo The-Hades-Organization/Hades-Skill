@@ -85,7 +85,28 @@ O arquivo `.cardinal` é a fonte da verdade; o Hades nunca o converte para forma
 - **Dois pedaços independentes:** o binário serve às operações de agente; o build web serve ao editor embutido. Sem o binário
   o usuário ainda edita (com o build web); sem o build web o agente ainda trabalha.
 - **Build web no doctor:** além da linha `ext-cardinal`, o `hades doctor` traz `ext-cardinal-web`: `ok` quando
-  `HADES_CARDINAL_WEB` está vazio ou aponta uma pasta com `index.html`; aviso quando aponta uma pasta sem ele.
+  `HADES_CARDINAL_WEB` está vazio ou aponta uma pasta com `index.html`; aviso quando aponta uma pasta sem ele. Se a pasta
+  traz `version.txt` (o Vite copia de `public/`; primeiro `x.y.z` do arquivo) e o binário informa a versão, o doctor avisa
+  quando as duas divergem. Sem `version.txt` não há comparação.
+
+### Editor embutido: rota `/ext/cardinal/web/*`
+
+`src/panel/ext-cardinal-web.ts` serve os arquivos de `HADES_CARDINAL_WEB` (aceita `~`), lida a cada pedido. Só GET.
+
+- **Contenção:** o caminho é decodificado e recusado com `..`, `.`, `\` ou NUL; o arquivo é resolvido com `realpath` e tem de
+  ficar sob a pasta (symlink para fora dá 404). `/ext/cardinal/web` e `/ext/cardinal/web/` servem `index.html`.
+- **Erros:** `cardinal_web_missing` (404) quando a variável está vazia, a pasta não existe ou não tem `index.html`;
+  `cardinal_web_not_found` (404) para o arquivo.
+- **Cabeçalhos:** `Content-Type` por extensão (`.wasm` = `application/wasm`); `Cache-Control: public, max-age=31536000,
+  immutable` para nomes com hash do Vite (`nome-HASH.ext`) e `no-cache` para o resto (`index.html`, `icon.svg`); sem
+  `X-Frame-Options`, com `Content-Security-Policy: frame-ancestors 'self'`; `Access-Control-Allow-Origin: *` (o iframe tem
+  origem opaca); nenhum COOP/COEP (o build é de uma thread). O resto do painel segue com `X-Frame-Options: DENY`
+  (`send()` aceita a exceção por chamada, `SendExtras` em `src/panel/http.ts`).
+- **Compressão:** serve `<arquivo>.br` ou `<arquivo>.gz` ao lado quando o cliente aceita; sem eles, gzip na hora para
+  `.wasm/.js/.css/.html/.svg/.json` (cache em memória por arquivo, tamanho e mtime). Sempre com `Vary: Accept-Encoding`.
+- **Autenticação pelo túnel:** o acesso remoto autentica por cookie derivado de `remote.key` (`auth.authed`). Subrecurso de
+  iframe com origem opaca não manda cookie, então a rota responde **antes** da chave remota, depois do `hostOk` (host do
+  túnel continua obrigatório). Ela entrega só o build, nada do usuário; a API fica atrás da chave e só o pai fala com ela.
 
 ### Motor de desenho efetivo
 

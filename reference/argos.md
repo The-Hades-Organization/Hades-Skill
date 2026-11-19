@@ -524,6 +524,8 @@ Exemplo: `GET /api/canvas-cardinal/default/c1` → `{"name":"arquitetura-pagamen
 
 **Vigia e SSE.** `createCardinalWatch` guarda o carimbo (mtime:tamanho) de cada arquivo conhecido; quando muda, relê e compara a `rev`. Usa `fs.watch` nas pastas (acelera) e uma varredura a cada 2 s (garante). Gravação feita pela própria rota entra por `learn` e não ecoa. Arquivo criado, alterado ou apagado por fora (app nativo, editor, `git checkout`) vira, em `/api/canvas/stream`, o evento `cardinal` com `{ "name", "rev", "source": "panel" \| "disk" }` (`rev: null` = saiu do disco); o aviso não leva o conteúdo, a página relê pela rota. Arquivo adotado entra no vigia depois do `link`.
 
+**Editor embutido.** O build web do editor chega ao iframe do nó por `/ext/cardinal/web/*` (sem chave: o iframe não manda cookie; só serve arquivos do build). Cabeçalhos, contenção e autenticação em `reference/extensoes.md` §Editor embutido.
+
 ## Vários canvases e exportação
 
 O dono pode ter vários canvases por instância. O **padrão** (`default`) é o documento único de antes: o mesmo

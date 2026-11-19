@@ -5,14 +5,17 @@ import { dirname, join } from "node:path";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import type { WarmState, WorkerStatus } from "./dispatch.ts";
 import {
-  PROTOCOL_VERSION, TrailerFilter, encodePayload, mirrorPath, translateRc, type Outcome, type Job, type Trailer,
+  PROTOCOL_VERSION, TrailerFilter, encodePayload, gcCommandLine, mirrorPath, translateRc, type GcRequest, type Outcome, type Job, type Trailer,
 } from "./protocol.ts";
+import type { GcReport } from "../worker-gc.ts";
 import { MANIFEST_NAME, diffTree, freshProblem, hashTree, parseManifest, type Manifest, type ManifestDir } from "./manifest.ts";
 import { headSha, pushSnapshot, snapshotCommit } from "./ship.ts";
 import { WORKER_STATUS_COMMAND, captureRemote, spawnRemote, type SshCommand } from "./transport.ts";
 
 const WARM_TIMEOUT_MS = 60_000;
 const OUT_TIMEOUT_MS = 10 * 60 * 1000;
+/** Remover dezenas de GB e compactar o espelho leva minutos. */
+const GC_TIMEOUT_MS = 30 * 60 * 1000;
 
 export interface RemoteJobInput {
   host: string;
@@ -72,6 +75,19 @@ export async function probeWorker(ssh: SshCommand, host: string): Promise<Worker
     return ok ? s : undefined;
   } catch {
     return undefined;
+  }
+}
+
+/** Pede a limpeza ao worker (`gc` do comando forçado); devolve o relatório ou o motivo da falha. */
+export async function gcWorker(ssh: SshCommand, host: string, request: GcRequest): Promise<{ report: GcReport; diskFreeGb: number | undefined } | { error: string }> {
+  const r = await captureRemote(ssh, host, gcCommandLine(request), GC_TIMEOUT_MS);
+  if (r.rc !== 0) return { error: `gc em ${host} saiu com rc ${r.rc}${r.stderr.trim() === "" ? "" : `: ${r.stderr.trim().split("\n").pop()}`}` };
+  try {
+    const parsed = JSON.parse(r.stdout.toString("utf8")) as GcReport & { diskFreeGb?: number };
+    if (!Array.isArray(parsed.removed) || !Array.isArray(parsed.kept) || typeof parsed.freedGb !== "number") return { error: `gc em ${host}: resposta fora do contrato (a Hades do worker está desatualizada)` };
+    return { report: parsed, diskFreeGb: typeof parsed.diskFreeGb === "number" ? parsed.diskFreeGb : undefined };
+  } catch {
+    return { error: `gc em ${host}: resposta fora do contrato (a Hades do worker está desatualizada)` };
   }
 }
 

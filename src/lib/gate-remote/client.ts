@@ -68,6 +68,7 @@ export async function probeWorker(ssh: SshCommand, host: string): Promise<Worker
     const s = JSON.parse(r.stdout.toString("utf8")) as WorkerStatus;
     const ok = typeof s.host === "string" && Array.isArray(s.labels) && typeof s.memFreeGb === "number" && typeof s.queue === "number" && typeof s.warm === "object" && s.warm !== null;
     if (ok && (typeof s.tools !== "object" || s.tools === null || Array.isArray(s.tools))) delete s.tools;
+    for (const name of ["diskFreeGb", "diskTotalGb", "inodesFree"] as const) if (s[name] !== undefined && (typeof s[name] !== "number" || !Number.isFinite(s[name]))) delete s[name];
     return ok ? s : undefined;
   } catch {
     return undefined;

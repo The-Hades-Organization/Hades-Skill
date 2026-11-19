@@ -4,6 +4,8 @@ import { readFileSync, readdirSync, readlinkSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { readText } from "../lib/fs.ts";
 import { WORKER_STATUS_COMMAND } from "../lib/gate-remote/transport.ts";
+import { minDiskGbOf } from "../lib/gate-remote/warm.ts";
+import { installedStacks } from "../lib/profile.ts";
 import { exec } from "./exec.ts";
 import { CGROUP_ROOT, meminfo, parsePsCommands, procIds, readLines } from "./system.ts";
 
@@ -339,6 +341,10 @@ export interface WorkerStatus {
   warm: Record<string, WarmState>;
   /** aditivo: versão achada no PATH do ssh não interativo, ou null = ausente; worker antigo não manda o campo */
   tools?: Record<string, string | null>;
+  /** aditivo: disco do sistema de arquivos do worker; worker antigo não manda os campos */
+  diskFreeGb?: number;
+  diskTotalGb?: number;
+  inodesFree?: number;
 }
 export interface WorkerView {
   /** o alvo como veio de HADES_GATE_WORKERS (user@host ou host) */
@@ -352,6 +358,8 @@ export interface WorkerView {
   okAt: number | null;
   error: string | null;
   status: WorkerStatus | null;
+  /** disco livre mínimo (GB) que as stacks instaladas exigem do worker; 0 = sem limite declarado */
+  minDiskGb: number;
 }
 export interface WorkerSpec {
   target: string;
@@ -404,6 +412,10 @@ export function parseWorkerStatus(text: string): WorkerStatus | undefined {
     for (const [k, v] of Object.entries(o.warm)) if (typeof v === "string" && WARM_STATES.includes(v)) warm[k] = v as WarmState;
   }
   const status: WorkerStatus = { host: o.host, labels, memFreeGb, memTotalGb, cpus, queue, warm };
+  for (const name of ["diskFreeGb", "diskTotalGb", "inodesFree"] as const) {
+    const value = finite(o[name]);
+    if (value !== undefined) status[name] = value;
+  }
   if (o.tools !== null && typeof o.tools === "object" && !Array.isArray(o.tools)) {
     const tools: Record<string, string | null> = {};
     for (const [k, v] of Object.entries(o.tools)) if (v === null || typeof v === "string") tools[k] = v;
@@ -431,10 +443,11 @@ export async function readWorker(target: string, run: WorkerRunner = (argv, ms) 
  * Leitura em segundo plano com cache: `view()` nunca espera a rede. Worker que cai mantém a última leitura boa marcada
  * como em cache (`stale`) e o erro; um que nunca respondeu aparece só com o erro.
  */
-export function createWorkerWatch(opts: { specs: () => WorkerSpec[]; now: () => number; run?: WorkerRunner }): { refresh(): Promise<void>; view(): WorkerView[] } {
-  const views = new Map<string, WorkerView>();
+export function createWorkerWatch(opts: { specs: () => WorkerSpec[]; now: () => number; run?: WorkerRunner; minDiskGb?: () => number }): { refresh(): Promise<void>; view(): WorkerView[] } {
+  const views = new Map<string, Omit<WorkerView, "minDiskGb">>();
   let inflight: Promise<void> | undefined;
   let lastAt = Number.NEGATIVE_INFINITY;
+  const minDisk = (): number => (opts.minDiskGb ?? (() => minDiskGbOf(installedStacks().values())))();
 
   async function readAll(): Promise<void> {
     const specs = opts.specs();
@@ -458,7 +471,8 @@ export function createWorkerWatch(opts: { specs: () => WorkerSpec[]; now: () => 
       return inflight;
     },
     view(): WorkerView[] {
-      return opts.specs().map((s) => views.get(s.target) ?? { target: s.target, labels: s.labels, reachable: false, stale: false, checkedAt: null, okAt: null, error: "ainda não consultado", status: null });
+      const minDiskGb = minDisk();
+      return opts.specs().map((s) => ({ ...(views.get(s.target) ?? { target: s.target, labels: s.labels, reachable: false, stale: false, checkedAt: null, okAt: null, error: "ainda não consultado", status: null }), minDiskGb }));
     },
   };
 }

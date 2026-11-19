@@ -54,6 +54,11 @@
       "node",
       "npm"
     ],
+    "minDiskGb": 8,
+    "installed": [
+      "node_modules/.package-lock.json",
+      "node_modules/.bin"
+    ],
     "prepare": [
       "npm ci",
       "npm run codegen --if-present"

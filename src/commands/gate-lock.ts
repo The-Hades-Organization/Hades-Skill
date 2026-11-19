@@ -23,7 +23,7 @@ import { OOM_SIGNAL_RCS, journalOomLines, oomKillsOf, rcAfterOom } from "../lib/
 import { slugOfRemote } from "../lib/work.ts";
 import { nestedRepoNote, otherQueues, type OtherQueue, otherQueuesLine, totalOf } from "../lib/gate-outras-filas.ts";
 import { probeWorker, runRemote, warmWorker } from "../lib/gate-remote/client.ts";
-import { decide, shouldProbe, type Where } from "../lib/gate-remote/dispatch.ts";
+import { decide, diskShortage, shouldProbe, type Where } from "../lib/gate-remote/dispatch.ts";
 import { WHERE_LOCAL, checkOut, parseWhere, planOf, probeAll, type RemotePlan } from "../lib/gate-remote/plan.ts";
 import { ProtocolError, REASON_MEM, REASON_TOOL, parseWorkers, safeRelative, type WorkerSpec } from "../lib/gate-remote/protocol.ts";
 import { missingTools } from "../lib/gate-remote/toolchain.ts";
@@ -598,11 +598,13 @@ class Gate {
    * da stack (`remote.requires`, do `tools` do status) são conferidas antes de enviar o código. Worker que não responde segue: o envio falha com rc 75 e o motivo certo.
    */
   private async refuseWorker(host: string, plan: RemotePlan, ssh: ReturnType<typeof sshCommand>): Promise<string | undefined> {
-    if (plan.affinity.minMemGb <= 0 && plan.affinity.requires.length === 0) return undefined;
+    if (plan.affinity.minMemGb <= 0 && plan.affinity.requires.length === 0 && (plan.affinity.minDiskGb ?? 0) <= 0) return undefined;
     const status = await probeWorker(ssh, host);
     if (status === undefined) return undefined;
     const missing = missingTools(status.tools, plan.affinity.requires);
     if (missing.length > 0) return `${REASON_TOOL}: falta ${missing.join(", ")}; veja reference/gate-remoto-worker.md §Toolchain`;
+    const disk = diskShortage(status, plan.affinity.minDiskGb);
+    if (disk !== undefined) return disk;
     if (status.memFreeGb >= plan.affinity.minMemGb) return undefined;
     return `${REASON_MEM}: ${status.memFreeGb} GB livres, a etapa pede ${plan.affinity.minMemGb} GB`;
   }

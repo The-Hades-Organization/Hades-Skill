@@ -78,9 +78,11 @@ O worker só recebe item com o ambiente pronto. O pacote declara como se prepara
 - `remote.passEnv`: nomes de variáveis do chamador que atravessam para o job (entradas de build). Lista de permitidos,
   só nomes `^[A-Z_][A-Z0-9_]*$`; nome que case com o filtro de segredo do kit é recusado, e o worker só aceita o que a
   stack dele também permite. Variável que o build embute no cliente é pública por definição.
+- `remote.minDiskGb`: disco livre mínimo do worker (GB); abaixo, o gate recusa com 75 e o motivo `worker sem disco` antes de enviar o código.
+- `remote.installed`: arquivos do worktree que provam o preparo feito (um basta). O worker só confia na marcação `ready` com eles presentes; sem o campo, só o worktree é conferido.
 - `steps.<etapa>.remote`: afinidade (`labels`, `minMemGb`) usada pelo despacho `auto`.
 
-`node-nx`: `package-lock.json` + `.nvmrc` + `nx.json`; `npm ci` e `npm run codegen --if-present`; a etapa `integration` pede o rótulo
+`node-nx`: `package-lock.json` + `.nvmrc` + `nx.json`; `minDiskGb: 8`; `installed`: `node_modules/.package-lock.json` ou `node_modules/.bin`; `npm ci` e `npm run codegen --if-present`; a etapa `integration` pede o rótulo
 `docker` e `build` pede `minMemGb: 3`. O cache do nx fica por repo, chave e slot (`NX_CACHE_DIRECTORY={cache}/nx/{repo}/{key}/{slot}`, `NX_DAEMON=false`). `rust-cargo`: `Cargo.lock` + `rust-toolchain(.toml)`; `cargo fetch --locked`; `CARGO_TARGET_DIR` por repo e por
 slot (`{cache}/target/{repo}/{slot}`). Sem `remote`, a stack não tem o que aquecer e o item é considerado pronto.
 

@@ -248,7 +248,7 @@ A página usa `src/panel/gatewatch.ts`, o amostrador do estado da fila e do loop
 - **onde cada item roda**: `local` ou `remote:<host>` (ticket com `state=remote:<host>`, `where` e `remote`; `host` do ticket é a máquina local e o painel não o usa). Item remoto tem a faixa
   **Em worker remoto**, não entra na soma de memória local nem em "rodando", e a linha de estado diz quantos estão fora;
 - **host no histórico**: `host=` da linha `done` do journal (ausente = local) e o motivo `remoto perdido (75)` quando o worker some no meio do gate;
-- **bloco Workers** (só com `HADES_GATE_WORKERS` preenchida): um cartão por worker com os rótulos, memória livre, fila, CPUs o aquecimento por chave
+- **bloco Workers** (só com `HADES_GATE_WORKERS` preenchida): um cartão por worker com os rótulos, memória livre, disco livre (barra e inodes; em vermelho abaixo do `remote.minDiskGb` das stacks), fila, CPUs o aquecimento por chave
   (`ready`, `warming`, `failed`) e as ferramentas que as stacks exigem no PATH do ssh (versão achada ou **ausente** em vermelho), do `hades worker status --json`. O painel lê por `ssh -o BatchMode=yes -- <alvo> status --json` (o `command=` forçado da chave já é o `hades worker exec`), em segundo plano,
   só enquanto a página é pedida, a cada 15 s e com limite de 4 s por worker. Worker inacessível aparece como tal, com o erro e a última leitura boa em cache; a
   página e o amostrador local nunca esperam a rede. API: `remote` do `GET /api/gates` (`where`, `autoAfterS`, `workers[]`). Preparar o worker:

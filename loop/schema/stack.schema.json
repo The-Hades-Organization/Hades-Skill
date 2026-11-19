@@ -39,6 +39,8 @@
         "prepare": {"type": "array", "items": {"type": "string"}, "description": "comandos de preparo, em ordem, rodados no worktree do worker"},
         "env": {"type": "object", "additionalProperties": {"type": "string"}, "description": "variáveis do job no worker; {cache} {repo} {slot} {key} são expandidos"},
         "requires": {"type": "array", "items": {"type": "string"}, "description": "ferramentas que o worker precisa achar no PATH do ssh não interativo (ex.: node, npm); falta = o gate recusa com 75 antes do envio"},
+        "minDiskGb": {"type": "number", "minimum": 0, "description": "disco livre mínimo do worker (GB); abaixo disso o gate recusa com 75 e o motivo 'worker sem disco' antes do envio"},
+        "installed": {"type": "array", "items": {"type": "string"}, "description": "arquivos do worktree que provam o preparo feito (um basta); sem eles o worker apaga a marcação 'ready' e prepara de novo"},
         "passEnv": {"type": "array", "items": {"type": "string", "pattern": "^[A-Z_][A-Z0-9_]*$"}, "description": "nomes de variáveis do chamador que atravessam para o job (entradas de build); sem segredo: nome que case com o filtro de segredo do kit é recusado"}
       }
     },

@@ -2,7 +2,7 @@
 // chave em si (pura) e o estado em disco do worker. A preparação vem do pacote de stack do próprio worker, nunca do job:
 // quem pede só nomeia a stack.
 import { createHash } from "node:crypto";
-import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pidAlive } from "../proc.ts";
 import { isObject, type JsonObject } from "../profile.ts";
@@ -20,10 +20,25 @@ export interface RemoteSpec {
   passEnv: string[];
   /** ferramentas que o preparo e a etapa exigem no PATH do worker (ex.: node, npm); ausentes, o job é recusado antes do envio */
   requires: string[];
+  /** disco livre mínimo do worker em GB; 0 = sem exigência */
+  minDiskGb: number;
+  /** o que prova a instalação feita dentro do worktree (qualquer um existindo basta); vazio = não há como conferir */
+  installed: string[];
 }
 
 function strings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v !== "") : [];
+}
+
+function positive(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+/** Maior `remote.minDiskGb` entre as stacks (a mais exigente vale para o painel e o doctor, que não sabem qual etapa virá); 0 = nenhuma declara. */
+export function minDiskGbOf(stacks: Iterable<JsonObject>): number {
+  let max = 0;
+  for (const stack of stacks) max = Math.max(max, remoteSpecOf(stack)?.minDiskGb ?? 0);
+  return max;
 }
 
 /** `remote` da stack; undefined = a stack não declara aquecimento. */
@@ -32,7 +47,7 @@ export function remoteSpecOf(stack: JsonObject | undefined): RemoteSpec | undefi
   if (!isObject(remote)) return undefined;
   const env: Record<string, string> = {};
   if (isObject(remote.env)) for (const [name, value] of Object.entries(remote.env)) if (typeof value === "string" && /^[A-Z_][A-Z0-9_]*$/.test(name)) env[name] = value;
-  return { key: strings(remote.key), prepare: strings(remote.prepare), env, passEnv: strings(remote.passEnv), requires: strings(remote.requires) };
+  return { key: strings(remote.key), prepare: strings(remote.prepare), env, passEnv: strings(remote.passEnv), requires: strings(remote.requires), minDiskGb: positive(remote.minDiskGb), installed: strings(remote.installed) };
 }
 
 /** Primeiro nome de `passEnv` que não pode atravessar (forma inválida ou cara de segredo); undefined = a lista serve. */
@@ -47,7 +62,7 @@ export function affinityOf(stack: JsonObject | undefined, stepName: string): Aff
   const remote = isObject(step) && isObject(step.remote) ? step.remote : {};
   const min = typeof remote.minMemGb === "number" && remote.minMemGb > 0 ? remote.minMemGb : 0;
   const stackRemote = isObject(stack?.remote) ? stack.remote : {};
-  return { labels: strings(remote.labels), minMemGb: min, requires: strings(stackRemote.requires) };
+  return { labels: strings(remote.labels), minMemGb: min, requires: strings(stackRemote.requires), ...(positive(stackRemote.minDiskGb) > 0 ? { minDiskGb: positive(stackRemote.minDiskGb) } : {}) };
 }
 
 const KEY_HEX = 16;
@@ -127,8 +142,18 @@ export function readWarm(base: string, key: string): WarmRecord | undefined {
   }
 }
 
-/** Mapa chave → estado para o `worker status`. */
-export function warmStates(base: string): Record<string, WarmState> {
+/**
+ * O ambiente que a marcação `ready` promete ainda existe? O worktree tem de estar lá e, se a stack declara `remote.installed`,
+ * ao menos um desses arquivos também. Sem `installed` só o worktree é conferido (não há como saber mais).
+ */
+export function environmentPresent(spec: Pick<RemoteSpec, "installed"> | undefined, worktree: string): boolean {
+  if (!existsSync(worktree)) return false;
+  const proofs = spec?.installed ?? [];
+  return proofs.length === 0 || proofs.some((name) => existsSync(join(worktree, name)));
+}
+
+/** Mapa chave → estado para o `worker status`; `keep` tira o registro que não vale mais (ex.: `ready` de ambiente removido). */
+export function warmStates(base: string, keep: (record: WarmRecord) => boolean = () => true): Record<string, WarmState> {
   const states: Record<string, WarmState> = {};
   let names: string[] = [];
   try {
@@ -139,7 +164,7 @@ export function warmStates(base: string): Record<string, WarmState> {
   for (const name of names) {
     if (!name.endsWith(".json")) continue;
     const record = readWarm(base, name.slice(0, -".json".length));
-    if (record) states[record.key] = record.state;
+    if (record && keep(record)) states[record.key] = record.state;
   }
   return states;
 }

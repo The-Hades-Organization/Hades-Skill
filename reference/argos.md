@@ -520,6 +520,21 @@ Exemplo: `GET /api/canvas-cardinal/default/c1` → `{"name":"arquitetura-pagamen
 
 **Erros** (`CARDINAL_ROUTE_ERRORS` e `CARDINAL_ERRORS`, só ganham valores): `cardinal_invalid_body`, `cardinal_too_large` (413), `cardinal_not_found` (404), `cardinal_stale_revision` (409), `cardinal_agent_local_only` (403), `cardinal_unreadable` (500: link simbólico, não UTF-8, local fora das raízes), `cardinal_local_only` (403), `cardinal_invalid_path`, `cardinal_exists`, `cardinal_invalid_query`, `cardinal_invalid_name`, `cardinal_invalid_data`, `cardinal_invalid_envelope`, `cardinal_format_too_new` (o PUT recusa versão futura; o GET devolve `supported: false`).
 
+**Rotas de agente** (executam o binário `cardinal`; mesmo escopo de leitura/escrita da tabela acima, `as` no corpo ou `?as=` na consulta):
+
+| Rota | O que faz |
+|---|---|
+| `GET /api/canvas-cardinal/<canvas>/<nó>/describe[?as=&diagram=]` | `{ name, rev, describe }`: saída de `cardinal describe --json` sobre o arquivo |
+| `GET /api/canvas-cardinal/<canvas>/<nó>/svg[?as=]` | `{ name, rev, svg, svgRev, stale }`: SVG guardado ao lado (gerado na hora se não existe); defasado vem com `stale: true`, a regeneração fica para o `export`/`edit` |
+| `POST /api/canvas-cardinal/<canvas>/<nó>/edit` | corpo `{ "text": "<texto do diagrama>", "rev": "<rev lida>", "diagram": 0, "as": { "agent": "<id>" } }`; aplica o texto com `cardinal apply` e grava; `{ ok, name, rev, bytes, attempts, svg }` |
+| `POST /api/canvas-cardinal/<canvas>/<nó>/export` | corpo `{ "format": "svg" \| "png", "diagram": 0, "as": {…} }`; devolve a imagem com `X-Cardinal-Rev` |
+
+`edit` exige `rev` e dá 409 `cardinal_stale_revision` se a primeira leitura não bate; só as repetições (até `CARDINAL_EDIT_ATTEMPTS` = 3, quando o arquivo muda durante o `apply`) seguem os bytes novos. O `apply` apaga o que não está no texto: o agente envia o diagrama completo. Exemplo: `POST …/default/c1/edit` com `{"text":"…","rev":"9f2c…"}` → `{"ok":true,"name":"arquitetura-pagamentos","rev":"b71e…","bytes":2210,"attempts":1,"svg":true}`.
+
+**SVG ao lado.** `$D/canvas-cardinal/<nome>.svg` e `<nome>.svg.rev` (a `rev` do `.cardinal` de onde saiu), regenerados após `edit` e no `export` svg do diagrama padrão. Falha ao regenerar só é logada: a gravação do `.cardinal` não desfaz.
+
+**Executor** (`src/panel/cardinal-runner.ts`): argv sem shell, timeout de 30 s, stdin até 8 MiB e stdout até 32 MiB, ambiente mínimo (`PATH`, `HOME` temporário, `LANG`), processo em grupo próprio e o timeout mata o grupo inteiro. Binário: `HADES_CARDINAL_BIN` ou `cardinal` do PATH. Erros: `cardinal_parse_error` (400, `errors[]` do binário), `cardinal_format_unsupported`, `cardinal_failed` (502), `cardinal_unavailable` (503), `cardinal_timeout` (504), `cardinal_output_too_large`, `cardinal_input_too_large`.
+
 **Escopo.** O dono lê e escreve em qualquer nó. O agente (`as`) escreve só no diagrama ligado direto a ele (conexão `cardinal-access` ou `data.agent`) e lê também os da cadeia (`cardinal-chain`, `readableCardinalsOf`; a listagem do agente já sai filtrada assim); fora do escopo (nó inexistente, de outro tipo, fora da cadeia do agente) é 404 igual, para não revelar existência. `link` e `as` são só locais (remoto: 403). A adoção só aceita `.cardinal` regular (sem link simbólico), com a pasta (caminho real) dentro das raízes (pasta pessoal) e fora de `$D/canvas-cardinal/`. O caminho guardado é conferido de novo a cada uso.
 
 **Vigia e SSE.** `createCardinalWatch` guarda o carimbo (mtime:tamanho) de cada arquivo conhecido; quando muda, relê e compara a `rev`. Usa `fs.watch` nas pastas (acelera) e uma varredura a cada 2 s (garante). Gravação feita pela própria rota entra por `learn` e não ecoa. Arquivo criado, alterado ou apagado por fora (app nativo, editor, `git checkout`) vira, em `/api/canvas/stream`, o evento `cardinal` com `{ "name", "rev", "source": "panel" \| "disk" }` (`rev: null` = saiu do disco); o aviso não leva o conteúdo, a página relê pela rota. Arquivo adotado entra no vigia depois do `link`.

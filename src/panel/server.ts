@@ -29,6 +29,7 @@ import { createCanvasDrawingsRoutes } from "./canvas-drawings.ts";
 import { createCanvasCardinalRoutes } from "./canvas-cardinal.ts";
 import { createCardinalWatch } from "./cardinal-watch.ts";
 import { createCardinalWebRoute } from "./ext-cardinal-web.ts";
+import { cardinalBinary, createCardinalRunner } from "./cardinal-runner.ts";
 import { createCanvasNotesRoutes } from "./canvas-notes.ts";
 import { DEFAULT_CANVAS_ID } from "../lib/canvas-store.ts";
 import { readCanvasDoc } from "../lib/canvas-doc.ts";
@@ -218,6 +219,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
   const cardinalWatchRef: { current?: ReturnType<typeof createCardinalWatch> } = {};
   const canvasCardinal = createCanvasCardinalRoutes(env.dir, {
     loadDoc: (canvasId) => canvasNotesDeps.loadDoc(canvasId),
+    runner: createCardinalRunner({ binary: () => cardinalBinary(effectiveConfig(dir)) }),
     onWrite: (name, rev) => {
       cardinalWatchRef.current?.learn(name, rev);
       canvasHub.publishCardinal(name, rev, "panel");

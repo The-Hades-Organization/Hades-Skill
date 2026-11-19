@@ -5,8 +5,8 @@
 // só no que o documento o liga, e só no painel local; fora do escopo responde 404. A chave e o token da sessão são conferidos
 // pelo servidor antes de chegar aqui.
 import { createHash, randomBytes } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { type CanvasDoc } from "../lib/canvas-doc.ts";
 import {
@@ -15,6 +15,7 @@ import {
 } from "../lib/canvas-cardinal.ts";
 import { OWNER, requireWriterId, type NoteWriter } from "../lib/canvas-note.ts";
 import { isValidCanvasId } from "../lib/canvas-store.ts";
+import { type CardinalRunner, RunnerError, type RunOutput } from "./cardinal-runner.ts";
 import { send } from "./http.ts";
 import { log } from "./log.ts";
 
@@ -33,6 +34,14 @@ const UNREADABLE_STATUS = 500;
 /** Cabe o arquivo máximo e o envelope JSON do corpo (aspas e quebras de linha dobram de tamanho no máximo). */
 export const CARDINAL_BODY_BYTES = 2 * CARDINAL_LIMITS.bodyBytes + 4096;
 const SMALL_BODY_BYTES = 16 * 1024;
+/** `edit` repete sobre os bytes novos se o arquivo mudou entre a leitura e a gravação. */
+export const CARDINAL_EDIT_ATTEMPTS = 3;
+const BAD_GATEWAY_STATUS = 502;
+const UNAVAILABLE_STATUS = 503;
+const TIMEOUT_STATUS = 504;
+const PARSE_ERRORS_MAX = 50;
+const SVG_TYPE = "image/svg+xml";
+const PNG_TYPE = "image/png";
 const INDEX_FILE = ".index.json";
 const INDEX_VERSION = 1;
 export const CARDINAL_LIST_LIMITS = { fallback: 50, max: 200 } as const;
@@ -49,6 +58,13 @@ export const CARDINAL_ROUTE_ERRORS = {
   invalidPath: "cardinal_invalid_path",
   exists: "cardinal_exists",
   invalidQuery: "cardinal_invalid_query",
+  parse: "cardinal_parse_error",
+  formatUnsupported: "cardinal_format_unsupported",
+  failed: "cardinal_failed",
+  unavailable: "cardinal_unavailable",
+  timeout: "cardinal_timeout",
+  outputTooLarge: "cardinal_output_too_large",
+  inputTooLarge: "cardinal_input_too_large",
 } as const;
 type RouteErrorCode = (typeof CARDINAL_ROUTE_ERRORS)[keyof typeof CARDINAL_ROUTE_ERRORS] | (typeof CARDINAL_ERRORS)[keyof typeof CARDINAL_ERRORS];
 
@@ -65,6 +81,8 @@ export interface CardinalDeps {
   token?: () => string;
   /** Gravação feita por esta rota (PUT): o servidor avisa as páginas e o vigia aprende a revisão nova. */
   onWrite?(name: string, rev: string): void;
+  /** Executor do binário `cardinal`; sem ele as rotas que dependem do binário respondem `cardinal_unavailable`. */
+  runner?: CardinalRunner;
 }
 
 /** Um arquivo que a rota conhece: o vigia confere o carimbo de cada um. */
@@ -80,7 +98,7 @@ export interface CardinalRoutes {
   write(path: string, req: Request, caller: CardinalCaller): Promise<Response> | undefined;
   /** `GET /api/canvas-cardinal?limit=&after=`: os arquivos conhecidos, por nome, em páginas (dono). */
   list(query: Readonly<Record<string, string>>): Response;
-  /** `POST /api/canvas-cardinal/link {path}`; `undefined` fora da família. */
+  /** `POST /api/canvas-cardinal/link {path}` e `POST .../<canvas>/<nó>/edit|export`; `undefined` fora da família. */
   action(path: string, req: Request, caller: CardinalCaller): Promise<Response> | undefined;
   /** Os arquivos conhecidos agora (pasta padrão e adotados), para o vigia. Não lança: índice ilegível dá só a pasta padrão. */
   files(): CardinalFileRef[];
@@ -117,6 +135,8 @@ async function readBody(req: Request, max: number): Promise<Uint8Array | undefin
 }
 
 interface Stored {
+  /** os bytes lidos, sem decodificar (o BOM, se houver, fica) */
+  raw: Buffer;
   text: string;
   rev: string;
   updatedAt: string;
@@ -244,7 +264,7 @@ export function createCanvasCardinalRoutes(dir: string, deps: CardinalDeps): Car
     if (info.size > CARDINAL_LIMITS.bodyBytes) throw new TooLarge("diagrama acima do teto");
     const bytes = readFileSync(file);
     try {
-      return { text: new TextDecoder("utf-8", { fatal: true }).decode(bytes), rev: revisionOf(bytes), updatedAt: info.mtime.toISOString(), bytes: bytes.length };
+      return { raw: bytes, text: new TextDecoder("utf-8", { fatal: true }).decode(bytes), rev: revisionOf(bytes), updatedAt: info.mtime.toISOString(), bytes: bytes.length };
     } catch {
       throw new Unreadable("não é UTF-8");
     }
@@ -402,6 +422,255 @@ export function createCanvasCardinalRoutes(dir: string, deps: CardinalDeps): Car
     }
   }
 
+  // ---- binário ----
+
+  /** Resposta para o que o executor ou o comando devolveu de errado; `undefined` se o comando deu certo. */
+  function commandFailure(out: RunOutput): Response | undefined {
+    if (out.status === 0) return undefined;
+    let code = "";
+    let errors: unknown;
+    try {
+      const parsed: unknown = JSON.parse(out.stdout.toString("utf8"));
+      const error = isDict(parsed) && isDict(parsed.error) ? parsed.error : undefined;
+      code = typeof error?.code === "string" ? error.code : "";
+      errors = error?.errors;
+    } catch {
+      code = "";
+    }
+    if (code === "parse") {
+      const list = Array.isArray(errors) ? errors.slice(0, PARSE_ERRORS_MAX) : [];
+      return refusal(INVALID_STATUS, CARDINAL_ROUTE_ERRORS.parse, { errors: list });
+    }
+    if (code === "format") return refusal(INVALID_STATUS, CARDINAL_ROUTE_ERRORS.formatUnsupported);
+    log("error", "cardinal falhou", { status: out.status, reason: code });
+    return refusal(BAD_GATEWAY_STATUS, CARDINAL_ROUTE_ERRORS.failed, { reason: code === "" ? null : code });
+  }
+
+  function runnerFailure(error: unknown): Response {
+    if (error instanceof RunnerError) {
+      if (error.code === "cardinal_timeout") return refusal(TIMEOUT_STATUS, CARDINAL_ROUTE_ERRORS.timeout);
+      if (error.code === "cardinal_output_too_large") return refusal(BAD_GATEWAY_STATUS, CARDINAL_ROUTE_ERRORS.outputTooLarge);
+      if (error.code === "cardinal_input_too_large") return refusal(TOO_LARGE_STATUS, CARDINAL_ROUTE_ERRORS.inputTooLarge);
+      return refusal(UNAVAILABLE_STATUS, CARDINAL_ROUTE_ERRORS.unavailable);
+    }
+    throw error;
+  }
+
+  /** Roda o comando sobre `raw` no stdin; `Response` se algo falhou. */
+  async function runCommand(args: string[], raw: Uint8Array): Promise<Buffer | Response> {
+    const runner = deps.runner;
+    if (runner === undefined || !runner.available()) return refusal(UNAVAILABLE_STATUS, CARDINAL_ROUTE_ERRORS.unavailable);
+    try {
+      const out = await runner.run(args, { stdin: raw });
+      return commandFailure(out) ?? out.stdout;
+    } catch (error) {
+      return runnerFailure(error);
+    }
+  }
+
+  const diagramArgs = (diagram: number | undefined): string[] => (diagram === undefined ? [] : ["--diagram", String(diagram)]);
+
+  /** `?diagram=` ou `diagram` do corpo: inteiro pequeno e não negativo; `null` se inválido. */
+  function diagramOf(value: unknown): number | undefined | null {
+    if (value === undefined) return undefined;
+    const n = typeof value === "string" && /^\d{1,4}$/.test(value) ? Number(value) : value;
+    return typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 9999 ? n : null;
+  }
+
+  // ---- SVG guardado ao lado (`<nome>.svg` + `<nome>.svg.rev`, na pasta padrão mesmo para arquivo adotado) ----
+
+  const svgFileOf = (name: string): string => join(folder, `${name}.svg`);
+
+  function writeSidecar(name: string, svg: Uint8Array, rev: string): void {
+    mkdirSync(folder, { recursive: true });
+    const file = svgFileOf(name);
+    for (const [target, data] of [[file, svg], [`${file}.rev`, rev]] as const) {
+      const tmp = `${target}.tmp`;
+      try {
+        writeFileSync(tmp, data, { mode: FILE_MODE });
+        renameSync(tmp, target);
+      } catch (error) {
+        rmSync(tmp, { force: true });
+        throw error;
+      }
+    }
+  }
+
+  function readSidecar(name: string): { svg: string; rev: string | null } | undefined {
+    try {
+      const svg = readFileSync(svgFileOf(name), "utf8");
+      let rev: string | null = null;
+      try {
+        rev = readFileSync(`${svgFileOf(name)}.rev`, "utf8").trim() || null;
+      } catch {
+        rev = null;
+      }
+      return { svg, rev };
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Gera o SVG do diagrama 0 e carimba com a revisão dos bytes de origem; falha só vira log (o SVG é cache). */
+  async function refreshSidecar(name: string, stored: Stored): Promise<boolean> {
+    const out = await runCommand(["export", "-", "--from", "cardinal", "--svg", "-o", "-"], stored.raw);
+    if (out instanceof Response) return false;
+    try {
+      writeSidecar(name, out, stored.rev);
+      return true;
+    } catch (error) {
+      log("error", "svg do diagrama não gravou", { name, reason: error instanceof Error ? error.message : String(error) });
+      return false;
+    }
+  }
+
+  // ---- rotas que usam o binário ----
+
+  async function jsonBody(req: Request): Promise<Dict | Response> {
+    const raw = await readBody(req, CARDINAL_BODY_BYTES);
+    if (!raw) return refusal(TOO_LARGE_STATUS, CARDINAL_ROUTE_ERRORS.tooLarge);
+    try {
+      const body: unknown = JSON.parse(new TextDecoder().decode(raw));
+      return isDict(body) ? body : refusal(INVALID_STATUS, CARDINAL_ROUTE_ERRORS.invalidBody);
+    } catch {
+      return refusal(INVALID_STATUS, CARDINAL_ROUTE_ERRORS.invalidBody);
+    }
+  }
+
+  /** Nó legível por quem chama, com o arquivo lido; `Response` se fora do escopo (404) ou ilegível. */
+  async function readable(canvasId: string, nodeId: string, agentValue: unknown, caller: CardinalCaller): Promise<{ name: string; place: Place; stored: Stored } | Response> {
+    if (!isValidCanvasId(canvasId)) return notFound();
+    const who = agentOf(agentValue, caller);
+    if (who instanceof Response) return who;
+    const doc = await deps.loadDoc(canvasId);
+    const name = doc ? cardinalFileOf(doc, nodeId) : undefined;
+    if (!doc || name === undefined || !canReadCardinal(doc, nodeId, who.agent)) return notFound();
+    const place = placeOf(name, loadIndex());
+    const stored = readAt(place.file);
+    return stored ? { name, place, stored } : refusal(NOT_FOUND_STATUS, CARDINAL_ROUTE_ERRORS.notFound, { name });
+  }
+
+  async function describe(canvasId: string, nodeId: string, query: Readonly<Record<string, string>>, caller: CardinalCaller): Promise<Response> {
+    const diagram = diagramOf(query.diagram);
+    if (diagram === null) return refusal(INVALID_STATUS, CARDINAL_ROUTE_ERRORS.invalidQuery);
+    try {
+      const found = await readable(canvasId, nodeId, query.as, caller);
+      if (found instanceof Response) return found;
+      const out = await runCommand(["describe", "-", "--from", "cardinal", "--json", ...diagramArgs(diagram)], found.stored.raw);
+      if (out instanceof Response) return out;
+      let described: unknown;
+      try {
+        described = JSON.parse(out.toString("utf8"));
+      } catch {
+        return refusal(BAD_GATEWAY_STATUS, CARDINAL_ROUTE_ERRORS.failed, { reason: "output" });
+      }
+      return send(OK_STATUS, { name: found.name, rev: found.stored.rev, describe: described });
+    } catch (error) {
+      return failure(error);
+    }
+  }
+
+  async function svg(canvasId: string, nodeId: string, query: Readonly<Record<string, string>>, caller: CardinalCaller): Promise<Response> {
+    try {
+      const found = await readable(canvasId, nodeId, query.as, caller);
+      if (found instanceof Response) return found;
+      let side = readSidecar(found.name);
+      // sem SVG guardado: gera agora (precisa do binário); com ele, devolve mesmo defasado e deixa a regeneração para o `export`
+      if (side === undefined && (await refreshSidecar(found.name, found.stored))) side = readSidecar(found.name);
+      if (side === undefined) return refusal(UNAVAILABLE_STATUS, CARDINAL_ROUTE_ERRORS.unavailable);
+      return send(OK_STATUS, { name: found.name, rev: found.stored.rev, svg: side.svg, svgRev: side.rev, stale: side.rev !== found.stored.rev });
+    } catch (error) {
+      return failure(error);
+    }
+  }
+
+  async function exportImage(canvasId: string, nodeId: string, req: Request, caller: CardinalCaller): Promise<Response> {
+    const body = await jsonBody(req);
+    if (body instanceof Response) return body;
+    const format = body.format;
+    const diagram = diagramOf(body.diagram);
+    if ((format !== "svg" && format !== "png") || diagram === null) return refusal(INVALID_STATUS, CARDINAL_ROUTE_ERRORS.invalidBody);
+    if (body.as !== undefined && !isDict(body.as)) return refusal(INVALID_STATUS, CARDINAL_ROUTE_ERRORS.invalidBody);
+    try {
+      const found = await readable(canvasId, nodeId, isDict(body.as) ? body.as.agent : undefined, caller);
+      if (found instanceof Response) return found;
+      const out = await runCommand(["export", "-", "--from", "cardinal", `--${format}`, "-o", "-", ...diagramArgs(diagram)], found.stored.raw);
+      if (out instanceof Response) return out;
+      // o diagrama padrão em SVG é o que o cartão do nó mostra: regenera o guardado, carimbado com a revisão lida
+      if (format === "svg" && diagram === undefined) writeSidecar(found.name, out, found.stored.rev);
+      return send(OK_STATUS, out, format === "svg" ? SVG_TYPE : PNG_TYPE, undefined, { frame: "deny", headers: { "X-Cardinal-Rev": found.stored.rev } });
+    } catch (error) {
+      return failure(error);
+    }
+  }
+
+  /** Aplica o texto sobre `raw` pelo binário e devolve o novo `.cardinal`. */
+  async function applyText(raw: Uint8Array, text: string, diagram: number | undefined): Promise<Buffer | Response> {
+    const tmp = mkdtempSync(join(tmpdir(), "hades-cardinal-apply-"));
+    try {
+      const textFile = join(tmp, "in.txt");
+      const outFile = join(tmp, "out.cardinal");
+      writeFileSync(textFile, text, { mode: FILE_MODE });
+      const out = await runCommand(["apply", "-", "--from", "cardinal", "--text", textFile, "-o", outFile, "--json", ...diagramArgs(diagram)], raw);
+      if (out instanceof Response) return out;
+      return readFileSync(outFile);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return refusal(BAD_GATEWAY_STATUS, CARDINAL_ROUTE_ERRORS.failed, { reason: "output" });
+      throw error;
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  }
+
+  async function edit(canvasId: string, nodeId: string, req: Request, caller: CardinalCaller): Promise<Response> {
+    if (!isValidCanvasId(canvasId)) return notFound();
+    const body = await jsonBody(req);
+    if (body instanceof Response) return body;
+    const diagram = diagramOf(body.diagram);
+    if (typeof body.text !== "string" || typeof body.rev !== "string" || diagram === null) return refusal(INVALID_STATUS, CARDINAL_ROUTE_ERRORS.invalidBody);
+    if (new TextEncoder().encode(body.text).length > CARDINAL_LIMITS.bodyBytes) return refusal(TOO_LARGE_STATUS, CARDINAL_ROUTE_ERRORS.tooLarge);
+    let writer: NoteWriter = OWNER;
+    if (body.as !== undefined) {
+      if (!isDict(body.as)) return refusal(INVALID_STATUS, CARDINAL_ROUTE_ERRORS.invalidBody);
+      const who = agentOf(body.as.agent, caller);
+      if (who instanceof Response) return who;
+      if (who.agent !== undefined) writer = { kind: "agent", id: who.agent };
+    }
+    const doc = await deps.loadDoc(canvasId);
+    if (!doc || !canWriteCardinal(doc, nodeId, writer)) return notFound();
+    const name = cardinalFileOf(doc, nodeId) as string;
+    try {
+      let last: Stored | undefined;
+      for (let attempt = 1; attempt <= CARDINAL_EDIT_ATTEMPTS; attempt++) {
+        const current = readAt(placeOf(name, loadIndex()).file);
+        if (!current) return refusal(NOT_FOUND_STATUS, CARDINAL_ROUTE_ERRORS.notFound, { name });
+        last = current;
+        // o texto foi escrito sobre a revisão que o agente leu; só as repetições (mudança durante o `apply`) seguem os bytes novos
+        if (attempt === 1 && current.rev !== body.rev) return refusal(CONFLICT_STATUS, CARDINAL_ROUTE_ERRORS.staleRevision, { rev: current.rev });
+        requireWritableEnvelope(current.text);
+        const applied = await applyText(current.raw, body.text, diagram);
+        if (applied instanceof Response) return applied;
+        if (applied.length > CARDINAL_LIMITS.bodyBytes) return refusal(TOO_LARGE_STATUS, CARDINAL_ROUTE_ERRORS.tooLarge);
+        // conferência e gravação sem await no meio
+        const place = placeOf(name, loadIndex());
+        const now = readAt(place.file);
+        if (now?.rev !== current.rev) continue;
+        requireWritableEnvelope(new TextDecoder("utf-8", { fatal: true }).decode(applied));
+        storeAt(place, applied);
+        const rev = revisionOf(applied);
+        deps.onWrite?.(name, rev);
+        log("info", "diagrama editado", { canvas: canvasId, node: nodeId, name, bytes: applied.length, attempts: attempt, by: writer.kind, remote: caller.remote });
+        const stored = readAtSafe(place.file);
+        const svgFresh = stored !== undefined && stored.rev === rev ? await refreshSidecar(name, stored) : false;
+        return send(OK_STATUS, { ok: true, name, rev, bytes: applied.length, attempts: attempt, svg: svgFresh });
+      }
+      return refusal(CONFLICT_STATUS, CARDINAL_ROUTE_ERRORS.staleRevision, { rev: last?.rev ?? null });
+    } catch (error) {
+      if (error instanceof TypeError) return refusal(BAD_GATEWAY_STATUS, CARDINAL_ROUTE_ERRORS.failed, { reason: "output" });
+      return failure(error);
+    }
+  }
+
   // ---- adoção ----
 
   /** Aponta para um arquivo de fora sem movê-lo; apontar de novo para o mesmo arquivo devolve o mesmo nome. */
@@ -474,9 +743,12 @@ export function createCanvasCardinalRoutes(dir: string, deps: CardinalDeps): Car
   return {
     get(path, query, caller) {
       const parts = segments(path);
-      if (!parts || parts.length === 0 || parts.length > 2 || parts.some((part) => part === "")) return undefined;
-      const [canvasId, nodeId] = parts as [string, string | undefined];
-      return read(canvasId, nodeId, query, caller);
+      if (!parts || parts.length === 0 || parts.length > 3 || parts.some((part) => part === "")) return undefined;
+      const [canvasId, nodeId, leaf] = parts as [string, string | undefined, string | undefined];
+      if (leaf === undefined) return read(canvasId, nodeId, query, caller);
+      if (leaf === "describe") return describe(canvasId, nodeId as string, query, caller);
+      if (leaf === "svg") return svg(canvasId, nodeId as string, query, caller);
+      return undefined;
     },
 
     write(path, req, caller) {
@@ -520,8 +792,11 @@ export function createCanvasCardinalRoutes(dir: string, deps: CardinalDeps): Car
     action(path, req, caller) {
       const parts = segments(path);
       if (!parts) return undefined;
-      if (req.method !== "POST" || parts.length !== 1 || parts[0] !== "link") return Promise.resolve(send(NOT_FOUND_STATUS, { error: "not found" }));
-      return link(req, caller);
+      if (req.method !== "POST") return Promise.resolve(send(NOT_FOUND_STATUS, { error: "not found" }));
+      if (parts.length === 1 && parts[0] === "link") return link(req, caller);
+      if (parts.length === 3 && parts[2] === "edit" && parts[0] !== "" && parts[1] !== "") return edit(parts[0] as string, parts[1] as string, req, caller);
+      if (parts.length === 3 && parts[2] === "export" && parts[0] !== "" && parts[1] !== "") return exportImage(parts[0] as string, parts[1] as string, req, caller);
+      return Promise.resolve(send(NOT_FOUND_STATUS, { error: "not found" }));
     },
 
     files,

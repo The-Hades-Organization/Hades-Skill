@@ -89,6 +89,10 @@ O arquivo `.cardinal` é a fonte da verdade; o Hades nunca o converte para forma
   traz `version.txt` (o Vite copia de `public/`; primeiro `x.y.z` do arquivo) e o binário informa a versão, o doctor avisa
   quando as duas divergem. Sem `version.txt` não há comparação.
 
+### Executor do binário
+
+`src/panel/cardinal-runner.ts` roda `cardinal` por argv, sem shell, para as rotas de agente do nó (`describe`, `svg`, `edit`, `export`; `reference/argos.md` §Nó `cardinal`). Limites: 30 s, 8 MiB de entrada, 32 MiB de saída, ambiente mínimo, grupo de processos próprio (timeout mata o grupo). O binário vem de `HADES_CARDINAL_BIN` ou do PATH; com a extensão desligada ou sem binário, `cardinal_unavailable` (503). O `.cardinal` segue a fonte da verdade: o painel só repassa bytes.
+
 ### Editor embutido: rota `/ext/cardinal/web/*`
 
 `src/panel/ext-cardinal-web.ts` serve os arquivos de `HADES_CARDINAL_WEB` (aceita `~`), lida a cada pedido. Só GET.

@@ -176,7 +176,7 @@ afterAll(() => {
 
 // ---------- registro ----------
 describe("registro dos tipos do usuário", () => {
-  const EXPECTED = ["note", "text", "draw-rect", "draw-ellipse", "draw-arrow", "draw-stroke", "unit-sketch", "area", "band"];
+  const EXPECTED = ["note", "text", "draw-rect", "draw-ellipse", "draw-arrow", "draw-stroke", "unit-sketch", "area", "cardinal", "band"];
 
   test("dado o registro vazio, então registra os tipos do usuário como HTML, não vivos e sem ação de servidor", () => {
     const registry = createNodeTypeRegistry();

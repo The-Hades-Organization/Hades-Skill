@@ -496,7 +496,7 @@ function Argos() {
     };
     // texto dos nós do usuário: cada edição é um passo do desfazer (update) e o texto esvaziado apaga o nó (delete)
     const text = L.userTextHost({ note: M.note, history: M.history }, { doc: docNow, commit: call('commitOp'), fail: call('opFailed') });
-    const userDeps = { fetch: tokenFetch, now: () => Date.now(), copy: call('copyText'), onTextChange: text.onTextChange, onRemove: text.onRemove,
+    const userDeps = { fetch: tokenFetch, now: () => Date.now(), canvasId: () => canvasIdRef.current, copy: call('copyText'), onTextChange: text.onTextChange, onRemove: text.onRemove,
       // desenho: cada edição é um passo do desfazer (opSetDrawing); recusa do modelo vai ao aviso com o código
       onDrawingChange: (id, scene) => { const d = docNow(); if (!d) return; let op; try { op = M.drawing.opSetDrawing(d, id, scene); } catch (e) { if (!e || typeof e.code !== 'string') throw e; call('opFailed')(e.code); return; } if (op) call('commitOp')(op); },
       band: { doc: () => docNow() ?? undefined, live: call('bandLive'), focus: call('select') } };
@@ -841,6 +841,8 @@ function Argos() {
       onCanvas: (n) => { if (alive && n.id === canvasIdRef.current) watch.observe({ serverRev: n.rev, hidden: document.hidden }).catch(swallow('releitura pelo aviso')); },
       // registro de terminais (argos/terminals.json) mudou: vive fora do documento, então o grafo se relê
       onRegistry: () => { if (alive) { reloadGraph.current(); reloadOrphans.current().catch(swallow('leitura dos órfãos')); } },
+      // diagrama Cardinal mudou no disco ou por agente: os editores embutidos abertos recebem como mudança externa
+      onCardinal: (n) => { if (alive) M.cardinalBridge.cardinalFeed.publish(n); },
       check, log: (message) => console.debug('canvas:', message),
     });
     link.start();

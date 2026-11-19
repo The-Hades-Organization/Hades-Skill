@@ -482,11 +482,13 @@ export function createCanvasCardinalRoutes(dir: string, deps: CardinalDeps): Car
   // ---- SVG guardado ao lado (`<nome>.svg` + `<nome>.svg.rev`, na pasta padrão mesmo para arquivo adotado) ----
 
   const svgFileOf = (name: string): string => join(folder, `${name}.svg`);
+  const pngFileOf = (name: string): string => join(folder, `${name}.png`);
 
-  function writeSidecar(name: string, svg: Uint8Array, rev: string): void {
+  const writeSidecar = (name: string, svg: Uint8Array, rev: string): void => writeSide(svgFileOf(name), svg, rev);
+
+  function writeSide(file: string, image: Uint8Array, rev: string): void {
     mkdirSync(folder, { recursive: true });
-    const file = svgFileOf(name);
-    for (const [target, data] of [[file, svg], [`${file}.rev`, rev]] as const) {
+    for (const [target, data] of [[file, image], [`${file}.rev`, rev]] as const) {
       const tmp = `${target}.tmp`;
       try {
         writeFileSync(tmp, data, { mode: FILE_MODE });
@@ -581,6 +583,64 @@ export function createCanvasCardinalRoutes(dir: string, deps: CardinalDeps): Car
       if (side === undefined && (await refreshSidecar(found.name, found.stored))) side = readSidecar(found.name);
       if (side === undefined) return refusal(UNAVAILABLE_STATUS, CARDINAL_ROUTE_ERRORS.unavailable);
       return send(OK_STATUS, { name: found.name, rev: found.stored.rev, svg: side.svg, svgRev: side.rev, stale: side.rev !== found.stored.rev });
+    } catch (error) {
+      return failure(error);
+    }
+  }
+
+  /** Corpo de `POST …/artifact`: imagem exportada pelo editor embutido (SVG como texto, PNG em base64) e a revisão de origem. */
+  const SVG_UNSAFE = /<script|<foreignObject|\son[a-z]+\s*=|javascript:/i;
+  const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+  async function storeArtifact(canvasId: string, nodeId: string, req: Request): Promise<Response> {
+    if (!isValidCanvasId(canvasId)) return notFound();
+    const body = await jsonBody(req);
+    if (body instanceof Response) return body;
+    const format = body.format;
+    if ((format !== "svg" && format !== "png") || typeof body.rev !== "string" || typeof body.data !== "string" || body.as !== undefined) return refusal(INVALID_STATUS, CARDINAL_ROUTE_ERRORS.invalidBody);
+    const image = format === "svg" ? Buffer.from(body.data, "utf8") : Buffer.from(body.data, "base64");
+    if (image.length > CARDINAL_LIMITS.bodyBytes) return refusal(TOO_LARGE_STATUS, CARDINAL_ROUTE_ERRORS.tooLarge);
+    const head = body.data.trimStart();
+    const valid = format === "svg"
+      ? (head.startsWith("<svg") || head.startsWith("<?xml")) && !SVG_UNSAFE.test(body.data)
+      : image.length > PNG_SIGNATURE.length && PNG_SIGNATURE.every((byte, i) => image[i] === byte);
+    if (!valid) return refusal(INVALID_STATUS, CARDINAL_ROUTE_ERRORS.invalidBody, { reason: "image" });
+    // só o dono guarda imagem do editor; fora do escopo é 404, igual a nó que não existe
+    const doc = await deps.loadDoc(canvasId);
+    const name = doc ? cardinalFileOf(doc, nodeId) : undefined;
+    if (!doc || name === undefined || !canWriteCardinal(doc, nodeId, OWNER)) return notFound();
+    try {
+      const stored = readAt(placeOf(name, loadIndex()).file);
+      if (!stored) return refusal(NOT_FOUND_STATUS, CARDINAL_ROUTE_ERRORS.notFound, { name });
+      // a imagem é do conteúdo em `body.rev`: com o arquivo já em outra revisão ela nasceria defasada
+      if (stored.rev !== body.rev) return refusal(CONFLICT_STATUS, CARDINAL_ROUTE_ERRORS.staleRevision, { rev: stored.rev });
+      writeSide(format === "svg" ? svgFileOf(name) : pngFileOf(name), image, stored.rev);
+      return send(OK_STATUS, { ok: true, name, rev: stored.rev, format, bytes: image.length });
+    } catch (error) {
+      return failure(error);
+    }
+  }
+
+  /** `GET …/artifact?format=png`: o PNG guardado pelo editor, com a revisão de origem (`stale` se o arquivo já mudou). */
+  async function artifactImage(canvasId: string, nodeId: string, query: Readonly<Record<string, string>>, caller: CardinalCaller): Promise<Response> {
+    if (query.format !== "png") return refusal(INVALID_STATUS, CARDINAL_ROUTE_ERRORS.invalidQuery);
+    try {
+      const found = await readable(canvasId, nodeId, query.as, caller);
+      if (found instanceof Response) return found;
+      const file = pngFileOf(found.name);
+      let bytes: Buffer;
+      let rev: string | null = null;
+      try {
+        bytes = readFileSync(file);
+      } catch {
+        return refusal(NOT_FOUND_STATUS, CARDINAL_ROUTE_ERRORS.notFound, { name: found.name });
+      }
+      try {
+        rev = readFileSync(`${file}.rev`, "utf8").trim() || null;
+      } catch {
+        rev = null;
+      }
+      return send(OK_STATUS, bytes, PNG_TYPE, undefined, { frame: "deny", headers: { "X-Cardinal-Rev": rev ?? "", "X-Cardinal-Stale": String(rev !== found.stored.rev) } });
     } catch (error) {
       return failure(error);
     }
@@ -779,6 +839,7 @@ export function createCanvasCardinalRoutes(dir: string, deps: CardinalDeps): Car
       if (leaf === undefined) return read(canvasId, nodeId, query, caller);
       if (leaf === "describe") return describe(canvasId, nodeId as string, query, caller);
       if (leaf === "svg") return svg(canvasId, nodeId as string, query, caller);
+      if (leaf === "artifact") return artifactImage(canvasId, nodeId as string, query, caller);
       return undefined;
     },
 
@@ -828,6 +889,7 @@ export function createCanvasCardinalRoutes(dir: string, deps: CardinalDeps): Car
       if (parts.length === 1 && parts[0] === "convert") return convert(req);
       if (parts.length === 3 && parts[2] === "edit" && parts[0] !== "" && parts[1] !== "") return edit(parts[0] as string, parts[1] as string, req, caller);
       if (parts.length === 3 && parts[2] === "export" && parts[0] !== "" && parts[1] !== "") return exportImage(parts[0] as string, parts[1] as string, req, caller);
+      if (parts.length === 3 && parts[2] === "artifact" && parts[0] !== "" && parts[1] !== "") return storeArtifact(parts[0] as string, parts[1] as string, req);
       return Promise.resolve(send(NOT_FOUND_STATUS, { error: "not found" }));
     },
 

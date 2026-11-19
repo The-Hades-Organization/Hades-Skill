@@ -112,6 +112,31 @@ O arquivo `.cardinal` é a fonte da verdade; o Hades nunca o converte para forma
   iframe com origem opaca não manda cookie, então a rota responde **antes** da chave remota, depois do `hostOk` (host do
   túnel continua obrigatório). Ela entrega só o build, nada do usuário; a API fica atrás da chave e só o pai fala com ela.
 
+### Editor embutido: ponte `postMessage` e componente do nó
+
+O nó `cardinal` do canvas monta o editor num iframe (`/ext/cardinal/web/index.html?host=1`, `sandbox="allow-scripts"` sem
+`allow-same-origin`: origem opaca, sem cookie nem acesso à API). Quem fala com as rotas é o pai (a página); o iframe só troca
+mensagens. Lógica em `src/lib/cardinal-bridge.ts` (sem DOM), componente em `kit/panel/ui/argos/node-cardinal.tsx`
+(`window.ArgosNodeCardinal.CardinalEditor`), montado por `types-user.tsx` só com o nó aberto.
+
+- **Envelope:** toda mensagem leva `cardinal: 1` (`BRIDGE_PROTOCOL`) e `type`; só se aceita mensagem vinda do `contentWindow`
+  do iframe do nó. `ready` com `protocol` diferente deixa o estado em `failed` (`protocol_mismatch`).
+- **Do editor ao painel:** `ready` (traz `protocol` e `format`), `dirty`, `save` (`baseRev` + `bytes`), `export-result`,
+  `merge-notice` (`conflicts[]`: `both-changed`, `deleted-vs-changed`, `dangling-reference`).
+- **Do painel ao editor:** `load` (`rev`, `readOnly`, bytes), `saved` (`rev`), `save-rejected` (`currentRev`, depois de um 409),
+  `external-change` (`rev` + bytes do arquivo atual; o editor é quem mescla), `set-readonly`, `request-export`.
+- **Somente leitura:** quando o `format` do arquivo é maior que o do `ready`, o `load` leva `readOnly: true`.
+- **Salvar:** `save` vira `PUT` com `rev: baseRev`; 409 vira `save-rejected` seguido de `external-change`. O painel nunca mescla.
+- **Exportar:** `request-export` (SVG ou PNG, escala 2 no PNG); o resultado é gravado ao lado pelo `POST …/artifact`
+  (`reference/argos.md` §Nó `cardinal`) só se o arquivo não tem edição pendente; senão a imagem é gerada sem gravar.
+- **Aviso de arquivo mudado:** o SSE `cardinal` (`onCardinal` em `canvas-live.ts`) alimenta `cardinalFeed`; o editor aberto do
+  mesmo nome recebe `fileChanged(rev)`. Revisão igual à que o editor já tem não gera `external-change`.
+- **Abrir e fechar:** o nó mostra título e **Abrir editor / Fechar editor**. Fechar passa `closing=true`, o editor salva o
+  pendente (teto `FLUSH_TIMEOUT_MS`, 5 s; o gatilho é tirar o foco do iframe) e o nó só desmonta no `onClosed`. Desmontagem
+  abrupta (fechar a aba) é best-effort.
+- **Limites:** até `EDITOR_MAX_LIVE` (2) editores vivos por página; o terceiro mostra o aviso de limite sem criar iframe.
+  Sem `ready` em `READY_TIMEOUT_MS` (20 s) o estado vai a `failed` (`ready_timeout`).
+
 ### Motor de desenho efetivo
 
 `HADES_DRAWING_ENGINE` é só o pedido. O motor efetivo (`src/lib/drawing-engine.ts`, `drawingEngine`) é calculado: `cardinal`

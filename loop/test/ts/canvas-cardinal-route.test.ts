@@ -322,6 +322,89 @@ describe("canvas-cardinal-route: arquivo adotado (link)", () => {
   });
 });
 
+describe("canvas-cardinal-route: imagem do editor (artifact)", () => {
+  const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"><rect width="4" height="4"/></svg>';
+  const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("corpo")]);
+  const withNode = async (docs?: Record<string, CanvasDoc>) => {
+    const f = fresh(docs);
+    const saved = await json(await f.put("default", "c2", { text: sample(), rev: null }));
+    const post = (body: unknown, canvas = "default", nodeId = "c2") =>
+      f.routes.action(`${BASE}${canvas}/${nodeId}/artifact`, req(`${BASE}${canvas}/${nodeId}/artifact`, body, "POST"), local) as Promise<Response>;
+    return { ...f, rev: saved.rev as string, post };
+  };
+
+  test("SVG feliz vira o sidecar com a revisão de origem; o GET do cartão o devolve sem defasagem", async () => {
+    const { post, routes, dir, rev } = await withNode();
+    const res = await post({ format: "svg", rev, data: SVG });
+    expect([res.status, (await json(res)).ok]).toEqual([200, true]);
+    expect(readFileSync(join(dir, "estoque.svg"), "utf8")).toBe(SVG);
+    expect(readFileSync(join(dir, "estoque.svg.rev"), "utf8")).toBe(rev);
+    const card = await json((await routes.get(`${BASE}default/c2/svg`, {}, local)) as Response);
+    expect([card.svg, card.svgRev, card.stale]).toEqual([SVG, rev, false]);
+  });
+
+  test("PNG feliz grava <nome>.png e .rev; GET ?format=png devolve os bytes, a revisão e stale false", async () => {
+    const { post, routes, dir, rev } = await withNode();
+    const res = await post({ format: "png", rev, data: PNG.toString("base64") });
+    expect([res.status, (await json(res)).bytes]).toEqual([200, PNG.length]);
+    expect(readFileSync(join(dir, "estoque.png")).equals(PNG)).toBe(true);
+    const got = (await routes.get(`${BASE}default/c2/artifact`, { format: "png" }, local)) as Response;
+    expect([got.status, got.headers.get("content-type"), got.headers.get("X-Cardinal-Rev"), got.headers.get("X-Cardinal-Stale")]).toEqual([200, "image/png", rev, "false"]);
+    expect(Buffer.from(await got.arrayBuffer()).equals(PNG)).toBe(true);
+  });
+
+  test("GET png: arquivo mudou depois da imagem marca stale; sem imagem é 404; format ausente é 400", async () => {
+    const { post, put, routes, rev } = await withNode();
+    const get = (q: Record<string, string>) => routes.get(`${BASE}default/c2/artifact`, q, local) as Promise<Response>;
+    expect((await get({ format: "png" })).status).toBe(404);
+    expect((await get({})).status).toBe(400);
+    await post({ format: "png", rev, data: PNG.toString("base64") });
+    expect((await put("default", "c2", { text: sample(2, 5), rev })).status).toBe(200);
+    expect((await get({ format: "png" })).headers.get("X-Cardinal-Stale")).toBe("true");
+  });
+
+  test("409 com revisão velha devolvendo a atual; nada é gravado", async () => {
+    const { post, put, dir, rev } = await withNode();
+    const next = await json(await put("default", "c2", { text: sample(2, 5), rev }));
+    const res = await post({ format: "svg", rev, data: SVG });
+    const status = res.status;
+    const refused = await json(res);
+    expect([status, refused.code, refused.rev]).toEqual([409, CARDINAL_ROUTE_ERRORS.staleRevision, next.rev]);
+    expect(readdirSync(dir)).toEqual(["estoque.cardinal"]);
+  });
+
+  test("404 fora do escopo: nó inexistente, de outro tipo e canvas inexistente", async () => {
+    const { post, rev } = await withNode();
+    for (const [canvas, nodeId] of [["default", "nada"], ["default", "n1"], ["default", "t1"], ["outro", "c2"]] as const) {
+      expect((await post({ format: "svg", rev, data: SVG }, canvas, nodeId)).status).toBe(404);
+    }
+  });
+
+  test("SVG com script ou handler, e PNG inválido, são 400 e não gravam", async () => {
+    const { post, dir, rev } = await withNode();
+    for (const data of ['<svg><script>x</script></svg>', '<svg onload="x()"/>', '<svg><foreignObject/></svg>', 'texto solto']) {
+      expect((await post({ format: "svg", rev, data })).status).toBe(400);
+    }
+    for (const data of [Buffer.from("nao e png").toString("base64"), ""]) {
+      expect((await post({ format: "png", rev, data })).status).toBe(400);
+    }
+    expect(readdirSync(dir)).toEqual(["estoque.cardinal"]);
+  });
+
+  test("corpo inválido: formato desconhecido, rev ou data faltando", async () => {
+    const { post, rev } = await withNode();
+    for (const body of [{ format: "gif", rev, data: SVG }, { format: "svg", data: SVG }, { format: "svg", rev }, { format: "svg", rev, data: 3 }]) {
+      expect((await post(body)).status).toBe(400);
+    }
+  });
+
+  test("agente (as) é recusado: só o dono grava imagem", async () => {
+    const { post, rev } = await withNode();
+    const res = await post({ format: "svg", rev, data: SVG, as: { agent: "t1" } });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("cardinal-watch: vigia e aviso por SSE", () => {
   const watched = (hold: { name: string; rev: string | null }[]) => {
     const f = fresh();

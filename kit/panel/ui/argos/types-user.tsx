@@ -64,6 +64,8 @@ interface UserTypesDeps {
   timeoutMs?: number;
   /** O `marked` do vendor/ (window.marked na página); sem ele a nota só tem o modo Raw. */
   marked?: unknown;
+  /** Id do canvas aberto, lido a cada renderização (o editor do nó `cardinal` fala com as rotas dele). */
+  canvasId?: () => string;
 }
 
 type Child = ReactNode;
@@ -1027,6 +1029,39 @@ function makeArgosTypesUser() {
       error ? h("span", { role: "alert", className: "text-bad t-label" }, error) : null);
   }
 
+  // ---- nó cardinal: título e botão abrir/fechar; o editor (argos/node-cardinal.tsx) só existe com o nó aberto ----
+
+  const CARDINAL_DEFAULT_CANVAS = "default";
+
+  /** Abrir monta o `CardinalEditor`; fechar passa `closing` e só desmonta no `onClosed`, depois de o editor salvar o pendente. */
+  function CardinalCardHost(props: { id: string; data: Readonly<Record<string, unknown>>; deps: UserTypesDeps }): Tree {
+    const [open, setOpen] = React.useState(false);
+    const [closing, setClosing] = React.useState(false);
+    const name = typeof props.data.cardinal === "string" ? props.data.cardinal : "";
+    const title = typeof props.data.title === "string" && props.data.title !== "" ? props.data.title : name;
+    const editor = (globalThis as unknown as { ArgosNodeCardinal?: { CardinalEditor: (p: Record<string, unknown>) => Tree } }).ArgosNodeCardinal;
+    if (name === "") return h("p", { role: "alert", className: "p-2 text-bad t-label" }, "Diagrama inválido no documento.");
+    const toggle = (): void => {
+      if (closing) return;
+      if (open) setClosing(true);
+      else setOpen(true);
+    };
+    const mounted = open && editor !== undefined;
+    return h("div", { className: "flex h-full min-h-0 w-full flex-col", "data-cardinal-card": props.id },
+      h("div", { className: "flex items-center gap-1 px-1" },
+        h("span", { className: "t-label flex-1 truncate", title: name }, title),
+        h("button", {
+          type: "button", className: "px-2 py-0.5 t-label hover:bg-hover focus-visible:bg-accent outline-none disabled:opacity-40", disabled: closing || (!open && editor === undefined),
+          "aria-expanded": open, "aria-label": open ? `Fechar o editor de ${title}` : `Abrir o editor de ${title}`, "data-cardinal-toggle": "", onClick: toggle,
+        }, open ? "Fechar editor" : "Abrir editor")),
+      mounted
+        ? h("div", { className: "min-h-0 flex-1" }, h(editor.CardinalEditor, {
+          key: props.id, canvasId: props.deps.canvasId?.() ?? CARDINAL_DEFAULT_CANVAS, nodeId: props.id, name, fetch: props.deps.fetch, closing,
+          onClosed: () => { setOpen(false); setClosing(false); },
+        }))
+        : null);
+  }
+
   // ---- registro ----
 
   /** Comandos de menu de nó que os tipos citam; o registro de comandos da página os define (surface `node-menu`). */
@@ -1043,6 +1078,7 @@ function makeArgosTypesUser() {
     { type: "unit-sketch", label: "Esboço de unidade", icon: "DraftingCompass", size: { w: 320, h: 220 }, menu: [MENU.dock, MENU.undock, MENU.copyCommands, MENU.duplicate, MENU.blur, MENU.remove] },
     { type: "area", label: "Área", icon: "SquareDashed", size: { w: 480, h: 320 }, menu: [MENU.areaRename, MENU.areaColor, MENU.duplicate, MENU.remove], surface: "canvas" },
     { type: "drawing", label: "Desenho", icon: "PenTool", size: { w: 480, h: 320 }, menu: [MENU.dock, MENU.undock, MENU.duplicate, MENU.blur, MENU.remove] },
+    { type: "cardinal", label: "Diagrama Cardinal", icon: "PenTool", size: { w: 480, h: 360 }, menu: [MENU.dock, MENU.undock, MENU.duplicate, MENU.blur, MENU.remove] },
     { type: "band", label: "Banda", icon: "Users", size: { w: 260, h: 180 }, menu: [MENU.dock, MENU.undock, MENU.linkNote, MENU.remove] },
   ];
 
@@ -1066,6 +1102,7 @@ function makeArgosTypesUser() {
       // o desenho da área é do motor (canvas); isto só atende quem pede o conteúdo de um nó (acoplar), sem nada para mostrar
       area: () => h("div", { "aria-hidden": "true" }),
       drawing: (input) => (model.drawing ? h(DrawingBody, { key: input.id, id: input.id, w: input.w, h: input.h, data: input.data, dm: model.drawing, deps }) : h("div", { "aria-hidden": "true" })),
+      cardinal: (input) => h(CardinalCardHost, { key: input.id, id: input.id, data: input.data, deps }),
       band: (input) => h(BandBody, { key: input.id, data: input.data, model, source: deps.band }),
     };
     return ROWS.filter((row) => row.type !== "drawing" || model.drawing !== undefined).map((row) => ({

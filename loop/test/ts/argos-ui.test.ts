@@ -371,7 +371,7 @@ describe("montagem do canvas na página", () => {
     new Function("globalThis", "React", transpiler.transpile(join(import.meta.dir, "../../../kit/panel/ui", rel)))(scope, scope.React);
   };
   const MENU_IDS = ["user:edit", "user:duplicate", "user:blur", "user:remove", "user:copy-commands", "user:link-note"];
-  const USER_TYPES = ["note", "text", "draw-rect", "draw-ellipse", "draw-arrow", "draw-stroke", "unit-sketch", "band"];
+  const USER_TYPES = ["note", "text", "draw-rect", "draw-ellipse", "draw-arrow", "draw-stroke", "unit-sketch", "cardinal", "band"];
   const LIVE_TYPES = ["portal", "terminal", "tree", "plan", "agent-file", "conversation"];
 
   interface Model { [key: string]: Record<string, unknown> }
@@ -3009,5 +3009,125 @@ describe("estados e textos: erro do grafo, selo de gravação, falha de ação",
     expect(hint("answer")).toContain("Equivale a: hades agent answer");
     expect(L.ACTIONS.map((a) => a.hint).join(" ")).not.toMatch(/send-keys|send-text/);
     expect(L.ACTIONS.find((a) => a.id === "free_prompt")?.label).toBe("Digitar e dar Enter");
+  });
+});
+
+// ---- editor do Cardinal no nó (argos/node-cardinal.tsx + o tipo `cardinal` de types-user.tsx, plano U15) ----
+// os scripts reais, com o modelo real (inclui cardinalBridge) e ganchos mínimos: o estado persiste por componente e os
+// efeitos não rodam (sem DOM); o que se confere é a árvore, o iframe isolado e o contrato abrir/fechar do nó.
+describe("editor do Cardinal no nó", () => {
+  const UI = join(import.meta.dir, "../../../kit/panel/ui");
+  type El = { type: unknown; props: Record<string, any>; children: unknown[] };
+  const isEl = (n: unknown): n is El => typeof n === "object" && n !== null && "type" in n;
+
+  async function rig() {
+    const js = await createCanvasModuleBundler(join(import.meta.dir, "../../../src/lib")).bundle(CANVAS_UI_BUNDLE);
+    const holder: Record<string, unknown> = {};
+    new Function("globalThis", js as string)(holder);
+    const model = holder.CanvasModel;
+    const state = new Map<unknown, { values: unknown[]; at: number }>();
+    let current: { values: unknown[]; at: number } | undefined;
+    const React = {
+      createElement: (type: unknown, props: Record<string, any> | null, ...children: unknown[]): El => ({ type, props: props ?? {}, children }),
+      useState: <T,>(initial: T | (() => T)) => {
+        const cell = current as { values: unknown[]; at: number };
+        const i = cell.at++;
+        if (!(i in cell.values)) cell.values[i] = typeof initial === "function" ? (initial as () => T)() : initial;
+        return [cell.values[i] as T, (v: T) => { cell.values[i] = v; }] as const;
+      },
+      useRef: (v: unknown) => {
+        const cell = current as { values: unknown[]; at: number };
+        const i = cell.at++;
+        return (cell.values[i] ??= { current: v });
+      },
+      useEffect: () => undefined,
+    };
+    const scope: Record<string, unknown> = { CanvasModel: model, React };
+    const tr = createUiTranspiler();
+    for (const rel of ["argos/node-cardinal.tsx", "argos/types-user.tsx"]) new Function("globalThis", "React", tr.transpile(join(UI, rel)))(scope, React);
+    // expande os componentes de função (cada um com o próprio estado) até restarem só elementos de DOM
+    const expand = (n: unknown): unknown => {
+      if (Array.isArray(n)) return n.map(expand);
+      if (!isEl(n)) return n;
+      if (typeof n.type === "function") {
+        const key = `${(n.type as { name: string }).name}:${n.props.key ?? ""}`;
+        const cell = state.get(key) ?? { values: [], at: 0 };
+        state.set(key, cell);
+        cell.at = 0;
+        current = cell;
+        const out = (n.type as (p: unknown) => unknown)(n.props);
+        return { type: `<${(n.type as { name: string }).name}>`, props: n.props, children: [expand(out)] };
+      }
+      return { ...n, children: n.children.map(expand) };
+    };
+    const flat = (n: unknown): El[] => (Array.isArray(n) ? n.flatMap(flat) : isEl(n) ? [n, ...n.children.flatMap(flat)] : []);
+    const types = (scope.ArgosTypesUser as { userTypeDefs(d: object): { type: string; draw: { render(i: object): unknown } }[] }).userTypeDefs({
+      fetch: () => Promise.reject(new Error("sem rede")), now: () => 0, canvasId: () => "meu-canvas",
+    });
+    const def = types.find((t) => t.type === "cardinal");
+    const view = (data: object = { cardinal: "pagamentos", title: "Pagamentos" }) => expand(def?.draw.render({ id: "c1", data, w: 480, h: 360 }));
+    return { scope, def, view, flat };
+  }
+
+  test("o script registra window.ArgosNodeCardinal com o editor e a URL do build web", async () => {
+    const { scope } = await rig();
+    const api = scope.ArgosNodeCardinal as { CardinalEditor: unknown; WEB_URL: string };
+    expect(typeof api.CardinalEditor).toBe("function");
+    expect(api.WEB_URL).toBe("/ext/cardinal/web/index.html?host=1");
+  });
+
+  test("index.html carrega node-cardinal depois do node-note e antes do types-user", () => {
+    const html = readFileSync(join(UI, "index.html"), "utf8");
+    const at = (src: string): number => html.indexOf(`<script src="${src}"></script>`);
+    expect(at("/ui/argos/node-cardinal.js")).toBeGreaterThan(at("/ui/argos/node-note.js"));
+    expect(at("/ui/argos/node-cardinal.js")).toBeLessThan(at("/ui/argos/types-user.js"));
+  });
+
+  test("o tipo cardinal está registrado, fechado por padrão: título, botão Abrir editor e nenhum iframe", async () => {
+    const { def, view, flat } = await rig();
+    expect(def).toBeDefined();
+    const els = flat(view());
+    expect(els.some((e) => e.type === "iframe")).toBe(false);
+    const toggle = els.find((e) => e.props["data-cardinal-toggle"] !== undefined);
+    expect([toggle?.children, toggle?.props["aria-expanded"]]).toEqual([["Abrir editor"], false]);
+    expect(els.some((e) => e.type === "span" && e.children[0] === "Pagamentos")).toBe(true);
+  });
+
+  test("abrir monta o CardinalEditor com canvas, nó, nome e fetch da página; o iframe fica isolado (allow-scripts, sem same-origin)", async () => {
+    const { view, flat } = await rig();
+    const first = view() as El;
+    (flat(first).find((e) => e.props["data-cardinal-toggle"] !== undefined) as El).props.onClick();
+    const open = view();
+    const editor = flat(open).find((e) => e.type === "<CardinalEditor>") as El;
+    expect(editor.props).toMatchObject({ canvasId: "meu-canvas", nodeId: "c1", name: "pagamentos", closing: false });
+    expect(typeof editor.props.fetch).toBe("function");
+    const frame = flat(open).find((e) => e.type === "iframe") as El;
+    expect(frame.props.sandbox).toBe("allow-scripts");
+    expect(frame.props.sandbox).not.toContain("same-origin");
+    expect(frame.props.src).toBe("/ext/cardinal/web/index.html?host=1");
+    expect(flat(open).find((e) => e.props["data-cardinal-toggle"] !== undefined)?.children).toEqual(["Fechar editor"]);
+  });
+
+  test("fechar passa closing=true e mantém o editor montado até o onClosed; depois desmonta", async () => {
+    const { view, flat } = await rig();
+    const toggle = (tree: unknown): El => flat(tree).find((e) => e.props["data-cardinal-toggle"] !== undefined) as El;
+    toggle(view()).props.onClick();
+    toggle(view()).props.onClick();
+    const closing = view();
+    const editor = flat(closing).find((e) => e.type === "<CardinalEditor>") as El;
+    expect(editor.props.closing).toBe(true);
+    expect(flat(closing).some((e) => e.type === "iframe")).toBe(true);
+    expect(toggle(closing).props.disabled).toBe(true);
+    editor.props.onClosed(true);
+    const closed = view();
+    expect(flat(closed).some((e) => e.type === "<CardinalEditor>" || e.type === "iframe")).toBe(false);
+    expect(toggle(closed).children).toEqual(["Abrir editor"]);
+  });
+
+  test("data sem nome de diagrama vira aviso, sem editor", async () => {
+    const { view, flat } = await rig();
+    const els = flat(view({ title: "x" }));
+    expect(els.find((e) => e.props.role === "alert")?.children).toEqual(["Diagrama inválido no documento."]);
+    expect(els.some((e) => e.type === "<CardinalEditor>")).toBe(false);
   });
 });

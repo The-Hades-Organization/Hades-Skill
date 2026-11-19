@@ -153,6 +153,55 @@ describe("canvas-live: ligação", () => {
   });
 });
 
+describe("canvas-live: aviso cardinal", () => {
+  test("dado aviso cardinal válido, então onCardinal recebe nome, revisão e origem (disk por padrão)", () => {
+    const seen: { name: string; rev: string | null; source: string }[] = [];
+    const h = harness({ onCardinal: (n) => seen.push(n) });
+    const link = createLiveLink(h.deps);
+    link.start();
+    h.streams[0]!.opened();
+    h.streams[0]!.emit("cardinal", { data: JSON.stringify({ name: "pagamentos", rev: "abc" }) });
+    h.streams[0]!.emit("cardinal", { data: JSON.stringify({ name: "estoque", rev: null, source: "route" }) });
+    expect(seen).toEqual([{ name: "pagamentos", rev: "abc", source: "disk" }, { name: "estoque", rev: null, source: "route" }]);
+    link.stop();
+  });
+
+  test.each([
+    ["sem data", {}],
+    ["JSON inválido", { data: "{nao" }],
+    ["sem nome", { data: JSON.stringify({ rev: "a" }) }],
+    ["rev de tipo errado", { data: JSON.stringify({ name: "a", rev: 3 }) }],
+  ])("dado aviso cardinal ilegível (%s), então vai ao log e onCardinal não é chamado", (_label, ev) => {
+    const seen: unknown[] = [];
+    const h = harness({ onCardinal: (n) => seen.push(n) });
+    const link = createLiveLink(h.deps);
+    link.start();
+    h.streams[0]!.opened();
+    h.streams[0]!.emit("cardinal", ev);
+    expect(seen).toEqual([]);
+    expect(h.calls.log).toEqual(["aviso do diagrama ilegível"]);
+    link.stop();
+  });
+
+  test("dado stop, então aviso cardinal tardio é ignorado; sem onCardinal, o aviso passa em silêncio", () => {
+    const seen: unknown[] = [];
+    const h = harness({ onCardinal: (n) => seen.push(n) });
+    const link = createLiveLink(h.deps);
+    link.start();
+    h.streams[0]!.opened();
+    link.stop();
+    h.streams[0]!.emit("cardinal", { data: JSON.stringify({ name: "a", rev: "x" }) });
+    expect(seen).toEqual([]);
+    const bare = harness();
+    const other = createLiveLink(bare.deps);
+    other.start();
+    bare.streams[0]!.opened();
+    bare.streams[0]!.emit("cardinal", { data: JSON.stringify({ name: "a", rev: "x" }) });
+    expect(bare.calls.log).toEqual([]);
+    other.stop();
+  });
+});
+
 describe("canvas-live: religação", () => {
   test("dado EventSource fechado de vez, então abre outro depois do recuo e zera as tentativas ao ligar", () => {
     const h = harness();

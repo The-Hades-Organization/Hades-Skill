@@ -1,12 +1,13 @@
 // Política de despacho do `gate-lock run`: local ou worker, e quais workers aquecer. Pura: quem consulta a rede e o
 // relógio é o cliente (client.ts); aqui entra o que foi observado e sai a decisão.
 import { REASON_DISK, type WorkerSpec } from "./protocol.ts";
+import type { WorkerRecursos } from "../worker-recursos.ts";
 import { missingTools } from "./toolchain.ts";
 
 export type WarmState = "ready" | "warming" | "failed";
 
 /** Resposta de `hades worker status --json` (o contrato com o painel). */
-export interface WorkerStatus {
+export interface WorkerStatus extends WorkerRecursos {
   host: string;
   labels: string[];
   memFreeGb: number;

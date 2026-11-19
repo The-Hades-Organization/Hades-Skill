@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { parseRecursos, RECURSOS_KEYS } from "../worker-recursos.ts";
 import type { WarmState, WorkerStatus } from "./dispatch.ts";
 import {
   PROTOCOL_VERSION, TrailerFilter, encodePayload, gcCommandLine, mirrorPath, translateRc, type GcRequest, type Outcome, type Job, type Trailer,
@@ -68,11 +69,15 @@ export async function probeWorker(ssh: SshCommand, host: string): Promise<Worker
   const r = await captureRemote(ssh, host, WORKER_STATUS_COMMAND);
   if (r.rc !== 0) return undefined;
   try {
-    const s = JSON.parse(r.stdout.toString("utf8")) as WorkerStatus;
+    const raw = JSON.parse(r.stdout.toString("utf8")) as Record<string, unknown>;
+    const s = raw as unknown as WorkerStatus;
     const ok = typeof s.host === "string" && Array.isArray(s.labels) && typeof s.memFreeGb === "number" && typeof s.queue === "number" && typeof s.warm === "object" && s.warm !== null;
     if (ok && (typeof s.tools !== "object" || s.tools === null || Array.isArray(s.tools))) delete s.tools;
     for (const name of ["diskFreeGb", "diskTotalGb", "inodesFree"] as const) if (s[name] !== undefined && (typeof s[name] !== "number" || !Number.isFinite(s[name]))) delete s[name];
-    return ok ? s : undefined;
+    if (!ok) return undefined;
+    const recursos = parseRecursos(raw);
+    for (const name of RECURSOS_KEYS) delete s[name];
+    return { ...s, ...recursos };
   } catch {
     return undefined;
   }

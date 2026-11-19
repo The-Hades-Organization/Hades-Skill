@@ -328,11 +328,28 @@ function Worker({ w }) {
             </span>
           </div>
           {st.diskTotalGb ? <Progress value={Math.round((1 - diskFree / st.diskTotalGb) * 100)} kind={lowDisk ? 'bad' : 'ok'} /> : null}
+          {st.diskUsedGb != null ? <span className="t-meta text-muted-foreground tnum">{`usado ${st.diskUsedGb.toFixed(1).replace('.', ',')} GB${st.diskUsedPct != null ? ` (${st.diskUsedPct}%)` : ''}`}</span> : null}
           {st.inodesFree != null ? <span className="t-meta text-muted-foreground tnum">{`inodes livres ${st.inodesFree.toLocaleString('pt-BR')}`}</span> : null}
         </div> : null}
+        <div className="grid gap-1 t-meta text-muted-foreground" data-testid="worker-os">
+          <span>{'SO '}<b className="break-words font-medium text-foreground">{st.os ? st.os.name : '—'}</b></span>
+          {st.os ? <span className="break-words tnum">{`kernel ${st.os.kernel || '—'} · ${st.os.arch || '—'}`}</span> : null}
+        </div>
+        <div className="grid gap-1.5" data-testid="worker-cpu">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-2 t-meta text-muted-foreground tnum">
+            <span>{'CPU '}{st.cpuModel ? <span className="break-words">{st.cpuModel}</span> : null}</span>
+            <span>
+              <b className="font-mono font-medium text-foreground">{st.cpuUsedPct != null ? `${st.cpuUsedPct}%` : '—'}</b>
+              {` · ${st.cpus} núcleos`}
+            </span>
+          </div>
+          {st.cpuUsedPct != null ? <Progress value={st.cpuUsedPct} kind={st.cpuUsedPct >= 90 ? 'warn' : 'ok'} /> : null}
+          <span className="t-meta text-muted-foreground tnum">{st.load1 != null ? `carga ${st.load1} · ${st.load5 ?? '—'} · ${st.load15 ?? '—'}` : 'carga —'}</span>
+        </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 t-meta text-muted-foreground tnum">
           <span>{'fila '}<b className="font-mono font-medium text-foreground">{st.queue}</b></span>
-          <span>{'CPUs '}<b className="font-mono font-medium text-foreground">{st.cpus}</b></span>
+          {st.memUsedGb != null ? <span data-testid="worker-ram">{'RAM usada '}<b className="font-mono font-medium text-foreground">{`${st.memUsedGb.toFixed(1).replace('.', ',')} de ${total.toFixed(1).replace('.', ',')} GB`}</b>{st.memUsedPct != null ? ` (${st.memUsedPct}%)` : ''}</span> : null}
+          {st.swapTotalGb != null ? <span>{'swap '}<b className="font-mono font-medium text-foreground">{`${(st.swapTotalGb - (st.swapFreeGb ?? 0)).toFixed(1).replace('.', ',')} de ${st.swapTotalGb.toFixed(1).replace('.', ',')} GB`}</b></span> : null}
         </div>
         {tools.length ? <div className="grid gap-1.5">
           <span className="t-meta text-muted-foreground">ferramentas no PATH do ssh</span>

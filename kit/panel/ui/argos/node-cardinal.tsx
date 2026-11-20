@@ -40,7 +40,11 @@ function makeArgosNodeCardinal() {
   const B = g.CanvasModel.cardinalBridge;
   const h = (type: unknown, props?: Record<string, unknown> | null, ...children: ReactNode[]): Tree => React.createElement(type, props, ...children);
 
-  const BTN = "px-2 py-0.5 t-label hover:bg-hover focus-visible:bg-accent outline-none disabled:opacity-40";
+  /** Altura da barra: a do cabeçalho dos outros nós do Argos (SELECTION_LIMITS.header, 24). */
+  const BAR = "h-6 shrink-0";
+  const BTN = "h-full shrink-0 px-1.5 t-label hover:bg-hover focus-visible:bg-accent outline-none disabled:opacity-40";
+  /** Lado, em unidades de mundo, da área sobre o iframe que deixa a alça de redimensionar do canvas chegar ao motor (o iframe engole o ponteiro). */
+  const RESIZE_CORNER = 24;
   /** Escala do PNG exportado (nitidez em tela densa). */
   const PNG_SCALE = 2;
 
@@ -53,6 +57,9 @@ function makeArgosNodeCardinal() {
     title?: string;
     /** O botão da barra que fecha o editor (atalho: o zoom também fecha). */
     onToggle?(): void;
+    /** O nó está no tamanho grande de `onExpand`; a ação vira "Recolher". Ausente `onExpand`, a barra não oferece a ação. */
+    expanded?: boolean;
+    onExpand?(): void;
     /** O `fetch` com chave da página. */
     fetch: BridgeModule.ClientFetch;
     /** Recolher o nó: salva o que estiver pendente e, ao terminar, chama `onClosed`. */
@@ -156,14 +163,17 @@ function makeArgosNodeCardinal() {
     const why = reason === undefined ? "" : REASON_TEXT[reason] ?? reason;
     const usable = state === "ready" || state === "readonly";
 
-    return h("div", { className: "flex h-full min-h-0 w-full flex-col", "data-cardinal-editor": state },
-      h("div", { className: "flex items-center gap-1 px-1", role: "toolbar", "aria-label": "Editor do Cardinal" },
+    return h("div", { className: "relative flex h-full min-h-0 w-full flex-col", "data-cardinal-editor": state },
+      h("div", { className: `flex ${BAR} items-center gap-1 overflow-hidden pl-1`, role: "toolbar", "aria-label": "Editor do Cardinal" },
         props.title ? h("span", { className: "t-label max-w-[40%] truncate font-semibold", title: props.name }, props.title) : null,
         h("span", { className: "t-label flex-1 truncate", role: "status", "aria-live": "polite" }, [status, why && state !== "ready" ? `: ${why}` : "", message ? ` · ${message}` : ""].join("")),
-        h("button", { type: "button", className: BTN, disabled: !usable || busy, onClick: () => void exportAs("svg") }, "Exportar SVG"),
-        h("button", { type: "button", className: BTN, disabled: !usable || busy, onClick: () => void exportAs("png") }, "Exportar PNG"),
+        h("button", { type: "button", className: BTN, disabled: !usable || busy, "aria-label": "Exportar SVG", title: "Exportar SVG", onClick: () => void exportAs("svg") }, "SVG"),
+        h("button", { type: "button", className: BTN, disabled: !usable || busy, "aria-label": "Exportar PNG", title: "Exportar PNG", onClick: () => void exportAs("png") }, "PNG"),
+        props.onExpand
+          ? h("button", { type: "button", className: BTN, "aria-pressed": props.expanded === true, "data-cardinal-expand": "", title: props.expanded ? "Voltar ao tamanho anterior" : "Abrir numa área grande", onClick: props.onExpand }, props.expanded ? "Recolher" : "Expandir")
+          : null,
         props.onToggle
-          ? h("button", { type: "button", className: BTN, disabled: props.closing, "aria-expanded": true, "aria-label": `Fechar o editor de ${props.title ?? props.name}`, "data-cardinal-toggle": "", onClick: props.onToggle }, "Fechar editor")
+          ? h("button", { type: "button", className: BTN, disabled: props.closing, "aria-expanded": true, "aria-label": `Fechar o editor de ${props.title ?? props.name}`, "data-cardinal-toggle": "", onClick: props.onToggle }, "Fechar")
           : null),
       notice && notice.length > 0
         ? h("div", { className: "flex items-start gap-2 bg-popover px-2 py-1 t-label", role: "alert", "data-cardinal-merge-notice": "" },
@@ -175,7 +185,8 @@ function makeArgosNodeCardinal() {
           ref: frame, src: props.webUrl ?? WEB_URL, title: `Editor do diagrama ${props.name}`, sandbox: "allow-scripts",
           referrerPolicy: "no-referrer", className: "min-h-0 w-full flex-1 border-0", "data-cardinal-frame": "",
         })
-        : h("div", { className: "flex flex-1 items-center justify-center px-2 t-label", role: "status" }, STATE_TEXT.limit));
+        : h("div", { className: "flex flex-1 items-center justify-center px-2 t-label", role: "status" }, STATE_TEXT.limit),
+      hasSlot ? h("div", { className: "absolute bottom-0 right-0 z-10", style: { width: RESIZE_CORNER, height: RESIZE_CORNER, cursor: "nwse-resize" }, "aria-hidden": "true", "data-cardinal-resize-corner": "" }) : null);
   }
 
   return { CardinalEditor, WEB_URL, STATE_TEXT, REASON_TEXT, CONFLICT_TEXT };

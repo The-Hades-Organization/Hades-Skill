@@ -64,6 +64,8 @@ interface UserTypesDeps {
   timeoutMs?: number;
   /** O `marked` do vendor/ (window.marked na página); sem ele a nota só tem o modo Raw. */
   marked?: unknown;
+  /** O host troca o tamanho do nó (um passo do desfazer, posição mantida): a ação Expandir do editor do nó `cardinal`. Ausente, a ação some. */
+  onResize?: (nodeId: string, size: { w: number; h: number }) => void;
   /** Id do canvas aberto, lido a cada renderização (o editor do nó `cardinal` fala com as rotas dele). */
   canvasId?: () => string;
 }
@@ -1032,13 +1034,17 @@ function makeArgosTypesUser() {
   // ---- nó cardinal: o editor (argos/node-cardinal.tsx) abre sozinho no zoom de perto e fecha ao se afastar ----
 
   const CARDINAL_DEFAULT_CANVAS = "default";
+  /** Tamanho do nó expandido, em unidades de mundo: cabe o editor com folga, sem depender do tamanho que o usuário deu ao nó. */
+  const CARDINAL_EXPANDED = { w: 1280, h: 800 } as const;
+  /** Tamanho de antes do Expandir, por nó, para o Recolher voltar a ele (vale enquanto a página está aberta). */
+  const cardinalBefore = new Map<string, { w: number; h: number }>();
 
   /**
    * O nó só é montado pelo motor no nível de perto, então nasce aberto. O motor avisa por `canvas-near` quando o nó deixa o
    * nível de perto: o editor fecha com `closing`, salva o pendente e só no `onClosed` desmonta; até lá o `data-retain` segura o
    * nó na camada HTML. Fechar pelo botão vale até se afastar e voltar.
    */
-  function CardinalCardHost(props: { id: string; data: Readonly<Record<string, unknown>>; deps: UserTypesDeps }): Tree {
+  function CardinalCardHost(props: { id: string; w: number; h: number; data: Readonly<Record<string, unknown>>; deps: UserTypesDeps }): Tree {
     const [mounted, setMounted] = React.useState(true);
     const [closing, setClosing] = React.useState(false);
     const [near, setNear] = React.useState(true);
@@ -1088,19 +1094,30 @@ function makeArgosTypesUser() {
         setMounted(true);
       }
     };
+    const expand = (): void => {
+      const before = cardinalBefore.get(props.id);
+      if (before) {
+        cardinalBefore.delete(props.id);
+        props.deps.onResize?.(props.id, before);
+        return;
+      }
+      cardinalBefore.set(props.id, { w: props.w, h: props.h });
+      props.deps.onResize?.(props.id, { w: Math.max(props.w, CARDINAL_EXPANDED.w), h: Math.max(props.h, CARDINAL_EXPANDED.h) });
+    };
     const live = mounted && editor !== undefined;
     return h("div", { ref: root, className: "flex h-full min-h-0 w-full flex-col", "data-cardinal-card": props.id },
       live
         ? null
-        : h("div", { className: "flex items-center gap-1 px-1" },
+        : h("div", { className: "flex h-6 shrink-0 items-center gap-1 pl-1" },
           h("span", { className: "t-label flex-1 truncate", title: name }, title),
           h("button", {
-            type: "button", className: "px-2 py-0.5 t-label hover:bg-hover focus-visible:bg-accent outline-none disabled:opacity-40", disabled: closing || editor === undefined,
+            type: "button", className: "h-full px-1.5 t-label hover:bg-hover focus-visible:bg-accent outline-none disabled:opacity-40", disabled: closing || editor === undefined,
             "aria-expanded": false, "aria-label": `Abrir o editor de ${title}`, "data-cardinal-toggle": "", onClick: toggle,
           }, "Abrir editor")),
       live
         ? h("div", { className: "min-h-0 flex-1" }, h(editor.CardinalEditor, {
           key: props.id, canvasId: props.deps.canvasId?.() ?? CARDINAL_DEFAULT_CANVAS, nodeId: props.id, name, title, fetch: props.deps.fetch, closing, onToggle: toggle,
+          expanded: cardinalBefore.has(props.id), onExpand: props.deps.onResize ? expand : undefined,
           onClosed: () => { setMounted(false); setClosing(false); },
         }))
         : null);
@@ -1122,7 +1139,7 @@ function makeArgosTypesUser() {
     { type: "unit-sketch", label: "Esboço de unidade", icon: "DraftingCompass", size: { w: 320, h: 220 }, menu: [MENU.dock, MENU.undock, MENU.copyCommands, MENU.duplicate, MENU.blur, MENU.remove] },
     { type: "area", label: "Área", icon: "SquareDashed", size: { w: 480, h: 320 }, menu: [MENU.areaRename, MENU.areaColor, MENU.duplicate, MENU.remove], surface: "canvas" },
     { type: "drawing", label: "Desenho", icon: "PenTool", size: { w: 480, h: 320 }, menu: [MENU.dock, MENU.undock, MENU.duplicate, MENU.blur, MENU.remove] },
-    { type: "cardinal", label: "Diagrama Cardinal", icon: "PenTool", size: { w: 480, h: 360 }, menu: [MENU.dock, MENU.undock, MENU.duplicate, MENU.blur, MENU.remove] },
+    { type: "cardinal", label: "Diagrama Cardinal", icon: "PenTool", size: { w: 800, h: 560 }, menu: [MENU.dock, MENU.undock, MENU.duplicate, MENU.blur, MENU.remove] },
     { type: "band", label: "Banda", icon: "Users", size: { w: 260, h: 180 }, menu: [MENU.dock, MENU.undock, MENU.linkNote, MENU.remove] },
   ];
 
@@ -1146,7 +1163,7 @@ function makeArgosTypesUser() {
       // o desenho da área é do motor (canvas); isto só atende quem pede o conteúdo de um nó (acoplar), sem nada para mostrar
       area: () => h("div", { "aria-hidden": "true" }),
       drawing: (input) => (model.drawing ? h(DrawingBody, { key: input.id, id: input.id, w: input.w, h: input.h, data: input.data, dm: model.drawing, deps }) : h("div", { "aria-hidden": "true" })),
-      cardinal: (input) => h(CardinalCardHost, { key: input.id, id: input.id, data: input.data, deps }),
+      cardinal: (input) => h(CardinalCardHost, { key: input.id, id: input.id, w: input.w, h: input.h, data: input.data, deps }),
       band: (input) => h(BandBody, { key: input.id, data: input.data, model, source: deps.band }),
     };
     return ROWS.filter((row) => row.type !== "drawing" || model.drawing !== undefined).map((row) => ({

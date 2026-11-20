@@ -499,6 +499,8 @@ function Argos() {
     const userDeps = { fetch: tokenFetch, now: () => Date.now(), canvasId: () => canvasIdRef.current, copy: call('copyText'), onTextChange: text.onTextChange, onRemove: text.onRemove,
       // desenho: cada edição é um passo do desfazer (opSetDrawing); recusa do modelo vai ao aviso com o código
       onDrawingChange: (id, scene) => { const d = docNow(); if (!d) return; let op; try { op = M.drawing.opSetDrawing(d, id, scene); } catch (e) { if (!e || typeof e.code !== 'string') throw e; call('opFailed')(e.code); return; } if (op) call('commitOp')(op); },
+      // tamanho do nó (Expandir do editor `cardinal`): passo do desfazer que mantém a posição
+      onResize: (id, size) => { const d = docNow(); const n = d?.nodes.find((x) => x.id === id); if (!d || !n) return; let op; try { op = M.history.opResize(d, id, { x: n.x, y: n.y, w: size.w, h: size.h }); } catch (e) { if (!e || typeof e.code !== 'string') throw e; call('opFailed')(e.code); return; } call('commitOp')(op); },
       band: { doc: () => docNow() ?? undefined, live: call('bandLive'), focus: call('select') } };
     const liveDeps = { fetch: tokenFetch, now: () => Date.now(), get portalPolicy() { return portalPolicy.current; }, onOpen: call('openAgentFile') };
     // nó `terminal` (criado pela ferramenta Terminal): desenho do node-terminal; o menu são os comandos T2 de commands-canvas.

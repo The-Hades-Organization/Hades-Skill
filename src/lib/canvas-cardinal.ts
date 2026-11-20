@@ -215,7 +215,7 @@ export function canReadCardinal(doc: CanvasDoc, nodeId: string, readerId: string
 }
 
 /** Tamanho do nó de um diagrama criado pela CLI. */
-export const CARDINAL_FRAME = Object.freeze({ w: 420, h: 300 });
+export const CARDINAL_FRAME = Object.freeze({ w: 800, h: 560 });
 
 export interface CardinalNodeInput {
   id: string;

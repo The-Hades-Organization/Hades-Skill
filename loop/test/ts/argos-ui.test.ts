@@ -3020,7 +3020,7 @@ describe("editor do Cardinal no nó", () => {
   type El = { type: unknown; props: Record<string, any>; children: unknown[] };
   const isEl = (n: unknown): n is El => typeof n === "object" && n !== null && "type" in n;
 
-  async function rig() {
+  async function rig(deps: object = {}) {
     const js = await createCanvasModuleBundler(join(import.meta.dir, "../../../src/lib")).bundle(CANVAS_UI_BUNDLE);
     const holder: Record<string, unknown> = {};
     new Function("globalThis", js as string)(holder);
@@ -3072,7 +3072,7 @@ describe("editor do Cardinal no nó", () => {
     };
     const flat = (n: unknown): El[] => (Array.isArray(n) ? n.flatMap(flat) : isEl(n) ? [n, ...n.children.flatMap(flat)] : []);
     const types = (scope.ArgosTypesUser as { userTypeDefs(d: object): { type: string; draw: { render(i: object): unknown } }[] }).userTypeDefs({
-      fetch: () => Promise.reject(new Error("sem rede")), now: () => 0, canvasId: () => "meu-canvas",
+      fetch: () => Promise.reject(new Error("sem rede")), now: () => 0, canvasId: () => "meu-canvas", ...deps,
     });
     const def = types.find((t) => t.type === "cardinal");
     const view = (data: object = { cardinal: "pagamentos", title: "Pagamentos" }) => expand(def?.draw.render({ id: "c1", data, w: 480, h: 360 }));
@@ -3181,6 +3181,41 @@ describe("editor do Cardinal no nó", () => {
     wrapper.fire("canvas-near", true);
     cycle();
     expect(flat(view()).some((e) => e.type === "<CardinalEditor>")).toBe(true);
+  });
+
+  test("a barra do nó tem a altura do cabeçalho dos outros nós (h-6), aberta ou fechada, e não repete o título", async () => {
+    const { view, flat } = await rig();
+    const open = flat(view());
+    const toolbar = open.find((e) => e.props.role === "toolbar") as El;
+    expect(toolbar.props.className).toContain("h-6");
+    expect(open.filter((e) => e.type === "span" && e.children[0] === "Pagamentos")).toHaveLength(1);
+    toggleOf(flat, view())?.props.onClick();
+    (flat(view()).find((e) => e.type === "<CardinalEditor>") as El).props.onClosed(true);
+    const bar = flat(view()).find((e) => e.type === "div" && String(e.props.className).includes("h-6") && e.props.role === undefined);
+    expect(bar).toBeDefined();
+  });
+
+  test("Expandir pede o tamanho grande e Recolher devolve o de antes; sem onResize a ação não aparece", async () => {
+    const sizes: unknown[] = [];
+    const { view, flat } = await rig({ onResize: (id: string, size: object) => sizes.push([id, size]) });
+    const expandBtn = (): El => flat(view()).find((e) => e.props["data-cardinal-expand"] !== undefined) as El;
+    expect(expandBtn().children).toEqual(["Expandir"]);
+    expandBtn().props.onClick();
+    expect(sizes).toEqual([["c1", { w: 1280, h: 800 }]]);
+    expect(expandBtn().children).toEqual(["Recolher"]);
+    expandBtn().props.onClick();
+    expect(sizes[1]).toEqual(["c1", { w: 480, h: 360 }]);
+    expect(expandBtn().children).toEqual(["Expandir"]);
+    const bare = await rig();
+    expect(bare.flat(bare.view()).some((e) => e.props["data-cardinal-expand"] !== undefined)).toBe(false);
+  });
+
+  test("o iframe leva por cima a alça de redimensionar do canvas, para o ponteiro chegar ao motor", async () => {
+    const { view, flat } = await rig();
+    const els = flat(view());
+    const corner = els.find((e) => e.props["data-cardinal-resize-corner"] !== undefined) as El;
+    expect(corner.props.style).toMatchObject({ width: 24, height: 24 });
+    expect(els.indexOf(corner)).toBeGreaterThan(els.findIndex((e) => e.type === "iframe"));
   });
 
   test("data sem nome de diagrama vira aviso, sem editor", async () => {

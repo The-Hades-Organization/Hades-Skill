@@ -1029,35 +1029,79 @@ function makeArgosTypesUser() {
       error ? h("span", { role: "alert", className: "text-bad t-label" }, error) : null);
   }
 
-  // ---- nó cardinal: título e botão abrir/fechar; o editor (argos/node-cardinal.tsx) só existe com o nó aberto ----
+  // ---- nó cardinal: o editor (argos/node-cardinal.tsx) abre sozinho no zoom de perto e fecha ao se afastar ----
 
   const CARDINAL_DEFAULT_CANVAS = "default";
 
-  /** Abrir monta o `CardinalEditor`; fechar passa `closing` e só desmonta no `onClosed`, depois de o editor salvar o pendente. */
+  /**
+   * O nó só é montado pelo motor no nível de perto, então nasce aberto. O motor avisa por `canvas-near` quando o nó deixa o
+   * nível de perto: o editor fecha com `closing`, salva o pendente e só no `onClosed` desmonta; até lá o `data-retain` segura o
+   * nó na camada HTML. Fechar pelo botão vale até se afastar e voltar.
+   */
   function CardinalCardHost(props: { id: string; data: Readonly<Record<string, unknown>>; deps: UserTypesDeps }): Tree {
-    const [open, setOpen] = React.useState(false);
+    const [mounted, setMounted] = React.useState(true);
     const [closing, setClosing] = React.useState(false);
+    const [near, setNear] = React.useState(true);
+    const [manualClosed, setManualClosed] = React.useState(false);
+    const root = React.useRef<HTMLDivElement | null>(null);
     const name = typeof props.data.cardinal === "string" ? props.data.cardinal : "";
     const title = typeof props.data.title === "string" && props.data.title !== "" ? props.data.title : name;
     const editor = (globalThis as unknown as { ArgosNodeCardinal?: { CardinalEditor: (p: Record<string, unknown>) => Tree } }).ArgosNodeCardinal;
+    const wrapper = (): HTMLElement | null => root.current?.closest<HTMLElement>("[data-canvas-node]") ?? null;
+
+    React.useEffect(() => {
+      const el = wrapper();
+      if (!el) return undefined;
+      const onNear = (event: Event): void => {
+        const now = (event as CustomEvent<boolean>).detail;
+        setNear(now);
+        if (!now) setManualClosed(false);
+      };
+      el.addEventListener("canvas-near", onNear);
+      return () => el.removeEventListener("canvas-near", onNear);
+    }, []);
+
+    // perto abre, longe fecha (com salvamento); a decisão é uma só, para o botão e o zoom não brigarem
+    React.useEffect(() => {
+      const want = near && !manualClosed;
+      if (want && !mounted && !closing) setMounted(true);
+      else if (!want && mounted && !closing) setClosing(true);
+    }, [near, manualClosed, mounted, closing]);
+
+    React.useEffect(() => {
+      const el = wrapper();
+      if (!el) return;
+      const held = mounted || closing;
+      if ((el.dataset.retain === "1") === held) return;
+      el.dataset.retain = held ? "1" : "0";
+      el.dispatchEvent(new CustomEvent("canvas-retain"));
+    }, [mounted, closing]);
+
     if (name === "") return h("p", { role: "alert", className: "p-2 text-bad t-label" }, "Diagrama inválido no documento.");
     const toggle = (): void => {
       if (closing) return;
-      if (open) setClosing(true);
-      else setOpen(true);
+      if (mounted) {
+        setManualClosed(true);
+        setClosing(true);
+      } else {
+        setManualClosed(false);
+        setMounted(true);
+      }
     };
-    const mounted = open && editor !== undefined;
-    return h("div", { className: "flex h-full min-h-0 w-full flex-col", "data-cardinal-card": props.id },
-      h("div", { className: "flex items-center gap-1 px-1" },
-        h("span", { className: "t-label flex-1 truncate", title: name }, title),
-        h("button", {
-          type: "button", className: "px-2 py-0.5 t-label hover:bg-hover focus-visible:bg-accent outline-none disabled:opacity-40", disabled: closing || (!open && editor === undefined),
-          "aria-expanded": open, "aria-label": open ? `Fechar o editor de ${title}` : `Abrir o editor de ${title}`, "data-cardinal-toggle": "", onClick: toggle,
-        }, open ? "Fechar editor" : "Abrir editor")),
-      mounted
+    const live = mounted && editor !== undefined;
+    return h("div", { ref: root, className: "flex h-full min-h-0 w-full flex-col", "data-cardinal-card": props.id },
+      live
+        ? null
+        : h("div", { className: "flex items-center gap-1 px-1" },
+          h("span", { className: "t-label flex-1 truncate", title: name }, title),
+          h("button", {
+            type: "button", className: "px-2 py-0.5 t-label hover:bg-hover focus-visible:bg-accent outline-none disabled:opacity-40", disabled: closing || editor === undefined,
+            "aria-expanded": false, "aria-label": `Abrir o editor de ${title}`, "data-cardinal-toggle": "", onClick: toggle,
+          }, "Abrir editor")),
+      live
         ? h("div", { className: "min-h-0 flex-1" }, h(editor.CardinalEditor, {
-          key: props.id, canvasId: props.deps.canvasId?.() ?? CARDINAL_DEFAULT_CANVAS, nodeId: props.id, name, fetch: props.deps.fetch, closing,
-          onClosed: () => { setOpen(false); setClosing(false); },
+          key: props.id, canvasId: props.deps.canvasId?.() ?? CARDINAL_DEFAULT_CANVAS, nodeId: props.id, name, title, fetch: props.deps.fetch, closing, onToggle: toggle,
+          onClosed: () => { setMounted(false); setClosing(false); },
         }))
         : null);
   }

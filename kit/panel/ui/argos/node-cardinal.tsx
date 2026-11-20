@@ -49,6 +49,10 @@ function makeArgosNodeCardinal() {
     nodeId: string;
     /** Nome do diagrama (`data.cardinal`): os avisos do SSE vêm por ele. */
     name: string;
+    /** Título do nó, mostrado na barra do editor. */
+    title?: string;
+    /** O botão da barra que fecha o editor (atalho: o zoom também fecha). */
+    onToggle?(): void;
     /** O `fetch` com chave da página. */
     fetch: BridgeModule.ClientFetch;
     /** Recolher o nó: salva o que estiver pendente e, ao terminar, chama `onClosed`. */
@@ -154,9 +158,13 @@ function makeArgosNodeCardinal() {
 
     return h("div", { className: "flex h-full min-h-0 w-full flex-col", "data-cardinal-editor": state },
       h("div", { className: "flex items-center gap-1 px-1", role: "toolbar", "aria-label": "Editor do Cardinal" },
+        props.title ? h("span", { className: "t-label max-w-[40%] truncate font-semibold", title: props.name }, props.title) : null,
         h("span", { className: "t-label flex-1 truncate", role: "status", "aria-live": "polite" }, [status, why && state !== "ready" ? `: ${why}` : "", message ? ` · ${message}` : ""].join("")),
         h("button", { type: "button", className: BTN, disabled: !usable || busy, onClick: () => void exportAs("svg") }, "Exportar SVG"),
-        h("button", { type: "button", className: BTN, disabled: !usable || busy, onClick: () => void exportAs("png") }, "Exportar PNG")),
+        h("button", { type: "button", className: BTN, disabled: !usable || busy, onClick: () => void exportAs("png") }, "Exportar PNG"),
+        props.onToggle
+          ? h("button", { type: "button", className: BTN, disabled: props.closing, "aria-expanded": true, "aria-label": `Fechar o editor de ${props.title ?? props.name}`, "data-cardinal-toggle": "", onClick: props.onToggle }, "Fechar editor")
+          : null),
       notice && notice.length > 0
         ? h("div", { className: "flex items-start gap-2 bg-popover px-2 py-1 t-label", role: "alert", "data-cardinal-merge-notice": "" },
           h("span", { className: "flex-1" }, `Alguém alterou o diagrama enquanto você editava. Sua versão ficou em ${notice.length} ${notice.length === 1 ? "ponto" : "pontos"}: ${[...new Set(notice.map((c) => CONFLICT_TEXT[c.kind] ?? c.kind))].join(", ")}.`),

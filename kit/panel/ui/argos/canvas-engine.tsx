@@ -1315,7 +1315,16 @@ function makeArgosCanvas() {
     function syncHtml(visible: readonly CanvasNode[], detail: Detail): void {
       htmlLayer.style.transform = `translate(${-cam.x * cam.k}px, ${-cam.y * cam.k}px) scale(${cam.k})`;
       const isRich = opts.isRich;
-      const ids = detail === "full" && isRich ? visible.filter((n) => isRich(n)).map((n) => n.id) : [];
+      const near = detail === "full" && isRich ? visible.filter((n) => isRich(n)).map((n) => n.id) : [];
+      // o conteúdo que ainda tem o que salvar se marca com `data-retain="1"` e fica montado até largar a marca (o zoom semântico fecha antes de desmontar)
+      const retained = richIds.filter((id) => !near.includes(id) && byId.has(id) && htmlEls.get(id)?.dataset.retain === "1");
+      const ids = retained.length > 0 ? [...near, ...retained] : near;
+      for (const [id, el] of htmlEls) {
+        const isNear = near.includes(id);
+        if (el.dataset.near === String(isNear)) continue;
+        el.dataset.near = String(isNear);
+        el.dispatchEvent(new CustomEvent("canvas-near", { detail: isNear }));
+      }
       if (ids.length !== richIds.length || ids.some((id, i) => id !== richIds[i])) {
         richIds = ids;
         opts.onRichNodes?.(ids);
@@ -2173,7 +2182,13 @@ function makeArgosCanvas() {
       bindHtml(id, el) {
         if (el) htmlEls.set(id, el);
         else htmlEls.delete(id);
-        if (el) requestFrame();
+        if (!el) return;
+        // quem larga a marca `data-retain` avisa por aqui para o motor soltar o nó no quadro seguinte
+        if (el.dataset.retainBound === undefined) {
+          el.dataset.retainBound = "1";
+          el.addEventListener("canvas-retain", () => requestFrame());
+        }
+        requestFrame();
       },
       destroy() {
         destroyed = true;

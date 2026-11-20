@@ -471,3 +471,62 @@ describe("canvas-engine-shape: conexões fora da tela", () => {
     }
   });
 });
+
+describe("canvas-engine: nó rico retido ao sair do nível de perto", () => {
+  const drainAll = (): void => {
+    let ran = 0;
+    while (frames.length > 0 && ran < 200) {
+      frames.shift()?.(16 * ++ran);
+    }
+  };
+  function richEl() {
+    const heard = new Map<string, (() => void)[]>();
+    const sent: [string, unknown][] = [];
+    const el = {
+      style: {} as Record<string, string>,
+      dataset: {} as Record<string, string>,
+      addEventListener: (type: string, fn: () => void) => heard.set(type, [...(heard.get(type) ?? []), fn]),
+      dispatchEvent: (e: { type: string; detail: unknown }) => { sent.push([e.type, e.detail]); return true; },
+    };
+    return { el, sent, tell: (type: string): void => { for (const fn of heard.get(type) ?? []) fn(); } };
+  }
+
+  test("avisa canvas-near ao entrar e sair do detalhe completo e segura o nó marcado com data-retain até a marca cair", () => {
+    const lists: string[][] = [];
+    const engine = Canvas.createCanvasEngine(
+      { host: fakeElement(), canvasBox: fakeElement(), htmlLayer: fakeElement(), a11yBox: fakeElement() },
+      { doc: docOf([node("a", 0)]), selection: [], onSelectionChange: () => undefined, onOp: () => undefined, initialCamera: { x: 0, y: 0, k: 1 }, isRich: () => true, onRichNodes: (ids: readonly string[]) => lists.push([...ids]) } as EngineOptions,
+    );
+    const { el, sent, tell } = richEl();
+    (engine as unknown as { bindHtml(id: string, el: unknown): void }).bindHtml("a", el);
+    drainAll();
+    expect(lists.at(-1)).toEqual(["a"]);
+    expect(sent.at(-1)).toEqual(["canvas-near", true]);
+
+    el.dataset.retain = "1";
+    (engine as unknown as { api: { setCamera(c: object, animate: boolean): void } }).api.setCamera({ x: 0, y: 0, k: 0.1 }, false);
+    drainAll();
+    expect(sent.at(-1)).toEqual(["canvas-near", false]);
+    expect(lists.at(-1)).toEqual(["a"]);
+
+    el.dataset.retain = "0";
+    tell("canvas-retain");
+    drainAll();
+    expect(lists.at(-1)).toEqual([]);
+    engine.destroy();
+  });
+
+  test("sem a marca, sair do detalhe completo tira o nó da camada HTML na hora", () => {
+    const lists: string[][] = [];
+    const engine = Canvas.createCanvasEngine(
+      { host: fakeElement(), canvasBox: fakeElement(), htmlLayer: fakeElement(), a11yBox: fakeElement() },
+      { doc: docOf([node("a", 0)]), selection: [], onSelectionChange: () => undefined, onOp: () => undefined, initialCamera: { x: 0, y: 0, k: 1 }, isRich: () => true, onRichNodes: (ids: readonly string[]) => lists.push([...ids]) } as EngineOptions,
+    );
+    (engine as unknown as { bindHtml(id: string, el: unknown): void }).bindHtml("a", richEl().el);
+    drainAll();
+    (engine as unknown as { api: { setCamera(c: object, animate: boolean): void } }).api.setCamera({ x: 0, y: 0, k: 0.1 }, false);
+    drainAll();
+    expect(lists.at(-1)).toEqual([]);
+    engine.destroy();
+  });
+});

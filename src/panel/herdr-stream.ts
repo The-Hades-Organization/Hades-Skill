@@ -8,6 +8,7 @@ import { type HerdrSocket, HerdrSocketError, type HerdrSubscription } from "./he
 import { PANE_ID, SESSION_NAME } from "./herdr-page.ts";
 import { send } from "./http.ts";
 import { log } from "./log.ts";
+import { SSE_KEEP_ALIVE_MS } from "./sse.ts";
 
 type Dict = Record<string, unknown>;
 
@@ -23,7 +24,7 @@ export const IDLE_POLL_MAX_MS = 1000;
  * e só até o quadro mudar; nessa janela o intervalo não dobra e o teto de FRAME_INTERVAL_MS cede ao primeiro passo.
  */
 export const ECHO_RETRY_MS = [15, 30] as const;
-const KEEP_ALIVE_MS = 15_000;
+const KEEP_ALIVE_MS = SSE_KEEP_ALIVE_MS;
 const RECONNECT_MS = 3000;
 const RETRY_AFTER_S = 5;
 const READ_TIMEOUT_MS = 5000;

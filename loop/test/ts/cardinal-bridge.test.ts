@@ -392,6 +392,74 @@ describe("cardinal-bridge: teto de editores e feed", () => {
     feed.publish({ name: "a", rev: "2", source: "disk" });
     expect(got).toEqual(["a:1", "b:null"]);
   });
+
+  test("feed.resync chama os assinantes que pediram e para depois de cancelar", () => {
+    const feed = createCardinalFeed();
+    const got: string[] = [];
+    const offA = feed.subscribe("a", () => {}, () => got.push("a"));
+    feed.subscribe("b", () => {}, () => got.push("b"));
+    feed.subscribe("c", () => {});
+    feed.resync();
+    offA();
+    feed.resync();
+    expect(got).toEqual(["a", "b", "b"]);
+  });
+});
+
+describe("cardinal-bridge: resync ao religar o stream", () => {
+  test("arquivo mudou durante a queda: o editor recebe os bytes novos", async () => {
+    const r = rig();
+    r.fromEditor(ready());
+    await r.tick();
+    r.file.text = "por-fora";
+    r.file.rev = "r9";
+    r.bridge.resync();
+    await r.tick();
+    expect(r.sent.at(-1)?.message).toMatchObject({ type: "external-change", rev: "r9" });
+    expect(r.sent.at(-1)?.text).toBe("por-fora");
+    expect(r.bridge.rev()).toBe("r9");
+  });
+
+  test("rev igual não manda nada", async () => {
+    const r = rig();
+    r.fromEditor(ready());
+    await r.tick();
+    r.bridge.resync();
+    await r.tick();
+    expect(r.types()).toEqual(["load"]);
+  });
+
+  test("antes do ready (waiting) é ignorado", async () => {
+    const r = rig();
+    r.bridge.resync();
+    await r.tick();
+    expect(r.sent).toHaveLength(0);
+    expect(r.bridge.state()).toBe("waiting");
+  });
+
+  test("load que falhou antes: o resync refaz o load", async () => {
+    const r = rig();
+    r.file.broken = true;
+    r.fromEditor(ready());
+    await r.tick();
+    expect(r.bridge.state()).toBe("failed");
+    r.file.broken = false;
+    r.bridge.resync();
+    await r.tick();
+    expect(r.types()).toEqual(["load"]);
+    expect(r.bridge.state()).toBe("ready");
+  });
+
+  test("fechado, não faz nada", async () => {
+    const r = rig();
+    r.fromEditor(ready());
+    await r.tick();
+    r.bridge.close();
+    r.file.rev = "r9";
+    r.bridge.resync();
+    await r.tick();
+    expect(r.types()).toEqual(["load"]);
+  });
 });
 
 describe("cardinal-bridge: cliente das rotas", () => {

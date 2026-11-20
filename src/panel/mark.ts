@@ -7,6 +7,7 @@ import { basename, dirname } from "node:path";
 import { type Bridge, MARK_ERRORS, type MarkStateBody, type OfflineCause, isRecord, markUrl, markWsUrl, parseState, readBridge } from "../lib/mark-bridge.ts";
 import { explain } from "../lib/human-errors.ts";
 import { send } from "./http.ts";
+import { SSE_KEEP_ALIVE_MS } from "./sse.ts";
 
 type Dict = Record<string, unknown>;
 
@@ -27,7 +28,7 @@ export const MARK_LIMITS = {
 } as const;
 
 const RETRY_AFTER_S = 5;
-const KEEP_ALIVE_MS = 15_000;
+const KEEP_ALIVE_MS = SSE_KEEP_ALIVE_MS;
 const RECONNECT_MS = 3000;
 const DEFAULT_TIMEOUT_MS = 5000;
 const WS_UNAUTHORIZED = 4001;

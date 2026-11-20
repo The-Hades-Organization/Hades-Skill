@@ -87,6 +87,8 @@ export interface Bridge {
   handle(data: unknown): void;
   /** Aviso do SSE: o arquivo está em `rev` (`null` = saiu do disco). */
   fileChanged(rev: string | null): void;
+  /** O stream do painel religou: avisos do intervalo se perderam, então relê o arquivo e só manda ao editor se a revisão mudou. */
+  resync(): void;
   /** Pede ao editor a imagem; `store` grava ao lado do arquivo quando o editor está sem edição pendente. */
   requestExport(format: ImageFormat, options?: { diagram?: string; scale?: number; store?: boolean }): Promise<ExportOutcome>;
   /**
@@ -277,6 +279,11 @@ export function createBridge(deps: BridgeDeps): Bridge {
       enqueue(() => sync(false));
     },
 
+    resync() {
+      if (closed || state === "waiting" || state === "loading") return;
+      enqueue(loaded ? () => sync(false) : load);
+    },
+
     requestExport(format, options = {}) {
       return new Promise<ExportOutcome>((resolve) => {
         if (closed || state === "waiting" || state === "loading" || state === "failed") return resolve({ ok: false, error: "editor_unavailable" });
@@ -356,22 +363,30 @@ export interface CardinalNotice {
 /** Distribui os avisos do SSE aos editores abertos, por nome de diagrama; um por página (`cardinalFeed`). */
 export interface CardinalFeed {
   publish(notice: CardinalNotice): void;
-  /** Devolve quem cancela a assinatura. */
-  subscribe(name: string, listener: (notice: CardinalNotice) => void): () => void;
+  /** Devolve quem cancela a assinatura; `onResync` roda quando o stream religa (avisos do intervalo se perderam). */
+  subscribe(name: string, listener: (notice: CardinalNotice) => void, onResync?: () => void): () => void;
+  /** O stream religou: todo assinante confere o arquivo por conta própria. */
+  resync(): void;
 }
 
 export function createCardinalFeed(): CardinalFeed {
   const listeners = new Map<string, Set<(notice: CardinalNotice) => void>>();
+  const resyncs = new Set<() => void>();
   return {
     publish(notice) {
       for (const listener of [...(listeners.get(notice.name) ?? [])]) listener(notice);
     },
-    subscribe(name, listener) {
+    resync() {
+      for (const run of [...resyncs]) run();
+    },
+    subscribe(name, listener, onResync) {
       const set = listeners.get(name) ?? new Set();
       set.add(listener);
       listeners.set(name, set);
+      if (onResync) resyncs.add(onResync);
       return () => {
         set.delete(listener);
+        if (onResync) resyncs.delete(onResync);
         if (set.size === 0 && listeners.get(name) === set) listeners.delete(name);
       };
     },

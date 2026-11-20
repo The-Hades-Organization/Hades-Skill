@@ -3,6 +3,7 @@
 import { closeSync, fstatSync, openSync, readSync, statSync } from "node:fs";
 import { AGENT_NAME, SESSIONS_DIR, journalFiles, journalWorkRoot, parseEvent, parseSince, readEvents } from "../lib/journal.ts";
 import { BadRequest, send } from "./http.ts";
+import { SSE_KEEP_ALIVE_MS } from "./sse.ts";
 
 type Dict = Record<string, unknown>;
 
@@ -10,7 +11,7 @@ export const LIMIT_DEFAULT = 100;
 export const LIMIT_MAX = 500;
 export const STREAMS_MAX = 20;
 const POLL_MS = 1000;
-const KEEP_ALIVE_MS = 15_000;
+const KEEP_ALIVE_MS = SSE_KEEP_ALIVE_MS;
 const CHUNK_BYTES = 256 * 1024;
 const RETRY_AFTER_S = 5;
 const KIND = /^[\w.]{1,30}$/;

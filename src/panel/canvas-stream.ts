@@ -3,12 +3,13 @@
 // `registry` quando o registro de terminais do canvas muda e `cardinal` `{ name, rev, source }` quando um arquivo `.cardinal` muda. O aviso não leva o documento: a página relê pela rota de
 // sempre, então o corpo continua sob o teto e a validação do GET. O polling da página fica como reserva.
 import { send } from "./http.ts";
+import { SSE_KEEP_ALIVE_MS } from "./sse.ts";
 
 /** Teto de páginas ouvindo ao mesmo tempo; o excedente espera `RETRY_AFTER_S` e tenta de novo (o EventSource religa sozinho). */
 export const CANVAS_STREAMS_MAX = 16;
 const RETRY_AFTER_S = 5;
 /** Comentário de keep-alive: mantém a conexão aberta atrás de proxy e de túnel. */
-const KEEP_ALIVE_MS = 15_000;
+const KEEP_ALIVE_MS = SSE_KEEP_ALIVE_MS;
 /** Quanto o EventSource espera antes de religar depois de uma queda. */
 const RECONNECT_MS = 3000;
 const TOO_MANY = { error: "streams do canvas demais abertos", code: "canvas_streams_busy" };

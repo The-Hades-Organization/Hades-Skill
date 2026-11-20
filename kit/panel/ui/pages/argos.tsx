@@ -845,6 +845,8 @@ function Argos() {
       onRegistry: () => { if (alive) { reloadGraph.current(); reloadOrphans.current().catch(swallow('leitura dos órfãos')); } },
       // diagrama Cardinal mudou no disco ou por agente: os editores embutidos abertos recebem como mudança externa
       onCardinal: (n) => { if (alive) M.cardinalBridge.cardinalFeed.publish(n); },
+      // religou o stream: os avisos do intervalo se perderam, então cada editor aberto relê o arquivo
+      onOpen: () => { if (alive) M.cardinalBridge.cardinalFeed.resync(); },
       check, log: (message) => console.debug('canvas:', message),
     });
     link.start();

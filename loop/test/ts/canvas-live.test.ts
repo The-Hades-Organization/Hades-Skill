@@ -151,6 +151,20 @@ describe("canvas-live: ligação", () => {
     expect(h.calls.check).toBe(1);
     link.stop();
   });
+
+  test("dado stream que abre de novo depois de cair, então onOpen roda a cada abertura", async () => {
+    let opens = 0;
+    const h = harness({ onOpen: () => { opens++; } });
+    const link = createLiveLink(h.deps);
+    link.start();
+    h.streams[0]!.opened();
+    await flush();
+    expect(opens).toBe(1);
+    h.streams[0]!.opened();
+    await flush();
+    expect(opens).toBe(2);
+    link.stop();
+  });
 });
 
 describe("canvas-live: aviso cardinal", () => {

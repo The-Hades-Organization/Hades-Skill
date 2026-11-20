@@ -113,7 +113,7 @@ function makeArgosNodeCardinal() {
         if (B.isFromFrame(event, iframe.contentWindow)) instance.handle(event.data);
       };
       window.addEventListener("message", onMessage);
-      const unsubscribe = feed.subscribe(props.name, (n) => instance.fileChanged(n.rev));
+      const unsubscribe = feed.subscribe(props.name, (n) => instance.fileChanged(n.rev), () => instance.resync());
       // aba escondida: tirar o foco do iframe dispara o salvamento do editor antes de o navegador congelar a página
       const onHidden = (): void => {
         if (document.hidden && instance.dirty()) iframe.contentWindow?.blur();

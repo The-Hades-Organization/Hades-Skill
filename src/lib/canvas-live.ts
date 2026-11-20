@@ -45,6 +45,8 @@ export interface LiveDeps {
   onRegistry(): void;
   /** Aviso `cardinal`: o diagrama `name` está em `rev` (`null` = saiu do disco); `source` diz quem gravou (editor embutido recebe e ignora o próprio eco). */
   onCardinal?(notice: { name: string; rev: string | null; source: string }): void;
+  /** O stream (re)abriu: avisos `cardinal` do intervalo fora do ar não voltam, então quem os consome confere o estado por conta própria. */
+  onOpen?(): void;
   /** Confere a revisão do servidor (a página compara com a que conhece). Falha vira aviso no console, nunca derruba a ligação. */
   check(): Promise<void>;
   /** Falhas que o transporte engole de propósito (recuo, conferência) vão para cá. */
@@ -159,6 +161,7 @@ export function createLiveLink(deps: LiveDeps): LiveLink {
       attempt = 0;
       armPoll();
       // religou: confere o que passou enquanto estava fora
+      deps.onOpen?.();
       deps.check().catch((e: unknown) => deps.log(`conferência ao ligar falhou: ${e instanceof Error ? e.name : "erro"}`));
     });
     next.addEventListener("canvas", (ev) => {

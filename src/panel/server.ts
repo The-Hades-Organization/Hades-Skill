@@ -65,6 +65,7 @@ import { createTerm } from "./term.ts";
 import { createTermHttp, originAllowedFor, type TermSocketData } from "./term-http.ts";
 import { TERM_LIMITS, TERM_PATHS } from "./term-protocol.ts";
 import type { Server, ServerWebSocket, WebSocketHandler } from "bun";
+import { SSE_IDLE_TIMEOUT_S } from "./sse.ts";
 
 type SocketData = TermSocketData | VoiceSocketData;
 
@@ -813,6 +814,7 @@ export async function startPanel(dir: string, port: number): Promise<Panel> {
   const server = Bun.serve<SocketData>({
     hostname: "127.0.0.1",
     port,
+    idleTimeout: SSE_IDLE_TIMEOUT_S,
     websocket,
     async fetch(req, srv) {
       if (req.method === "GET" && markVoice.isVoicePath(new URL(req.url).pathname)) {

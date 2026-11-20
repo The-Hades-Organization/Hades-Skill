@@ -85,6 +85,8 @@ export interface CardinalDeps {
   onWrite?(name: string, rev: string): void;
   /** Executor do binário `cardinal`; sem ele as rotas que dependem do binário respondem `cardinal_unavailable`. */
   runner?: CardinalRunner;
+  /** Abre o arquivo no app nativo (`POST …/open`); `false` se o binário não executa. Sem ele (ou sem `runner` disponível) a rota responde `cardinal_unavailable`. */
+  openNative?(file: string): Promise<boolean>;
 }
 
 /** Um arquivo que a rota conhece: o vigia confere o carimbo de cada um. */
@@ -100,7 +102,7 @@ export interface CardinalRoutes {
   write(path: string, req: Request, caller: CardinalCaller): Promise<Response> | undefined;
   /** `GET /api/canvas-cardinal?limit=&after=`: os arquivos conhecidos, por nome, em páginas (dono). */
   list(query: Readonly<Record<string, string>>): Response;
-  /** `POST /api/canvas-cardinal/link {path}` e `POST .../<canvas>/<nó>/edit|export`; `undefined` fora da família. */
+  /** `POST /api/canvas-cardinal/link {path}` e `POST .../<canvas>/<nó>/edit|export|artifact|open`; `undefined` fora da família. */
   action(path: string, req: Request, caller: CardinalCaller): Promise<Response> | undefined;
   /** Os arquivos conhecidos agora (pasta padrão e adotados), para o vigia. Não lança: índice ilegível dá só a pasta padrão. */
   files(): CardinalFileRef[];
@@ -588,6 +590,22 @@ export function createCanvasCardinalRoutes(dir: string, deps: CardinalDeps): Car
     }
   }
 
+  /** `POST …/open`: o arquivo do nó abre no app nativo. Só no painel local (o app roda na máquina do painel) e só o dono (sem `as`). */
+  async function openNative(canvasId: string, nodeId: string, caller: CardinalCaller): Promise<Response> {
+    if (caller.remote) return refusal(FORBIDDEN_STATUS, CARDINAL_ROUTE_ERRORS.localOnly);
+    try {
+      const found = await readable(canvasId, nodeId, undefined, caller);
+      if (found instanceof Response) return found;
+      const open = deps.openNative;
+      if (open === undefined || deps.runner?.available() !== true) return refusal(UNAVAILABLE_STATUS, CARDINAL_ROUTE_ERRORS.unavailable);
+      if (!(await open(found.place.file))) return refusal(UNAVAILABLE_STATUS, CARDINAL_ROUTE_ERRORS.unavailable);
+      log("info", "diagrama aberto no app nativo", { canvas: canvasId, node: nodeId, name: found.name });
+      return send(OK_STATUS, { name: found.name, opened: true });
+    } catch (error) {
+      return failure(error);
+    }
+  }
+
   /** Corpo de `POST …/artifact`: imagem exportada pelo editor embutido (SVG como texto, PNG em base64) e a revisão de origem. */
   const SVG_UNSAFE = /<script|<foreignObject|\son[a-z]+\s*=|javascript:/i;
   const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -890,6 +908,7 @@ export function createCanvasCardinalRoutes(dir: string, deps: CardinalDeps): Car
       if (parts.length === 3 && parts[2] === "edit" && parts[0] !== "" && parts[1] !== "") return edit(parts[0] as string, parts[1] as string, req, caller);
       if (parts.length === 3 && parts[2] === "export" && parts[0] !== "" && parts[1] !== "") return exportImage(parts[0] as string, parts[1] as string, req, caller);
       if (parts.length === 3 && parts[2] === "artifact" && parts[0] !== "" && parts[1] !== "") return storeArtifact(parts[0] as string, parts[1] as string, req);
+      if (parts.length === 3 && parts[2] === "open" && parts[0] !== "" && parts[1] !== "") return openNative(parts[0] as string, parts[1] as string, caller);
       return Promise.resolve(send(NOT_FOUND_STATUS, { error: "not found" }));
     },
 

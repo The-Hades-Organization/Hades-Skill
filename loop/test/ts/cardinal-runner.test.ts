@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { validateCanvasDoc } from "../../../src/lib/canvas-doc";
 import { CARDINAL_FORMAT_MAX } from "../../../src/lib/canvas-cardinal";
 import { CARDINAL_ROUTE_ERRORS, createCanvasCardinalRoutes, revisionOf } from "../../../src/panel/canvas-cardinal";
-import { createCardinalRunner, RUNNER_ERRORS, RunnerError } from "../../../src/panel/cardinal-runner";
+import { createCardinalRunner, launchCardinalApp, RUNNER_ERRORS, RunnerError } from "../../../src/panel/cardinal-runner";
 
 type Dict = Record<string, unknown>;
 const T = mkdtempSync(join(tmpdir(), "hades-runner-"));
@@ -166,5 +166,68 @@ describe("convert", () => {
   test("saída que não é um .cardinal: recusada (400)", async () => {
     const res = await conv(setup("printf 'lixo'"), { from: "text", text: "x" });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("abrir no app nativo", () => {
+  const until = async (check: () => boolean): Promise<void> => {
+    for (let i = 0; i < 100 && !check(); i++) await new Promise((r) => setTimeout(r, 20));
+  };
+
+  test("launchCardinalApp passa só o arquivo e um ambiente enxuto (sem token)", async () => {
+    const out = join(T, `launch${n}`);
+    mkdirSync(out);
+    const { D, bin } = setup(`printf '%s\\n' "$1" > ${out}/argv; env > ${out}/env`);
+    const file = join(D, "canvas-cardinal", "pag.cardinal");
+    const opened = await launchCardinalApp(bin as string, file, { PATH: process.env.PATH, HOME: "/h", HADES_PANEL_TOKEN: "segredo", INTERNAL_TOKEN: "x" });
+    expect(opened).toBe(true);
+    await until(() => existsSync(join(out, "env")));
+    expect(readFileSync(join(out, "argv"), "utf8").trim()).toBe(file);
+    const env = readFileSync(join(out, "env"), "utf8");
+    expect(env).not.toContain("segredo");
+    expect(env).not.toContain("HADES_PANEL_TOKEN");
+  });
+
+  test("binário que não executa resolve false, sem lançar", async () => {
+    expect(await launchCardinalApp(join(T, "nao-existe"), "x.cardinal", {})).toBe(false);
+  });
+
+  describe("rota POST …/open", () => {
+    const rig = (script: string | undefined, openNative?: (file: string) => Promise<boolean>) => {
+      const s = setup(script);
+      const routes = createCanvasCardinalRoutes(s.D, { loadDoc: async () => DOC, runner: s.runner, openNative });
+      writeFileSync(s.file, sample("a"));
+      const open = (path = `${BASE}/open`, caller = { remote: false }) => routes.action(path, new Request(`http://127.0.0.1${path}`, { method: "POST" }), caller) as Promise<Response>;
+      return { ...s, open };
+    };
+
+    test("feliz: chama openNative com o arquivo do nó e responde o nome", async () => {
+      const opened: string[] = [];
+      const r = rig("true", async (file) => (opened.push(file), true));
+      const res = await r.open();
+      expect([res.status, await json(res)]).toEqual([200, { name: "pag", opened: true }]);
+      expect(opened).toEqual([r.file]);
+    });
+    test("painel remoto: 403 cardinal_local_only e nada abre", async () => {
+      let calls = 0;
+      const r = rig("true", async () => (calls++, true));
+      const res = await r.open(undefined, { remote: true });
+      expect([res.status, (await json(res)).code, calls]).toEqual([403, "cardinal_local_only", 0]);
+    });
+    test("sem binário ou sem openNative: 503 cardinal_unavailable", async () => {
+      for (const r of [rig(undefined, async () => true), rig("true")]) {
+        const res = await r.open();
+        expect([res.status, (await json(res)).code]).toEqual([503, "cardinal_unavailable"]);
+      }
+    });
+    test("openNative devolve false: 503 cardinal_unavailable", async () => {
+      const res = await rig("true", async () => false).open();
+      expect([res.status, (await json(res)).code]).toEqual([503, "cardinal_unavailable"]);
+    });
+    test("nó fora do documento: 404, e a rota não abre nada", async () => {
+      let calls = 0;
+      const res = await rig("true", async () => (calls++, true)).open(`${BASE.replace("c1", "zz")}/open`);
+      expect([res.status, calls]).toEqual([404, 0]);
+    });
   });
 });

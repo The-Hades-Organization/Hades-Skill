@@ -1039,6 +1039,34 @@ function makeArgosTypesUser() {
   /** Tamanho de antes do Expandir, por nó, para o Recolher voltar a ele (vale enquanto a página está aberta). */
   const cardinalBefore = new Map<string, { w: number; h: number }>();
 
+  type CardinalBridgeApi = {
+    cardViews: { get(id: string): { kind: string; svg?: string } | undefined; refresh(id: string): Promise<void>; subscribe(l: () => void): () => void };
+    cardNotice(view: unknown, reason: { message: string } | null): string | null;
+    svgDataUrl(svg: string): string;
+    createCardinalClient(deps: { fetch: FetchLike; canvasId: string; nodeId: string }): { openNative(): Promise<{ ok: true } | { ok: false; code: string }> };
+  };
+  const cardinalBridgeOf = (): CardinalBridgeApi | undefined => (globalThis as unknown as { CanvasModel?: { cardinalBridge?: CardinalBridgeApi } }).CanvasModel?.cardinalBridge;
+
+  /** O que o cartão sabe do ambiente: por que o Cardinal não vale agora e se o painel é remoto (o app nativo só abre no local). */
+  type CardinalEnv = { reason: { message: string } | null; remote: boolean };
+  const ENV_TTL_MS = 15_000;
+  let envCache: { at: number; value: Promise<CardinalEnv> } | undefined;
+  function cardinalEnv(deps: UserTypesDeps): Promise<CardinalEnv> {
+    if (envCache !== undefined && deps.now() - envCache.at < ENV_TTL_MS) return envCache.value;
+    const read = async (url: string): Promise<Record<string, unknown>> => {
+      const res = await deps.fetch(url, { method: "GET" });
+      const body = await res.json();
+      return typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
+    };
+    const value = Promise.all([read("/api/extensions").catch(() => ({})), read("/api/remote").catch(() => ({ remote: true }))]).then(([ext, remote]): CardinalEnv => {
+      const engine = ext.drawingEngine as { reason?: { message?: unknown } | null } | undefined;
+      const message = engine?.reason?.message;
+      return { reason: typeof message === "string" ? { message } : null, remote: remote.remote !== false };
+    });
+    envCache = { at: deps.now(), value };
+    return value;
+  }
+
   /**
    * O nó só é montado pelo motor no nível de perto, então nasce aberto. O motor avisa por `canvas-near` quando o nó deixa o
    * nível de perto: o editor fecha com `closing`, salva o pendente e só no `onClosed` desmonta; até lá o `data-retain` segura o
@@ -1054,6 +1082,16 @@ function makeArgosTypesUser() {
     const title = typeof props.data.title === "string" && props.data.title !== "" ? props.data.title : name;
     const editor = (globalThis as unknown as { ArgosNodeCardinal?: { CardinalEditor: (p: Record<string, unknown>) => Tree } }).ArgosNodeCardinal;
     const wrapper = (): HTMLElement | null => root.current?.closest<HTMLElement>("[data-canvas-node]") ?? null;
+    const bridge = cardinalBridgeOf();
+    const [, setCardTick] = React.useState(0);
+    const [env, setEnv] = React.useState<CardinalEnv>({ reason: null, remote: true });
+    const [nativeNote, setNativeNote] = React.useState("");
+    React.useEffect(() => bridge?.cardViews.subscribe(() => setCardTick((t) => t + 1)), []);
+    React.useEffect(() => {
+      let alive = true;
+      void cardinalEnv(props.deps).then((next) => alive && setEnv(next));
+      return () => { alive = false; };
+    }, []);
 
     React.useEffect(() => {
       const el = wrapper();
@@ -1105,6 +1143,14 @@ function makeArgosTypesUser() {
       props.deps.onResize?.(props.id, { w: Math.max(props.w, CARDINAL_EXPANDED.w), h: Math.max(props.h, CARDINAL_EXPANDED.h) });
     };
     const live = mounted && editor !== undefined;
+    const view = bridge?.cardViews.get(props.id);
+    const notice = bridge ? bridge.cardNotice(view, env.reason) : null;
+    const openNative = (): void => {
+      if (!bridge) return;
+      const client = bridge.createCardinalClient({ fetch: props.deps.fetch, canvasId: props.deps.canvasId?.() ?? CARDINAL_DEFAULT_CANVAS, nodeId: props.id });
+      setNativeNote("Abrindo no Cardinal…");
+      void client.openNative().then((res) => setNativeNote(res.ok ? "Aberto no Cardinal." : res.code === "cardinal_unavailable" ? "Sem o binário do Cardinal: não deu para abrir o app." : "Não deu para abrir no Cardinal."));
+    };
     return h("div", { ref: root, className: "flex h-full min-h-0 w-full flex-col", "data-cardinal-card": props.id },
       live
         ? null
@@ -1113,12 +1159,21 @@ function makeArgosTypesUser() {
           h("button", {
             type: "button", className: "h-full px-1.5 t-label hover:bg-hover focus-visible:bg-accent outline-none disabled:opacity-40", disabled: closing || editor === undefined,
             "aria-expanded": false, "aria-label": `Abrir o editor de ${title}`, "data-cardinal-toggle": "", onClick: toggle,
-          }, "Abrir editor")),
+          }, "Abrir editor"),
+          env.remote ? null : h("button", {
+            type: "button", className: "h-full px-1.5 t-label hover:bg-hover focus-visible:bg-accent outline-none", "aria-label": `Abrir ${title} no app Cardinal`, "data-cardinal-native": "", onClick: openNative,
+          }, "Abrir no Cardinal")),
+      live
+        ? null
+        : h("div", { className: "flex min-h-0 flex-1 flex-col gap-1 px-1 pb-1", "data-cardinal-closed": view?.kind ?? "loading" },
+          view?.svg !== undefined && bridge ? h("img", { src: bridge.svgDataUrl(view.svg), alt: `Miniatura de ${title}`, draggable: false, className: "min-h-0 flex-1 bg-white object-contain" }) : h("div", { className: "min-h-0 flex-1", "aria-hidden": "true" }),
+          notice === null ? null : h("p", { role: "status", className: "t-label text-muted-foreground", "data-cardinal-notice": view?.kind ?? "loading" }, notice),
+          nativeNote === "" ? null : h("p", { role: "status", className: "t-label text-muted-foreground" }, nativeNote)),
       live
         ? h("div", { className: "min-h-0 flex-1" }, h(editor.CardinalEditor, {
           key: props.id, canvasId: props.deps.canvasId?.() ?? CARDINAL_DEFAULT_CANVAS, nodeId: props.id, name, title, fetch: props.deps.fetch, closing, onToggle: toggle,
           expanded: cardinalBefore.has(props.id), onExpand: props.deps.onResize ? expand : undefined,
-          onClosed: () => { setMounted(false); setClosing(false); },
+          onClosed: () => { setMounted(false); setClosing(false); void bridge?.cardViews.refresh(props.id); },
         }))
         : null);
   }

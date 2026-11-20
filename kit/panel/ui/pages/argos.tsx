@@ -854,6 +854,14 @@ function Argos() {
   }, [watch]);
 
   // panes do herdr dos nós de agente: a visão geral só é lida com nó de agente no canvas
+  // miniaturas dos diagramas Cardinal: lidas por aqui (vale em qualquer zoom) e relidas a cada aviso do SSE
+  const cardinalKey = useMemo(() => JSON.stringify([canvasIdRef.current, cstate ? cstate.doc.nodes.filter((n) => n.type === 'cardinal' && typeof n.data.cardinal === 'string').map((n) => [n.id, n.data.cardinal]) : []]), [cstate]);
+  useEffect(() => {
+    const B = M.cardinalBridge;
+    B.bindCardLoader((nodeId) => B.createCardinalClient({ fetch: tokenFetch, canvasId: canvasIdRef.current, nodeId }).view());
+    const [scope, list] = JSON.parse(cardinalKey);
+    B.cardViews.track(scope, list.map(([id, name]) => ({ id, name })));
+  }, [cardinalKey]);
   const hasAgentNode = !!cstate && cstate.doc.nodes.some((n) => n.type === 'agent');
   const [herdrTargets, setHerdrTargets] = useState(null);
   useEffect(() => {
@@ -2186,7 +2194,8 @@ function Argos() {
             terminal={{ id: composerNode.id, label: nodeLabel(composerNode.id) ?? composerNode.id, ...ttyHost.target(composerNode.id),
               orchestrator: NT.readTerminalData(composerNode.data).orchestrator === true }}
             drafts={composerDrafts} onDrafts={setComposerDrafts} doc={cstate.doc} terminals={composerTerminals}
-            sendInput={(id, input) => ttyHost.input(id, input)} fetch={tokenFetch} onFocusTerminal={(id) => ttyHost.focus(id)} onClose={() => setComposer(null)} /></div> : null}
+            sendInput={(id, input) => ttyHost.input(id, input)} fetch={tokenFetch}
+            cardinalText={async (nodeId) => { const r = await M.cardinalBridge.createCardinalClient({ fetch: tokenFetch, canvasId: canvasIdRef.current, nodeId }).text(); return r.ok ? r.text : undefined; }} onFocusTerminal={(id) => ttyHost.focus(id)} onClose={() => setComposer(null)} /></div> : null}
           {SUP && canvasApi && cstate ? <div className="pointer-events-auto"><SUP.SupervisorLayer open={supOpen} onOpen={() => setSupOpen(true)} onClose={() => setSupOpen(false)}
             host={ttyHost} terminals={cstate.doc.nodes.filter((n) => ttyHost.target(n.id) && !(n.type === NT.TERMINAL_TYPE && NT.readTerminalData(n.data).shell)).map((n) => ({ id: n.id, label: nodeLabel(n.id) ?? n.id }))}
             doc={cstate.doc} canvasId={canvasIdRef.current} commit={termCommit} center={host.current.viewCenter}

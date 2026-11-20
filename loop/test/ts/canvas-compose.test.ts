@@ -1,7 +1,10 @@
 // Grupo canvas-compose: rascunho por agente e referência `@` resolvida no texto enviado (src/lib/canvas-compose.ts).
 import { describe, expect, test } from "bun:test";
 import { type CanvasNode } from "../../../src/lib/canvas-doc";
-import { COMPOSE_ERRORS, COMPOSE_LIMITS, ComposeError, clearDraft, composeMessage, draftAgents, findReferences, getDraft, setDraft } from "../../../src/lib/canvas-compose";
+import {
+  COMPOSE_ERRORS, COMPOSE_LIMITS, ComposeError, MENTION_KINDS, cardinalCutNote, cardinalReference, cardinalTitle, clearDraft, composeMessage, composerMessage, draftAgents,
+  findReferences, getDraft, insertPaste, mentionOptions, referencedCardinalIds, setDraft,
+} from "../../../src/lib/canvas-compose";
 
 const node = (id: string, type = "note", data: Record<string, unknown> = {}): CanvasNode => ({ id, type, x: 0, y: 0, w: 10, h: 10, z: 0, data, locked: false, blurred: false });
 const doc = { nodes: [node("n1", "note", { text: "  usar a fila  " }), node("srv", "service", { label: "api" }), node("bare", "service")] };
@@ -282,5 +285,66 @@ describe("desenho citado", () => {
     expect(Composer.mentionOptions("flu", sources).map((o) => [o.kind, o.insert])).toEqual([["drawing", "@d1 "]]);
     expect(Composer.drawingTitle(node("d9", "drawing", { v: 1, elements: [] }))).toBe("d9");
     expect(Composer.drawingTitle(withDrawing.nodes[0] as CanvasNode)).toBe("Fluxo");
+  });
+});
+
+describe("diagrama Cardinal: referência @", () => {
+  const card = (id: string, data: Record<string, unknown> = { cardinal: "pagamentos", title: "Pagamentos" }): CanvasNode => node(id, "cardinal", data);
+  const d = { nodes: [card("c1"), card("c2", { cardinal: "estoque" }), node("n1", "note", { text: "x" })] };
+  const LIMIT = COMPOSE_LIMITS.referenceChars;
+
+  test("cabe: cita o título e o texto canônico inteiro", () => {
+    expect(cardinalReference(d.nodes[0] as CanvasNode, "  model conceptual\n  entity A  ")).toBe('[diagrama c1 "Pagamentos": model conceptual\n  entity A]');
+  });
+  test("sem title, o nome do arquivo; sem nome, o id", () => {
+    expect(cardinalTitle(d.nodes[1] as CanvasNode)).toBe("estoque");
+    expect(cardinalTitle(card("c9", {}))).toBe("c9");
+  });
+  test("título com aspas e quebra de linha vira uma linha só, sem aspas duplas", () => {
+    const ref = cardinalReference(card("c3", { cardinal: "a", title: 'Fluxo "A"\nB' }), "t");
+    expect(ref).toBe("[diagrama c3 \"Fluxo 'A' B\": t]");
+  });
+  test("no teto exato não corta; um caractere a mais corta e termina com a indicação", () => {
+    const n = d.nodes[0] as CanvasNode;
+    const head = cardinalReference(n, "").length - 1;
+    const exact = "x".repeat(LIMIT - head - 1);
+    expect(cardinalReference(n, exact)).toHaveLength(LIMIT);
+    expect(cardinalReference(n, exact)).not.toContain("cortado");
+    const over = cardinalReference(n, exact + "y");
+    expect(over.length).toBeLessThanOrEqual(LIMIT);
+    expect(over.endsWith(` ${cardinalCutNote("c1")}]`)).toBe(true);
+    expect(cardinalCutNote("c1")).toBe("(cortado; use hades canvas cardinal read c1)");
+  });
+  test("corte prefere quebra de linha e não deixa meio emoji na ponta", () => {
+    const n = d.nodes[0] as CanvasNode;
+    const lines = Array.from({ length: 400 }, (_, i) => `linha ${i}`).join("\n");
+    const cut = cardinalReference(n, lines);
+    expect(cut.length).toBeLessThanOrEqual(LIMIT);
+    expect(cut.split(" (cortado")[0]?.endsWith("\n")).toBe(false);
+    expect(/linha \d+ \(cortado/.test(cut)).toBe(true);
+    const emoji = cardinalReference(n, "😀".repeat(LIMIT));
+    expect(emoji.length).toBeLessThanOrEqual(LIMIT);
+    expect(/[\uD800-\uDBFF] \(cortado/.test(emoji)).toBe(false);
+  });
+  test("sem texto (binário ausente): indisponível, com o comando de leitura", () => {
+    expect(cardinalReference(d.nodes[0] as CanvasNode, undefined)).toBe('[diagrama c1 "Pagamentos": indisponível (use hades canvas cardinal read c1)]');
+  });
+  test("composeMessage e composerMessage trocam @c1 pelo texto lido; sem extras, indisponível", () => {
+    const extras = { cardinalTexts: { c1: "model conceptual" } };
+    expect(composeMessage("veja @c1 agora", d, extras).text).toBe('veja [diagrama c1 "Pagamentos": model conceptual] agora');
+    expect(composerMessage({ text: "veja @c1", pastes: {} }, d, extras)).toBe('veja [diagrama c1 "Pagamentos": model conceptual]');
+    expect(composerMessage({ text: "veja @c1", pastes: {} }, d)).toContain("indisponível");
+  });
+  test("referencedCardinalIds: só diagramas, sem repetir, ignorando o que está dentro de colagem", () => {
+    const withPaste = insertPaste({ text: "@c2 ", pastes: {} }, 4, 4, "texto com @c1 dentro");
+    expect(referencedCardinalIds({ text: "@c1 e @c1 e @n1 e @c2", pastes: {} }, d)).toEqual(["c1", "c2"]);
+    expect(referencedCardinalIds(withPaste.draft, d)).toEqual(["c2"]);
+    expect(referencedCardinalIds({ text: "@c1", pastes: {} }, { nodes: [] })).toEqual([]);
+  });
+  test("menu de menção oferece o diagrama por título ou id", () => {
+    const sources = { terminals: [], notes: [], drawings: [], cardinals: [{ id: "c1", title: "Pagamentos" }], orchestrator: false };
+    expect(mentionOptions("pagam", sources).find((o) => o.kind === MENTION_KINDS.cardinal)).toEqual({ kind: "cardinal", label: "Pagamentos", insert: "@c1 " });
+    expect(mentionOptions("c1", sources).some((o) => o.kind === "cardinal")).toBe(true);
+    expect(mentionOptions("zzz", sources).some((o) => o.kind === "cardinal")).toBe(false);
   });
 });

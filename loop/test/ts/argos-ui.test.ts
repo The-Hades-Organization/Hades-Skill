@@ -3145,6 +3145,80 @@ describe("editor do Cardinal no nó", () => {
     expect(flat(view()).some((e) => e.type === "<CardinalEditor>")).toBe(true);
   });
 
+  describe("cartão fechado (miniatura, aviso, abrir no Cardinal)", () => {
+    const SVG = "<svg xmlns='http://www.w3.org/2000/svg'><rect/></svg>";
+    type Bridge = { bindCardLoader(load: (id: string) => Promise<unknown>): void; cardViews: { track(scope: string, nodes: { id: string; name: string }[]): void } };
+    const settle = async (): Promise<void> => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+
+    /** Monta o cartão, fecha o editor e devolve a árvore do cartão fechado, com a miniatura que o painel “respondeu”. */
+    async function closedCard(reply: unknown, deps: object = {}) {
+      const r = await rig(deps);
+      const bridge = (r.scope.CanvasModel as { cardinalBridge: Bridge }).cardinalBridge;
+      bridge.bindCardLoader(async () => reply);
+      bridge.cardViews.track("meu-canvas", [{ id: "c1", name: "pagamentos" }]);
+      await settle();
+      toggleOf(r.flat, r.view())?.props.onClick();
+      (r.flat(r.view()).find((e) => e.type === "<CardinalEditor>") as El).props.onClosed(true);
+      r.view();
+      r.flushEffects();
+      await settle();
+      return { ...r, closed: () => r.view() };
+    }
+    const noticeOf = (flat: (n: unknown) => El[], tree: unknown): El | undefined => flat(tree).find((e) => e.props["data-cardinal-notice"] !== undefined);
+    const imgOf = (flat: (n: unknown) => El[], tree: unknown): El | undefined => flat(tree).find((e) => e.type === "img");
+
+    test("em dia: miniatura como imagem de data URL (o SVG não executa) e nenhum aviso", async () => {
+      const { closed, flat } = await closedCard({ kind: "fresh", svg: SVG });
+      const tree = closed();
+      const img = imgOf(flat, tree) as El;
+      expect(img.props.src.startsWith("data:image/svg+xml;charset=utf-8,")).toBe(true);
+      expect(img.props.alt).toBe("Miniatura de Pagamentos");
+      expect(noticeOf(flat, tree)).toBeUndefined();
+      expect(flat(tree).find((e) => e.props["data-cardinal-closed"] !== undefined)?.props["data-cardinal-closed"]).toBe("fresh");
+    });
+
+    test("defasada: a miniatura fica e o aviso de defasagem aparece como status", async () => {
+      const { closed, flat } = await closedCard({ kind: "stale", svg: SVG });
+      const tree = closed();
+      expect(imgOf(flat, tree)).toBeDefined();
+      const notice = noticeOf(flat, tree) as El;
+      expect(notice.props.role).toBe("status");
+      expect(String(notice.children[0])).toContain("defasada");
+    });
+
+    test("indisponível (sem binário e sem miniatura): sem imagem e com o aviso", async () => {
+      const { closed, flat } = await closedCard({ kind: "unavailable", code: "cardinal_unavailable" });
+      const tree = closed();
+      expect(imgOf(flat, tree)).toBeUndefined();
+      expect(String((noticeOf(flat, tree) as El).children[0])).toContain("Indisponível");
+      expect(toggleOf(flat, tree)?.children).toEqual(["Abrir editor"]);
+    });
+
+    test("“Abrir no Cardinal” só no painel local e chama POST …/open do nó", async () => {
+      const calls: string[] = [];
+      const answer = (remote: boolean) => async (url: string, init: { method: string }) => {
+        calls.push(`${init.method} ${url}`);
+        return { status: 200, json: async () => (url === "/api/remote" ? { remote } : url === "/api/extensions" ? { drawingEngine: { reason: null } } : { opened: true }) };
+      };
+      const nativeBtn = (flat: (n: unknown) => El[], tree: unknown): El | undefined => flat(tree).find((e) => e.props["data-cardinal-native"] !== undefined);
+
+      const local = await closedCard({ kind: "fresh", svg: SVG }, { fetch: answer(false), now: () => 0 });
+      local.flushEffects();
+      await settle();
+      const tree = local.closed();
+      const btn = nativeBtn(local.flat, tree) as El;
+      expect(btn.children).toEqual(["Abrir no Cardinal"]);
+      btn.props.onClick();
+      await settle();
+      expect(calls).toContain("POST /api/canvas-cardinal/meu-canvas/c1/open");
+
+      const remote = await closedCard({ kind: "fresh", svg: SVG }, { fetch: answer(true), now: () => 0 });
+      remote.flushEffects();
+      await settle();
+      expect(nativeBtn(remote.flat, remote.closed())).toBeUndefined();
+    });
+  });
+
   test("ao sair do nível de perto o editor fecha com closing, o nó fica retido até salvar e só depois é solto", async () => {
     const { view, flat, flushEffects } = await rig();
     const wrapper = fakeWrapper();

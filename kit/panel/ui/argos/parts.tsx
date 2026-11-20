@@ -239,7 +239,11 @@ function CanvasPane({ doc, selection, onSelectionChange, onOp, graphById, types,
   const nodeColor = useCallback((n) => { const g = graphById.get(n.id); return g ? fillOf(g, now) : themeColor('--muted-foreground'); }, [graphById, now, theme]);
   const isRich = useCallback((n) => types.get(n.type)?.draw.surface === 'html', [types]);
   // zoom semântico: linha de resumo do bloco e balde de estado da contagem por área (modelo puro em canvas-semantic.ts)
-  const summaryOf = useCallback((n) => M.semantic.summaryOf({ type: n.type, live: graphById.get(n.id), data: n.data }), [graphById]);
+  const [cardTick, setCardTick] = useState(0);
+  useEffect(() => M.cardinalBridge.cardViews.subscribe(() => setCardTick((t) => t + 1)), []);
+  const summaryOf = useCallback((n) => (n.type === 'cardinal'
+    ? M.cardinalBridge.cardSummary(M.cardinalBridge.cardViews.get(n.id))
+    : M.semantic.summaryOf({ type: n.type, live: graphById.get(n.id), data: n.data })), [graphById, cardTick]);
   const bucketOf = useCallback((n) => M.semantic.bucketOf(graphById.get(n.id)), [graphById]);
   const renderAt = useCallback((n, w, h) => types.get(n.type)?.draw.render({ id: n.id, type: n.type, w, h, selected: selected.has(n.id), data: n.data, live: graphById.get(n.id) }) ?? null,
     [types, graphById, selected]);

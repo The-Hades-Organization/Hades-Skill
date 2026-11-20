@@ -114,6 +114,32 @@ function execute(bin: string, args: readonly string[], options: RunOptions, home
   });
 }
 
+/** Variáveis que o app gráfico precisa para achar a tela e a sessão do usuário; nada além disso sai do ambiente do painel (tokens, chaves). */
+const APP_ENV_KEYS = [
+  "PATH", "HOME", "LANG", "LC_ALL", "DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "XDG_RUNTIME_DIR", "XDG_SESSION_TYPE", "XDG_CURRENT_DESKTOP",
+  "XDG_DATA_DIRS", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "DBUS_SESSION_BUS_ADDRESS",
+] as const;
+
+/**
+ * Abre `file` no app nativo (`cardinal <arquivo>`), solto do painel: sem shell, sem stdio, em grupo próprio. Resolve `true`
+ * quando o processo nasceu e `false` se o binário não executa. Não espera o app fechar nem lê o que ele faz.
+ */
+export function launchCardinalApp(bin: string, file: string, source: NodeJS.ProcessEnv = process.env): Promise<boolean> {
+  const env: Record<string, string> = {};
+  for (const key of APP_ENV_KEYS) {
+    const value = source[key];
+    if (value !== undefined) env[key] = value;
+  }
+  return new Promise((resolve) => {
+    const child = spawn(bin, [file], { env, stdio: "ignore", shell: false, detached: true });
+    child.once("error", () => resolve(false));
+    child.once("spawn", () => {
+      child.unref();
+      resolve(true);
+    });
+  });
+}
+
 /** Caminho do binário: `HADES_CARDINAL_BIN` ou `cardinal` do PATH; `undefined` com a extensão desligada ou sem binário. */
 export function cardinalBinary(config: ReadonlyMap<string, string>): string | undefined {
   if (!extensionEnabled("cardinal", config)) return undefined;

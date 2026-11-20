@@ -2,7 +2,7 @@
 // contra um iframe simulado por script: carregar, salvar, 409, mudança externa, exportar, recolher, teto de editores.
 import { describe, expect, test } from "bun:test";
 import {
-  BRIDGE_PROTOCOL, EDITOR_MAX_LIVE, createBridge, createCardinalClient, createCardinalFeed, createEditorSlots, isFromFrame,
+  BRIDGE_PROTOCOL, EDITOR_MAX_LIVE, canonicalText, cardNotice, cardSummary, cardViewOf, createBridge, createCardViewStore, svgDataUrl, createCardinalClient, createCardinalFeed, createEditorSlots, isFromFrame,
   type BridgeApi, type FileRead, type ReadResult, type WriteResult,
 } from "../../../src/lib/cardinal-bridge";
 
@@ -506,5 +506,118 @@ describe("cardinal-bridge: cliente das rotas", () => {
     expect(await odd.api.read()).toEqual({ ok: false, code: "cardinal_bad_response" });
     expect(await odd.api.write(new Uint8Array([0xff, 0xfe]), "r1")).toEqual({ ok: false, code: "cardinal_not_utf8" });
     expect(odd.calls).toHaveLength(1);
+  });
+});
+
+describe("cardinal-bridge: cartão fechado", () => {
+  const SVG = "<svg xmlns='http://www.w3.org/2000/svg'><rect/></svg>";
+  test("cardViewOf: em dia, defasado, indisponível, ausente e erro", () => {
+    expect(cardViewOf(200, { svg: SVG, stale: false })).toEqual({ kind: "fresh", svg: SVG });
+    expect(cardViewOf(200, { svg: SVG, stale: true })).toEqual({ kind: "stale", svg: SVG });
+    expect(cardViewOf(503, { code: "cardinal_unavailable" })).toEqual({ kind: "unavailable", code: "cardinal_unavailable" });
+    expect(cardViewOf(404, { code: "cardinal_not_found" }).kind).toBe("missing");
+    expect(cardViewOf(200, { svg: "" }).kind).toBe("error");
+    expect(cardViewOf(500, {}).kind).toBe("error");
+  });
+  test("cardSummary: uma linha por estado, nada enquanto carrega", () => {
+    expect(cardSummary(undefined)).toBeUndefined();
+    expect(cardSummary({ kind: "loading" })).toBeUndefined();
+    expect(cardSummary({ kind: "fresh", svg: SVG })).toBe("diagrama");
+    expect(cardSummary({ kind: "stale", svg: SVG })).toBe("miniatura defasada");
+    expect(cardSummary({ kind: "unavailable" })).toBe("indisponível (sem binário)");
+    expect(cardSummary({ kind: "missing" })).toBe("arquivo não encontrado");
+  });
+  test("cardNotice: aviso de defasagem e de indisponível; em dia e sem razão não avisa", () => {
+    expect(cardNotice({ kind: "fresh", svg: SVG })).toBeNull();
+    expect(cardNotice({ kind: "stale", svg: SVG })).toContain("defasada");
+    expect(cardNotice({ kind: "unavailable" }, { message: "binário do cardinal não encontrado" })).toContain("binário do cardinal não encontrado");
+    expect(cardNotice({ kind: "fresh", svg: SVG }, { message: "extensão desligada" })).toContain("extensão desligada");
+    expect(cardNotice(undefined)).toBe("Lendo o diagrama…");
+  });
+  test("canonicalText: o diagrama pedido, o primeiro na falta, undefined fora da forma", () => {
+    const describe = { diagrams: [{ index: 0, text: "a" }, { index: 1, text: "b" }] };
+    expect([canonicalText(describe), canonicalText(describe, 1), canonicalText(describe, 7)]).toEqual(["a", "b", "a"]);
+    expect([canonicalText(null), canonicalText({}), canonicalText({ diagrams: [] })]).toEqual([undefined, undefined, undefined]);
+  });
+  test("svgDataUrl: data URL de imagem que dá a volta pelo SVG", () => {
+    const url = svgDataUrl(SVG);
+    expect(url.startsWith("data:image/svg+xml;charset=utf-8,")).toBe(true);
+    expect(decodeURIComponent(url.split(",").slice(1).join(","))).toBe(SVG);
+  });
+
+  const res = (status: number, body: unknown) => async () => ({ status, json: async () => body });
+  test("cliente: view, text e openNative falam com as rotas do nó", async () => {
+    const calls: string[] = [];
+    const reply: Record<string, [number, unknown]> = {
+      "GET /api/canvas-cardinal/default/c1/svg": [200, { svg: SVG, stale: true }],
+      "GET /api/canvas-cardinal/default/c1/describe": [200, { describe: { diagrams: [{ index: 0, text: "model" }] } }],
+      "POST /api/canvas-cardinal/default/c1/open": [503, { code: "cardinal_unavailable" }],
+    };
+    const client = createCardinalClient({
+      canvasId: "default", nodeId: "c1",
+      fetch: (url, init) => { calls.push(`${init.method} ${url}`); const [status, body] = reply[`${init.method} ${url}`] ?? [404, {}]; return res(status, body)(); },
+    });
+    expect(await client.view()).toEqual({ kind: "stale", svg: SVG });
+    expect(await client.text()).toEqual({ ok: true, text: "model" });
+    expect(await client.openNative()).toEqual({ ok: false, code: "cardinal_unavailable" });
+    expect(calls).toHaveLength(3);
+  });
+  test("cliente: falha de rede vira código, view vira error", async () => {
+    const client = createCardinalClient({ canvasId: "default", nodeId: "c1", fetch: async () => { throw new Error("off"); } });
+    expect(await client.view()).toEqual({ kind: "error", code: "cardinal_network" });
+    expect(await client.text()).toEqual({ ok: false, code: "cardinal_network" });
+  });
+
+  describe("store de miniaturas", () => {
+    const setup = () => {
+      const feed = createCardinalFeed();
+      const loads: string[] = [];
+      let next: Record<string, { kind: "fresh" | "stale"; svg: string }> = {};
+      const store = createCardViewStore({ feed, load: async (id) => (loads.push(id), next[id] ?? { kind: "fresh" as const, svg: SVG }) });
+      return { feed, loads, store, set: (v: typeof next) => { next = v; } };
+    };
+    const flush = async (): Promise<void> => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
+
+    test("track lê cada nó uma vez e avisa os assinantes", async () => {
+      const { store, loads } = setup();
+      let notices = 0;
+      store.subscribe(() => notices++);
+      store.track("default", [{ id: "c1", name: "pag" }]);
+      store.track("default", [{ id: "c1", name: "pag" }]);
+      await flush();
+      expect(loads).toEqual(["c1"]);
+      expect(store.get("c1")).toEqual({ kind: "fresh", svg: SVG });
+      expect(notices).toBe(1);
+    });
+    test("aviso do SSE do arquivo (e o religar do stream) relê a miniatura", async () => {
+      const { store, loads, feed, set } = setup();
+      store.track("default", [{ id: "c1", name: "pag" }]);
+      await flush();
+      set({ c1: { kind: "stale", svg: SVG } });
+      feed.publish({ name: "pag", rev: "r2", source: "disk" });
+      await flush();
+      expect(store.get("c1")?.kind).toBe("stale");
+      feed.resync();
+      await flush();
+      expect(loads).toEqual(["c1", "c1", "c1"]);
+    });
+    test("nó que sai do documento é esquecido e deixa de reagir ao SSE; trocar de canvas limpa tudo", async () => {
+      const { store, loads, feed } = setup();
+      store.track("a", [{ id: "c1", name: "pag" }, { id: "c2", name: "est" }]);
+      await flush();
+      store.track("a", [{ id: "c2", name: "est" }]);
+      expect(store.get("c1")).toBeUndefined();
+      feed.publish({ name: "pag", rev: "r9", source: "disk" });
+      await flush();
+      expect(loads.filter((id) => id === "c1")).toHaveLength(1);
+      store.track("b", []);
+      expect(store.get("c2")).toBeUndefined();
+    });
+    test("leitura que rejeita vira error sem derrubar o store", async () => {
+      const store = createCardViewStore({ feed: createCardinalFeed(), load: () => Promise.reject(new Error("boom")) });
+      store.track("a", [{ id: "c1", name: "pag" }]);
+      await flush();
+      expect(store.get("c1")).toEqual({ kind: "error" });
+    });
   });
 });

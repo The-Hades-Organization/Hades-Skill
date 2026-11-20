@@ -51,6 +51,7 @@ const fail = (code: ComposeErrorCode, message: string, subjects: readonly string
 const AGENT_PATTERN = /^[a-z0-9][a-z0-9-]{0,30}$/;
 const ID_CHAR = /[\w.:-]/;
 const NOTE_TYPE = "note";
+const CARDINAL_TYPE = "cardinal";
 
 /** Rascunhos por agente. Nunca é mudado no lugar: cada função devolve um mapa novo. */
 export type Drafts = Readonly<Record<string, string>>;
@@ -134,7 +135,15 @@ export function findReferences(text: string): Reference[] {
 
 export interface ResolvedReference {
   id: string;
-  kind: "note" | "drawing" | "node";
+  kind: "note" | "drawing" | "cardinal" | "node";
+}
+
+/**
+ * O que o chamador sabe e o módulo (puro, sem rede) não: o texto canônico de cada diagrama Cardinal, por id de nó, lido do
+ * painel antes de resolver. Diagrama sem entrada vira a referência "indisponível", que ainda aponta o comando de leitura.
+ */
+export interface ComposeExtras {
+  cardinalTexts?: Readonly<Record<string, string>>;
 }
 
 export interface ComposedMessage {
@@ -142,6 +151,38 @@ export interface ComposedMessage {
   text: string;
   /** Cada id referenciado uma vez, na ordem em que aparece. */
   references: ResolvedReference[];
+}
+
+/** Indicação que fecha a referência cortada; o agente lê o resto com o comando. */
+export const cardinalCutNote = (id: string): string => `(cortado; use hades canvas cardinal read ${id})`;
+const CARDINAL_TITLE_CHARS = 80;
+
+/** Título do nó `cardinal` para menção e referência: `title`, senão o nome do arquivo, senão o id; numa linha só, sem aspas. */
+export function cardinalTitle(node: CanvasNode): string {
+  const title = node.data.title;
+  const name = node.data.cardinal;
+  const raw = typeof title === "string" && title.trim() !== "" ? title : typeof name === "string" && name !== "" ? name : node.id;
+  return raw.replace(/\s+/g, " ").replaceAll('"', "'").trim().slice(0, CARDINAL_TITLE_CHARS) || node.id;
+}
+
+/**
+ * `[diagrama <id> "<título>": <texto canônico>]`, com o teto de `COMPOSE_LIMITS.referenceChars` na referência inteira. Passando
+ * dele, o texto é cortado (de preferência numa quebra de linha) e a referência termina com `cardinalCutNote`. Sem texto (binário
+ * ausente, leitura que falhou), a referência diz isso e aponta o comando.
+ */
+export function cardinalReference(node: CanvasNode, text: string | undefined): string {
+  const head = `[diagrama ${node.id} "${cardinalTitle(node)}": `;
+  const note = cardinalCutNote(node.id);
+  if (text === undefined) return `${head}indisponível (use hades canvas cardinal read ${node.id})]`;
+  const body = text.trim();
+  if (head.length + body.length + 1 <= COMPOSE_LIMITS.referenceChars) return `${head}${body}]`;
+  const room = Math.max(0, COMPOSE_LIMITS.referenceChars - head.length - note.length - 2);
+  let cut = body.slice(0, room);
+  const lastBreak = cut.lastIndexOf("\n");
+  if (lastBreak > room / 2) cut = cut.slice(0, lastBreak);
+  // não deixa meio par substituto (emoji) na ponta
+  if (cut.length > 0 && /[\uD800-\uDBFF]/.test(cut[cut.length - 1] ?? "")) cut = cut.slice(0, -1);
+  return `${head}${cut.trimEnd()} ${note}]`;
 }
 
 const nodeLabel = (node: CanvasNode): string => {
@@ -170,7 +211,8 @@ function drawingText(node: CanvasNode): string | null {
   return `[desenho ${node.id}${title}: ${detail}]`;
 }
 
-const expand = (node: CanvasNode): { kind: "note" | "drawing" | "node"; text: string } => {
+const expand = (node: CanvasNode, extras?: ComposeExtras): { kind: ResolvedReference["kind"]; text: string } => {
+  if (node.type === CARDINAL_TYPE) return { kind: "cardinal", text: cardinalReference(node, extras?.cardinalTexts?.[node.id]) };
   if (node.type === DRAWING_TYPE) {
     const text = drawingText(node);
     if (text !== null) {
@@ -194,7 +236,7 @@ const expand = (node: CanvasNode): { kind: "note" | "drawing" | "node"; text: st
  * os ids que faltam em `subjects`), nunca some do texto. Mensagem vazia, acima do teto ou com referência demais também
  * falha, com código próprio.
  */
-export function composeMessage(text: string, doc: Pick<CanvasDoc, "nodes">): ComposedMessage {
+export function composeMessage(text: string, doc: Pick<CanvasDoc, "nodes">, extras?: ComposeExtras): ComposedMessage {
   const source = checkText(text);
   if (source.trim() === "") return fail(COMPOSE_ERRORS.emptyMessage, "a mensagem está vazia");
   const found = findReferences(source);
@@ -213,7 +255,7 @@ export function composeMessage(text: string, doc: Pick<CanvasDoc, "nodes">): Com
   for (const ref of found) {
     const node = byId.get(ref.id);
     if (!node) continue;
-    const expanded = expand(node);
+    const expanded = expand(node, extras);
     parts.push(source.slice(cursor, ref.start), expanded.text);
     cursor = ref.end;
     if (!seen.has(ref.id)) {
@@ -408,11 +450,11 @@ export function deletePill(draft: ComposerDraft, caret: number, direction: "back
  * `@<id>` de uma nota (ou leitura de um desenho) do documento vira o texto da nota (a regra do `composeMessage`) e `@@` vira `@`. Menção a terminal,
  * `@orquestrador` e `@Nova nota` seguem como texto para o agente.
  */
-export function composerMessage(draft: ComposerDraft, doc: Pick<CanvasDoc, "nodes">): string {
+export function composerMessage(draft: ComposerDraft, doc: Pick<CanvasDoc, "nodes">, extras?: ComposeExtras): string {
   const source = checkText(draft.text);
   if (source.trim() === "") return fail(COMPOSE_ERRORS.emptyMessage, "a mensagem está vazia");
   const notes = new Map<string, CanvasNode>();
-  for (const node of doc.nodes) if (node.type === NOTE_TYPE || node.type === DRAWING_TYPE) notes.set(node.id, node);
+  for (const node of doc.nodes) if (node.type === NOTE_TYPE || node.type === DRAWING_TYPE || node.type === CARDINAL_TYPE) notes.set(node.id, node);
   const typed = (segment: string): string => {
     const refs = findReferences(segment).filter((ref) => notes.has(ref.id));
     if (refs.length > COMPOSE_LIMITS.references) {
@@ -423,7 +465,7 @@ export function composerMessage(draft: ComposerDraft, doc: Pick<CanvasDoc, "node
     for (const ref of refs) {
       const node = notes.get(ref.id);
       if (!node) continue;
-      parts.push(segment.slice(cursor, ref.start).replaceAll("@@", "@"), expand(node).text);
+      parts.push(segment.slice(cursor, ref.start).replaceAll("@@", "@"), expand(node, extras).text);
       cursor = ref.end;
     }
     parts.push(segment.slice(cursor).replaceAll("@@", "@"));
@@ -441,6 +483,25 @@ export function composerMessage(draft: ComposerDraft, doc: Pick<CanvasDoc, "node
     return fail(COMPOSE_ERRORS.tooLong, `a mensagem passa de ${COMPOSER_LIMITS.messageChars} caracteres`);
   }
   return message;
+}
+
+/**
+ * Ids dos diagramas Cardinal citados com `@<id>` no texto digitado (as pílulas de colagem não contam), na ordem e sem repetir.
+ * O compositor lê o texto canônico de cada um no painel antes de chamar `composerMessage`.
+ */
+export function referencedCardinalIds(draft: ComposerDraft, doc: Pick<CanvasDoc, "nodes">): string[] {
+  const cardinals = new Set(doc.nodes.filter((node) => node.type === CARDINAL_TYPE).map((node) => node.id));
+  if (cardinals.size === 0) return [];
+  const source = checkText(draft.text);
+  const segments: string[] = [];
+  let cursor = 0;
+  for (const pill of findPills(draft)) {
+    segments.push(source.slice(cursor, pill.start));
+    cursor = pill.end;
+  }
+  segments.push(source.slice(cursor));
+  const found = segments.flatMap((segment) => findReferences(segment).map((ref) => ref.id)).filter((id) => cardinals.has(id));
+  return [...new Set(found)].slice(0, COMPOSE_LIMITS.references);
 }
 
 export interface MentionQuery {
@@ -471,7 +532,7 @@ export function mentionAt(text: string, caret: number): MentionQuery | null {
   return null;
 }
 
-export const MENTION_KINDS = { terminal: "terminal", note: "note", drawing: "drawing", file: "file", orchestrator: "orchestrator", newNote: "new-note" } as const;
+export const MENTION_KINDS = { terminal: "terminal", note: "note", drawing: "drawing", cardinal: "cardinal", file: "file", orchestrator: "orchestrator", newNote: "new-note" } as const;
 export type MentionKind = (typeof MENTION_KINDS)[keyof typeof MENTION_KINDS];
 
 export interface MentionOption {
@@ -487,13 +548,15 @@ export interface MentionSources {
   notes: readonly { id: string; title: string }[];
   /** Desenhos do documento (ausente = nenhum). */
   drawings?: readonly { id: string; title: string }[];
+  /** Diagramas Cardinal do documento (ausente = nenhum). */
+  cardinals?: readonly { id: string; title: string }[];
   /** O terminal do compositor tem o papel de orquestrador ligado. */
   orchestrator: boolean;
 }
 
 const fold = (value: string): string => value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
-/** Opções do menu de menção para o texto digitado depois do `@`, na ordem: terminais, notas, desenhos, Arquivo…, orquestrador, Nova nota. */
+/** Opções do menu de menção para o texto digitado depois do `@`, na ordem: terminais, notas, desenhos, diagramas Cardinal, Arquivo…, orquestrador, Nova nota. */
 export function mentionOptions(query: string, sources: MentionSources): MentionOption[] {
   const want = fold(query);
   const hit = (label: string): boolean => want === "" || fold(label).includes(want);
@@ -501,6 +564,7 @@ export function mentionOptions(query: string, sources: MentionSources): MentionO
   for (const t of sources.terminals) if (hit(t.label)) options.push({ kind: MENTION_KINDS.terminal, label: t.label, insert: `@${t.label} ` });
   for (const n of sources.notes) if (hit(n.title) || hit(n.id)) options.push({ kind: MENTION_KINDS.note, label: n.title, insert: `@${n.id} ` });
   for (const d of sources.drawings ?? []) if (hit(d.title) || hit(d.id)) options.push({ kind: MENTION_KINDS.drawing, label: d.title, insert: `@${d.id} ` });
+  for (const c of sources.cardinals ?? []) if (hit(c.title) || hit(c.id)) options.push({ kind: MENTION_KINDS.cardinal, label: c.title, insert: `@${c.id} ` });
   if (hit("Arquivo")) options.push({ kind: MENTION_KINDS.file, label: "Arquivo…", insert: null });
   if (sources.orchestrator && hit("orquestrador")) options.push({ kind: MENTION_KINDS.orchestrator, label: "orquestrador", insert: "@orquestrador " });
   if (hit("Nova nota")) options.push({ kind: MENTION_KINDS.newNote, label: "Nova nota", insert: "@Nova nota " });

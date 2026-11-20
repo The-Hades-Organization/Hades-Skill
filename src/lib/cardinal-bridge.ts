@@ -398,6 +398,70 @@ export const cardinalFeed: CardinalFeed = createCardinalFeed();
 /** Os mesmos `EDITOR_MAX_LIVE` editores valem para a página inteira (os nós compartilham este registro). */
 export const editorSlots: EditorSlots = createEditorSlots();
 
+/** Estado do cartão fechado do nó (`kind`) com a miniatura guardada, quando há. */
+export type CardKind = "loading" | "fresh" | "stale" | "unavailable" | "missing" | "error";
+
+export interface CardView {
+  kind: CardKind;
+  /** SVG guardado ao lado do arquivo (texto); ausente em `loading`, `unavailable`, `missing` e `error`. */
+  svg?: string;
+  code?: string;
+}
+
+/** O que o cartão e o compositor leem do painel além da ponte do editor. Nunca rejeita: a falha vem como código. */
+export interface CardApi {
+  /** `GET …/svg`: a miniatura guardada, marcada defasada quando a revisão dela não é a do arquivo. */
+  view(): Promise<CardView>;
+  /** `GET …/describe`: o texto canônico do primeiro diagrama (o mesmo de `hades canvas cardinal read`); precisa do binário. */
+  text(): Promise<{ ok: true; text: string } | { ok: false; code: string }>;
+  /** `POST …/open`: abre o arquivo no app nativo (só painel local). */
+  openNative(): Promise<{ ok: true } | { ok: false; code: string }>;
+}
+
+/** Texto canônico do diagrama `index` (padrão 0) numa resposta do `describe`; `undefined` se a forma não é a esperada. */
+export function canonicalText(describe: unknown, index = 0): string | undefined {
+  if (!isDict(describe) || !Array.isArray(describe.diagrams)) return undefined;
+  const diagrams = describe.diagrams.filter(isDict);
+  const picked = diagrams.find((d) => d.index === index) ?? diagrams[0];
+  return picked !== undefined && typeof picked.text === "string" ? picked.text : undefined;
+}
+
+/** Resposta de `GET …/svg` como estado do cartão: 200 com miniatura (em dia ou defasada), 503 sem miniatura e sem binário, 404 arquivo ausente. */
+export function cardViewOf(status: number, body: Dict): CardView {
+  if (status === 200 && typeof body.svg === "string" && body.svg !== "") return { kind: body.stale === true ? "stale" : "fresh", svg: body.svg };
+  const code = typeof body.code === "string" ? body.code : undefined;
+  if (code === "cardinal_unavailable") return { kind: "unavailable", code };
+  if (code === "cardinal_not_found") return { kind: "missing", code };
+  return { kind: "error", code };
+}
+
+/** Por que o Cardinal não vale agora (`drawingEngine.reason` de `GET /api/extensions`), ou `null`. */
+export type EngineReason = { message: string } | null;
+
+/** Linha única do bloco de longe e de médio no canvas (o motor corta no que não couber). */
+export function cardSummary(view: CardView | undefined): string | undefined {
+  if (view === undefined || view.kind === "loading") return undefined;
+  if (view.kind === "stale") return "miniatura defasada";
+  if (view.kind === "unavailable") return "indisponível (sem binário)";
+  if (view.kind === "missing") return "arquivo não encontrado";
+  if (view.kind === "error") return "não foi possível ler";
+  return "diagrama";
+}
+
+/** Aviso do cartão aberto no zoom de perto, sob a miniatura; `null` quando está tudo em dia. */
+export function cardNotice(view: CardView | undefined, reason: EngineReason = null): string | null {
+  const why = reason === null ? "" : ` (${reason.message})`;
+  if (view === undefined || view.kind === "loading") return "Lendo o diagrama…";
+  if (view.kind === "stale") return `Miniatura defasada: o diagrama mudou depois dela${reason === null ? "" : `; ${reason.message}`}.`;
+  if (view.kind === "unavailable") return `Indisponível: sem miniatura guardada e sem o binário do Cardinal${why}.`;
+  if (view.kind === "missing") return "O arquivo do diagrama não está no disco.";
+  if (view.kind === "error") return "Não foi possível ler o diagrama.";
+  return reason === null ? null : `Cardinal indisponível${why}.`;
+}
+
+/** A miniatura como `data:` URL de imagem: dentro de `<img>` ou do canvas o SVG não executa script. */
+export const svgDataUrl = (svg: string): string => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+
 /** O `fetch` com chave que a página tem; só o que o cliente usa. */
 export type ClientFetch = (url: string, init: { method: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal }) => Promise<{ status: number; json(): Promise<unknown> }>;
 
@@ -418,7 +482,7 @@ const toBase64 = (bytes: Uint8Array): string => {
 };
 
 /** Cliente das rotas `/api/canvas-cardinal/<canvas>/<nó>` para a ponte. Nunca rejeita: falha de rede, prazo e resposta fora do contrato viram código. */
-export function createCardinalClient(deps: CardinalClientDeps): BridgeApi {
+export function createCardinalClient(deps: CardinalClientDeps): BridgeApi & CardApi {
   const base = `/api/canvas-cardinal/${encodeURIComponent(deps.canvasId)}/${encodeURIComponent(deps.nodeId)}`;
   const timeoutMs = deps.timeoutMs ?? CLIENT_TIMEOUT_MS;
 
@@ -443,6 +507,22 @@ export function createCardinalClient(deps: CardinalClientDeps): BridgeApi {
   const codeOf = (body: Dict): string => (typeof body.code === "string" ? body.code : CLIENT_CODES.badResponse);
 
   return {
+    async view() {
+      const res = await call("/svg", { method: "GET" });
+      if ("code" in res) return { kind: "error", code: res.code };
+      return cardViewOf(res.status, res.body);
+    },
+    async text() {
+      const res = await call("/describe", { method: "GET" });
+      if ("code" in res) return { ok: false, code: res.code };
+      const text = res.status === 200 ? canonicalText(res.body.describe) : undefined;
+      return text === undefined ? { ok: false, code: codeOf(res.body) } : { ok: true, text };
+    },
+    async openNative() {
+      const res = await call("/open", { method: "POST" });
+      if ("code" in res) return { ok: false, code: res.code };
+      return res.status === 200 ? { ok: true } : { ok: false, code: codeOf(res.body) };
+    },
     async read() {
       const res = await call("", { method: "GET" });
       if ("code" in res) return { ok: false, code: res.code };
@@ -473,3 +553,92 @@ export function createCardinalClient(deps: CardinalClientDeps): BridgeApi {
     },
   };
 }
+
+/**
+ * Miniaturas dos nós `cardinal` do documento, lidas do painel uma vez por nó e refeitas a cada aviso do SSE. Existe fora do
+ * cartão porque o bloco de longe e de médio (desenhado no canvas, sem HTML) também mostra o estado; o cartão só o lê.
+ */
+export interface CardViewStore {
+  get(nodeId: string): CardView | undefined;
+  /** Relê o nó (leituras em voo do mesmo nó se juntam). */
+  refresh(nodeId: string): Promise<void>;
+  /** Passa a acompanhar exatamente estes nós; mudar de `scope` (outro canvas) esquece o que havia. */
+  track(scope: string, nodes: readonly { id: string; name: string }[]): void;
+  /** Roda a cada mudança de estado; devolve quem cancela. */
+  subscribe(listener: () => void): () => void;
+}
+
+export function createCardViewStore(deps: { load(nodeId: string): Promise<CardView>; feed: CardinalFeed }): CardViewStore {
+  const views = new Map<string, CardView>();
+  const inflight = new Map<string, Promise<void>>();
+  const tracked = new Map<string, { name: string; cancel: () => void }>();
+  const listeners = new Set<() => void>();
+  let scope = "";
+  const notify = (): void => {
+    for (const run of [...listeners]) run();
+  };
+
+  function refresh(nodeId: string): Promise<void> {
+    const running = inflight.get(nodeId);
+    if (running !== undefined) return running;
+    const mine = scope;
+    const run = deps.load(nodeId).then(
+      (view) => view,
+      (): CardView => ({ kind: "error" }),
+    ).then((view) => {
+      inflight.delete(nodeId);
+      if (mine !== scope || !tracked.has(nodeId)) return;
+      views.set(nodeId, view);
+      notify();
+    });
+    inflight.set(nodeId, run);
+    return run;
+  }
+
+  function drop(nodeId: string): void {
+    tracked.get(nodeId)?.cancel();
+    tracked.delete(nodeId);
+    views.delete(nodeId);
+  }
+
+  return {
+    get: (nodeId) => views.get(nodeId),
+    refresh,
+    track(next, nodes) {
+      if (next !== scope) {
+        for (const id of [...tracked.keys()]) drop(id);
+        inflight.clear();
+        scope = next;
+      }
+      const wanted = new Map(nodes.map((n) => [n.id, n.name]));
+      let changed = false;
+      for (const [id, entry] of [...tracked]) {
+        if (wanted.get(id) !== entry.name) {
+          drop(id);
+          changed = true;
+        }
+      }
+      for (const [id, name] of wanted) {
+        if (tracked.has(id)) continue;
+        const again = (): void => void refresh(id);
+        tracked.set(id, { name, cancel: deps.feed.subscribe(name, again, again) });
+        void refresh(id);
+      }
+      if (changed) notify();
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+  };
+}
+
+let cardLoader: (nodeId: string) => Promise<CardView> = () => Promise.resolve({ kind: "error" });
+
+/** A página diz como ler a miniatura de um nó (precisa do `fetch` com chave e do canvas aberto); sem isso, todo cartão fica em `error`. */
+export function bindCardLoader(load: (nodeId: string) => Promise<CardView>): void {
+  cardLoader = load;
+}
+
+/** Um por página: o cartão do nó e o resumo do bloco no canvas leem o mesmo estado. */
+export const cardViews: CardViewStore = createCardViewStore({ load: (nodeId) => cardLoader(nodeId), feed: cardinalFeed });

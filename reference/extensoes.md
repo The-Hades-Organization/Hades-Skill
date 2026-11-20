@@ -134,6 +134,7 @@ mensagens. Lógica em `src/lib/cardinal-bridge.ts` (sem DOM), componente em `kit
 - **Abrir e fechar:** o nó mostra título e **Abrir editor / Fechar editor**. Fechar passa `closing=true`, o editor salva o
   pendente (teto `FLUSH_TIMEOUT_MS`, 5 s; o gatilho é tirar o foco do iframe) e o nó só desmonta no `onClosed`. Desmontagem
   abrupta (fechar a aba) é best-effort.
+- **Cartão fechado e app nativo:** com o editor fechado o nó mostra a miniatura guardada e o aviso de defasagem ou de indisponível; no painel local, **Abrir no Cardinal** chama `POST …/open`, que roda `cardinal <arquivo>` solto do painel (`launchCardinalApp` em `cardinal-runner.ts`, ambiente enxuto, sem token). Detalhes em `reference/argos.md` §Nó `cardinal`.
 - **Limites:** até `EDITOR_MAX_LIVE` (2) editores vivos por página; o terceiro mostra o aviso de limite sem criar iframe.
   Sem `ready` em `READY_TIMEOUT_MS` (20 s) o estado vai a `failed` (`ready_timeout`).
 

@@ -100,6 +100,8 @@ export const CANVAS_UI_MODULES = {
   semantic: "canvas-semantic.ts",
   // ponte postMessage com o editor do Cardinal embutido no nó (argos/node-cardinal.tsx)
   cardinalBridge: "cardinal-bridge.ts",
+  // nó `cardinal` novo criado pela ferramenta Desenho quando o motor efetivo é o Cardinal (pages/argos.tsx, placeDrawing)
+  canvasCardinal: "canvas-cardinal.ts",
 } as const;
 
 /** Nome pedido em `/ui/lib/<nome>` → pacote. Qualquer outro nome responde 404. */

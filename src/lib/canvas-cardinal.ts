@@ -224,6 +224,9 @@ export interface CardinalNodeInput {
   title?: string;
   x: number;
   y: number;
+  /** Caixa do nó; sem ela vale `CARDINAL_FRAME` (a CLI). */
+  w?: number;
+  h?: number;
   z?: number;
 }
 
@@ -232,7 +235,7 @@ export function createCardinalNode(doc: CanvasDoc, input: CardinalNodeInput): { 
   const data = readCardinalData({ cardinal: input.name, ...(input.title !== undefined && { title: input.title }) });
   if (doc.nodes.length >= CANVAS_LIMITS.nodes) return fail(CARDINAL_ERRORS.invalidData, "limite de nós do documento atingido");
   if (doc.nodes.some((existing) => existing.id === input.id)) return fail(CARDINAL_ERRORS.invalidData, "já existe nó com esse id");
-  const raw: CanvasNode = { id: input.id, type: CARDINAL_TYPE, x: input.x, y: input.y, ...CARDINAL_FRAME, z: input.z ?? 0, data: { ...data }, locked: false, blurred: false };
+  const raw: CanvasNode = { id: input.id, type: CARDINAL_TYPE, x: input.x, y: input.y, w: input.w ?? CARDINAL_FRAME.w, h: input.h ?? CARDINAL_FRAME.h, z: input.z ?? 0, data: { ...data }, locked: false, blurred: false };
   const [node] = validateCanvasDoc({ v: doc.v, rev: 0, nodes: [raw], edges: [], groups: [] }).nodes;
   return { op: opCreate(doc, [node as CanvasNode]), node: node as CanvasNode };
 }

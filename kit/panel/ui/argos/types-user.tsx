@@ -763,6 +763,18 @@ function makeArgosTypesUser() {
     const [error, setError] = React.useState<string | null>(null);
     const svgRef = React.useRef<SVGSVGElement | null>(null);
     const pressures = React.useRef<number[]>([]);
+    // motor efetivo `cardinal`: o nó fica no documento sem alteração e mostra só o aviso; antes de o painel responder (ou sem resposta) vale o Hades
+    const [engine, setEngine] = React.useState<"hades" | "cardinal">("hades");
+    React.useEffect(() => {
+      let alive = true;
+      void cardinalEnv(deps).then((next) => alive && setEngine(next.effective)).catch(() => undefined);
+      return () => { alive = false; };
+    }, []);
+    if (engine === "cardinal") {
+      return h("div", { role: "status", "data-drawing-off": "1", className: "flex h-full w-full flex-col items-center justify-center gap-1 p-3 text-center t-label text-muted-foreground" },
+        h("span", { className: "font-medium" }, "Motor do Hades desligado"),
+        h("span", null, "O desenho continua guardado no documento. Volte o motor de desenho para Hades, em Configurações, para abri-lo."));
+    }
     let scene: Scene | undefined;
     try {
       scene = dm.readDrawingData(props.data);
@@ -1048,7 +1060,7 @@ function makeArgosTypesUser() {
   const cardinalBridgeOf = (): CardinalBridgeApi | undefined => (globalThis as unknown as { CanvasModel?: { cardinalBridge?: CardinalBridgeApi } }).CanvasModel?.cardinalBridge;
 
   /** O que o cartão sabe do ambiente: por que o Cardinal não vale agora e se o painel é remoto (o app nativo só abre no local). */
-  type CardinalEnv = { reason: { message: string } | null; remote: boolean };
+  type CardinalEnv = { reason: { message: string } | null; remote: boolean; effective: "hades" | "cardinal" };
   const ENV_TTL_MS = 15_000;
   let envCache: { at: number; value: Promise<CardinalEnv> } | undefined;
   function cardinalEnv(deps: UserTypesDeps): Promise<CardinalEnv> {
@@ -1059,9 +1071,9 @@ function makeArgosTypesUser() {
       return typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
     };
     const value = Promise.all([read("/api/extensions").catch(() => ({})), read("/api/remote").catch(() => ({ remote: true }))]).then(([ext, remote]): CardinalEnv => {
-      const engine = ext.drawingEngine as { reason?: { message?: unknown } | null } | undefined;
+      const engine = ext.drawingEngine as { effective?: unknown; reason?: { message?: unknown } | null } | undefined;
       const message = engine?.reason?.message;
-      return { reason: typeof message === "string" ? { message } : null, remote: remote.remote !== false };
+      return { reason: typeof message === "string" ? { message } : null, remote: remote.remote !== false, effective: engine?.effective === "cardinal" ? "cardinal" : "hades" };
     });
     envCache = { at: deps.now(), value };
     return value;
@@ -1084,7 +1096,7 @@ function makeArgosTypesUser() {
     const wrapper = (): HTMLElement | null => root.current?.closest<HTMLElement>("[data-canvas-node]") ?? null;
     const bridge = cardinalBridgeOf();
     const [, setCardTick] = React.useState(0);
-    const [env, setEnv] = React.useState<CardinalEnv>({ reason: null, remote: true });
+    const [env, setEnv] = React.useState<CardinalEnv>({ reason: null, remote: true, effective: "hades" });
     const [nativeNote, setNativeNote] = React.useState("");
     React.useEffect(() => bridge?.cardViews.subscribe(() => setCardTick((t) => t + 1)), []);
     React.useEffect(() => {

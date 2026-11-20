@@ -481,6 +481,66 @@ const toBase64 = (bytes: Uint8Array): string => {
   return btoa(text);
 };
 
+/** O motor de desenho que vale agora (`drawingEngine` de `GET /api/extensions`) e, se o pedido era `cardinal` e não vale, a razão. */
+export interface EngineChoice {
+  effective: "hades" | "cardinal";
+  reason: EngineReason;
+}
+
+/** Lê `drawingEngine` da resposta de `GET /api/extensions`; qualquer coisa fora do contrato vale como `hades` (o fluxo de sempre). */
+export function engineChoiceOf(body: unknown): EngineChoice {
+  const engine = isDict(body) && isDict(body.drawingEngine) ? body.drawingEngine : undefined;
+  const message = engine !== undefined && isDict(engine.reason) ? engine.reason.message : undefined;
+  return { effective: engine?.effective === "cardinal" ? "cardinal" : "hades", reason: typeof message === "string" ? { message } : null };
+}
+
+/** Nome-base do arquivo de um desenho novo criado pelo canvas. */
+export const NEW_DIAGRAM_NAME = "desenho";
+const NEW_DIAGRAM_TRIES = 50;
+
+/** O primeiro `desenho`, `desenho-2`, … que não está em `taken`; `undefined` se as tentativas acabam. */
+export function freshDiagramName(taken: ReadonlySet<string>): string | undefined {
+  for (let i = 1; i <= NEW_DIAGRAM_TRIES; i++) {
+    const candidate = i === 1 ? NEW_DIAGRAM_NAME : `${NEW_DIAGRAM_NAME}-${i}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  return undefined;
+}
+
+/** O texto de partida de um desenho novo, na linguagem canônica do Cardinal (`cardinal convert --from text`). */
+export const emptyDiagramText = (title: string): string => `model conceptual "${title.replace(/["\\]/g, "\\$&")}"`;
+
+/** O que a página precisa antes de criar o nó: nome livre e o conteúdo do arquivo novo. */
+export type DiagramSeed = { ok: true; name: string; text: string } | { ok: false; code: string };
+
+/**
+ * Prepara o desenho novo **antes** de o nó entrar no documento: nome livre (arquivos conhecidos do painel mais os nós do
+ * documento) e o `.cardinal` inicial vindo do binário. Falha aqui (sem binário, sem nome) não deixa nó sem arquivo.
+ */
+export async function prepareDiagram(fetchJson: ClientFetch, usedNames: Iterable<string>, title: string): Promise<DiagramSeed> {
+  const taken = new Set(usedNames);
+  let after: string | null = null;
+  try {
+    do {
+      const res = await fetchJson(`/api/canvas-cardinal?limit=200${after === null ? "" : `&after=${encodeURIComponent(after)}`}`, { method: "GET" });
+      const body = await res.json();
+      if (res.status !== 200 || !isDict(body) || !Array.isArray(body.files)) return { ok: false, code: CLIENT_CODES.badResponse };
+      for (const file of body.files) if (isDict(file) && typeof file.name === "string") taken.add(file.name);
+      after = typeof body.next === "string" ? body.next : null;
+    } while (after !== null);
+    const name = freshDiagramName(taken);
+    if (name === undefined) return { ok: false, code: "cardinal_no_free_name" };
+    const res = await fetchJson("/api/canvas-cardinal/convert", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ from: "text", text: emptyDiagramText(title) }),
+    });
+    const body = await res.json();
+    if (res.status === 200 && isDict(body) && typeof body.text === "string") return { ok: true, name, text: body.text };
+    return { ok: false, code: isDict(body) && typeof body.code === "string" ? body.code : CLIENT_CODES.badResponse };
+  } catch {
+    return { ok: false, code: CLIENT_CODES.network };
+  }
+}
+
 /** Cliente das rotas `/api/canvas-cardinal/<canvas>/<nó>` para a ponte. Nunca rejeita: falha de rede, prazo e resposta fora do contrato viram código. */
 export function createCardinalClient(deps: CardinalClientDeps): BridgeApi & CardApi {
   const base = `/api/canvas-cardinal/${encodeURIComponent(deps.canvasId)}/${encodeURIComponent(deps.nodeId)}`;

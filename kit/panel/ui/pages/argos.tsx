@@ -1473,8 +1473,38 @@ function Argos() {
     await saver.flush();
     await reloadOrphans.current();
   });
-  // ferramenta Desenho: o retângulo solto vira um nó `drawing` vazio, pronto para entrar e desenhar (duplo clique ou Enter)
-  const placeDrawing = (screenRect, cam) => {
+  // motor de desenho que vale agora (GET /api/extensions); sem resposta vale o Hades, o fluxo de sempre
+  const drawingEngineNow = async () => {
+    try { return M.cardinalBridge.engineChoiceOf(await (await tokenFetch('/api/extensions', { method: 'GET' })).json()).effective; } catch { return 'hades'; }
+  };
+  // motor `cardinal`: o retângulo solto vira um nó `cardinal` com o arquivo novo já gravado; o binário gera o texto inicial
+  // antes de o nó entrar no documento, então falha ali (sem binário) não deixa nó sem arquivo
+  const placeCardinal = async (screenRect, cam) => {
+    const type = types.get(M.canvasCardinal.CARDINAL_TYPE);
+    const before = cstateRef.current?.doc;
+    if (!before || !type) { opFailed(M.history.HISTORY_ERRORS.invalidOp); return; }
+    const title = 'Desenho';
+    const used = before.nodes.filter((n) => n.type === M.canvasCardinal.CARDINAL_TYPE && typeof n.data.cardinal === 'string').map((n) => n.data.cardinal);
+    const seed = await M.cardinalBridge.prepareDiagram(tokenFetch, used, title);
+    if (!seed.ok) { toast({ kind: 'bad', title: 'Não deu para criar o desenho', desc: L.errorText(seed.code, 'O Cardinal não respondeu.') }); return; }
+    const doc = cstateRef.current?.doc;
+    if (!doc) { opFailed(M.history.HISTORY_ERRORS.invalidOp); return; }
+    const rect = window.ArgosCanvasToolbar.rectToWorld(cam, screenRect, { size: type.defaultSize, min: { w: 240, h: 160 } });
+    const id = M.clipboard.sequentialIds(doc, 'cardinal')('node');
+    let made;
+    try { made = M.canvasCardinal.createCardinalNode(doc, { id, name: seed.name, title, x: rect.x, y: rect.y, w: rect.w, h: rect.h }); } catch (e) { if (!e || typeof e.code !== 'string') throw e; opFailed(e.code); return; }
+    if (!termCommit(() => made.op)) return;
+    await saver.flush();
+    const B = M.cardinalBridge;
+    const wrote = await B.createCardinalClient({ fetch: tokenFetch, canvasId: canvasIdRef.current, nodeId: id }).write(new TextEncoder().encode(seed.text), null);
+    if (!wrote.ok) toast({ kind: 'bad', title: 'O desenho nasceu sem arquivo', desc: L.errorText(wrote.code, 'Não deu para gravar o diagrama; desfaça e tente de novo.') });
+    else void B.cardViews.refresh(id);
+    host.current.selectIds([id]);
+    apiRef.current?.revealNode(id, true);
+  };
+  // ferramenta Desenho: com o motor `cardinal` nasce um nó `cardinal`; com `hades`, um nó `drawing` vazio, pronto para entrar e desenhar (duplo clique ou Enter)
+  const placeDrawing = async (screenRect, cam) => {
+    if (await drawingEngineNow() === 'cardinal') { await placeCardinal(screenRect, cam); return; }
     const doc = cstateRef.current?.doc;
     const type = types.get(M.drawing.DRAWING_TYPE);
     if (!doc || !type) { opFailed(M.history.HISTORY_ERRORS.invalidOp); return; }

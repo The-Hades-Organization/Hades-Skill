@@ -2,7 +2,7 @@
 // contra um iframe simulado por script: carregar, salvar, 409, mudança externa, exportar, recolher, teto de editores.
 import { describe, expect, test } from "bun:test";
 import {
-  BRIDGE_PROTOCOL, EDITOR_MAX_LIVE, canonicalText, cardNotice, cardSummary, cardViewOf, createBridge, createCardViewStore, svgDataUrl, createCardinalClient, createCardinalFeed, createEditorSlots, isFromFrame,
+  BRIDGE_PROTOCOL, EDITOR_MAX_LIVE, canonicalText, cardNotice, cardSummary, cardViewOf, createBridge, createCardViewStore, svgDataUrl, createCardinalClient, createCardinalFeed, createEditorSlots, isFromFrame, engineChoiceOf, freshDiagramName, emptyDiagramText, prepareDiagram,
   type BridgeApi, type FileRead, type ReadResult, type WriteResult,
 } from "../../../src/lib/cardinal-bridge";
 
@@ -619,5 +619,54 @@ describe("cardinal-bridge: cartão fechado", () => {
       await flush();
       expect(store.get("c1")).toEqual({ kind: "error" });
     });
+  });
+});
+
+describe("cardinal-bridge: desenho novo com o motor cardinal (U16)", () => {
+  test("engineChoiceOf: só `effective: cardinal` vale cardinal; o resto vale hades; a razão acompanha", () => {
+    expect(engineChoiceOf({ drawingEngine: { configured: "cardinal", effective: "cardinal", reason: null } })).toEqual({ effective: "cardinal", reason: null });
+    expect(engineChoiceOf({ drawingEngine: { configured: "cardinal", effective: "hades", reason: { message: "sem binário" } } })).toEqual({ effective: "hades", reason: { message: "sem binário" } });
+    for (const bad of [undefined, null, 3, {}, { drawingEngine: 1 }, { drawingEngine: { effective: "outro" } }]) expect(engineChoiceOf(bad).effective).toBe("hades");
+  });
+
+  test("freshDiagramName: pula os nomes tomados e desiste depois de 50 tentativas", () => {
+    expect(freshDiagramName(new Set())).toBe("desenho");
+    expect(freshDiagramName(new Set(["desenho", "desenho-2"]))).toBe("desenho-3");
+    expect(freshDiagramName(new Set(["desenho", ...Array.from({ length: 49 }, (_, i) => `desenho-${i + 2}`)]))).toBeUndefined();
+  });
+
+  test("emptyDiagramText escapa aspas e barras do título", () => {
+    expect(emptyDiagramText("Desenho")).toBe('model conceptual "Desenho"');
+    expect(emptyDiagramText('a"b\\c')).toBe('model conceptual "a\\"b\\\\c"');
+  });
+
+  type Call = { url: string; method: string; body?: unknown };
+  const seeded = (handler: (call: Call) => { status: number; body: unknown } | Error) => {
+    const calls: Call[] = [];
+    const fetch = async (url: string, init: { method: string; body?: string }) => {
+      const call = { url, method: init.method, body: init.body === undefined ? undefined : JSON.parse(init.body) };
+      calls.push(call);
+      const out = handler(call);
+      if (out instanceof Error) throw out;
+      return { status: out.status, json: async () => out.body };
+    };
+    return { fetch, calls };
+  };
+
+  test("prepareDiagram junta arquivos conhecidos (todas as páginas) e nós do documento e pede o texto ao binário", async () => {
+    const s = seeded((call) => call.url.startsWith("/api/canvas-cardinal?")
+      ? call.url.includes("after=") ? { status: 200, body: { files: [{ name: "desenho-2" }], next: null } } : { status: 200, body: { files: [{ name: "desenho" }], next: "desenho" } }
+      : { status: 200, body: { ok: true, text: "{\"format\":\"cardinal\"}" } });
+    const out = await prepareDiagram(s.fetch, ["desenho-3"], "Desenho");
+    expect(out).toEqual({ ok: true, name: "desenho-4", text: '{"format":"cardinal"}' });
+    expect(s.calls.map((c) => c.url)).toEqual(["/api/canvas-cardinal?limit=200", "/api/canvas-cardinal?limit=200&after=desenho", "/api/canvas-cardinal/convert"]);
+    expect(s.calls[2]?.body).toEqual({ from: "text", text: 'model conceptual "Desenho"' });
+  });
+
+  test("prepareDiagram sem binário devolve o código da rota; rede caída e lista inválida têm código próprio", async () => {
+    const noBinary = seeded((call) => call.url.startsWith("/api/canvas-cardinal?") ? { status: 200, body: { files: [], next: null } } : { status: 503, body: { code: "cardinal_unavailable" } });
+    expect(await prepareDiagram(noBinary.fetch, [], "Desenho")).toEqual({ ok: false, code: "cardinal_unavailable" });
+    expect(await prepareDiagram(seeded(() => new Error("rede")).fetch, [], "Desenho")).toEqual({ ok: false, code: "cardinal_network" });
+    expect(await prepareDiagram(seeded(() => ({ status: 200, body: {} })).fetch, [], "Desenho")).toEqual({ ok: false, code: "cardinal_bad_response" });
   });
 });

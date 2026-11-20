@@ -151,7 +151,8 @@ razão com código estável:
 | `ext.binary-missing`, `ext.version-unreadable`, `ext.version-below-min`, `ext.health-failed` | o primeiro problema do binário, sem build web que o supra |
 
 O padrão é `hades` até a unidade 17 do plano de integração: instalar a extensão não muda o fluxo de ninguém. Os nós de desenho
-existentes seguem intactos; com o motor `cardinal` aparecem como "motor do Hades desligado" (unidades seguintes).
+existentes seguem intactos; com o motor `cardinal` aparecem como "motor do Hades desligado" e a ferramenta **Desenho** do canvas
+cria nós `cardinal` (`reference/argos.md` §Nó cardinal, "Motor aplicado").
 
 Onde aparece: `GET /api/extensions` ganha `drawingEngine: {configured, effective, usable, reason}`; `GET /api/config` ganha o
 mesmo em `engine` e **omite** o item `HADES_DRAWING_ENGINE` enquanto o Cardinal não está utilizável (o item continua visível se

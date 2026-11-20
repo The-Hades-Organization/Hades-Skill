@@ -174,11 +174,20 @@ export function createBridge(deps: BridgeDeps): Bridge {
 
   const tooNew = (read: FileRead): boolean => !read.supported || (editorFormat !== undefined && read.format > editorFormat);
 
+  /** Aviso de mudança que chegou com a leitura inicial em voo: a resposta pode ser anterior a ele (arquivo criado agora), então se relê. */
+  let changedWhileLoading = false;
   async function load(): Promise<void> {
+    changedWhileLoading = false;
     move("loading");
     const read = await deps.api.read();
     if (closed) return;
-    if (!read.ok) return move("failed", read.code);
+    const again = changedWhileLoading;
+    changedWhileLoading = false;
+    if (!read.ok) {
+      move("failed", read.code);
+      if (again) enqueue(load);
+      return;
+    }
     rev = read.rev;
     setDirty(false);
     // arquivo de formato maior que o do editor: abrir só para ler; gravar por cima perderia o que ele não entende
@@ -186,6 +195,7 @@ export function createBridge(deps: BridgeDeps): Bridge {
     send("load", { rev: read.rev, readOnly }, read.bytes);
     loaded = true;
     move(readOnly ? "readonly" : "ready", readOnly && tooNew(read) ? "format_too_new" : undefined);
+    if (again) enqueue(() => sync(false));
   }
 
   /** Leva ao editor o conteúdo atual do arquivo; `rejected` manda antes o `save-rejected` que o provocou. */
@@ -272,7 +282,11 @@ export function createBridge(deps: BridgeDeps): Bridge {
     },
 
     fileChanged(next) {
-      if (closed || state === "waiting" || state === "loading") return;
+      if (closed || state === "waiting") return;
+      if (state === "loading") {
+        changedWhileLoading = true;
+        return;
+      }
       if (next === null) return enqueue(async () => move("gone", "cardinal_not_found"));
       if (!loaded) return enqueue(load);
       if (next === rev) return;

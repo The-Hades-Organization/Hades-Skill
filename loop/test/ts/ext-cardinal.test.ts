@@ -81,13 +81,19 @@ describe("motor efetivo", () => {
   const cfg = (engine?: string): Map<string, string> => new Map(engine === undefined ? [] : [["HADES_DRAWING_ENGINE", engine]]);
   const missing = { code: EXT_ERRORS.binaryMissing, field: "binary.names", message: "binário não encontrado" };
 
-  test("padrão é hades, mesmo com a extensão saudável", () => {
-    expect(judgeEngine(cfg(), status(), false)).toMatchObject({ configured: "hades", effective: "hades", usable: true, reason: null });
+  test("padrão é cardinal quando a extensão está saudável", () => {
+    expect(judgeEngine(cfg(), status(), false)).toMatchObject({ configured: "cardinal", effective: "cardinal", usable: true, reason: null });
+  });
+  test("padrão sem a extensão utilizável cai para hades", () => {
+    expect(judgeEngine(cfg(), status({ enabled: false }), false)).toMatchObject({ configured: "cardinal", effective: "hades", usable: false });
+  });
+  test("hades explícito mantém o Desenho antigo", () => {
+    expect(judgeEngine(cfg("hades"), status(), true)).toMatchObject({ configured: "hades", effective: "hades", usable: true });
   });
   test("cardinal configurado e saudável vale", () => {
     expect(judgeEngine(cfg("cardinal"), status(), false)).toMatchObject({ effective: "cardinal", usable: true });
   });
-  test("valor desconhecido cai em hades", () => expect(judgeEngine(cfg("outro"), status(), false).configured).toBe("hades"));
+  test("valor desconhecido cai no padrão", () => expect(judgeEngine(cfg("outro"), status(), false).configured).toBe("cardinal"));
   test("extensão desligada: cai para hades com a razão", () => {
     const v = judgeEngine(cfg("cardinal"), status({ enabled: false }), true);
     expect(v).toMatchObject({ effective: "hades", usable: false });

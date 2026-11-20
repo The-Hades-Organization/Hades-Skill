@@ -20,11 +20,24 @@ function rig(initial: Partial<FileRead> & { text?: string } = {}) {
   const events: string[] = [];
   const timers: { fn: () => void; ms: number; live: boolean }[] = [];
   let writes = 0;
+  /** Segura a resposta da próxima leitura (o resultado já está decidido quando ela parte), como a rede faz. */
+  let hold: Promise<void> | undefined;
+  const holdRead = (): (() => void) => {
+    let release = (): void => {};
+    hold = new Promise<void>((resolve) => { release = resolve; });
+    return release;
+  };
   const api: BridgeApi = {
     async read(): Promise<ReadResult> {
-      if (file.missing) return { ok: false, code: "cardinal_not_found" };
-      if (file.broken) return { ok: false, code: "cardinal_unreadable" };
-      return { ok: true, bytes: enc.encode(file.text), rev: file.rev, format: file.format, supported: file.supported };
+      const held = hold;
+      hold = undefined;
+      const answer = ((): ReadResult => {
+        if (file.missing) return { ok: false, code: "cardinal_not_found" };
+        if (file.broken) return { ok: false, code: "cardinal_unreadable" };
+        return { ok: true, bytes: enc.encode(file.text), rev: file.rev, format: file.format, supported: file.supported };
+      })();
+      if (held) await held;
+      return answer;
     },
     async write(bytes, baseRev): Promise<WriteResult> {
       writes++;
@@ -58,7 +71,7 @@ function rig(initial: Partial<FileRead> & { text?: string } = {}) {
   const tick = async (): Promise<void> => { for (let i = 0; i < 8; i++) await Promise.resolve(); await new Promise((r) => setTimeout(r, 0)); };
   const fromEditor = (message: Record<string, unknown>, text?: string): void => bridge.handle({ cardinal: BRIDGE_PROTOCOL, ...message, ...(text === undefined ? {} : { bytes: buf(text) }) });
   const types = (): string[] => sent.map((s) => s.message.type as string);
-  return { file, sent, stored, events, timers, bridge, tick, fromEditor, types, writes: () => writes };
+  return { file, sent, stored, events, timers, bridge, tick, fromEditor, types, holdRead, writes: () => writes };
 }
 
 const ready = (format = 2): Record<string, unknown> => ({ type: "ready", protocol: 1, app: "cardinal 0.1.0", format });
@@ -256,6 +269,46 @@ describe("cardinal-bridge: mudança externa (SSE)", () => {
     await r.tick();
     expect(r.bridge.state()).toBe("ready");
     expect(r.sent.at(-1)?.text).toBe("de-volta");
+  });
+
+  test("arquivo recém-criado: o editor montou antes do PUT, leu 'ausente' e o aviso SSE o ressincroniza", async () => {
+    const r = rig({ text: "novo", rev: "r1" });
+    r.file.missing = true;
+    r.fromEditor(ready());
+    await r.tick();
+    expect(r.bridge.state()).toBe("failed");
+    r.file.missing = false;
+    r.bridge.fileChanged("r1");
+    await r.tick();
+    expect(r.bridge.state()).toBe("ready");
+    expect(r.types()).toEqual(["load"]);
+    expect(r.sent.at(-1)?.text).toBe("novo");
+  });
+
+  test("o aviso SSE chega com a leitura 'ausente' ainda em voo: o editor relê ao terminar, sem esperar outro aviso", async () => {
+    const r = rig({ text: "novo", rev: "r1" });
+    r.file.missing = true;
+    const release = r.holdRead();
+    r.fromEditor(ready());
+    await r.tick();
+    expect(r.bridge.state()).toBe("loading");
+    r.file.missing = false;
+    r.bridge.fileChanged("r1");
+    release();
+    await r.tick();
+    expect(r.bridge.state()).toBe("ready");
+    expect(r.sent.at(-1)?.text).toBe("novo");
+  });
+
+  test("aviso durante a leitura que deu certo e já traz o conteúdo novo: não repete o load à toa", async () => {
+    const r = rig({ text: "v1", rev: "r1" });
+    const release = r.holdRead();
+    r.fromEditor(ready());
+    await r.tick();
+    r.bridge.fileChanged("r1");
+    release();
+    await r.tick();
+    expect(r.types()).toEqual(["load"]);
   });
 
   test("merge-notice chega ao painel; lista vazia ou tipo estranho não", async () => {

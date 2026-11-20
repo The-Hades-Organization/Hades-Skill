@@ -4,6 +4,19 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## Não lançado — extensão Cardinal (branch local `feat/cardinal-extensao`) — 2026-11-20
+
+Fecho da integração com o Cardinal (U17): o Desenho do canvas passa a criar diagramas do Cardinal.
+
+- `HADES_DRAWING_ENGINE` passa a `cardinal` por padrão (decisão do dono). O valor é só o pedido: sem a extensão ligada e
+  utilizável (binário ou build web) o motor efetivo continua `hades`, com a razão no painel; `hades` explícito mantém o Desenho
+  antigo. Valor desconhecido cai no padrão. Nós `drawing` existentes não são tocados.
+- Corrida corrigida: nó `cardinal` novo com o zoom já de perto montava o editor antes do `PUT` terminar e lia "arquivo
+  ausente". O aviso SSE já ressincronizava; faltava o caso do aviso chegar com a leitura inicial em voo, que era descartado e
+  deixava o editor em `failed`. A ponte agora relê ao terminar a leitura.
+- Teste de ponta a ponta com binário real (`cardinal-e2e.test.ts`, ver `reference/extensoes.md`). Achado: `cardinal` sem
+  argumentos abre a interface gráfica; nunca rode o binário sem subcomando em teste.
+
 ## 6.54.0 — 2026-11-19
 
 Pedido do dono: o worker de gates declara o SO e o estado de disco, CPU e RAM. Antes o `status` trazia só disco livre,

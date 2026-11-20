@@ -81,7 +81,7 @@ O arquivo `.cardinal` é a fonte da verdade; o Hades nunca o converte para forma
 - **Manifesto:** capacidade `canvas.diagram`; `binary.configKey` `HADES_CARDINAL_BIN`; versão por `cardinal --version`
   (saída `cardinal 0.1.0 (format 2)`, mínima `0.1.0`); saúde por `cardinal --check`.
 - **Chaves** (`kit/config.tsv`, grupo Extensões): `HADES_EXT_CARDINAL` (1), `HADES_CARDINAL_BIN` (vazio),
-  `HADES_CARDINAL_WEB` (vazio; pasta `dist/` do build web, fora do repositório) e `HADES_DRAWING_ENGINE` (`hades`).
+  `HADES_CARDINAL_WEB` (vazio; pasta `dist/` do build web, fora do repositório) e `HADES_DRAWING_ENGINE` (`cardinal`).
 - **Dois pedaços independentes:** o binário serve às operações de agente; o build web serve ao editor embutido. Sem o binário
   o usuário ainda edita (com o build web); sem o build web o agente ainda trabalha.
 - **Build web no doctor:** além da linha `ext-cardinal`, o `hades doctor` traz `ext-cardinal-web`: `ok` quando
@@ -138,6 +138,22 @@ mensagens. Lógica em `src/lib/cardinal-bridge.ts` (sem DOM), componente em `kit
 - **Limites:** até `EDITOR_MAX_LIVE` (2) editores vivos por página; o terceiro mostra o aviso de limite sem criar iframe.
   Sem `ready` em `READY_TIMEOUT_MS` (20 s) o estado vai a `failed` (`ready_timeout`).
 
+### Teste de ponta a ponta e acesso remoto
+
+`loop/test/ts/cardinal-e2e.test.ts` sobe uma instância própria do painel (127.0.0.1, pasta de dados temporária, sem túnel) com o
+binário e o build web reais: `CARDINAL_E2E_BIN=<binário> CARDINAL_E2E_WEB=<dist/> bun test loop/test/ts/cardinal-e2e.test.ts`.
+Sem as variáveis só roda o caso sem binário e sem build web (motor cai para `hades`, `convert` dá 503, rota web 404). Cobre
+`convert`/`PUT` (new --from-text), `describe` (read), `edit` (apply), `export` svg e png, o editor no nó (ponte contra o painel
+real), mudança externa por rename (SSE `disk` → `external-change`), salvamento com base velha (`save-rejected` antes do
+`external-change`, sem perda) e o arquivo criado depois de o editor montar. O CLI `hades canvas cardinal` exige pane do herdr e
+não entra no teste; ele usa as mesmas rotas. O editor WASM só roda em navegador: foi conferido à mão no Firefox headless pela
+`host-test.html` do build (`ready`, `load`, export svg/png, `external-change`). O `merge-notice` do editor com edição suja
+não é automatizado.
+
+**Acesso remoto (descrito, não testado).** Pelo túnel o iframe carrega o build por `/ext/cardinal/web/*` (responde antes da
+chave remota, só com o host do túnel); a API do diagrama fica atrás da chave e só a página pai fala com ela. "Abrir no Cardinal"
+e `link` são só locais (403 `cardinal_local_only`).
+
 ### Motor de desenho efetivo
 
 `HADES_DRAWING_ENGINE` é só o pedido. O motor efetivo (`src/lib/drawing-engine.ts`, `drawingEngine`) é calculado: `cardinal`
@@ -150,7 +166,7 @@ razão com código estável:
 | `engine.extension-missing` | o manifesto não está nesta instalação |
 | `ext.binary-missing`, `ext.version-unreadable`, `ext.version-below-min`, `ext.health-failed` | o primeiro problema do binário, sem build web que o supra |
 
-O padrão é `hades` até a unidade 17 do plano de integração: instalar a extensão não muda o fluxo de ninguém. Os nós de desenho
+O padrão é `cardinal` desde a unidade 17: quem liga a extensão e tem o binário (ou o build web) ganha os diagramas do Cardinal no Desenho; sem isso o efetivo continua `hades` e nada muda. `HADES_DRAWING_ENGINE=hades` mantém o Desenho antigo. Os nós de desenho
 existentes seguem intactos; com o motor `cardinal` aparecem como "motor do Hades desligado" e a ferramenta **Desenho** do canvas
 cria nós `cardinal` (`reference/argos.md` §Nó cardinal, "Motor aplicado").
 

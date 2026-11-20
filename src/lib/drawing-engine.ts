@@ -31,8 +31,9 @@ export interface EngineView {
   reason: EngineReason | null;
 }
 
+/** Padrão `cardinal` (decisão do dono, U17): só `hades` explícito mantém o Desenho antigo. Sem extensão utilizável o efetivo cai para `hades`. */
 export function configuredEngine(config: ReadonlyMap<string, string>): DrawingEngine {
-  return config.get(ENGINE_KEY) === "cardinal" ? "cardinal" : "hades";
+  return config.get(ENGINE_KEY) === "hades" ? "hades" : "cardinal";
 }
 
 /** Julgamento puro: recebe o estado medido da extensão (undefined = manifesto ausente) e se o build web existe. */

@@ -122,7 +122,12 @@ mensagens. Lógica em `src/lib/cardinal-bridge.ts` (sem DOM), componente em `kit
 - **Envelope:** toda mensagem leva `cardinal: 1` (`BRIDGE_PROTOCOL`) e `type`; só se aceita mensagem vinda do `contentWindow`
   do iframe do nó. `ready` com `protocol` diferente deixa o estado em `failed` (`protocol_mismatch`).
 - **Do editor ao painel:** `ready` (traz `protocol` e `format`), `dirty`, `save` (`baseRev` + `bytes`), `export-result`,
-  `merge-notice` (`conflicts[]`: `both-changed`, `deleted-vs-changed`, `dangling-reference`).
+  `merge-notice` (`conflicts[]`: `both-changed`, `deleted-vs-changed`, `dangling-reference`), `settings-changed` e `error`
+  (`code`, `message`). O `error` com `code: "merge-failed"` não é erro comum: a mudança do arquivo deu, ao ser mesclada, um
+  projeto inválido, e o editor **para de salvar** até o próximo `external-change` (o documento segue na revisão anterior, para
+  o `save` não apagar a mudança do arquivo). A ponte o entrega a `onMergeFailed` (sem `onError`); o nó mostra um aviso fixo
+  (`role="alert"`, `data-cardinal-merge-failed`) que some quando um `saved` chega ou o editor recarrega. Fechar o editor e
+  abrir de novo relê o arquivo e volta a salvar, ao custo da edição não gravada.
 - **Do painel ao editor:** `load` (`rev`, `readOnly`, bytes), `saved` (`rev`), `save-rejected` (`currentRev`, depois de um 409),
   `external-change` (`rev` + bytes do arquivo atual; o editor é quem mescla), `set-readonly`, `request-export`.
 - **Somente leitura:** quando o `format` do arquivo é maior que o do `ready`, o `load` leva `readOnly: true`.

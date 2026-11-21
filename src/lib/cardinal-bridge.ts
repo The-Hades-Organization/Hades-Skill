@@ -69,6 +69,8 @@ export interface BridgeDeps {
   onDirty?(dirty: boolean): void;
   onSaved?(rev: string): void;
   onMergeNotice?(conflicts: MergeConflict[]): void;
+  /** O editor não conseguiu juntar a mudança do arquivo à edição (`error` com `code: "merge-failed"`): ele para de salvar até a próxima mudança do arquivo. */
+  onMergeFailed?(): void;
   /** Erro vindo do editor (`error`) ou do próprio painel (`panel_*`). */
   onError?(code: string, message: string): void;
   /** Relógio injetável: o teste não espera 30 s. */
@@ -116,6 +118,7 @@ export const isFromFrame = (event: { source?: unknown }, frameWindow: unknown): 
 
 const CONFLICT_KINDS = new Set(["both-changed", "deleted-vs-changed", "dangling-reference"]);
 const STALE = "cardinal_stale_revision";
+const MERGE_FAILED_CODE = "merge-failed";
 
 const conflictsOf = (value: unknown): MergeConflict[] => {
   if (!Array.isArray(value)) return [];
@@ -289,6 +292,7 @@ export function createBridge(deps: BridgeDeps): Bridge {
           return;
         }
         case "error":
+          if (data.code === MERGE_FAILED_CODE) return deps.onMergeFailed?.();
           return deps.onError?.(typeof data.code === "string" ? data.code : "unknown", typeof data.message === "string" ? data.message : "");
         default:
       }

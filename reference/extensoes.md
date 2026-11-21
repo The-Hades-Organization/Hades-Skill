@@ -170,9 +170,11 @@ O padrão é `cardinal` desde a unidade 17: quem liga a extensão e tem o binár
 existentes seguem intactos; com o motor `cardinal` aparecem como "motor do Hades desligado" e a ferramenta **Desenho** do canvas
 cria nós `cardinal` (`reference/argos.md` §Nó cardinal, "Motor aplicado").
 
-Onde aparece: `GET /api/extensions` ganha `drawingEngine: {configured, effective, usable, reason}`; `GET /api/config` ganha o
+Onde aparece: `GET /api/extensions` ganha `drawingEngine: {configured, effective, usable, reason, warn}`; `GET /api/config` ganha o
 mesmo em `engine` e **omite** o item `HADES_DRAWING_ENGINE` enquanto o Cardinal não está utilizável (o item continua visível se
-o dono já o mudou do padrão, para poder voltar). A página Extensões mostra o aviso quando se pediu `cardinal` e o efetivo é `hades`.
+o dono já o mudou do padrão, para poder voltar). A página Extensões mostra o aviso quando `warn` é verdadeiro: se pediu `cardinal`, o efetivo é `hades` e a extensão
+está **ligada** (binário ou versão com problema). Com a extensão desligada ou ausente o aviso some, porque o seletor
+só faz sentido com ela ligada e nada ali está quebrado.
 O julgamento roda o binário, por isso fica em cache por 10 s.
 
 ## Extensão mínima de exemplo

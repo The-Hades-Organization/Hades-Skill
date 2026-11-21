@@ -99,6 +99,17 @@ describe("motor efetivo", () => {
     expect(v).toMatchObject({ effective: "hades", usable: false });
     expect(v.reason?.code).toBe(ENGINE_REASONS.extensionOff);
   });
+  describe("aviso na página Extensões (warn)", () => {
+    test("extensão desligada: sem aviso", () => expect(judgeEngine(cfg("cardinal"), status({ enabled: false }), true).warn).toBe(false));
+    test("manifesto ausente: sem aviso", () => expect(judgeEngine(cfg("cardinal"), undefined, true).warn).toBe(false));
+    test("ligada com binário quebrado e sem build web: avisa", () => {
+      expect(judgeEngine(cfg("cardinal"), status({ installed: false, path: null, version: null, problems: [missing] }), false).warn).toBe(true);
+    });
+    test("ligada e saudável: sem aviso", () => expect(judgeEngine(cfg("cardinal"), status(), false).warn).toBe(false));
+    test("hades explícito: sem aviso, mesmo com a extensão quebrada", () => {
+      expect(judgeEngine(cfg("hades"), status({ installed: false, path: null, version: null, problems: [missing] }), false).warn).toBe(false);
+    });
+  });
   test("manifesto ausente", () => {
     expect(judgeEngine(cfg("cardinal"), undefined, true).reason?.code).toBe(ENGINE_REASONS.extensionMissing);
   });
@@ -141,7 +152,7 @@ describe("motor efetivo", () => {
 
 describe("seletor nas Configurações", () => {
   const item = (key: string, changed = false): Effective => ({ key, default: "hades", type: "enum:hades,cardinal", group: "Extensões", label: key, apply: "next", desc: "", value: changed ? "cardinal" : "hades", changed });
-  const view = (usable: boolean) => ({ configured: "hades" as const, effective: "hades" as const, usable, reason: null });
+  const view = (usable: boolean) => ({ configured: "hades" as const, effective: "hades" as const, usable, reason: null, warn: false });
   const keys = (engine: ReturnType<typeof view>, changed = false): string[] => visibleItems([item("HADES_CARDINAL_BIN"), item("HADES_DRAWING_ENGINE", changed)], engine).map((i) => i.key);
 
   test("some sem a extensão saudável, as outras chaves ficam", () => expect(keys(view(false))).toEqual(["HADES_CARDINAL_BIN"]));

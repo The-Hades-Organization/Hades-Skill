@@ -29,6 +29,8 @@ export interface EngineView {
   usable: boolean;
   /** por que o Cardinal não vale agora; null quando vale */
   reason: EngineReason | null;
+  /** vale avisar o dono: ele tem a extensão ligada e o Cardinal mesmo assim não vale. Desligada ou ausente não é problema, é escolha. */
+  warn: boolean;
 }
 
 /** Padrão `cardinal` (decisão do dono, U17): só `hades` explícito mantém o Desenho antigo. Sem extensão utilizável o efetivo cai para `hades`. */
@@ -47,7 +49,9 @@ export function judgeEngine(config: ReadonlyMap<string, string>, status: Extensi
     reason = problem === undefined ? { code: "ext.binary-missing", message: "binário do cardinal não encontrado" } : { code: problem.code, message: problem.message };
   }
   const usable = reason === null;
-  return { configured, effective: configured === "cardinal" && usable ? "cardinal" : "hades", usable, reason };
+  const effective = configured === "cardinal" && usable ? "cardinal" : "hades";
+  const extensionAvailable = status !== undefined && status.enabled;
+  return { configured, effective, usable, reason, warn: configured === "cardinal" && effective === "hades" && extensionAvailable };
 }
 
 /** A pasta do build web tem o index.html? Valor vazio = não configurado. */

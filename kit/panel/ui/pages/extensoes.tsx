@@ -104,7 +104,7 @@ function Extensoes({ d }) {
         <I.Eye className="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
         <span><span className="font-medium">Só leitura pelo acesso remoto.</span><span className="text-muted-foreground"> Ligar e desligar só pelo painel local.</span></span>
       </p> : null}
-      {x.drawingEngine && x.drawingEngine.configured === 'cardinal' && x.drawingEngine.effective === 'hades' ? <p role="status" className="flex items-start gap-2 t-body">
+      {x.drawingEngine && x.drawingEngine.warn ? <p role="status" className="flex items-start gap-2 t-body">
         <I.TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden="true" />
         <span><span className="font-medium">Motor de desenho: hades.</span> <span className="text-muted-foreground">{x.drawingEngine.reason ? x.drawingEngine.reason.message : 'o Cardinal não está disponível'}</span>{x.drawingEngine.reason ? <>{' '}<Mono className="text-muted-foreground">{x.drawingEngine.reason.code}</Mono></> : null}</span>
       </p> : null}

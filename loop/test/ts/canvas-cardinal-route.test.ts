@@ -11,7 +11,7 @@ import {
   readCardinalData, readEnvelope,
 } from "../../../src/lib/canvas-cardinal";
 import { OWNER } from "../../../src/lib/canvas-note";
-import { CARDINAL_BODY_BYTES, CARDINAL_ROUTE_ERRORS, createCanvasCardinalRoutes, revisionOf } from "../../../src/panel/canvas-cardinal";
+import { CARDINAL_BODY_BYTES, CARDINAL_ROUTE_ERRORS, CARDINAL_SETTINGS_BYTES, createCanvasCardinalRoutes, revisionOf } from "../../../src/panel/canvas-cardinal";
 import { createCardinalWatch } from "../../../src/panel/cardinal-watch";
 import { createCanvasHub } from "../../../src/panel/canvas-stream";
 
@@ -402,6 +402,69 @@ describe("canvas-cardinal-route: imagem do editor (artifact)", () => {
     const { post, rev } = await withNode();
     const res = await post({ format: "svg", rev, data: SVG, as: { agent: "t1" } });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("canvas-cardinal-route: preferências do editor embutido (settings)", () => {
+  const SETTINGS = `${BASE}settings`;
+  const readSettings = (r: ReturnType<typeof fresh>, caller = local): Promise<Response> => r.routes.get(SETTINGS, {}, caller) as Promise<Response>;
+  const writeSettings = (r: ReturnType<typeof fresh>, body: unknown, caller = local): Promise<Response> => r.routes.write(SETTINGS, req(SETTINGS, body), caller) as Promise<Response>;
+
+  test("sem nada guardado, devolve texto vazio", async () => {
+    const r = fresh();
+    const res = await readSettings(r);
+    expect(res.status).toBe(200);
+    expect(await json(res)).toEqual({ text: "" });
+  });
+
+  test("grava o texto como veio (opaco) e o devolve igual; uma gravação nova substitui a anterior", async () => {
+    const r = fresh();
+    const text = '{"theme":"dark","novo":{"campo":[1,2]},"onboarded":true}';
+    expect((await writeSettings(r, { text })).status).toBe(200);
+    expect(await json(await readSettings(r))).toEqual({ text });
+    expect((await writeSettings(r, { text: "{}" })).status).toBe(200);
+    expect(await json(await readSettings(r))).toEqual({ text: "{}" });
+  });
+
+  test("é por painel, não por nó: o mesmo texto serve a qualquer canvas, e o arquivo é 0600 na pasta de dados do painel", async () => {
+    const r = fresh({ default: DOC, outro: DOC });
+    await writeSettings(r, { text: "abc" });
+    const file = join(r.dir, ".settings.json");
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    expect(readdirSync(r.dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
+    expect(await json(await readSettings(r))).toEqual({ text: "abc" });
+  });
+
+  test("o arquivo de preferências não aparece na lista de diagramas", async () => {
+    const r = fresh();
+    await writeSettings(r, { text: "abc" });
+    const res = r.routes.list({});
+    expect(((await json(res)).files as unknown[]).length).toBe(0);
+  });
+
+  test("corpo inválido: 400; texto acima do teto: 413; nada é gravado", async () => {
+    const r = fresh();
+    for (const bad of ["nao json", "[]", { text: 1 }, {}]) expect((await writeSettings(r, bad)).status).toBe(400);
+    const big = await writeSettings(r, { text: "x".repeat(CARDINAL_SETTINGS_BYTES + 1) });
+    expect(big.status).toBe(413);
+    expect(await json(big)).toMatchObject({ code: CARDINAL_ROUTE_ERRORS.tooLarge });
+    expect(await json(await readSettings(r))).toEqual({ text: "" });
+    expect((await writeSettings(r, { text: "x".repeat(CARDINAL_SETTINGS_BYTES) })).status).toBe(200);
+  });
+
+  test("arquivo ilegível no disco: 500 cardinal_unreadable, não texto vazio", async () => {
+    const r = fresh();
+    mkdirSync(r.dir, { recursive: true });
+    writeFileSync(join(r.dir, ".settings.json"), "não é json");
+    const res = await readSettings(r);
+    expect(res.status).toBe(500);
+    expect(await json(res)).toMatchObject({ code: CARDINAL_ROUTE_ERRORS.unreadable });
+  });
+
+  test("a rota vale também pelo acesso remoto: a página pai fala por ela", async () => {
+    const r = fresh();
+    expect((await writeSettings(r, { text: "r" }, remote)).status).toBe(200);
+    expect(await json(await readSettings(r, remote))).toEqual({ text: "r" });
   });
 });
 

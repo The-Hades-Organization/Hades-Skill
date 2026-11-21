@@ -242,6 +242,15 @@ describe("cardinal e2e: sem binário e sem build web", () => {
     expect((await fetch(`${rig.base}/ext/cardinal/web/index.html`)).status).toBeGreaterThanOrEqual(400);
   });
 
+  test("preferências do editor: o painel guarda o texto e a ponte o devolve no load seguinte, de qualquer nó", async () => {
+    const text = '{"theme":"dark","onboarded":true}';
+    expect(await clientFor("c1").settings()).toBe("");
+    const first = mount("c1");
+    first.bridge.handle({ cardinal: BRIDGE_PROTOCOL, type: "settings-changed", settings: text });
+    await until(() => existsSync(join(rig.D, "canvas-cardinal", ".settings.json")));
+    expect(await clientFor("c2").settings()).toBe(text);
+  });
+
   test("convert recusa com cardinal_unavailable (503), nada é criado", async () => {
     const res = await post("/api/canvas-cardinal/convert", { from: "text", text: LOJA });
     expect(res.status).toBe(503);

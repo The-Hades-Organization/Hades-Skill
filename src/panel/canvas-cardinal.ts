@@ -43,6 +43,10 @@ const PARSE_ERRORS_MAX = 50;
 const SVG_TYPE = "image/svg+xml";
 const PNG_TYPE = "image/png";
 const INDEX_FILE = ".index.json";
+/** Preferências do editor embutido: um texto opaco por painel (o iframe sandbox não tem `localStorage`). */
+const SETTINGS_FILE = ".settings.json";
+const SETTINGS_LEAF = "settings";
+export const CARDINAL_SETTINGS_BYTES = 64 * 1024;
 /** Linguagens de entrada de `cardinal convert --from` que a rota aceita (`nosql` e os formatos de outros programas ficam de fora). */
 const CONVERT_SOURCES: readonly string[] = ["text", "mermaid", "prisma", "sql"];
 const INDEX_VERSION = 1;
@@ -96,9 +100,9 @@ export interface CardinalFileRef {
 }
 
 export interface CardinalRoutes {
-  /** `GET /api/canvas-cardinal/<canvas>[/<nó>]`; `undefined` fora da família. */
+  /** `GET /api/canvas-cardinal/<canvas>[/<nó>]` e `GET /api/canvas-cardinal/settings` (preferências do editor); `undefined` fora da família. */
   get(path: string, query: Readonly<Record<string, string>>, caller: CardinalCaller): Promise<Response> | undefined;
-  /** `PUT /api/canvas-cardinal/<canvas>/<nó>`; `undefined` fora da família. */
+  /** `PUT /api/canvas-cardinal/<canvas>/<nó>` e `PUT /api/canvas-cardinal/settings {text}`; `undefined` fora da família. */
   write(path: string, req: Request, caller: CardinalCaller): Promise<Response> | undefined;
   /** `GET /api/canvas-cardinal?limit=&after=`: os arquivos conhecidos, por nome, em páginas (dono). */
   list(query: Readonly<Record<string, string>>): Response;
@@ -319,6 +323,55 @@ export function createCanvasCardinalRoutes(dir: string, deps: CardinalDeps): Car
     }
     if (caller.remote) return refusal(FORBIDDEN_STATUS, CARDINAL_ROUTE_ERRORS.agentLocalOnly);
     return { agent: id };
+  }
+
+  // ---- preferências do editor: o texto que o Cardinal entrega em `settings-changed`, guardado como veio ----
+
+  const settingsPath = join(folder, SETTINGS_FILE);
+
+  function readSettings(): Response {
+    let raw: string;
+    try {
+      raw = readFileSync(settingsPath, "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return send(OK_STATUS, { text: "" });
+      return failure(new Unreadable("preferências não abrem"));
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return failure(new Unreadable("preferências não são JSON"));
+    }
+    if (!isDict(parsed) || typeof parsed.text !== "string") return failure(new Unreadable("preferências fora do formato"));
+    return send(OK_STATUS, { text: parsed.text });
+  }
+
+  async function writeSettings(req: Request): Promise<Response> {
+    try {
+      const raw = await readBody(req, CARDINAL_SETTINGS_BYTES * 2 + 1024);
+      if (!raw) throw new Refused(TOO_LARGE_STATUS, CARDINAL_ROUTE_ERRORS.tooLarge);
+      let body: unknown;
+      try {
+        body = JSON.parse(new TextDecoder().decode(raw));
+      } catch {
+        throw new Refused(INVALID_STATUS, CARDINAL_ROUTE_ERRORS.invalidBody);
+      }
+      if (!isDict(body) || typeof body.text !== "string") throw new Refused(INVALID_STATUS, CARDINAL_ROUTE_ERRORS.invalidBody);
+      if (new TextEncoder().encode(body.text).length > CARDINAL_SETTINGS_BYTES) throw new Refused(TOO_LARGE_STATUS, CARDINAL_ROUTE_ERRORS.tooLarge);
+      mkdirSync(folder, { recursive: true });
+      const tmp = `${settingsPath}.tmp`;
+      try {
+        writeFileSync(tmp, JSON.stringify({ v: 1, text: body.text }), { mode: FILE_MODE });
+        renameSync(tmp, settingsPath);
+      } catch (error) {
+        rmSync(tmp, { force: true });
+        throw error;
+      }
+      return send(OK_STATUS, { ok: true });
+    } catch (error) {
+      return failure(error);
+    }
   }
 
   const segments = (path: string): string[] | undefined => (path.startsWith(BASE) ? path.slice(BASE.length).split("/") : undefined);
@@ -853,6 +906,7 @@ export function createCanvasCardinalRoutes(dir: string, deps: CardinalDeps): Car
     get(path, query, caller) {
       const parts = segments(path);
       if (!parts || parts.length === 0 || parts.length > 3 || parts.some((part) => part === "")) return undefined;
+      if (parts.length === 1 && parts[0] === SETTINGS_LEAF) return Promise.resolve(readSettings());
       const [canvasId, nodeId, leaf] = parts as [string, string | undefined, string | undefined];
       if (leaf === undefined) return read(canvasId, nodeId, query, caller);
       if (leaf === "describe") return describe(canvasId, nodeId as string, query, caller);
@@ -865,6 +919,7 @@ export function createCanvasCardinalRoutes(dir: string, deps: CardinalDeps): Car
       const parts = segments(path);
       if (!parts) return undefined;
       if (req.method !== "PUT") return Promise.resolve(send(NOT_FOUND_STATUS, { error: "not found" }));
+      if (parts.length === 1 && parts[0] === SETTINGS_LEAF) return writeSettings(req);
       if (parts.length !== 2 || parts.some((part) => part === "")) return Promise.resolve(notFound());
       return put(parts[0] as string, parts[1] as string, req, caller);
     },

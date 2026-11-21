@@ -47,6 +47,10 @@ export interface BridgeApi {
   write(bytes: Uint8Array, baseRev: string): Promise<WriteResult>;
   /** Grava a imagem do editor ao lado do arquivo, carimbada com `rev` (`/artifact`). */
   storeImage(format: ImageFormat, bytes: Uint8Array, rev: string): Promise<{ ok: true } | { ok: false; code: string }>;
+  /** As preferências do editor guardadas pelo painel (texto opaco); `""` quando não há ou a leitura falhou: o editor abre com os padrões. */
+  settings(): Promise<string>;
+  /** Guarda o texto de `settings-changed`, como veio. */
+  saveSettings(text: string): Promise<{ ok: true } | { ok: false; code: string }>;
 }
 
 export type ImageFormat = "svg" | "png";
@@ -179,7 +183,7 @@ export function createBridge(deps: BridgeDeps): Bridge {
   async function load(): Promise<void> {
     changedWhileLoading = false;
     move("loading");
-    const read = await deps.api.read();
+    const [read, settings] = await Promise.all([deps.api.read(), deps.api.settings()]);
     if (closed) return;
     const again = changedWhileLoading;
     changedWhileLoading = false;
@@ -192,7 +196,7 @@ export function createBridge(deps: BridgeDeps): Bridge {
     setDirty(false);
     // arquivo de formato maior que o do editor: abrir só para ler; gravar por cima perderia o que ele não entende
     readOnly = (deps.readOnly ?? false) || tooNew(read);
-    send("load", { rev: read.rev, readOnly }, read.bytes);
+    send("load", { rev: read.rev, readOnly, settings }, read.bytes);
     loaded = true;
     move(readOnly ? "readonly" : "ready", readOnly && tooNew(read) ? "format_too_new" : undefined);
     if (again) enqueue(() => sync(false));
@@ -273,6 +277,15 @@ export function createBridge(deps: BridgeDeps): Bridge {
         case "merge-notice": {
           const conflicts = conflictsOf(data.conflicts);
           if (conflicts.length > 0) deps.onMergeNotice?.(conflicts);
+          return;
+        }
+        case "settings-changed": {
+          if (typeof data.settings !== "string") return deps.onError?.("panel_invalid_settings", "settings-changed sem o texto das preferências");
+          const text = data.settings;
+          enqueue(async () => {
+            const saved = await deps.api.saveSettings(text);
+            if (!saved.ok && !closed) deps.onError?.(saved.code, "as preferências do editor não foram gravadas");
+          });
           return;
         }
         case "error":
@@ -562,11 +575,14 @@ export async function prepareDiagram(fetchJson: ClientFetch, usedNames: Iterable
 }
 
 /** Cliente das rotas `/api/canvas-cardinal/<canvas>/<nó>` para a ponte. Nunca rejeita: falha de rede, prazo e resposta fora do contrato viram código. */
+/** As preferências do editor são do painel, não de um nó. */
+const SETTINGS_URL = "/api/canvas-cardinal/settings";
+
 export function createCardinalClient(deps: CardinalClientDeps): BridgeApi & CardApi {
   const base = `/api/canvas-cardinal/${encodeURIComponent(deps.canvasId)}/${encodeURIComponent(deps.nodeId)}`;
   const timeoutMs = deps.timeoutMs ?? CLIENT_TIMEOUT_MS;
 
-  async function call(path: string, init: { method: string; body?: unknown }): Promise<{ status: number; body: Dict } | { code: string }> {
+  async function call(path: string, init: { method: string; body?: unknown }, root: string = base): Promise<{ status: number; body: Dict } | { code: string }> {
     const controller = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => {
@@ -575,7 +591,7 @@ export function createCardinalClient(deps: CardinalClientDeps): BridgeApi & Card
     }, timeoutMs);
     try {
       const headers = init.body === undefined ? undefined : { "content-type": "application/json" };
-      const res = await deps.fetch(`${base}${path}`, { method: init.method, headers, body: init.body === undefined ? undefined : JSON.stringify(init.body), signal: controller.signal });
+      const res = await deps.fetch(`${root}${path}`, { method: init.method, headers, body: init.body === undefined ? undefined : JSON.stringify(init.body), signal: controller.signal });
       const body = await res.json();
       return isDict(body) ? { status: res.status, body } : { code: CLIENT_CODES.badResponse };
     } catch {
@@ -624,6 +640,15 @@ export function createCardinalClient(deps: CardinalClientDeps): BridgeApi & Card
       const { body } = res;
       if (res.status === 200 && typeof body.rev === "string") return { ok: true, rev: body.rev };
       return { ok: false, code: codeOf(body), rev: typeof body.rev === "string" ? body.rev : null };
+    },
+    async settings() {
+      const res = await call("", { method: "GET" }, SETTINGS_URL);
+      return !("code" in res) && res.status === 200 && typeof res.body.text === "string" ? res.body.text : "";
+    },
+    async saveSettings(text) {
+      const res = await call("", { method: "PUT", body: { text } }, SETTINGS_URL);
+      if ("code" in res) return { ok: false, code: res.code };
+      return res.status === 200 ? { ok: true } : { ok: false, code: codeOf(res.body) };
     },
     async storeImage(format, bytes, rev) {
       const data = format === "svg" ? new TextDecoder().decode(bytes) : toBase64(bytes);

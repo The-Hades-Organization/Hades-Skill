@@ -20,6 +20,7 @@ function rig(initial: Partial<FileRead> & { text?: string } = {}) {
   const events: string[] = [];
   const timers: { fn: () => void; ms: number; live: boolean }[] = [];
   let writes = 0;
+  const prefs: { text: string; saved: string[]; fail: boolean } = { text: "", saved: [], fail: false };
   /** Segura a resposta da próxima leitura (o resultado já está decidido quando ela parte), como a rede faz. */
   let hold: Promise<void> | undefined;
   const holdRead = (): (() => void) => {
@@ -46,6 +47,13 @@ function rig(initial: Partial<FileRead> & { text?: string } = {}) {
       file.rev = `r${writes + 1}`;
       return { ok: true, rev: file.rev };
     },
+    async settings() {
+      return prefs.text;
+    },
+    async saveSettings(text) {
+      prefs.saved.push(text);
+      return prefs.fail ? { ok: false, code: "cardinal_unreadable" } : { ok: true };
+    },
     async storeImage(format, bytes, rev) {
       if (rev !== file.rev) return { ok: false, code: "cardinal_stale_revision" };
       stored.push({ format, text: dec.decode(bytes), rev });
@@ -71,7 +79,7 @@ function rig(initial: Partial<FileRead> & { text?: string } = {}) {
   const tick = async (): Promise<void> => { for (let i = 0; i < 8; i++) await Promise.resolve(); await new Promise((r) => setTimeout(r, 0)); };
   const fromEditor = (message: Record<string, unknown>, text?: string): void => bridge.handle({ cardinal: BRIDGE_PROTOCOL, ...message, ...(text === undefined ? {} : { bytes: buf(text) }) });
   const types = (): string[] => sent.map((s) => s.message.type as string);
-  return { file, sent, stored, events, timers, bridge, tick, fromEditor, types, holdRead, writes: () => writes };
+  return { prefs, file, sent, stored, events, timers, bridge, tick, fromEditor, types, holdRead, writes: () => writes };
 }
 
 const ready = (format = 2): Record<string, unknown> => ({ type: "ready", protocol: 1, app: "cardinal 0.1.0", format });
@@ -86,6 +94,37 @@ describe("cardinal-bridge: abrir", () => {
     expect(r.sent[0]?.text).toBe("v1");
     expect(r.bridge.state()).toBe("ready");
     expect(r.bridge.rev()).toBe("r1");
+  });
+
+  test("load leva as preferências que o painel guardou, como vieram; sem nenhuma, texto vazio", async () => {
+    const stored = '{"theme":"dark","onboarded":true}';
+    const r = rig();
+    r.prefs.text = stored;
+    r.fromEditor(ready());
+    await r.tick();
+    expect(r.sent[0]?.message.settings).toBe(stored);
+    const fresh = rig();
+    fresh.fromEditor(ready());
+    await fresh.tick();
+    expect(fresh.sent[0]?.message.settings).toBe("");
+  });
+
+  test("settings-changed grava o texto inteiro, sem interpretar, e uma falha vira erro sem derrubar o editor", async () => {
+    const r = rig();
+    r.fromEditor(ready());
+    await r.tick();
+    r.fromEditor({ type: "settings-changed", settings: '{"theme":"light","extra":1}' });
+    await r.tick();
+    expect(r.prefs.saved).toEqual(['{"theme":"light","extra":1}']);
+    r.prefs.fail = true;
+    r.fromEditor({ type: "settings-changed", settings: "{}" });
+    await r.tick();
+    expect(r.events).toContain("error:cardinal_unreadable");
+    expect(r.bridge.state()).toBe("ready");
+    r.fromEditor({ type: "settings-changed" });
+    await r.tick();
+    expect(r.events).toContain("error:panel_invalid_settings");
+    expect(r.prefs.saved).toHaveLength(2);
   });
 
   test("format do arquivo maior que o do ready → readOnly:true e estado só leitura", async () => {
@@ -542,6 +581,21 @@ describe("cardinal-bridge: cliente das rotas", () => {
     expect(await c.api.write(enc.encode("novo"), "r1")).toEqual({ ok: true, rev: "r2" });
     expect(c.calls[1]?.body).toEqual({ text: "novo", rev: "r1" });
     expect(await c.api.write(enc.encode("novo"), "r0")).toEqual({ ok: false, code: "cardinal_stale_revision", rev: "r9" });
+  });
+
+  test("settings e saveSettings falam com a rota do painel, não com a do nó; falha de leitura vira texto vazio", async () => {
+    const c = client((call) => (call.method === "GET" ? { status: 200, body: { text: '{"a":1}' } } : { status: 200, body: { ok: true } }));
+    expect(await c.api.settings()).toBe('{"a":1}');
+    expect(await c.api.saveSettings('{"a":2}')).toEqual({ ok: true });
+    expect(c.calls).toEqual([
+      { url: "/api/canvas-cardinal/settings", method: "GET", body: undefined },
+      { url: "/api/canvas-cardinal/settings", method: "PUT", body: { text: '{"a":2}' } },
+    ]);
+    const bad = client(() => ({ status: 500, body: { code: "cardinal_unreadable" } }));
+    expect(await bad.api.settings()).toBe("");
+    expect(await bad.api.saveSettings("{}")).toEqual({ ok: false, code: "cardinal_unreadable" });
+    const down = client(() => new Error("rede"));
+    expect(await down.api.settings()).toBe("");
   });
 
   test("storeImage: SVG como texto, PNG em base64, para /artifact", async () => {

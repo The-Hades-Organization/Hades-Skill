@@ -9,6 +9,13 @@ hades moirai history [--json]
 hades moirai estimate <plan.md> [--write] [--deep] [--json] [--mode skill|projeto]
 ```
 
+## Implementação em Rust (`HADES_MOIRAI_IMPL`)
+
+Padrão `ts`: nada muda. Com `HADES_MOIRAI_IMPL=rust` (Configurações, grupo Orquestração) o `hades moirai ...` delega ao binário
+`moirai`: o de `HADES_MOIRAI_BIN`, senão o do PATH. Argumentos, stdin, stdout, stderr e código de saída passam sem mudança.
+Sem o binário o comando falha com a mensagem e o código 69 (dependência ausente), sem voltar ao TS em silêncio; valor fora de
+`ts|rust` sai com 2. O watch, o painel e o Argos seguem com a lib TS; só o `hades moirai` troca de implementação.
+
 ## Histórico (`history`)
 
 Uma linha por unidade **encerrada** (`state` done ou archived) de qualquer raiz de trabalho

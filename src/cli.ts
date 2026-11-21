@@ -2,9 +2,28 @@
 // CLI `hades`: roteador de subcomandos. Cada subcomando é um módulo em src/commands/, carregado só quando é chamado.
 // Os scripts antigos da skill são wrappers que delegam aqui (lib.sh hades_ts) e mantêm caminho, argumentos, saída e
 // código de saída até a 5.0.0.
-import { EXIT, HadesError } from "./lib/output.ts";
+import { spawnSync } from "node:child_process";
+import { EXIT, HadesError, die } from "./lib/output.ts";
 
 type Command = (args: string[]) => number | Promise<number>;
+
+/** `HADES_MOIRAI_IMPL=rust`: o `hades moirai` vira o binário `moirai` (HADES_MOIRAI_BIN, senão o do PATH), com stdio e código repassados. */
+async function moiraiLoader(): Promise<Command> {
+  const { configValue } = await import("./lib/work.ts");
+  const impl = configValue("HADES_MOIRAI_IMPL", "ts");
+  if (impl === "ts") return (await import("./commands/moirai.ts")).moiraiCommand;
+  if (impl !== "rust") die(`HADES_MOIRAI_IMPL=${impl} inválido: use ts ou rust`, EXIT.usage);
+  const { which } = await import("./lib/proc.ts");
+  const bin = configValue("HADES_MOIRAI_BIN", "") || which("moirai");
+  if (!bin) {
+    die("HADES_MOIRAI_IMPL=rust, mas o binário `moirai` não está no PATH nem em HADES_MOIRAI_BIN. Instale-o ou volte a HADES_MOIRAI_IMPL=ts.", EXIT.missingDependency);
+  }
+  return (args) => {
+    const r = spawnSync(bin, args, { stdio: "inherit" });
+    if (r.error) die(`não consegui executar ${bin}: ${r.error.message}`, EXIT.missingDependency);
+    return r.status ?? EXIT.fail;
+  };
+}
 
 const commands: Record<string, () => Promise<Command>> = {
   install: async () => (await import("./commands/install.ts")).installCommand,
@@ -55,7 +74,7 @@ const commands: Record<string, () => Promise<Command>> = {
   thanatos: async () => (await import("./commands/thanatos.ts")).thanatosCommand,
   "ux-audit": async () => (await import("./commands/ux-audit.ts")).uxAuditCommand,
   provider: async () => (await import("./commands/provider.ts")).providerCommand,
-  moirai: async () => (await import("./commands/moirai.ts")).moiraiCommand,
+  moirai: moiraiLoader,
   caronte: async () => (await import("./commands/caronte.ts")).caronteCommand,
   canvas: async () => (await import("./commands/canvas.ts")).canvasCommand,
   minos: async () => (await import("./commands/minos.ts")).minosCommand,

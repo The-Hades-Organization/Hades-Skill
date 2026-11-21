@@ -8,6 +8,7 @@ import { join, resolve } from "node:path";
 import { type CanvasDoc, type CanvasNode, readCanvasDoc } from "../lib/canvas-doc.ts";
 import { applyOp, type CanvasOp } from "../lib/canvas-history.ts";
 import { areaReport } from "../lib/canvas-areas.ts";
+import { areaOfNode, argosContext } from "../lib/canvas-context.ts";
 import { OrganizeError, organizeCanvas, organizeOp, organizeSummary, parseAreaRules } from "../lib/canvas-organize.ts";
 import { canReadDrawing, canWriteDrawing, DrawingError, isDrawingNode, readableDrawingsOf, readDrawingTitle, sceneOfNodeSafe } from "../lib/canvas-drawing.ts";
 import { LinkError } from "../lib/canvas-links.ts";
@@ -42,6 +43,8 @@ export const USAGE = `Uso: hades canvas <subcomando> [--canvas <id>]
   drawing remove <d> <elemento>               apaga (conector preso fica no lugar)
   drawing text <d> <elemento> <texto>         troca o texto de um elemento de texto
   drawing export <d> --svg                    imagem SVG do desenho na saída padrão
+  context [--rules]                           onde o seu terminal está no Argos: canvas, área, papel, notas, equipe
+                                              e Configurações (--rules: com os comandos e as regras da Hades)
   area list                                   áreas do canvas e quem está em cada uma (somente leitura)
   organize [--dry-run]                        reorganiza o canvas em áreas por orquestrador (--canvas: padrão "default";
                                               --dry-run imprime áreas, medidas e FORA sem gravar)
@@ -59,7 +62,8 @@ export const USAGE = `Uso: hades canvas <subcomando> [--canvas <id>]
   dismiss <recruta>                           (orquestrador) fecha o terminal do recruta
   notify <texto>                              notificação ao dono
   join [--pane p] [--name n] [--role r] [--to <orquestrador>] [--note <nota>]…
-                                              traz para o canvas um terminal do herdr que não nasceu nele (sem --pane, o seu)
+                                              traz para o canvas um terminal do herdr que não nasceu nele (sem --pane, o seu,
+                                              e imprime o contexto com as regras, como context --rules)
   leave [--pane p]                            tira o terminal do canvas sem fechar o processo`;
 
 /** Códigos estáveis da CLI (só ganham valores); os de recrutamento vêm de `RECRUIT_ERRORS`. */
@@ -154,6 +158,8 @@ export interface CanvasCliDeps {
   prReady?(): PrReadyValues;
   /** O texto do `canvas-areas.json` da instância (`$D`), ou `undefined` sem o arquivo (sem sub-áreas). */
   areaRules?(): string | undefined;
+  /** O texto fixo do contexto do Argos (`$D/panel/argos/argos-context.md`), ou `undefined` sem o arquivo. */
+  argosRules?(): string | undefined;
   /** `notify.sh send agent info <texto> --obj <nome>` da instância. */
   notify(text: string, obj: string): Promise<{ rc: number; err: string }>;
   out(text: string): void;
@@ -168,7 +174,7 @@ interface Parsed {
 }
 
 const VALUE_FLAGS = new Set(["canvas", "name", "role", "preset", "agent", "model", "effort", "cwd", "instructions", "note", "prompt", "pane", "to", "text", "title", "link-to", "new-note", "x", "y", "w", "h", "from", "to", "points", "fill", "stroke", "width", "size", "id", "from-json"]);
-const BOOL_FLAGS = new Set(["only", "append", "no-role", "no-instructions", "json", "svg", "dry-run"]);
+const BOOL_FLAGS = new Set(["only", "append", "no-role", "no-instructions", "json", "svg", "dry-run", "rules"]);
 
 class UsageError extends Error {}
 
@@ -492,11 +498,30 @@ function identityOf(deps: CanvasCliDeps, doc: CanvasDoc, recruit: CanvasNode, or
   // o papel (ou o da predefinição, que o painel devolve em `data.role`) diz se o recruta abre PR
   const role = textField(data, "role") ?? null;
   const values = opensPr(role) ? deps.prReady?.() : undefined;
+  const area = areaOfNode(doc, recruit);
   return identityPrompt({
     name: nodeName(recruit), role, orchestrator: nodeName(orchestrator),
     notes: directNotesOf(doc, recruit.id).map((id) => noteName(doc, id)),
     ...(values !== undefined && { prReady: prReadyPromptBlock(values) }), ...(task !== undefined && { task }),
+    ...(area !== undefined && { area: area.title }),
   });
+}
+
+/** As linhas do contexto do terminal `node`; com `rules`, o texto fixo (comandos e regras da Hades) vem depois. */
+function contextOut(deps: CanvasCliDeps, canvas: string, doc: CanvasDoc, node: CanvasNode, rules: boolean): void {
+  const role = textField(isDict(node.data) ? node.data : {}, "role") ?? null;
+  const values = isOrchestrator(node) || opensPr(role) ? deps.prReady?.() : undefined;
+  for (const line of argosContext({ canvas, doc, node, ...(values !== undefined && { prReady: prReadyPromptBlock(values) }) })) deps.out(line);
+  if (!rules) return;
+  const fixed = deps.argosRules?.();
+  deps.out("");
+  deps.out(fixed?.trim() ? fixed.trimEnd() : "(o texto das regras não está na instalação: reinstale o kit)");
+}
+
+async function contextCommand(deps: CanvasCliDeps, at: Located, p: Parsed): Promise<number> {
+  const node = at.me.find((n) => n.type === "terminal") ?? (at.me[0] as CanvasNode);
+  contextOut(deps, at.canvas, at.doc, node, has(p, "rules"));
+  return EXIT.ok;
 }
 
 /** Modelo ou esforço que ninguém definiu (flag, papel, predefinição, Configurações): o terminal herda o settings.json do dono. */
@@ -719,6 +744,11 @@ async function joinCommand(deps: CanvasCliDeps, p: Parsed): Promise<number> {
   deps.out(placed.result.op === undefined
     ? `${nodeName(node)} já está no canvas ${at.canvas} (nó ${node.id}): nada a mudar`
     : `${nodeName(node)} ${placed.result.created ? "entrou no" : "atualizado no"} canvas ${at.canvas}: nó ${node.id}, pane ${target.pane}`);
+  // o processo que entrou sozinho não nasceu com o contexto do Argos no papel: ele chega pela saída do próprio join
+  if (!has(p, "pane")) {
+    deps.out("");
+    contextOut(deps, at.canvas, placed.doc, node, true);
+  }
   return EXIT.ok;
 }
 
@@ -940,7 +970,7 @@ const DRAWING_HANDLERS: Readonly<Record<string, Handler>> = {
   new: drawingNew, list: drawingList, read: drawingRead, add: drawingAdd, move: drawingMove, remove: drawingRemove, text: drawingText, export: drawingExport,
 };
 const AREA_HANDLERS: Readonly<Record<string, Handler>> = { list: areaList };
-const HANDLERS: Readonly<Record<string, Handler>> = { recruit, connect, reassign, dismiss, notify: notifyOwner };
+const HANDLERS: Readonly<Record<string, Handler>> = { recruit, connect, reassign, dismiss, notify: notifyOwner, context: contextCommand };
 
 /** Comandos que valem para um pane que ainda não é nó: não procuram o chamador no canvas. */
 const STANDALONE: Readonly<Record<string, (deps: CanvasCliDeps, p: Parsed) => Promise<number>>> = { join: joinCommand, leave, organize };
@@ -1051,6 +1081,10 @@ function realDeps(): CanvasCliDeps {
     },
     caller: () => callerTarget(process.env),
     prReady: () => prReadyValues(projectLabels()),
+    argosRules() {
+      const file = dir ? join(dir, "panel", "argos", "argos-context.md") : undefined;
+      return file !== undefined && existsSync(file) ? readFileSync(file, "utf8") : undefined;
+    },
     areaRules() {
       const file = dir ? join(dir, AREA_RULES_FILE) : undefined;
       return file !== undefined && existsSync(file) ? readFileSync(file, "utf8") : undefined;

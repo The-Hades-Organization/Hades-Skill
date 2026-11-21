@@ -119,6 +119,8 @@ export interface ArgosTerminalsDeps {
   log: (level: Level, event: string, fields?: Record<string, string | number | boolean | null>) => void;
   /** Instruções de gerente do orquestrador (D7); ausente lê `$D/panel/argos/orchestrator-role.md` da instalação. */
   managerText?: () => string;
+  /** Contexto do Argos que todo terminal de agente recebe; ausente lê `$D/panel/argos/argos-context.md` (sem o arquivo, nada entra). */
+  argosText?: () => string | undefined;
   /** O registro de terminais ($D/argos/terminals.json) mudou: o painel avisa as páginas abertas (stream do canvas). */
   onRegistryChange?: () => void;
   /** Os pares sessão/pane que algum canvas tem como nó `terminal` (`canvas.terminalPanes`); sem isso os órfãos não se conferem. */
@@ -406,9 +408,31 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
     return text;
   }
 
-  /** Blocos extras do system prompt: as instruções próprias e, no orquestrador, as de gerente. */
-  const extraOf = (instructions: string | undefined, orchestrator: boolean | undefined): string[] =>
-    [...(instructions !== undefined ? [instructions] : []), ...(orchestrator ? [managerText()] : [])];
+  /**
+   * O contexto do Argos (onde o terminal está, os comandos e as regras da Hades). Só entra no agente que recebe o papel por
+   * arquivo: no que só aceita argumento de uma linha, o texto de várias linhas recusaria a criação. Arquivo ausente ou vazio
+   * não recusa nada (a instalação antiga segue criando terminal): fica o aviso no log.
+   */
+  function argosText(agent: string): string | undefined {
+    if (!AGENT_KINDS[agent]?.systemPromptFile) return undefined;
+    let text: string | undefined;
+    try {
+      text = deps.argosText ? deps.argosText() : readFileSync(join(deps.dir, "panel", "argos", "argos-context.md"), "utf8");
+    } catch {
+      text = undefined;
+    }
+    if (text === undefined || text.trim() === "") {
+      deps.log("warn", "contexto do Argos ausente na instalação: o terminal sobe sem ele", { agente: agent });
+      return undefined;
+    }
+    return text;
+  }
+
+  /** Blocos extras do system prompt: o contexto do Argos, as instruções próprias e, no orquestrador, as de gerente. */
+  const extraOf = (agent: string, instructions: string | undefined, orchestrator: boolean | undefined): string[] => {
+    const argos = argosText(agent);
+    return [...(argos !== undefined ? [argos] : []), ...(instructions !== undefined ? [instructions] : []), ...(orchestrator ? [managerText()] : [])];
+  };
 
   // ---- herdr ----
 
@@ -588,7 +612,7 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
     const orchestrator = orchestratorOf(body.orchestrator) === true;
     const instructions = instructionsOf(body.instructions) ?? undefined;
     const chosen = chooseTerminal({ agent: optional(body.agent, agentOf), model: optional(body.model, modelOf), effort: optional(body.effort, effortOf) }, preset, role, role ? settingsOf(role.slug) : {});
-    const extra = extraOf(instructions, orchestrator);
+    const extra = extraOf(chosen.agent, instructions, orchestrator);
     const choice: TerminalChoice = extra.length ? { ...chosen, extra } : chosen;
     agentArgs(choice); // recusa (modelo, esforço, papel) que o agente não aceita antes de abrir o pane
     const cwd = containedDir(body.cwd);
@@ -656,7 +680,7 @@ export function createArgosTerminalsRoutes(deps: ArgosTerminalsDeps) {
     const orchestrator = orchestratorOf(body.orchestrator) ?? record.orchestrator === true;
     const given = instructionsOf(body.instructions);
     const instructions = given === undefined ? record.instructions : (given ?? undefined);
-    const extra = extraOf(instructions, orchestrator);
+    const extra = extraOf(record.agent, instructions, orchestrator);
     const choice: TerminalChoice = {
       agent: record.agent, ...(record.model !== undefined && { model: record.model }), ...(record.effort !== undefined && { effort: record.effort }),
       ...(role !== undefined && { role }), ...(extra.length > 0 && { extra }),

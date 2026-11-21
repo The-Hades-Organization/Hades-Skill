@@ -23,7 +23,7 @@ const editJson = (p: string, f: (j: any) => void) => { try { const j = JSON.pars
 type Seed = (d: string) => void;
 
 /** bl2_state: lista e soma dos arquivos da pasta, sem o ruído de tempo nem o caminho da skill (o prompt leva o cartão do papel). Dado da máquina fica fora da soma: o usuário de quem aprovou o plano (`<U>`) e o conteúdo de hooks/ e objects/ de repositório git (modelos de hook e compressão dependem da versão do git; os nomes dos objetos, que são o hash do conteúdo, continuam na lista). */
-const STATE = String.raw`cd "$1" && find . -type f -not -path '*/.git/*' -not -path './.bun/*' -not -path './.cache/*' -not -path '*/journal/*' -not -name '*.log' | sort | while read -r f; do case "$f" in *.git/hooks/*|*.git/objects/*) h=-;; *) h=$(grep -av '^herdr --version$' "$f" | sed -E "s#$3#<S>#g; s#$1#<D>#g; s#$2#<T>#g; s/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z/<T>/g; s/\"avaliacao\": \"[0-9a-f]{12}\"/<ID>/g; s/\"user\": \"$4\"/\"user\": \"<U>\"/" | md5sum | cut -c1-12);; esac; printf '%s %s\n' "$f" "$h"; done`;
+const STATE = String.raw`cd "$1" && find . -type f -not -path '*/.git/*' -not -path './.bun/*' -not -path './.cache/*' -not -path '*/journal/*' -not -name '*.log' -not -name '*.json.lock' | sort | while read -r f; do case "$f" in *.git/hooks/*|*.git/objects/*) h=-;; *) h=$(grep -av '^herdr --version$' "$f" | sed -E "s#$3#<S>#g; s#$1#<D>#g; s#$2#<T>#g; s/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z/<T>/g; s/\"avaliacao\": \"[0-9a-f]{12}\"/<ID>/g; s/\"user\": \"$4\"/\"user\": \"<U>\"/" | md5sum | cut -c1-12);; esac; printf '%s %s\n' "$f" "$h"; done`;
 const state = (d: string) => r.X(["bash", "-c", STATE, "_", d, T, SKILL, userInfo().username]).out;
 
 function seedStack(d: string): void {

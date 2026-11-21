@@ -2,6 +2,7 @@
 // src/panel/thanatos.ts, reference/thanatos.md). git e gh entram por dublê na fronteira (Exec), o relógio é injetado; o fim
 // a fim usa a CLI real com um gh falso no PATH.
 import { afterAll, describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { runThanatos, type ThanatosContext } from "../../../src/commands/thanatos";
 import { HadesError } from "../../../src/lib/output";
@@ -132,6 +133,16 @@ describe("thanatos: new, list, show, search (contexto injetado)", () => {
     expect(() => capture(() => runThanatos(["new", "12"], () => ctx))).toThrow(/já existe/);
     expect(capture(() => runThanatos(["new", "12", "--force"], () => ctx)).rc).toBe(0);
   });
+  test("new sem --force recusa quando só o .md órfão existe, com a mesma mensagem", () => {
+    const ctx = context("new-md-orfao", prExec);
+    mkdirSync(ctx.dir, { recursive: true });
+    writeFileSync(`${ctx.dir}/pr-12.md`, "edição à mão\n");
+    expect(() => capture(() => runThanatos(["new", "12"], () => ctx))).toThrow(/já existe/);
+    expect(readFileSync(`${ctx.dir}/pr-12.md`, "utf8")).toBe("edição à mão\n");
+    expect(existsSync(`${ctx.dir}/pr-12.json`)).toBe(false);
+    expect(capture(() => runThanatos(["new", "12", "--force"], () => ctx)).rc).toBe(0);
+    expect(existsSync(`${ctx.dir}/pr-12.json`)).toBe(true);
+  });
   test("new de intervalo lê as PRs mergeadas e os commits do git, sem duplicar commit de PR", () => {
     const calls: string[] = [];
     const exec: Exec = (cmd, args) => {
@@ -179,6 +190,39 @@ describe("thanatos: new, list, show, search (contexto injetado)", () => {
   });
   test("list sem post-mortem e sem pasta é vazio", () => {
     expect(listPostmortems(`${r.T}/nada/postmortems`)).toEqual([]);
+  });
+});
+
+describe("thanatos: HADES_NOW na CLI real", () => {
+  const cli = `${import.meta.dirname}/../../../src/cli.ts`;
+  function runNew(name: string, env: Record<string, string>): { rc: number; out: string; err: string; work: string } {
+    const root = tmp(name);
+    const repo = `${root}/repo`;
+    const bin = `${root}/bin`;
+    mkdirSync(repo, { recursive: true });
+    mkdirSync(bin, { recursive: true });
+    const git = (...a: string[]) => spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.test", ...a], { cwd: repo, encoding: "utf8" });
+    git("init", "-b", "main");
+    git("remote", "add", "origin", "https://github.com/acme/fixer.git");
+    writeFileSync(`${bin}/gh`, `#!/bin/sh\ncat <<'JSON'\n${JSON.stringify(ghPr())}\nJSON\n`);
+    chmodSync(`${bin}/gh`, 0o755);
+    const home = `${root}/home`;
+    mkdirSync(home, { recursive: true });
+    const res = spawnSync(process.execPath, [cli, "thanatos", "new", "12", "--json"], {
+      cwd: repo, encoding: "utf8", env: { PATH: `${bin}:${process.env.PATH ?? ""}`, HOME: home, HADES_WORK_ROOT: `${root}/work`, ...env },
+    });
+    return { rc: res.status ?? -1, out: res.stdout, err: res.stderr, work: `${root}/work` };
+  }
+  test("com HADES_NOW, o createdAt do post-mortem é o instante fixo", () => {
+    const res = runNew("now-fixo", { HADES_NOW: "2026-03-02T12:00:00Z" });
+    expect(res.err).toBe("");
+    expect(res.rc).toBe(0);
+    expect(JSON.parse(res.out).createdAt).toBe("2026-03-02T12:00:00Z");
+  });
+  test("HADES_NOW inválido falha antes de gravar", () => {
+    const res = runNew("now-ruim", { HADES_NOW: "ontem", HADES_DEBUG: "1" });
+    expect(res.rc).not.toBe(0);
+    expect(res.err + res.out).toContain("HADES_NOW=ontem");
   });
 });
 

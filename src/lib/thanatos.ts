@@ -309,7 +309,7 @@ function writeAtomic(file: string, text: string): void {
 }
 
 export function exists(dir: string, id: string): boolean {
-  return isFile(fileIn(dir, id, "json"));
+  return isFile(fileIn(dir, id, "json")) || isFile(fileIn(dir, id, "md"));
 }
 
 export function savePostmortem(dir: string, pm: Postmortem): { md: string; json: string } {

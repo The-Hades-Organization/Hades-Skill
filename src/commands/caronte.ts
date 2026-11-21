@@ -10,6 +10,7 @@ import {
 } from "../lib/caronte.ts";
 import { apply, prepare, UnpackError, type Prepared } from "../lib/caronte-unpack.ts";
 import { startCommand } from "../lib/agent-registry.ts";
+import { clockNow } from "../lib/clock.ts";
 import { isFile, readText } from "../lib/fs.ts";
 import { die, out, warn } from "../lib/output.ts";
 import { hadesHome, skillRoot } from "../lib/paths.ts";
@@ -152,7 +153,7 @@ async function pack(args: string[]): Promise<number> {
   const work = workOf(planFile);
   const gathered = gather({ work, planFile, withJournal: options.withJournal });
   const { blocked, allowed } = applyAllow(gathered.plan.findings, options.allow);
-  const now = new Date();
+  const now = clockNow();
   const manifest = buildManifest({
     skillVersion: (readText(join(skillRoot, "VERSION")) ?? "").trim(),
     workRoot: work.work,

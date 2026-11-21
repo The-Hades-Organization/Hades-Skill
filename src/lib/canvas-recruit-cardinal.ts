@@ -1,10 +1,10 @@
 // Planos do nó `cardinal` da CLI (`cardinal new|adopt|link|unlink`). Arquivo à parte: o canvas-recruit é importado pela página
 // e a lista de módulos da UI não inclui o canvas-cardinal.
 import { CANVAS_LIMITS, type CanvasDoc, type CanvasNode } from "./canvas-doc.ts";
-import { type AtomicOp, type CanvasOp, opBatch } from "./canvas-history.ts";
+import { type AtomicOp, type CanvasOp } from "./canvas-history.ts";
 import { LINK_EDGE_KIND, opCreateLink, opRemoveLink } from "./canvas-links.ts";
 import { CARDINAL_FRAME, CARDINAL_TYPE, createCardinalNode, findCardinalNode, readableCardinalsOf } from "./canvas-cardinal.ts";
-import { dockOps, freshId, noteSlot, RECRUIT_ERRORS, RecruitError, requireOrchestrator, requireRecruit } from "./canvas-recruit.ts";
+import { freshId, noteSlot, RECRUIT_ERRORS, RecruitError, requireOrchestrator, requireRecruit, settleInArea } from "./canvas-recruit.ts";
 
 const fail = (code: (typeof RECRUIT_ERRORS)[keyof typeof RECRUIT_ERRORS]): never => {
   throw new RecruitError(code as never);
@@ -20,7 +20,7 @@ export interface NewCardinalInput {
 
 /**
  * `cardinal new` e `cardinal adopt`: o nó `cardinal` perto do orquestrador, ligado a ele e aos recrutas dele em `linkTo`
- * (`cardinal-access`). Um lote só: desfazer tira o nó e as ligações.
+ * (`cardinal-access`). Se o orquestrador mora numa área, ela cresce até cobrir o nó. Um lote só: desfazer tira o nó e as ligações.
  */
 export function planNewCardinal(doc: CanvasDoc, input: NewCardinalInput): { op: CanvasOp; node: CanvasNode; recruits: CanvasNode[] } {
   const orchestrator = requireOrchestrator(doc, input.callerId);
@@ -34,7 +34,7 @@ export function planNewCardinal(doc: CanvasDoc, input: NewCardinalInput): { op: 
     ops.push(link);
     if (link.kind === "edge-create") next = { ...next, edges: [...next.edges, link.edge.item] };
   }
-  return { op: opBatch([...ops, ...dockOps(doc, ops, [node.id])]), node, recruits };
+  return { op: settleInArea(doc, ops, orchestrator, [node.id]), node, recruits };
 }
 
 /** O diagrama pelo id do nó ou pelo nome do arquivo (`data.cardinal`). */

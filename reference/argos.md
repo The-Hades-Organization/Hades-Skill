@@ -1399,6 +1399,28 @@ sem área segue válido e um Hades antigo lê a área como nó de tipo desconhec
   `area_duplicate_member`, `area_unknown_area`, `area_unknown_node`, `area_nested`, `area_limit_exceeded` (200 áreas por documento).
 - CLI: `hades canvas area list` (somente leitura): por área `id`, título, cor e quantos membros, e abaixo cada membro.
 
+### Áreas que crescem (`canvas-area-grow.ts`, modo `grow` de `canvas-space.ts`)
+
+Terminal que mora numa área cria dentro dela. A área do terminal é a da lista de membros (`data.members`); sem lista, a
+menor que contém o centro dele (`containerOf`). Vale para `recruit` (o recruta e a nota de `--new-note`), `note new`,
+`drawing new` e `join --to` (o terminal trazido entra na área do orquestrador).
+
+- **Vaga:** primeiro o interior livre da área (`findFreeBox`). Cheia, `grow: true` não manda o nó para fora: a vaga sai do
+  interior com a mesma largura e sem fundo, contando como ocupado só o que está sobre a área. Nó mais largo que a área
+  vai encostado à esquerda, abaixo de tudo o que ela tem. A grade recentrada dos recrutas só vale se cabe inteira na área.
+- **Crescimento (`growAreaOps`):** a área estica (`resize`) até cobrir os nós novos com a folga das bordas
+  (`AREA_LIMITS.padding`) e a faixa do título; já cabendo, nada muda.
+- **Abrir espaço:** o que a área nova tocaria anda junto como unidade (outra área com os membros dela, ou nó solto). Quem
+  está abaixo da área de antes desce; quem está à direita vai para a direita. Varredura pela distância: cada unidade só se
+  afasta das já postas, então a cascata não volta a sobrepor. Nó travado, nó vivo (`agent`, `unit`, `pr`, `gate`) e área
+  com um membro assim não andam e viram obstáculo (podem ficar sobrepostos).
+- **Pertença e desfazer:** depois do crescimento o centro dos nós novos cai na área e o encaixe de sempre (`dropOps`) os
+  põe na lista. Criação, crescimento, empurrões e encaixe saem num lote só: um desfazer volta exatamente ao anterior.
+- Fora de área, nada disso se aplica. A sincronia de agentes (`canvas-sync.ts`) ainda não usa `grow`: com a área cheia, o
+  agente que o orquestrador aloca por `hades agent new` entra fora dela.
+
+Prova: `loop/test/ts/canvas-area-grow.test.ts`.
+
 ### Desenho (`canvas-drawing.ts`)
 
 O **desenho** é uma entidade do canvas: um nó do usuário de `type` `drawing` (retângulo com título; 480×320 de início) cujo `data`
@@ -3155,7 +3177,7 @@ herdr (criar, fechar, trocar o papel): o stderr "no herdr server is running…" 
   passa pelo mesmo caminho (cria pela rota do painel).
 - **Criar:** `herdr workspace create --cwd <cwd> --label <nome> --no-focus` e `herdr agent start <nome> --kind <agente>
   --pane <pane> --timeout 55000 -- [--model] [--effort] [--append-system-prompt-file <arquivo>]` (a mesma via do
-  `hades agent`). O papel (com as instruções próprias e as de gerente) é gravado antes em
+  `hades agent`). O papel (com o contexto do Argos, as instruções próprias e as de gerente) é gravado antes em
   `$D/argos/terminal-prompts/<sessão>-<pane>.md` (pasta 700, arquivo 600, troca atômica); só o caminho viaja. Flag que o agente não aceita (papel em `codex`) é `invalid` antes de abrir pane. Se o `agent start`
   falha, o pane é fechado e nada fica registrado. Nome repetido de terminal vivo é `invalid`; entrada de pane que já
   sumiu do herdr sai do registro na criação seguinte.
@@ -3638,6 +3660,7 @@ e refaz o plano até 3 vezes (`canvas_doc_conflict`).
 | `connect <recruta> <nota>` | orquestrador, sobre recruta seu | liga o recruta a uma nota já ligada ao orquestrador (repetir não duplica) | `recruit_not_yours`, `recruit_note_not_shared` |
 | `reassign <recruta> [--role r\|--no-role] [--instructions t\|--no-instructions]` | orquestrador, sobre recruta seu | grava o papel no nó e depois troca papel ou instruções pela rota de papel, que reinicia só o processo (reinício recusado devolve o papel de antes ao nó); posição, nome e conexões ficam; a identidade sai de novo | `recruit_not_yours` |
 | `dismiss <recruta>` | orquestrador, sobre recruta seu | fecha o pane pela rota de fechar e tira o nó com as arestas dele | `recruit_not_yours` |
+| `context [--rules]` | qualquer terminal | imprime o contexto do terminal no Argos (§Contexto do agente no Argos); `--rules` acrescenta o texto fixo | `recruit_not_in_canvas` |
 | `notify <texto>` | qualquer terminal | `notify.sh send agent info <texto> --obj <nome do terminal>` da instalação | `canvas_notify_failed` |
 | `join [--pane] [--canvas] [--name] [--role] [--to] [--note]…` | qualquer processo num pane do herdr (o próprio ou `--pane`) | traz o pane para o canvas como nó `terminal`, sem tocar no processo; ver abaixo | `canvas_join_outside_herdr`, `canvas_join_pane_not_found`, `canvas_join_bad_pane`, `recruit_join_target_not_orchestrator`, `recruit_missing_note` |
 | `leave [--pane] [--canvas]` | qualquer processo num pane do herdr | tira o nó `terminal` do pane e as arestas dele; o pane e o processo seguem | `recruit_not_in_canvas` |
@@ -3656,6 +3679,8 @@ não conhece é `canvas_join_pane_not_found`. A chave de identidade é `paneKey`
   (o processo já nasceu com as instruções de gerente). Pane que ninguém registrou entra como `Terminal <pane>` (ou `--name`).
 - **`--to`:** o terminal fica recruta do orquestrador (id ou nome, só entre orquestradores), na próxima vaga abaixo dele, com
   aresta `recruit`. **`--note`:** liga o terminal à nota (id ou nome do arquivo). Sem `--to`, o nó novo entra à direita de tudo.
+- **Contexto:** `join` do próprio pane (sem `--pane`) imprime depois da linha de resultado o mesmo que `context --rules`: o
+  processo que entrou sozinho não nasceu com o contexto do Argos no papel.
 - **`leave`** tira só o nó (desfazer o devolve). Terminal do registro volta a aparecer como órfão no banner "Trazer para o
   canvas"; recrutas de um orquestrador que saiu seguem nós, sem a aresta.
 
@@ -3697,6 +3722,25 @@ que a CLI gravou.
 quem é orquestrador e de quem é o recruta é conferido na CLI, pelo documento, como guarda de comportamento dos agentes.
 A escrita na nota é conferida também no servidor (`writerOf`). Se a gravação do nó falha depois de o pane abrir, `recruit` o
 fecha pela rota de fechar (não conseguindo, avisa para fechar pelo herdr).
+
+### Contexto do agente no Argos
+
+Todo agente de um terminal do canvas sabe que está no Argos, por dois caminhos:
+
+- **Fixo, no papel:** `kit/panel/argos/argos-context.md` (instalado em `$D/panel/argos/`) entra no arquivo do papel de todo
+  terminal de agente que a rota de criar sobe ou reinicia (criar, trocar papel, `recruit`, `reassign`), depois das
+  instruções do papel e antes das próprias e das de gerente. Diz o que é o Argos, a regra da área, os comandos de qualquer
+  terminal e as regras da Hades que valem ali. Só entra no agente com flag de arquivo (`claude`); no que só aceita argumento
+  de uma linha ficaria recusado. Arquivo ausente ou vazio não recusa a criação: o terminal sobe sem ele e o log avisa
+  (`contexto do Argos ausente na instalação`). Terminal de shell não recebe nada.
+- **Vivo, pela CLI:** `hades canvas context` (`src/lib/canvas-context.ts`, puro) imprime o canvas, o nó, o papel, se é
+  orquestrador ou recruta de quem, a área (título, id e os outros membros, até `CONTEXT_MEMBERS_SHOWN` nomes) ou "fora de
+  área", as notas ligadas direto, os recrutas (orquestrador) e o bloco "PR pronta" das Configurações quando o terminal é
+  orquestrador ou o papel abre PR. O texto fixo manda rodá-lo ao começar e antes de criar nó; `join` o imprime sozinho.
+- A identidade do recruta (`identityPrompt`) cita a área em que ele nasceu.
+
+Prova: `loop/test/ts/canvas-area-grow.test.ts` (contexto e identidade) e `argos-terminals.test.ts` ("contexto do Argos no
+papel").
 
 ### Agentes alocados pela CLI
 

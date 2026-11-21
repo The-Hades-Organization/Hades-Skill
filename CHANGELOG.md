@@ -4,7 +4,7 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
-## Não lançado — extensão Cardinal (branch local `feat/cardinal-extensao`) — 2026-11-20
+## Não lançado — extensão Cardinal — 2026-11-21
 
 Fecho da integração com o Cardinal (U17): o Desenho do canvas passa a criar diagramas do Cardinal.
 
@@ -16,6 +16,39 @@ Fecho da integração com o Cardinal (U17): o Desenho do canvas passa a criar di
   deixava o editor em `failed`. A ponte agora relê ao terminar a leitura.
 - Teste de ponta a ponta com binário real (`cardinal-e2e.test.ts`, ver `reference/extensoes.md`). Achado: `cardinal` sem
   argumentos abre a interface gráfica; nunca rode o binário sem subcomando em teste.
+- A página Extensões só avisa do motor de desenho quando a extensão Cardinal está ligada. Antes o aviso aparecia também com a
+  extensão desligada, onde o motor efetivo é sempre `hades` e não há o que explicar.
+- O nó `cardinal` mostra uma miniatura do diagrama no bloco de longe e no de médio do canvas, não só no zoom de perto.
+- `hades canvas cardinal read --file` imprime o caminho do `.cardinal` também quando o diagrama é o arquivo padrão do nó
+  (antes só o arquivo adotado tinha caminho). O teste cobre os dois casos.
+- O painel guarda as preferências do editor do Cardinal (tema, idioma, onboarding, larguras de painel) por painel, em
+  `GET` e `PUT /api/canvas-cardinal/settings`, e as manda ao editor no `load`. O iframe sandbox não tem `localStorage`, então
+  elas não sobreviviam à recarga. `settings` passa a nome reservado no lugar do id de um nó `cardinal`.
+- Nó `cardinal` criado por `hades canvas cardinal new|adopt` nasce dentro da área de quem o criou, como as notas e os
+  desenhos desde a 6.55.0.
+
+## 6.55.0 — 2026-11-21
+
+Pedido do dono: o agente que entra no Argos ou nasce nele começa sabendo onde está, com as regras e as Configurações da
+Hades, e o agente que mora numa área do canvas cria notas e terminais dentro dela, sem espalhar nós fora.
+
+- Todo terminal de agente criado ou reiniciado pelo canvas (modal, `recruit`, `reassign`, trocar papel) recebe no papel
+  `kit/panel/argos/argos-context.md`: o que é o Argos, a regra da área, os comandos de qualquer terminal e as regras da
+  Hades que valem ali. Entra depois das instruções do papel e antes das próprias e das de gerente. Só no agente com flag
+  de arquivo (`claude`); arquivo ausente não recusa a criação, só deixa aviso no log.
+- `hades canvas context [--rules]`: canvas, nó, papel, orquestrador ou recruta de quem, área e os outros membros, notas,
+  recrutas e o bloco "PR pronta" das Configurações. O `join` do próprio pane imprime o mesmo com as regras, porque o
+  processo que entra sozinho não nasceu com o papel. A identidade do recruta cita a área.
+- Áreas que crescem (`src/lib/canvas-area-grow.ts`, modo `grow` de `canvas-space.ts`): `recruit`, `note new`,
+  `drawing new` e `join --to` criam dentro da área de quem chama. A área do terminal passa a ser a da lista de membros,
+  e a geometria só vale sem lista. Cheia, a vaga sai abaixo do que ela tem, a área estica e o que está no caminho
+  (outra área com os membros, ou nó solto) desce ou vai para a direita em cascata, sem sobrepor. Nó travado ou vivo não
+  anda. Um passo só do desfazer.
+- Armadilha: `canvas-recruit.ts` também é carregado pela página do Argos, então todo módulo novo que ele importa tem de
+  entrar na lista de `src/panel/ui-transpile.ts`. Sem isso o pacote da página falha ("import fora da lista dos módulos
+  da UI") e a regressão da UI cai em 27 casos.
+- Fora desta versão: a sincronia de agentes (`hades agent new`, `canvas-sync.ts`) ainda não usa `grow`, então com a área
+  cheia o agente alocado entra fora dela. Terminais já abertos só recebem o texto fixo ao trocar de papel ou ser recriados.
 
 ## 6.54.0 — 2026-11-19
 

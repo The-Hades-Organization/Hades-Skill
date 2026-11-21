@@ -2,11 +2,12 @@
 // de quem, quem pode comandar quem, o auto-layout dos recrutas abaixo do orquestrador e a identidade que o recruta recebe no
 // prompt inicial. Lógica pura, sem Node/DOM: a CLI `hades canvas` e o painel usam o mesmo módulo. Toda mudança do
 // documento sai como `CanvasOp` de `canvas-history` (desfazer volta exatamente ao anterior).
+import { growAreaOps } from "./canvas-area-grow.ts";
 import { dropOps } from "./canvas-areas.ts";
 import { CANVAS_LIMITS, type CanvasDoc, type CanvasEdge, type CanvasNode, paneKey } from "./canvas-doc.ts";
 import { type AtomicOp, applyOp, type CanvasOp, opBatch, opCreate, opDelete, opMove, opUpdate } from "./canvas-history.ts";
 import { LAYOUT_GAP, Occupancy } from "./canvas-layout.ts";
-import { findFreeBox, type Point } from "./canvas-space.ts";
+import { containerOf, findFreeBox, insideOf, interiorOf, type Point } from "./canvas-space.ts";
 import { LINK_EDGE_KIND, opCreateLink, opRemoveLink } from "./canvas-links.ts";
 import { createDrawingNode, DRAWING_LIMITS, requireFreshDrawingTitle } from "./canvas-drawing.ts";
 import { createNoteNode, directNotesOf, hasNoteAccess, NOTE_READER_TYPES, NOTE_TYPE, requireNoteName } from "./canvas-note.ts";
@@ -243,11 +244,15 @@ export function planRecruit(doc: CanvasDoc, input: RecruitInput): { op: CanvasOp
   const team = recruitsOf(doc, orchestrator.id);
   const grid = recruitSlots(orchestrator, [...team.map((n) => ({ w: n.w, h: n.h })), size]);
   // a grade recentrada só vale se todas as vagas dela estão livres; senão a equipe fica onde está e só o nó novo procura vaga
-  const regrid = gridIsFree(doc, grid.map((at, i) => ({ ...at, w: (team[i] ?? size).w, h: (team[i] ?? size).h })), new Set(team.map((n) => n.id)));
+  // orquestrador numa área: a grade só vale se cabe inteira dentro dela (a equipe não sai da área para recentrar)
+  const home = containerOf(doc, orchestrator);
+  const boxes = grid.map((at, i) => ({ ...at, w: (team[i] ?? size).w, h: (team[i] ?? size).h }));
+  const regrid = (home === undefined || boxes.every((box) => insideOf(interiorOf(home), box)))
+    && gridIsFree(doc, boxes, new Set([...team.map((n) => n.id), ...(home ? [home.id] : [])]));
   const slots = regrid ? grid : team.map((member) => ({ x: member.x, y: member.y }));
   const slot = regrid
     ? (grid[grid.length - 1] as Point)
-    : findFreeBox(doc, size, { anchor: orchestrator, prefer: "below", gap: SLOT_GAP, candidates: [grid[grid.length - 1] as Point] });
+    : findFreeBox(doc, size, { anchor: orchestrator, prefer: "below", gap: SLOT_GAP, candidates: [grid[grid.length - 1] as Point], grow: true });
   const top = Math.min(CANVAS_LIMITS.layer - 1, doc.nodes.reduce((z, n) => Math.max(z, n.z), 0));
   const node: CanvasNode = {
     id: nodeId, type: TERMINAL_NODE_TYPE, x: slot.x, y: slot.y, w: size.w, h: size.h, z: top + 1,
@@ -267,7 +272,7 @@ export function planRecruit(doc: CanvasDoc, input: RecruitInput): { op: CanvasOp
     const to = slots[i] as Point;
     if (member.x !== to.x || member.y !== to.y) ops.push(opMove(doc, member.id, to));
   });
-  return { op: opBatch([...ops, ...dockOps(doc, ops, [nodeId, ...(progress ? [progress.node.id] : [])])]), nodeId, ...(progress && { noteId: progress.node.id }) };
+  return { op: settleInArea(doc, ops, orchestrator, [nodeId, ...(progress ? [progress.node.id] : [])]), nodeId, ...(progress && { noteId: progress.node.id }) };
 }
 
 /** Recusa nome fora do formato (`note_invalid_name`) e nome que já é nota do documento; o arquivo se confere na rota. */
@@ -288,7 +293,7 @@ export function noteSlot(doc: CanvasDoc, orchestrator: CanvasNode, size: { w: nu
   const slot = recruitSlots(orchestrator, full)[sizes.length - 1] as { x: number; y: number };
   const below = orchestrator.y + orchestrator.h + RECRUIT_LAYOUT.gapY;
   const preferred = { x: slot.x, y: orchestrator.y - RECRUIT_LAYOUT.gapY - size.h - (slot.y - below) };
-  return findFreeBox(doc, size, { anchor: orchestrator, prefer: "above", gap: SLOT_GAP, candidates: [preferred] });
+  return findFreeBox(doc, size, { anchor: orchestrator, prefer: "above", gap: SLOT_GAP, candidates: [preferred], grow: true });
 }
 
 /** Espaços da grade do orquestrador, no formato que a busca de vaga livre pede. */
@@ -308,6 +313,17 @@ function gridIsFree(doc: CanvasDoc, slots: readonly Box[], ignore: ReadonlySet<s
 export function dockOps(doc: CanvasDoc, ops: readonly AtomicOp[], ids: readonly string[]): AtomicOp[] {
   const drop = dropOps(applyOp(doc, opBatch([...ops])), ids);
   return drop === undefined ? [] : drop.kind === "batch" ? [...drop.ops] : [drop];
+}
+
+/**
+ * Fecha o lote dos nós `ids` criados por `anchor`: se ele mora numa área, ela cresce até cobri-los (abrindo espaço em volta,
+ * `growAreaOps`) e eles entram na lista dela; fora de área, só o encaixe de sempre. Um passo só do desfazer.
+ */
+export function settleInArea(doc: CanvasDoc, ops: readonly AtomicOp[], anchor: CanvasNode, ids: readonly string[]): CanvasOp {
+  const home = containerOf(doc, anchor);
+  const grown = home === undefined ? [] : growAreaOps(applyOp(doc, opBatch([...ops])), home.id, ids);
+  const all = [...ops, ...grown];
+  return opBatch([...all, ...dockOps(doc, all, ids)]);
 }
 
 /** O nó `note` novo perto do orquestrador, com uma ligação de cada nó em `linkFrom` até ele; as operações seguem o documento que cada uma viu. */
@@ -337,7 +353,7 @@ export function planNewNote(doc: CanvasDoc, input: { callerId: string; name: str
   const recruits = [...new Map((input.linkTo ?? []).map((ref) => requireRecruit(doc, orchestrator.id, ref)).map((n) => [n.id, n])).values()];
   requireFreshNoteName(doc, input.name);
   const { ops, node } = planNoteNode(doc, orchestrator, input.name, [orchestrator.id, ...recruits.map((n) => n.id)]);
-  return { op: opBatch([...ops, ...dockOps(doc, ops, [node.id])]), node, recruits };
+  return { op: settleInArea(doc, ops, orchestrator, [node.id]), node, recruits };
 }
 
 export interface NewDrawingInput {
@@ -371,7 +387,7 @@ export function planNewDrawing(doc: CanvasDoc, input: NewDrawingInput): { op: Ca
     ops.push(link);
     if (link.kind === "edge-create") next = { ...next, edges: [...next.edges, link.edge.item] };
   }
-  return { op: opBatch([...ops, ...dockOps(doc, ops, [node.id])]), node, recruits };
+  return { op: settleInArea(doc, ops, orchestrator, [node.id]), node, recruits };
 }
 
 /** A nota que o orquestrador pode passar ao recruta: existe e está ligada direto a ele. */
@@ -452,6 +468,7 @@ export function planJoin(doc: CanvasDoc, input: JoinInput): JoinPlan {
       : findFreeBox(doc, JOIN_NODE_SIZE, {
         anchor: orchestrator, prefer: "below", gap: SLOT_GAP,
         candidates: [recruitSlots(orchestrator, [...recruitsOf(doc, orchestrator.id), JOIN_NODE_SIZE].map((n) => ({ w: n.w, h: n.h }))).at(-1) as Point],
+        grow: true,
       });
     const top = Math.min(CANVAS_LIMITS.layer - 1, doc.nodes.reduce((z, n) => Math.max(z, n.z), 0));
     const data = { ...input.data, herdr: input.target, ...(orchestrator && { recruiter: orchestrator.id }) };
@@ -475,7 +492,10 @@ export function planJoin(doc: CanvasDoc, input: JoinInput): JoinPlan {
     ops.push(op);
     if (op.kind === "edge-create") next = { ...next, edges: [...next.edges, op.edge.item] };
   }
-  if (existing === undefined) ops.push(...dockOps(doc, ops, [nodeId]));
+  if (existing === undefined && orchestrator !== undefined) {
+    const settled = settleInArea(doc, ops, orchestrator, [nodeId]);
+    ops.splice(0, ops.length, ...(settled.kind === "batch" ? settled.ops : [settled]));
+  } else if (existing === undefined) ops.push(...dockOps(doc, ops, [nodeId]));
   // o nó `agent` do mesmo pane sai por último: os índices dos outros passos foram tirados do documento de antes
   const duplicated = (input.agentIds ?? []).filter((id) => doc.nodes.some((n) => n.id === id && n.id !== nodeId));
   if (duplicated.length > 0) ops.push(opDelete(doc, duplicated));
@@ -502,6 +522,8 @@ export interface Identity {
   prReady?: string;
   /** Tarefa que o orquestrador passou, depois da identidade. */
   task?: string;
+  /** Título da área em que o recruta nasceu; ausente fora de área. */
+  area?: string;
 }
 
 /** O prompt inicial do recruta: quem ele é, o papel, a quem responde, as notas e como lê-las. */
@@ -513,6 +535,7 @@ export function identityPrompt(identity: Identity): string {
       ? `Notas ligadas a você: ${identity.notes.join(", ")}. Leia com \`hades canvas note read <nota>\` e escreva com \`hades canvas note write <nota>\`.`
       : "Nenhuma nota ligada a você por enquanto (`hades canvas note list` mostra quando houver).",
     `Responda ao orquestrador ${identity.orchestrator}; não recrute, não dispense e não reatribua ninguém.`,
+    ...(identity.area !== undefined ? [`Você está na área ${identity.area} do canvas; não mexa em nó de outra área.`] : []),
   ];
   if (identity.prReady) lines.push(identity.prReady);
   if (identity.task && identity.task.trim()) lines.push("", identity.task.trim());

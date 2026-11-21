@@ -143,6 +143,19 @@ describe("canvas cardinal: ciclo", () => {
     expect(await r.run("cardinal", "export", "meu-modelo", "--svg", "-o", "/x/saida.svg")).toBe(EXIT.ok);
     expect(new TextDecoder().decode(r.written.get("/x/saida.svg"))).toBe("<svg/>");
   });
+  test("read --file imprime o caminho absoluto do arquivo, do diagrama no diretório padrão e do adotado", async () => {
+    const r = await rig(baseDoc());
+    expect(await r.run("cardinal", "new", "Meu Modelo", "--from-text", "-")).toBe(EXIT.ok);
+    expect(await r.run("cardinal", "read", "meu-modelo", "--file")).toBe(EXIT.ok);
+    expect(r.out).toEqual([join(r.D, "canvas-cardinal", "meu-modelo.cardinal")]);
+    expect(r.err).toEqual([]);
+
+    const own = join(r.D, "proprio.cardinal");
+    writeFileSync(own, envelope("meu"));
+    expect(await r.run("cardinal", "adopt", own)).toBe(EXIT.ok);
+    expect(await r.run("cardinal", "read", "proprio", "--file")).toBe(EXIT.ok);
+    expect(r.out).toEqual([own]);
+  });
   test("new com nome repetido ganha sufixo -2", async () => {
     const r = await rig(baseDoc());
     await r.run("cardinal", "new", "Igual", "--from-text", "-");

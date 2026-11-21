@@ -94,6 +94,8 @@ export const CANVAS_UI_MODULES = {
   tidy: "canvas-tidy.ts",
   // vaga livre para nó novo: importado por canvas-recruit e canvas-sync
   space: "canvas-space.ts",
+  // área que cresce para caber o nó novo do terminal que mora nela: importado por canvas-recruit
+  areaGrow: "canvas-area-grow.ts",
   // ligação ao vivo com o servidor: religação com recuo e conferência de reserva (pages/argos.tsx)
   live: "canvas-live.ts",
   // zoom semântico: contagem por estado, rótulos de área e resumo por tipo (canvas-engine.tsx)

@@ -2,7 +2,7 @@
 // contra um iframe simulado por script: carregar, salvar, 409, mudança externa, exportar, recolher, teto de editores.
 import { describe, expect, test } from "bun:test";
 import {
-  BRIDGE_PROTOCOL, EDITOR_MAX_LIVE, canonicalText, cardNotice, cardSummary, cardViewOf, createBridge, createCardViewStore, svgDataUrl, createCardinalClient, createCardinalFeed, createEditorSlots, isFromFrame, engineChoiceOf, freshDiagramName, emptyDiagramText, prepareDiagram,
+  BRIDGE_PROTOCOL, EDITOR_MAX_LIVE, canonicalText, cardNotice, cardSummary, cardThumb, cardViewOf, createBridge, createCardViewStore, svgDataUrl, createCardinalClient, createCardinalFeed, createEditorSlots, isFromFrame, engineChoiceOf, freshDiagramName, emptyDiagramText, prepareDiagram,
   type BridgeApi, type FileRead, type ReadResult, type WriteResult,
 } from "../../../src/lib/cardinal-bridge";
 
@@ -572,6 +572,15 @@ describe("cardinal-bridge: cartão fechado", () => {
     expect(cardViewOf(200, { svg: "" }).kind).toBe("error");
     expect(cardViewOf(500, {}).kind).toBe("error");
   });
+  test("cardThumb: a miniatura guardada vira URL de imagem, em dia ou defasada; sem ela, nada", () => {
+    expect(cardThumb({ kind: "fresh", svg: "<svg/>" })).toBe(svgDataUrl("<svg/>"));
+    expect(cardThumb({ kind: "stale", svg: "<svg/>" })).toBe(svgDataUrl("<svg/>"));
+    for (const kind of ["loading", "unavailable", "missing", "error"] as const) expect(cardThumb({ kind, svg: "<svg/>" })).toBeUndefined();
+    expect(cardThumb({ kind: "fresh" })).toBeUndefined();
+    expect(cardThumb({ kind: "fresh", svg: "" })).toBeUndefined();
+    expect(cardThumb(undefined)).toBeUndefined();
+  });
+
   test("cardSummary: uma linha por estado, nada enquanto carrega", () => {
     expect(cardSummary(undefined)).toBeUndefined();
     expect(cardSummary({ kind: "loading" })).toBeUndefined();

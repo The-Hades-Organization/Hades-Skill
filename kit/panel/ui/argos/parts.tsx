@@ -244,6 +244,7 @@ function CanvasPane({ doc, selection, onSelectionChange, onOp, graphById, types,
   const summaryOf = useCallback((n) => (n.type === 'cardinal'
     ? M.cardinalBridge.cardSummary(M.cardinalBridge.cardViews.get(n.id))
     : M.semantic.summaryOf({ type: n.type, live: graphById.get(n.id), data: n.data })), [graphById, cardTick]);
+  const thumbOf = useCallback((n) => (n.type === 'cardinal' ? M.cardinalBridge.cardThumb(M.cardinalBridge.cardViews.get(n.id)) : undefined), [cardTick]);
   const bucketOf = useCallback((n) => M.semantic.bucketOf(graphById.get(n.id)), [graphById]);
   const renderAt = useCallback((n, w, h) => types.get(n.type)?.draw.render({ id: n.id, type: n.type, w, h, selected: selected.has(n.id), data: n.data, live: graphById.get(n.id) }) ?? null,
     [types, graphById, selected]);
@@ -330,7 +331,7 @@ function CanvasPane({ doc, selection, onSelectionChange, onOp, graphById, types,
   const Tray = window.ArgosCanvasHidden?.HiddenTray;
   return <div ref={wrap} onContextMenu={contextMenu} onPointerDown={touchDown} onPointerMove={touchMove} onPointerUp={touchUp} onPointerCancel={touchUp}
     className="relative h-full min-h-64 bg-background">
-    <Engine doc={doc} selection={selection} onSelectionChange={onSelectionChange} onOp={onOp} onNodeMenu={nodeMenu} describeNode={describeNode} nodeColor={nodeColor} summaryOf={summaryOf} bucketOf={bucketOf}
+    <Engine doc={doc} selection={selection} onSelectionChange={onSelectionChange} onOp={onOp} onNodeMenu={nodeMenu} describeNode={describeNode} nodeColor={nodeColor} summaryOf={summaryOf} thumbOf={thumbOf} bucketOf={bucketOf}
       isRich={isRich} nodeShape={nodeShape} renderNode={renderNode} backgroundDrag="pan" onReady={ready} snap={snap} dock={dock} onLinkState={onLinkState} fullDetail={fullDetail}
       label="Canvas dos agentes: arraste o fundo para mover, role para ampliar" />
     {dockState && onDockState ? <DockLayer api={engineApi} state={dockState} onState={onDockState} doc={doc} renderAt={renderAt} describe={describeNode} /> : null}

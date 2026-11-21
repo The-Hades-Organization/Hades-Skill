@@ -70,6 +70,11 @@ interface CanvasEngineOptions {
   nodeColor?(node: CanvasNode): string;
   /** Linha de resumo do bloco (De longe e Médio); `undefined` deixa o bloco só com o rótulo. Exige `model.semantic`. */
   summaryOf?(node: CanvasNode): string | undefined;
+  /**
+   * Miniatura do bloco (De longe e Médio): URL da imagem (`data:` ou http) que o motor carrega uma vez e desenha sobre fundo branco
+   * no espaço que sobra sob o rótulo e o resumo; `undefined`, imagem ainda carregando ou com erro deixam o bloco como era.
+   */
+  thumbOf?(node: CanvasNode): string | undefined;
   /** Estado do nó para a contagem do rótulo de área (Bem longe); `undefined` não conta (nó do usuário). Exige `model.semantic`. */
   bucketOf?(node: CanvasNode): StateBucket | undefined;
   /** Se o nó tem conteúdo HTML (camada por cima); padrão: nenhum. */
@@ -307,6 +312,10 @@ function makeArgosCanvas() {
   const AREA_LABEL_BG_ALPHA = 0.88;
   /** Entrelinha do resumo do bloco, em pixels de tela (a fonte é a do rótulo; cabe nos `SUMMARY_MIN_BLOCK_PX`). */
   const SUMMARY_LINE_PX = MIN_LABEL_PX + 1;
+  /** Lado mínimo, em pixels de tela, da área da miniatura no bloco; abaixo disso ela some em vez de virar mancha. */
+  const THUMB_MIN_PX = 24;
+  /** Folga, em pixels de tela, entre o texto do bloco e a miniatura. */
+  const THUMB_GAP_PX = 4;
   /** Largura máxima, em pixels de tela, do nome posto fora da forma. */
   const OUTSIDE_LABEL_PX = 240;
   /** Fonte do nó completo, em unidades de mundo (cresce com o zoom até passar do piso). */
@@ -498,6 +507,42 @@ function makeArgosCanvas() {
         summaries.set(node.id, summary);
       }
       return summary ?? undefined;
+    };
+    /** Miniaturas carregadas por nó: a imagem é refeita só quando a URL muda; `failed` não tenta de novo a mesma URL. */
+    const thumbs = new Map<string, { url: string; img: HTMLImageElement; ready: boolean; failed: boolean }>();
+    const thumbFor = (node: CanvasNode): HTMLImageElement | undefined => {
+      const url = opts.thumbOf?.(node);
+      if (url === undefined || url === "") {
+        thumbs.delete(node.id);
+        return undefined;
+      }
+      let entry = thumbs.get(node.id);
+      if (entry === undefined || entry.url !== url) {
+        const img = new Image();
+        const fresh = { url, img, ready: false, failed: false };
+        entry = fresh;
+        thumbs.set(node.id, fresh);
+        img.onload = () => {
+          fresh.ready = true;
+          if (thumbs.get(node.id) === fresh) markContent();
+        };
+        img.onerror = () => {
+          fresh.failed = true;
+        };
+        img.src = url;
+      }
+      return entry.ready && !entry.failed ? entry.img : undefined;
+    };
+    /** Contém a imagem, centrada, na região (mundo); `undefined` quando a região na tela é menor que `THUMB_MIN_PX`. */
+    const thumbBox = (region: Rect, img: HTMLImageElement): Rect | undefined => {
+      if (region.w * cam.k < THUMB_MIN_PX || region.h * cam.k < THUMB_MIN_PX) return undefined;
+      const iw = img.naturalWidth || img.width;
+      const ih = img.naturalHeight || img.height;
+      if (!(iw > 0) || !(ih > 0)) return region;
+      const scale = Math.min(region.w / iw, region.h / ih);
+      const w = iw * scale;
+      const h = ih * scale;
+      return { x: region.x + (region.w - w) / 2, y: region.y + (region.h - h) / 2, w, h };
     };
     const bucketFor = (node: CanvasNode): StateBucket | undefined => {
       let bucket = buckets.get(node.id);
@@ -1149,6 +1194,18 @@ function makeArgosCanvas() {
       ctx.stroke();
     }
 
+    /** Miniatura no espaço do bloco abaixo do texto (`top`, em mundo): fundo branco como no cartão fechado e a imagem contida nele. */
+    function drawThumb(ctx: CanvasRenderingContext2D, n: CanvasNode, left: number, top: number, pad: number): void {
+      const img = thumbFor(n);
+      if (img === undefined) return;
+      const region = { x: n.x + left, y: top, w: n.w - left - pad, h: n.y + n.h - pad - top };
+      const box = thumbBox(region, img);
+      if (box === undefined) return;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(region.x, region.y, region.w, region.h);
+      ctx.drawImage(img, box.x, box.y, box.w, box.h);
+    }
+
     function drawBlocks(ctx: CanvasRenderingContext2D, visible: readonly CanvasNode[], detail: Detail): void {
       const full = detail === "full";
       placedLabels = [];
@@ -1195,14 +1252,17 @@ function makeArgosCanvas() {
         if (text && (full || n.h * cam.k >= fontScreen + 4)) {
           ctx.fillStyle = colors.fg;
           ctx.fillText(text, full ? n.x + pad : n.x + strip + pad, full ? n.y + (Math.min(header, n.h) + band) / 2 : n.y + Math.min(n.h / 2, pad + fontWorld / 2));
+          let textBottom = n.y + pad + fontWorld;
           if (!full && SEM?.summaryFits(n.h * cam.k)) {
             const summary = summaryFor(n);
             const line = summary === undefined ? "" : C.shortLabel(summary, textW, fontScreen);
             if (line) {
               ctx.fillStyle = colors.muted;
               ctx.fillText(line, n.x + strip + pad, n.y + pad + fontWorld / 2 + SUMMARY_LINE_PX / cam.k);
+              textBottom += SUMMARY_LINE_PX / cam.k;
             }
           }
+          if (!full) drawThumb(ctx, n, strip + pad, textBottom + THUMB_GAP_PX / cam.k, pad);
           if (full && !opts.isRich?.(n) && n.h > header + fontWorld + pad) {
             ctx.fillStyle = colors.muted;
             ctx.fillText(C.shortLabel(n.type, textW, fontScreen), n.x + pad, n.y + header + pad + fontWorld / 2);
@@ -2153,7 +2213,7 @@ function makeArgosCanvas() {
         opts = { ...opts, ...next };
         if (shapeChanged) markContent();
         if (next.label !== undefined) applyLabel();
-        if (next.describeNode || next.nodeColor || next.summaryOf || next.bucketOf) {
+        if (next.describeNode || next.nodeColor || next.summaryOf || next.bucketOf || next.thumbOf) {
           labels = new Map();
           fills = new Map();
           resetSemantic();
@@ -2245,8 +2305,8 @@ function makeArgosCanvas() {
       engineRef.current?.update({ doc: props.doc, selection: props.selection });
     }, [props.doc, props.selection]);
     React.useEffect(() => {
-      engineRef.current?.update({ describeNode: props.describeNode, nodeColor: props.nodeColor, summaryOf: props.summaryOf, bucketOf: props.bucketOf, isRich: props.isRich, nodeShape: props.nodeShape, backgroundDrag: props.backgroundDrag, label: props.label });
-    }, [props.describeNode, props.nodeColor, props.summaryOf, props.bucketOf, props.isRich, props.nodeShape, props.backgroundDrag, props.label]);
+      engineRef.current?.update({ describeNode: props.describeNode, nodeColor: props.nodeColor, summaryOf: props.summaryOf, thumbOf: props.thumbOf, bucketOf: props.bucketOf, isRich: props.isRich, nodeShape: props.nodeShape, backgroundDrag: props.backgroundDrag, label: props.label });
+    }, [props.describeNode, props.nodeColor, props.summaryOf, props.thumbOf, props.bucketOf, props.isRich, props.nodeShape, props.backgroundDrag, props.label]);
     React.useEffect(() => {
       engineRef.current?.update({ fullDetail: props.fullDetail });
     }, [props.fullDetail]);

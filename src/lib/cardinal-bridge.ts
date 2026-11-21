@@ -462,6 +462,12 @@ export function cardSummary(view: CardView | undefined): string | undefined {
   return "diagrama";
 }
 
+/** Miniatura do bloco de longe e de médio: a guardada (em dia ou defasada, o resumo já avisa) como URL de imagem; sem ela, `undefined`. */
+export function cardThumb(view: CardView | undefined): string | undefined {
+  if (view === undefined || (view.kind !== "fresh" && view.kind !== "stale") || view.svg === undefined || view.svg === "") return undefined;
+  return svgDataUrl(view.svg);
+}
+
 /** Aviso do cartão aberto no zoom de perto, sob a miniatura; `null` quando está tudo em dia. */
 export function cardNotice(view: CardView | undefined, reason: EngineReason = null): string | null {
   const why = reason === null ? "" : ` (${reason.message})`;

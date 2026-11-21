@@ -68,7 +68,7 @@ describe("escritores concorrentes", () => {
     const procs = [spawn("a"), spawn("b")];
     for (const p of procs) expect(await p.exited).toBe(0);
     const reg = readJson(join(work.orch, "agents", "ag.json"))!;
-    const delivery = (readJson(join(work.state, "global.json"))!.deliveries as Record<string, Record<string, number>>).k;
+    const delivery = (readJson(join(work.state, "global.json"))!.deliveries as Record<string, Record<string, number>>).k!;
     for (const field of ["a", "b"]) {
       for (let i = 0; i < N; i++) {
         expect(reg[field + i]).toBe(i);

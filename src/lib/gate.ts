@@ -141,8 +141,10 @@ export function admissionBlock(queue: readonly QueueEntry[], mine: QueueEntry, c
   if (limits.projectBudgetGb > 0 && running.sameProjectGb > 0 && running.sameProjectGb + cost > limits.projectBudgetGb) {
     return `orcamento do projeto ${project}: ${running.sameProjectGb}+${cost} GB > ${limits.projectBudgetGb} GB`;
   }
+  // Sem gate rodando, a memória está com processos de fora da fila: esperar não a libera e travaria a fila para sempre.
+  // A cabeça entra e o MemoryMax do scope segura o estouro.
   const neededMb = (cost + limits.reserveGb) * 1024;
-  if (state.availMb < neededMb) return `MemAvailable ${state.availMb} MB < ${neededMb} MB (custo ${cost} + reserva ${limits.reserveGb} GB)`;
+  if (running.usedGb > 0 && state.availMb < neededMb) return `MemAvailable ${state.availMb} MB < ${neededMb} MB (custo ${cost} + reserva ${limits.reserveGb} GB)`;
   if (state.psi > limits.psiMax) return `pressao de memoria some avg10=${state.psi}% > ${limits.psiMax}%`;
   return null;
 }

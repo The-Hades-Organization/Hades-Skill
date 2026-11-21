@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 export function isFile(path: string): boolean {
@@ -54,4 +54,16 @@ export function realpathMissingOk(path: string): string {
     current = parent;
   }
   return join(realpathSync(current), ...rest);
+}
+
+/** Grava num tmp único no mesmo diretório (`<f>.<pid>.<aleatório>.tmp`) e renomeia por cima; apaga o tmp se falhar. */
+export function writeFileAtomic(file: string, text: string): void {
+  const tmp = `${file}.${process.pid}.${Math.random().toString(36).slice(2, 10)}.tmp`;
+  try {
+    writeFileSync(tmp, text);
+    renameSync(tmp, file);
+  } catch (error) {
+    try { unlinkSync(tmp); } catch { /* o tmp pode nem ter sido criado */ }
+    throw error;
+  }
 }

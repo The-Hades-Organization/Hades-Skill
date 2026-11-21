@@ -1,8 +1,9 @@
 // Catálogo de configurações do dono (kit/config.tsv + $D/plugin/config.tsv) e valores em $D/config.env: validação por
 // tipo, gravação, exportação e prévia de importação. Mesma regra do config.sh (que o painel em Python ainda importa).
-import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { readText } from "./fs.ts";
+import { withFlock } from "./flock.ts";
+import { readText, writeFileAtomic } from "./fs.ts";
 import { ProtocolError, isHost, parseWorkers } from "./gate-remote/protocol.ts";
 import { home } from "./paths.ts";
 
@@ -233,6 +234,10 @@ const SLICE_ERROR = "Pressão de memória (MemoryHigh) não pode passar do teto 
 
 /** Valida e grava. Devolve os modos de aplicar das chaves que mudaram de valor. */
 export function save(store: ConfigStore, updates: Record<string, string>, unset: string[] = []): string[] {
+  return withFlock(join(store.dir, "config.env.lock"), () => saveLocked(store, updates, unset));
+}
+
+function saveLocked(store: ConfigStore, updates: Record<string, string>, unset: string[]): string[] {
   const items = new Map(catalog(store).map((item) => [item.key, item]));
   const own = loadValues(store);
   const valueOf = (map: Map<string, string>): Map<string, string> =>
@@ -255,9 +260,7 @@ export function save(store: ConfigStore, updates: Record<string, string>, unset:
   // chave fora do catálogo (de um plugin que não está instalado agora) fica como estava: volta a valer com ele
   const orphans = [...own].filter(([key]) => !items.has(key));
   const target = join(store.dir, "config.env");
-  const tmp = `${target}.tmp`;
-  writeFileSync(tmp, HEADER + keep.map((key) => `${key}=${own.get(key)}\n`).join("") + orphans.map(([k, v]) => `${k}=${v}\n`).join(""));
-  renameSync(tmp, target);
+  writeFileAtomic(target, HEADER + keep.map((key) => `${key}=${own.get(key)}\n`).join("") + orphans.map(([k, v]) => `${k}=${v}\n`).join(""));
   return [...new Set([...items].filter(([key]) => before.get(key) !== after.get(key)).map(([, item]) => item.apply))].sort();
 }
 

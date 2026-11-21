@@ -3,6 +3,7 @@
 import { join } from "node:path";
 import { activeProvider } from "./agent-provider.ts";
 import { herdrRefOf, type HerdrRef } from "./argos-graph-ui.ts";
+import { withFlock } from "./flock.ts";
 import { AGENT_END_KIND, emitJournal } from "./journal.ts";
 import { die } from "./output.ts";
 import { run, which } from "./proc.ts";
@@ -19,7 +20,7 @@ export function regReplace(work: WorkEnv, name: string, record: Json): void {
 /** `reg_set` com atualização: os campos novos entram no fim, os existentes ficam na posição. */
 export function regUpdate(work: WorkEnv, name: string, update: (current: Json) => Json): void {
   const file = agentFile(work, name);
-  writeJsonAtomic(file, update(readJson(file) ?? {}));
+  withFlock(`${file}.lock`, () => writeJsonAtomic(file, update(readJson(file) ?? {})));
 }
 
 const counter = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0);
@@ -44,11 +45,13 @@ export function jqText(value: unknown): string {
 /** Entrega no estado global do loop: deliveries[<chave>] (delivery_set). */
 export function deliverySet(work: WorkEnv, key: string, update: (delivery: Json) => Json): void {
   const file = join(work.state, "global.json");
-  const doc = readJson(file) ?? { version: 2, deliveries: {} };
-  const deliveries = typeof doc.deliveries === "object" && doc.deliveries !== null && !Array.isArray(doc.deliveries) ? (doc.deliveries as Json) : {};
-  const current = deliveries[key];
-  const delivery = typeof current === "object" && current !== null && !Array.isArray(current) ? (current as Json) : {};
-  writeJsonAtomic(file, { ...doc, deliveries: { ...deliveries, [key]: update(delivery) } });
+  withFlock(`${file}.lock`, () => {
+    const doc = readJson(file) ?? { version: 2, deliveries: {} };
+    const deliveries = typeof doc.deliveries === "object" && doc.deliveries !== null && !Array.isArray(doc.deliveries) ? (doc.deliveries as Json) : {};
+    const current = deliveries[key];
+    const delivery = typeof current === "object" && current !== null && !Array.isArray(current) ? (current as Json) : {};
+    writeJsonAtomic(file, { ...doc, deliveries: { ...deliveries, [key]: update(delivery) } });
+  });
 }
 
 /** Modelo e esforço do papel nas Configurações (HADES_MODEL_<PAPEL> / HADES_EFFORT_<PAPEL>); vazio quando o papel não tem. */

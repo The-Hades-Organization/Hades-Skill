@@ -21,6 +21,7 @@ import { run } from "../lib/proc.ts";
 import { parseFile, transcriptsIn } from "../lib/usage.ts";
 import { JANELAS, limitesDoPlano, ROTULO, type LimiteDoPlano, type Janela } from "../lib/limites.ts";
 import { renova } from "../lib/limites-io.ts";
+import { clockNow } from "../lib/clock.ts";
 import { limitsNow } from "./usage.ts";
 import { configValue } from "../lib/work.ts";
 
@@ -187,7 +188,7 @@ function gateJournals(base: string, roots: readonly string[]): string[] {
 }
 
 /** Todas as unidades encerradas de raiz real, com o medido; só leitura. */
-export function collectHistory(params: Params, now: Date = new Date(), windowDays: number = intKey("HADES_MOIRAI_WINDOW_DAYS", 90)): HistoryUnit[] {
+export function collectHistory(params: Params, now: Date = clockNow(), windowDays: number = intKey("HADES_MOIRAI_WINDOW_DAYS", 90)): HistoryUnit[] {
   const base = workRoot();
   const roots = rootsOf(base);
   const journals = gateJournals(base, roots);
@@ -323,7 +324,7 @@ function estimate(args: string[]): number {
   const hist = collectHistory(params);
   const hints = flags.has("--deep") ? deepHints(units, claudeRunner()) : new Map<string, number>();
   const estimates = estimatePlan(units, planMode, hist, params, hints);
-  const now = new Date();
+  const now = clockNow();
   if (flags.has("--write")) {
     const section = renderSection({ date: now.toISOString().slice(0, 10), estimates, historySize: hist.length, windowDays: intKey("HADES_MOIRAI_WINDOW_DAYS", 90), params });
     writeFileSync(path, writeSection(text, section));

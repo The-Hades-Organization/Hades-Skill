@@ -19,6 +19,7 @@ import { calibra, JANELAS, pctDeTokens, ROTULO, textoPct, type Amostra, type Atu
 import { home } from "../lib/paths.ts";
 import { pyDumps } from "../lib/pyjson.ts";
 import { roleModelDefaults } from "../lib/agent-registry.ts";
+import { clockNow } from "../lib/clock.ts";
 import { configValue } from "../lib/work.ts";
 import { buildFixedContext, openingsOf, PART_LABEL, PARTS, type FixedContext, type Opening, type PartBytes, type PartsHistory } from "../lib/usage-fixo.ts";
 import { partsOf, readHistory, recordHistory, repoOf, sumParts } from "../lib/usage-fixo-io.ts";
@@ -358,7 +359,7 @@ function sampleCommand(args: string[]): number {
     process.stderr.write(`${SAMPLE_USAGE}\n${PROG} sample: error: unrecognized arguments: ${rest.join(" ")}\n`);
     return PYTHON_ARGPARSE_ERROR;
   }
-  const now = new Date();
+  const now = clockNow();
   let stdin = "";
   try {
     stdin = readFileSync(0, "utf8");
@@ -385,7 +386,7 @@ export function usageCommand(args: string[]): number {
     return parsed.exit;
   }
   const { days, json, baseline } = parsed.options;
-  const now = new Date();
+  const now = clockNow();
   const outDir = join(home(), ".claude", "hades", "usage");
   mkdirSync(outDir, { recursive: true });
   const since = new Date(now.getTime() - days * MS_PER_DAY).toISOString().slice(0, 10);

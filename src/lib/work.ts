@@ -1,9 +1,10 @@
 // Ambiente de trabalho do loop (lib.sh: skill_scope, set_work_dirs, reg_get/reg_set, delivery_set, open_questions).
 // Mesmas derivações do bash: repositório → SLUG → ~/.claude/hades/work/<slug> (ou HADES_WORK_ROOT / work-root).
-import { mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync } from "node:fs";
 import { join } from "node:path";
+import { withFlock } from "./flock.ts";
 import { effectiveConfig } from "./config.ts";
-import { firstLine, isFile, listDir, readText } from "./fs.ts";
+import { firstLine, isFile, listDir, readText, writeFileAtomic } from "./fs.ts";
 import { hadesHome, skillRoot } from "./paths.ts";
 import { die, warn } from "./output.ts";
 import { run } from "./proc.ts";
@@ -116,8 +117,7 @@ export function readJson(file: string): Json | undefined {
 
 /** Grava como o `jq … > f.tmp && mv` do bash: o leitor nunca vê arquivo pela metade. */
 export function writeJsonAtomic(file: string, data: unknown): void {
-  writeFileSync(`${file}.tmp`, `${JSON.stringify(data, null, 2)}\n`);
-  renameSync(`${file}.tmp`, file);
+  writeFileAtomic(file, `${JSON.stringify(data, null, 2)}\n`);
 }
 
 export function agentFile(work: WorkEnv, name: string): string {
@@ -133,7 +133,7 @@ export function regGet(work: WorkEnv, name: string, field: string): string {
 
 export function regSet(work: WorkEnv, name: string, patch: Json): void {
   const file = agentFile(work, name);
-  writeJsonAtomic(file, { ...(readJson(file) ?? {}), ...patch });
+  withFlock(`${file}.lock`, () => writeJsonAtomic(file, { ...(readJson(file) ?? {}), ...patch }));
 }
 
 /** Perguntas abertas em <worktree>/<reports>/questions.md: `## Qn` sem "(respondida)" nem `## Resposta do dono` depois. */

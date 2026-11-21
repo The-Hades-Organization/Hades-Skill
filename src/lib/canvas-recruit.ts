@@ -8,7 +8,7 @@ import { CANVAS_LIMITS, type CanvasDoc, type CanvasEdge, type CanvasNode, paneKe
 import { type AtomicOp, applyOp, type CanvasOp, opBatch, opCreate, opDelete, opMove, opUpdate } from "./canvas-history.ts";
 import { LAYOUT_GAP, Occupancy } from "./canvas-layout.ts";
 import { containerOf, findFreeBox, insideOf, interiorOf, type Point } from "./canvas-space.ts";
-import { opCreateLink } from "./canvas-links.ts";
+import { LINK_EDGE_KIND, opCreateLink, opRemoveLink } from "./canvas-links.ts";
 import { createDrawingNode, DRAWING_LIMITS, requireFreshDrawingTitle } from "./canvas-drawing.ts";
 import { createNoteNode, directNotesOf, hasNoteAccess, NOTE_READER_TYPES, NOTE_TYPE, requireNoteName } from "./canvas-note.ts";
 
@@ -37,6 +37,7 @@ export const RECRUIT_ERRORS = {
   notRecruit: "recruit_not_recruit",
   notYourRecruit: "recruit_not_yours",
   missingNote: "recruit_missing_note",
+  missingCardinal: "recruit_missing_cardinal",
   noteNotShared: "recruit_note_not_shared",
   ambiguous: "recruit_ambiguous",
   notOrchestratorTarget: "recruit_join_target_not_orchestrator",
@@ -50,6 +51,7 @@ export const RECRUIT_ERROR_TEXT: Readonly<Record<RecruitErrorCode, string>> = {
   [RECRUIT_ERRORS.notRecruit]: "recruta não encontrado no canvas",
   [RECRUIT_ERRORS.notYourRecruit]: "esse terminal não é recruta seu: só o orquestrador que o criou o comanda",
   [RECRUIT_ERRORS.missingNote]: "nota não encontrada no canvas",
+  [RECRUIT_ERRORS.missingCardinal]: "diagrama não encontrado entre os ligados a você",
   [RECRUIT_ERRORS.noteNotShared]: "a nota não está ligada ao orquestrador: ligue-a a você antes de passá-la ao recruta",
   [RECRUIT_ERRORS.ambiguous]: "mais de um nó com esse nome: use o id do nó",
   [RECRUIT_ERRORS.notOrchestratorTarget]: "--to pede um orquestrador deste canvas (nó terminal com a caixa Orquestrador): nome ou id não encontrado",
@@ -308,7 +310,7 @@ function gridIsFree(doc: CanvasDoc, slots: readonly Box[], ignore: ReadonlySet<s
  * O encaixe nas áreas dos nós recém-criados: quem nasceu dentro de uma área entra na lista de membros dela, no mesmo lote.
  * `ops` são as operações já montadas sobre `doc`.
  */
-function dockOps(doc: CanvasDoc, ops: readonly AtomicOp[], ids: readonly string[]): AtomicOp[] {
+export function dockOps(doc: CanvasDoc, ops: readonly AtomicOp[], ids: readonly string[]): AtomicOp[] {
   const drop = dropOps(applyOp(doc, opBatch([...ops])), ids);
   return drop === undefined ? [] : drop.kind === "batch" ? [...drop.ops] : [drop];
 }
@@ -317,7 +319,7 @@ function dockOps(doc: CanvasDoc, ops: readonly AtomicOp[], ids: readonly string[
  * Fecha o lote dos nós `ids` criados por `anchor`: se ele mora numa área, ela cresce até cobri-los (abrindo espaço em volta,
  * `growAreaOps`) e eles entram na lista dela; fora de área, só o encaixe de sempre. Um passo só do desfazer.
  */
-function settleInArea(doc: CanvasDoc, ops: readonly AtomicOp[], anchor: CanvasNode, ids: readonly string[]): CanvasOp {
+export function settleInArea(doc: CanvasDoc, ops: readonly AtomicOp[], anchor: CanvasNode, ids: readonly string[]): CanvasOp {
   const home = containerOf(doc, anchor);
   const grown = home === undefined ? [] : growAreaOps(applyOp(doc, opBatch([...ops])), home.id, ids);
   const all = [...ops, ...grown];

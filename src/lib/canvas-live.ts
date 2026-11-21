@@ -43,6 +43,10 @@ export interface LiveDeps {
   onCanvas(notice: { id: string; rev: number }): void;
   /** Aviso `registry`: o registro de terminais mudou. */
   onRegistry(): void;
+  /** Aviso `cardinal`: o diagrama `name` está em `rev` (`null` = saiu do disco); `source` diz quem gravou (editor embutido recebe e ignora o próprio eco). */
+  onCardinal?(notice: { name: string; rev: string | null; source: string }): void;
+  /** O stream (re)abriu: avisos `cardinal` do intervalo fora do ar não voltam, então quem os consome confere o estado por conta própria. */
+  onOpen?(): void;
   /** Confere a revisão do servidor (a página compara com a que conhece). Falha vira aviso no console, nunca derruba a ligação. */
   check(): Promise<void>;
   /** Falhas que o transporte engole de propósito (recuo, conferência) vão para cá. */
@@ -75,6 +79,21 @@ function parseNotice(raw: unknown): { id: string; rev: number } | undefined {
   if (typeof value !== "object" || value === null) return undefined;
   const { id, rev } = value as { id?: unknown; rev?: unknown };
   return typeof id === "string" && typeof rev === "number" && Number.isInteger(rev) ? { id, rev } : undefined;
+}
+
+function parseCardinal(raw: unknown): { name: string; rev: string | null; source: string } | undefined {
+  const text = typeof raw === "object" && raw !== null ? (raw as { data?: unknown }).data : undefined;
+  if (typeof text !== "string") return undefined;
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  if (typeof value !== "object" || value === null) return undefined;
+  const { name, rev, source } = value as { name?: unknown; rev?: unknown; source?: unknown };
+  if (typeof name !== "string" || !(rev === null || typeof rev === "string")) return undefined;
+  return { name, rev, source: typeof source === "string" ? source : "disk" };
 }
 
 export function createLiveLink(deps: LiveDeps): LiveLink {
@@ -142,6 +161,7 @@ export function createLiveLink(deps: LiveDeps): LiveLink {
       attempt = 0;
       armPoll();
       // religou: confere o que passou enquanto estava fora
+      deps.onOpen?.();
       deps.check().catch((e: unknown) => deps.log(`conferência ao ligar falhou: ${e instanceof Error ? e.name : "erro"}`));
     });
     next.addEventListener("canvas", (ev) => {
@@ -151,6 +171,11 @@ export function createLiveLink(deps: LiveDeps): LiveLink {
     });
     next.addEventListener("registry", () => {
       if (!stopped) deps.onRegistry();
+    });
+    next.addEventListener("cardinal", (ev) => {
+      const notice = parseCardinal(ev);
+      if (notice === undefined) deps.log("aviso do diagrama ilegível");
+      else if (!stopped) deps.onCardinal?.(notice);
     });
     next.addEventListener("error", () => {
       if (stopped || stream !== next) return;

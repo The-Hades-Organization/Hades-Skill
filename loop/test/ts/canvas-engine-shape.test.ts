@@ -22,6 +22,7 @@ interface EngineOptions {
   nodeColor?(node: CanvasNode): string;
   isRich?(node: CanvasNode): boolean;
   nodeShape?(node: CanvasNode): Shape;
+  thumbOf?(node: CanvasNode): string | undefined;
 }
 interface FrameInfo {
   ms: number;
@@ -90,10 +91,24 @@ function fakeElement(): Element {
   }) as unknown as Element;
 }
 
+/** Imagem falsa: guarda a URL pedida e deixa o teste disparar `onload`/`onerror` quando quiser. */
+class FakeImage {
+  naturalWidth = 200;
+  naturalHeight = 100;
+  width = 0;
+  height = 0;
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  src = "";
+  constructor() {
+    images.push(this);
+  }
+}
+let images: FakeImage[] = [];
 let layers: Recorder[] = [];
 let frames: ((now: number) => void)[] = [];
 const saved: Record<string, unknown> = {};
-const STUBBED = ["document", "window", "getComputedStyle", "ResizeObserver", "MutationObserver", "requestAnimationFrame", "cancelAnimationFrame", "CanvasModel", "ArgosCanvas"];
+const STUBBED = ["document", "window", "getComputedStyle", "ResizeObserver", "MutationObserver", "requestAnimationFrame", "cancelAnimationFrame", "CanvasModel", "ArgosCanvas", "Image"];
 
 let Canvas: ArgosCanvasApi;
 
@@ -111,6 +126,7 @@ beforeAll(async () => {
     },
     documentElement: fakeElement(),
   };
+  g.Image = FakeImage;
   g.getComputedStyle = () => ({ getPropertyValue: () => "" });
   g.ResizeObserver = class {
     private readonly fn: () => void;
@@ -141,6 +157,7 @@ afterAll(() => {
 beforeEach(() => {
   layers = [];
   frames = [];
+  images = [];
 });
 
 const node = (id: string, x: number, extra: Partial<CanvasNode> = {}): CanvasNode => ({
@@ -469,5 +486,159 @@ describe("canvas-engine-shape: conexões fora da tela", () => {
     } finally {
       media.matchMedia = original;
     }
+  });
+});
+
+describe("canvas-engine: nó rico retido ao sair do nível de perto", () => {
+  const drainAll = (): void => {
+    let ran = 0;
+    while (frames.length > 0 && ran < 200) {
+      frames.shift()?.(16 * ++ran);
+    }
+  };
+  function richEl() {
+    const heard = new Map<string, (() => void)[]>();
+    const sent: [string, unknown][] = [];
+    const el = {
+      style: {} as Record<string, string>,
+      dataset: {} as Record<string, string>,
+      addEventListener: (type: string, fn: () => void) => heard.set(type, [...(heard.get(type) ?? []), fn]),
+      dispatchEvent: (e: { type: string; detail: unknown }) => { sent.push([e.type, e.detail]); return true; },
+    };
+    return { el, sent, tell: (type: string): void => { for (const fn of heard.get(type) ?? []) fn(); } };
+  }
+
+  test("avisa canvas-near ao entrar e sair do detalhe completo e segura o nó marcado com data-retain até a marca cair", () => {
+    const lists: string[][] = [];
+    const engine = Canvas.createCanvasEngine(
+      { host: fakeElement(), canvasBox: fakeElement(), htmlLayer: fakeElement(), a11yBox: fakeElement() },
+      { doc: docOf([node("a", 0)]), selection: [], onSelectionChange: () => undefined, onOp: () => undefined, initialCamera: { x: 0, y: 0, k: 1 }, isRich: () => true, onRichNodes: (ids: readonly string[]) => lists.push([...ids]) } as EngineOptions,
+    );
+    const { el, sent, tell } = richEl();
+    (engine as unknown as { bindHtml(id: string, el: unknown): void }).bindHtml("a", el);
+    drainAll();
+    expect(lists.at(-1)).toEqual(["a"]);
+    expect(sent.at(-1)).toEqual(["canvas-near", true]);
+
+    el.dataset.retain = "1";
+    (engine as unknown as { api: { setCamera(c: object, animate: boolean): void } }).api.setCamera({ x: 0, y: 0, k: 0.1 }, false);
+    drainAll();
+    expect(sent.at(-1)).toEqual(["canvas-near", false]);
+    expect(lists.at(-1)).toEqual(["a"]);
+
+    el.dataset.retain = "0";
+    tell("canvas-retain");
+    drainAll();
+    expect(lists.at(-1)).toEqual([]);
+    engine.destroy();
+  });
+
+  test("sem a marca, sair do detalhe completo tira o nó da camada HTML na hora", () => {
+    const lists: string[][] = [];
+    const engine = Canvas.createCanvasEngine(
+      { host: fakeElement(), canvasBox: fakeElement(), htmlLayer: fakeElement(), a11yBox: fakeElement() },
+      { doc: docOf([node("a", 0)]), selection: [], onSelectionChange: () => undefined, onOp: () => undefined, initialCamera: { x: 0, y: 0, k: 1 }, isRich: () => true, onRichNodes: (ids: readonly string[]) => lists.push([...ids]) } as EngineOptions,
+    );
+    (engine as unknown as { bindHtml(id: string, el: unknown): void }).bindHtml("a", richEl().el);
+    drainAll();
+    (engine as unknown as { api: { setCamera(c: object, animate: boolean): void } }).api.setCamera({ x: 0, y: 0, k: 0.1 }, false);
+    drainAll();
+    expect(lists.at(-1)).toEqual([]);
+    engine.destroy();
+  });
+});
+
+// ---- miniatura no bloco de longe e de médio (gancho `thumbOf`) ----
+describe("canvas-engine-shape: miniatura do bloco", () => {
+  const big = (id = "d"): CanvasNode => node(id, 0, { w: 400, h: 300 });
+  const drawn = (calls: Call[]): Call[] => calls.filter((c) => c[0] === "drawImage");
+  const runFrames = (): void => {
+    while (frames.length > 0) frames.shift()?.(0);
+  };
+
+  test("sem a prop, nenhum bloco leva imagem e nada é carregado", () => {
+    const { nodesLayer } = paint([big()], BLOCK_K);
+    expect(drawn(nodesLayer.calls)).toHaveLength(0);
+    expect(images).toHaveLength(0);
+  });
+
+  test("a imagem é pedida pela URL da página e só entra no quadro depois de carregar", () => {
+    const { nodesLayer } = paint([big()], BLOCK_K, { thumbOf: () => "data:image/svg+xml,a" });
+    expect(images.map((i) => i.src)).toEqual(["data:image/svg+xml,a"]);
+    expect(drawn(nodesLayer.calls)).toHaveLength(0);
+    (images[0] as FakeImage).onload?.();
+    runFrames();
+    expect(drawn(nodesLayer.calls)).toHaveLength(1);
+  });
+
+  test("a imagem fica contida e centrada no espaço sob o rótulo, sobre fundo branco", () => {
+    const { nodesLayer } = paint([big()], BLOCK_K, { thumbOf: () => "u" });
+    (images[0] as FakeImage).onload?.();
+    runFrames();
+    const call = drawn(nodesLayer.calls)[0] as Call;
+    expect(call[1]).toBe(images[0]);
+    const [x, y, w, h] = call.slice(2) as number[];
+    expect(x).toBeCloseTo(25, 6);
+    expect(y).toBeCloseTo(78.75, 6);
+    expect(w).toBeCloseTo(360, 6);
+    expect(h).toBeCloseTo(180, 6);
+    const names2 = names(nodesLayer.calls);
+    const white = nodesLayer.calls.findLastIndex((c) => c[0] === "set:fillStyle" && c[1] === "#ffffff");
+    expect(white).toBeGreaterThan(-1);
+    expect(names2[white + 1]).toBe("fillRect");
+  });
+
+  test("a mesma URL não recarrega a imagem; URL nova carrega outra", () => {
+    let url = "u1";
+    const { engine } = paint([big()], BLOCK_K, { thumbOf: () => url });
+    (images[0] as FakeImage).onload?.();
+    runFrames();
+    engine.update({ thumbOf: () => url });
+    runFrames();
+    expect(images).toHaveLength(1);
+    url = "u2";
+    engine.update({ thumbOf: () => url });
+    runFrames();
+    expect(images.map((i) => i.src)).toEqual(["u1", "u2"]);
+  });
+
+  test("carga que termina depois da troca da URL não pinta a imagem velha", () => {
+    let url = "u1";
+    const { engine, nodesLayer } = paint([big()], BLOCK_K, { thumbOf: () => url });
+    url = "u2";
+    engine.update({ thumbOf: () => url });
+    runFrames();
+    nodesLayer.calls.length = 0;
+    (images[0] as FakeImage).onload?.();
+    runFrames();
+    expect(drawn(nodesLayer.calls)).toHaveLength(0);
+  });
+
+  test("imagem com erro some em silêncio e não é pedida de novo", () => {
+    const { engine, nodesLayer } = paint([big()], BLOCK_K, { thumbOf: () => "quebrada" });
+    (images[0] as FakeImage).onerror?.();
+    engine.update({ thumbOf: () => "quebrada" });
+    runFrames();
+    expect(images).toHaveLength(1);
+    expect(drawn(nodesLayer.calls)).toHaveLength(0);
+  });
+
+  test("bloco pequeno demais para a miniatura fica só com o texto", () => {
+    const { nodesLayer } = paint([node("p", 0)], BLOCK_K, { thumbOf: () => "u" });
+    (images[0] as FakeImage).onload?.();
+    runFrames();
+    expect(drawn(nodesLayer.calls)).toHaveLength(0);
+  });
+
+  test("no detalhe completo o bloco é o do cartão HTML: o motor não desenha a miniatura", () => {
+    const { nodesLayer } = paint([big()], FULL_K, { thumbOf: () => "u" });
+    for (const image of images) image.onload?.();
+    runFrames();
+    expect(drawn(nodesLayer.calls)).toHaveLength(0);
+  });
+
+  test("nó sem miniatura (undefined) não carrega nada", () => {
+    paint([big()], BLOCK_K, { thumbOf: () => undefined });
+    expect(images).toHaveLength(0);
   });
 });

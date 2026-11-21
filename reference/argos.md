@@ -492,6 +492,82 @@ sem aviso): o terminal ficava vivo e invisível.
   `registry` do stream e depois de cada releitura do documento; um toast avisa uma vez por órfão novo.
 - **Fora desta entrega.** Guardar revisões anteriores do documento (item 4 da issue).
 
+## Nó `cardinal` (diagrama do Cardinal)
+
+Extensão `cardinal` (`reference/extensoes.md`). O nó `cardinal` é um tipo livre do documento (`[a-z][a-z0-9_-]{0,39}`) cujo `data` aponta para um arquivo `.cardinal`:
+
+```json
+{ "id": "c1", "type": "cardinal", "data": { "cardinal": "arquitetura-pagamentos", "title": "Arquitetura de pagamentos", "agent": "agent:proj:impl-1" } }
+```
+
+`cardinal` é o nome (`[A-Za-z0-9][A-Za-z0-9_-]*`, até 64), `title` é só rótulo do nó e `agent` é opcional (vínculo no `data`, como na nota). Campo desconhecido é recusado (`cardinal_invalid_data`). Código: `src/lib/canvas-cardinal.ts` (sem Node), `src/panel/canvas-cardinal.ts` (rotas), `src/panel/cardinal-watch.ts` (vigia).
+
+**O `.cardinal` é opaco.** O painel guarda bytes e lê só o envelope `{ format: "cardinal", version, app, project.models }` para exibir e recusar versão futura; nunca converte o conteúdo. `CARDINAL_FORMAT_MAX` (2) é o `format` de `cardinal --version`.
+
+**Arquivos.** `$D/canvas-cardinal/<nome>.cardinal` (0600, gravação por tmp + rename) ou arquivo de fora adotado pelo índice `$D/canvas-cardinal/.index.json` (`{ v: 1, files: { <nome>: { path } } }`). Arquivo adotado mantém a permissão que tinha. Teto: 4 MiB por arquivo (`CARDINAL_LIMITS.bodyBytes`). O hash não fica no nó: `rev` são 16 hex do conteúdo, calculados a cada leitura (o documento tem `rev` própria).
+
+**Rotas** (`/api/canvas-cardinal`, mesmas chave e token de sessão das demais; o agente só no painel local):
+
+| Rota | O que faz |
+|---|---|
+| `GET /api/canvas-cardinal?limit=&after=` | arquivos conhecidos, por nome, em páginas (`files[]`, `next`); limite acima de 200 é 400 |
+| `GET /api/canvas-cardinal/<canvas>[?as=<agente>]` | os nós `cardinal` do canvas (`nodes[]`: `id`, `name`, `exists`, `rev`, `version`, `diagrams`) |
+| `GET /api/canvas-cardinal/<canvas>/<nó>[?as=<agente>]` | `{ name, text, rev, updatedAt, bytes, format, version, app, diagrams, supported, valid, location, path }` (`path` é o caminho absoluto do `.cardinal` no disco, do arquivo padrão ou do adotado; é o que `hades canvas cardinal read --file` imprime) |
+| `PUT /api/canvas-cardinal/<canvas>/<nó>` | corpo `{ "text": "<.cardinal>", "rev": null \| "<rev>", "as": { "agent": "<id>" } }`; `rev: null` cria; `{ ok, name, rev, bytes }` |
+| `POST /api/canvas-cardinal/link` | corpo `{ "path": "/abs/x.cardinal" }`; adota sem mover; `{ ok, name, path, created }`; só local |
+| `GET` e `PUT /api/canvas-cardinal/settings` | as preferências do editor embutido, um texto opaco **por painel** (não por nó): `{ "text": "…" }` nos dois sentidos; sem nada guardado o `GET` devolve `""`. Arquivo `.settings.json` (0600) ao lado dos diagramas, teto `CARDINAL_SETTINGS_BYTES` (64 KiB, 413 acima), corpo sem `text` é 400, arquivo ilegível é 500 `cardinal_unreadable`. Vale local e remoto; `settings` é nome reservado, não é um canvas |
+
+Exemplo: `GET /api/canvas-cardinal/default/c1` → `{"name":"arquitetura-pagamentos","rev":"9f2c…","version":2,"diagrams":2,"supported":true,"location":"default",…}`; `PUT` com `rev` velha → 409 `cardinal_stale_revision` com a `rev` atual.
+
+**Erros** (`CARDINAL_ROUTE_ERRORS` e `CARDINAL_ERRORS`, só ganham valores): `cardinal_invalid_body`, `cardinal_too_large` (413), `cardinal_not_found` (404), `cardinal_stale_revision` (409), `cardinal_agent_local_only` (403), `cardinal_unreadable` (500: link simbólico, não UTF-8, local fora das raízes), `cardinal_local_only` (403), `cardinal_invalid_path`, `cardinal_exists`, `cardinal_invalid_query`, `cardinal_invalid_name`, `cardinal_invalid_data`, `cardinal_invalid_envelope`, `cardinal_format_too_new` (o PUT recusa versão futura; o GET devolve `supported: false`).
+
+**Rotas de agente** (executam o binário `cardinal`; mesmo escopo de leitura/escrita da tabela acima, `as` no corpo ou `?as=` na consulta):
+
+| Rota | O que faz |
+|---|---|
+| `GET /api/canvas-cardinal/<canvas>/<nó>/describe[?as=&diagram=]` | `{ name, rev, describe }`: saída de `cardinal describe --json` sobre o arquivo |
+| `GET /api/canvas-cardinal/<canvas>/<nó>/svg[?as=]` | `{ name, rev, svg, svgRev, stale }`: SVG guardado ao lado (gerado na hora se não existe); defasado vem com `stale: true`, a regeneração fica para o `export`/`edit` |
+| `POST /api/canvas-cardinal/<canvas>/<nó>/edit` | corpo `{ "text": "<texto do diagrama>", "rev": "<rev lida>", "diagram": 0, "as": { "agent": "<id>" } }`; aplica o texto com `cardinal apply` e grava; `{ ok, name, rev, bytes, attempts, svg }` |
+| `POST /api/canvas-cardinal/<canvas>/<nó>/export` | corpo `{ "format": "svg" \| "png", "diagram": 0, "as": {…} }`; devolve a imagem com `X-Cardinal-Rev` |
+| `POST /api/canvas-cardinal/<canvas>/<nó>/artifact` | só o dono (a página; `as` é 400): corpo `{ "format": "svg" \| "png", "rev": "<rev do .cardinal exportado>", "data": "<svg como texto \| png em base64>" }`; grava a imagem do editor ao lado (SVG vira o SVG do cartão, PNG vira `<nome>.png` + `<nome>.png.rev`); `{ ok, name, rev, format, bytes }`; `rev` velha é 409 `cardinal_stale_revision`, SVG com `<script`, `<foreignObject`, `on*=` ou `javascript:` e PNG sem assinatura são 400, nó fora do escopo é 404 |
+| `GET /api/canvas-cardinal/<canvas>/<nó>/artifact?format=png[&as=]` | o PNG guardado pelo editor, com `X-Cardinal-Rev` e `X-Cardinal-Stale` (`true` se o arquivo já mudou); sem imagem é 404, `format` ausente é 400 |
+| `POST /api/canvas-cardinal/<canvas>/<nó>/open` | abre o arquivo do nó no app nativo (`cardinal <arquivo>`, solto do painel, ambiente só com PATH/HOME/DISPLAY/WAYLAND/XDG_*/DBUS; nenhum token vaza). Só painel local e só o dono (`as` não existe aqui): remoto é 403 `cardinal_local_only`; sem binário, sem `openNative` ou binário que não executa é 503 `cardinal_unavailable`; fora de escopo 404. Resposta `{ name, opened: true }`. Não espera o app fechar. |
+| `POST /api/canvas-cardinal/convert` | corpo `{ "from": "text" \| "mermaid" \| "prisma" \| "sql", "text": "<origem>", "arrange": true }`; roda `cardinal convert --from X -o -` e devolve `{ ok, text }` (o `.cardinal` novo, sem gravar); só `from` dessa lista, `text` até `CARDINAL_LIMITS.bodyBytes`; sem binário 503 `cardinal_unavailable` |
+
+`edit` exige `rev` e dá 409 `cardinal_stale_revision` se a primeira leitura não bate; só as repetições (até `CARDINAL_EDIT_ATTEMPTS` = 3, quando o arquivo muda durante o `apply`) seguem os bytes novos. O `apply` apaga o que não está no texto: o agente envia o diagrama completo. Exemplo: `POST …/default/c1/edit` com `{"text":"…","rev":"9f2c…"}` → `{"ok":true,"name":"arquitetura-pagamentos","rev":"b71e…","bytes":2210,"attempts":1,"svg":true}`.
+
+**CLI do agente** (`hades canvas cardinal`, `src/commands/canvas.ts`; mesmas regras de `canvas drawing`: a cadeia só se lê, a escrita exige ligação direta, o que não se alcança responde como inexistente):
+
+- `new <título> [--link-to <recruta>]… [--from-file arq|--from-text arq|-|--from-mermaid arq|--from-prisma arq|--from-sql arq] [--arrange]` (só o orquestrador): cria o nó `cardinal` perto dele, ligado a ele e aos recrutas citados, e o arquivo. O nome é o slug do título (`-2`, `-3` se já existe). Sem origem, semeia `model conceptual "<título>"` por `convert`; sem binário sai 1 com `cardinal_unavailable` e nada é criado. Origem lida até 1 MiB; `--from-prisma` só aceita arquivo.
+- `list`: diretos e da cadeia, com `rev`, versão e nº de diagramas.
+- `read <c> [--json|--file] [--diagram n]`: texto do diagrama (`describe`), o JSON bruto ou o caminho do arquivo.
+- `apply <c> --text <arq|-> [--diagram n]`: aplica o texto com `edit`; releitura da `rev` e até 3 tentativas em 409 (last-writer-wins, como nota).
+- `export <c> --svg|--png [-o caminho] [--diagram n]`: SVG vai à saída padrão sem `-o`; PNG exige `-o`.
+- `adopt <caminho> [--title t] [--link-to …]`: adota um `.cardinal` de fora (`/link`) e cria o nó; arquivo já com nó reaproveita o nó.
+- `link|unlink <c> <recruta>`: liga/desliga o recruta a diagrama ligado direto ao orquestrador.
+
+Recusas: `canvas_cardinal_no_access`, `canvas_cardinal_write_direct_only`, `canvas_cardinal_conflict`, `canvas_cardinal_source_invalid`, `recruit_missing_cardinal`. Não há `export --to-artifacts`: o `export` só imprime ou grava um arquivo.
+
+**SVG ao lado.** `$D/canvas-cardinal/<nome>.svg` e `<nome>.svg.rev` (a `rev` do `.cardinal` de onde saiu), regenerados após `edit` e no `export` svg do diagrama padrão. Falha ao regenerar só é logada: a gravação do `.cardinal` não desfaz.
+
+**Executor** (`src/panel/cardinal-runner.ts`): argv sem shell, timeout de 30 s, stdin até 8 MiB e stdout até 32 MiB, ambiente mínimo (`PATH`, `HOME` temporário, `LANG`), processo em grupo próprio e o timeout mata o grupo inteiro. Binário: `HADES_CARDINAL_BIN` ou `cardinal` do PATH. Erros: `cardinal_parse_error` (400, `errors[]` do binário), `cardinal_format_unsupported`, `cardinal_failed` (502), `cardinal_unavailable` (503), `cardinal_timeout` (504), `cardinal_output_too_large`, `cardinal_input_too_large`.
+
+**Escopo.** O dono lê e escreve em qualquer nó. O agente (`as`) escreve só no diagrama ligado direto a ele (conexão `cardinal-access` ou `data.agent`) e lê também os da cadeia (`cardinal-chain`, `readableCardinalsOf`; a listagem do agente já sai filtrada assim); fora do escopo (nó inexistente, de outro tipo, fora da cadeia do agente) é 404 igual, para não revelar existência. `link` e `as` são só locais (remoto: 403). A adoção só aceita `.cardinal` regular (sem link simbólico), com a pasta (caminho real) dentro das raízes (pasta pessoal) e fora de `$D/canvas-cardinal/`. O caminho guardado é conferido de novo a cada uso.
+
+**Vigia e SSE.** `createCardinalWatch` guarda o carimbo (mtime:tamanho) de cada arquivo conhecido; quando muda, relê e compara a `rev`. Usa `fs.watch` nas pastas (acelera) e uma varredura a cada 2 s (garante). Gravação feita pela própria rota entra por `learn` e não ecoa. Arquivo criado, alterado ou apagado por fora (app nativo, editor, `git checkout`) vira, em `/api/canvas/stream`, o evento `cardinal` com `{ "name", "rev", "source": "panel" \| "disk" }` (`rev: null` = saiu do disco); o aviso não leva o conteúdo, a página relê pela rota. Arquivo adotado entra no vigia depois do `link`. Arquivo criado depois de o editor montar (nó novo no zoom de perto): o editor lê "ausente" (`failed`) e o aviso SSE do `PUT` o refaz o `load`; se o aviso chega com a leitura ainda em voo, a ponte guarda o aviso (`changedWhileLoading`) e relê ao terminar, sem esperar outro.
+
+**Editor no nó** (`kit/panel/ui/argos/node-cardinal.tsx`, `src/lib/cardinal-bridge.ts`). O tipo `cardinal` do canvas (registrado em `types-user.tsx`) mostra o título e um botão **Abrir editor / Fechar editor**; o `CardinalEditor` só é montado com o nó aberto. Fechar passa `closing=true`, o editor salva o pendente (até `FLUSH_TIMEOUT_MS`, 5 s) e só no `onClosed` o nó o desmonta. A página fala com as rotas pela ponte (`createCardinalClient`); o iframe (`sandbox="allow-scripts"`, sem `allow-same-origin`) nunca vê a API. Aviso SSE `cardinal` (`onCardinal` em `canvas-live.ts`) vai ao `cardinalFeed`, que entrega `fileChanged(rev)` ao editor aberto do mesmo nome. No máximo 2 editores vivos por página (`editorSlots`); o terceiro mostra o aviso de limite. A miniatura SVG, os estados do cartão fechado e a referência `@` ficam para a U11.
+
+**Preferências do editor.** O iframe sandbox não tem `localStorage`, então tema, idioma, onboarding e larguras de painel ficam no painel, num texto só por painel (`GET`/`PUT /api/canvas-cardinal/settings`). A ponte lê o texto junto com o arquivo e o manda no `load` (campo `settings`; `""` quando não há, e o editor abre com os padrões); ao receber `settings-changed` (o texto JSON completo, 400 ms depois da última mudança e ao perder o foco) grava o texto como veio, sem interpretar. Falha de gravação sobe como erro `cardinal_*` e não derruba o editor. O ponta a ponta no navegador não é automatizado (o iframe não repinta e não recebe clique no Firefox headless); a ponte e a rota têm teste.
+
+**Cartão fechado** (`CardinalCardHost` em `types-user.tsx`, estado em `cardViews` de `src/lib/cardinal-bridge.ts`). Com o editor fechado o nó mostra o título, a miniatura SVG guardada ao lado do arquivo e um aviso. A miniatura entra como `<img>` de `data:` URL (o SVG não executa script). Estados: em dia (sem aviso), **defasada** (a revisão da miniatura não é a do arquivo: a imagem fica e o aviso diz que o diagrama mudou depois dela), **indisponível** (sem miniatura e sem binário: sem imagem, aviso "Indisponível…"), arquivo ausente e erro de leitura. Se o motor efetivo não é o Cardinal, o aviso acrescenta o motivo (`drawingEngine.reason` de `GET /api/extensions`). **Abrir no Cardinal** aparece só quando `GET /api/remote` diz que o painel é local e chama `POST …/open`. A página lê a miniatura de todo nó `cardinal` do documento (`cardViews.track`, qualquer zoom) e a relê a cada aviso SSE `cardinal` do arquivo, no religar do stream e ao fechar o editor. Zoom de longe e de médio: o bloco desenhado no canvas ganha a linha de resumo do estado (`cardSummary`: "diagrama", "miniatura defasada", "indisponível (sem binário)", …) pelo `summaryOf` do motor; a miniatura guardada (em dia ou defasada; o resumo já avisa a defasagem) também é desenhada no bloco, pelo gancho `thumbOf` do motor (`cardThumb` devolve a `data:` URL). O motor carrega a imagem uma vez por nó (de novo só se a URL muda), a contém e centra sobre fundo branco, como no cartão fechado, no espaço que sobra sob o rótulo e o resumo, e só se esse espaço tem ao menos 24 px de tela nos dois lados. Antes de a imagem carregar, com erro de carga ou no detalhe completo (onde vale o cartão HTML) o bloco fica só com o texto.
+
+**Motor aplicado** (U16). A ferramenta **Desenho** da barra (`placeDrawing` em `pages/argos.tsx`) consulta `GET /api/extensions` na hora de soltar o retângulo e segue o `drawingEngine.effective`: com `hades` nada muda (nó `drawing` vazio); com `cardinal` nasce um nó `cardinal` do tamanho do retângulo (mínimo 240×160), título "Desenho" e arquivo `desenho`, `desenho-2`, … (`freshDiagramName`, sem repetir arquivo conhecido do painel nem nó do documento). Ordem: o binário gera o texto inicial (`POST /api/canvas-cardinal/convert`, `model conceptual "Desenho"`) **antes** de o nó entrar no documento, então falta de binário recusa com aviso e não deixa nó sem arquivo; depois o nó entra (um passo do desfazer), o documento é salvo e o arquivo é gravado (`PUT …/<nó>` com `rev` nula). Se a gravação falha, o nó fica (cartão "arquivo não encontrado") e o aviso diz para desfazer. Sem resposta do painel vale `hades`. `createCardinalNode` aceita `w` e `h` (sem eles vale `CARDINAL_FRAME`, o caso da CLI). Os nós `drawing` já guardados **não são alterados**: com o efetivo `cardinal` o corpo do nó (`DrawingBody` em `types-user.tsx`) mostra o cartão "Motor do Hades desligado" e o `data` segue no documento; voltar o seletor para `hades` reabre o desenho. O motor efetivo é lido com cache de 15 s por página (`cardinalEnv`), então nós já na tela refletem a troca na próxima montagem ou depois desse prazo.
+
+**Referência `@` ao diagrama.** O menu de menção do compositor lista os nós `cardinal` ("diagrama", por título ou id; entra `@<id>`). No envio, `@<id>` vira `[diagrama <id> "<título>": <texto canônico>]`, o texto que `hades canvas cardinal read` mostra (primeiro diagrama, via `GET …/describe`, lido pela página antes de montar a mensagem). O teto é `COMPOSE_LIMITS.referenceChars` na referência inteira: passando dele o texto é cortado (de preferência numa quebra de linha, sem partir emoji) e a referência termina com ` (cortado; use hades canvas cardinal read <id>)]`. Sem texto (sem binário, leitura que falhou) sai `[diagrama <id> "<título>": indisponível (use hades canvas cardinal read <id>)]`. `@<id>` dentro de colagem não é expandido; o título vai numa linha, sem aspas duplas, até 80 caracteres.
+
+**Editor embutido.** O build web do editor chega ao iframe do nó por `/ext/cardinal/web/*` (sem chave: o iframe não manda cookie; só serve arquivos do build). Cabeçalhos, contenção e autenticação em `reference/extensoes.md` §Editor embutido.
+
 ## Vários canvases e exportação
 
 O dono pode ter vários canvases por instância. O **padrão** (`default`) é o documento único de antes: o mesmo
@@ -3172,7 +3248,7 @@ Texto de várias linhas vai em colagem com envelope (`ESC[200~ … ESC[201~`) e 
 
 **Menções `@`.** `@` no começo ou depois de espaço abre o menu (`mentionAt`, `mentionOptions`), filtrado sem acento nem
 caixa, nesta ordem: terminais ligados por aresta a este (`connectedIds`; entra `@<nome>`), notas (entra `@<id>`, que no
-envio vira o texto da nota, a regra do `composeMessage`), **Arquivo…** (vira `@#` e abre o seletor), `@orquestrador` (só
+envio vira o texto da nota, a regra do `composeMessage`), diagramas Cardinal (entra `@<id>`; formato e teto em §Nó `cardinal`), **Arquivo…** (vira `@#` e abre o seletor), `@orquestrador` (só
 com o papel ligado no terminal) e `@Nova nota`. Menção a terminal, `@orquestrador` e `@Nova nota` vão como texto; o
 comportamento deles é da onda 2. `@@` envia um `@`.
 
@@ -3305,10 +3381,12 @@ popover em `kit/panel/ui/argos/canvas-links.tsx` (`window.ArgosLinks`).
 | nota ↔ nota | `chain` | nota encadeada: quem lê a nota de entrada percorre a cadeia |
 | terminal ↔ desenho | `drawing-access` | o agente do terminal lê e edita o desenho pela CLI do painel (`hades canvas drawing`) |
 | desenho ↔ desenho | `drawing-chain` | desenho encadeado: a leitura segue a cadeia (nota ↔ desenho não conecta) |
+| terminal ↔ diagrama `cardinal` | `cardinal-access` | o agente do terminal lê e grava o diagrama pelas rotas `/api/canvas-cardinal` |
+| diagrama ↔ diagrama | `cardinal-chain` | diagrama encadeado: a leitura segue a cadeia, a escrita fica no ligado direto (diagrama ↔ nota e diagrama ↔ desenho não conectam) |
 | terminal ↔ terminal | — | recusado (`links_no_reader`): nesta versão não há leitor dessa conexão |
 | outro tipo de nó | — | recusado (`links_no_reader`) |
 
-Terminal é o nó `agent` ou o nó `terminal` (o que a ferramenta Terminal da barra cria); nota é o nó `note`. Os códigos
+Terminal é o nó `agent` ou o nó `terminal` (o que a ferramenta Terminal da barra cria); nota é o nó `note` e diagrama é o nó `cardinal`. Os códigos
 de erro (`LINK_ERRORS`, prefixo `links_`) só ganham valores; o texto ao dono sai de `LINK_ERROR_TEXT`.
 
 **Forma no documento (aditiva).** `CanvasEdge` ganhou dois campos opcionais, aceitos só quando `kind` é `link`:

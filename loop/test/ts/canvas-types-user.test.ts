@@ -176,7 +176,7 @@ afterAll(() => {
 
 // ---------- registro ----------
 describe("registro dos tipos do usuário", () => {
-  const EXPECTED = ["note", "text", "draw-rect", "draw-ellipse", "draw-arrow", "draw-stroke", "unit-sketch", "area", "band"];
+  const EXPECTED = ["note", "text", "draw-rect", "draw-ellipse", "draw-arrow", "draw-stroke", "unit-sketch", "area", "cardinal", "band"];
 
   test("dado o registro vazio, então registra os tipos do usuário como HTML, não vivos e sem ação de servidor", () => {
     const registry = createNodeTypeRegistry();
@@ -790,6 +790,42 @@ describe("desenho no motor", () => {
     const view = mountDrawing();
     expect(toolbar(view.tree)).toHaveLength(0);
     expect(findAll(view.tree, (el) => el.type === "rect")).not.toHaveLength(0);
+  });
+
+  describe("motor efetivo (U16)", () => {
+    const engineFetch = (effective: string) => fakeFetch(({ url }) => (url === "/api/extensions"
+      ? reply(200, { drawingEngine: { configured: "cardinal", effective, usable: true, reason: null } })
+      : reply(200, { remote: false })));
+    // o ambiente é guardado por 15 s (relógio injetado): cada caso usa um instante afastado dos outros
+    const mountWith = async (effective: string, at: number, data: unknown = scene) => {
+      const def = Api.userTypeDefs({ ...deps({ fetch: engineFetch(effective).fn, now: () => at }), model: drawingModel }).find((d) => d.type === "drawing") as TypeDef;
+      const tree = def.draw.render({ ...input, data }) as Tree;
+      const view = mount(tree.type as (p: unknown) => unknown, tree.props);
+      await flush(view);
+      return view;
+    };
+
+    test("dado motor efetivo cardinal, então o nó drawing vira o cartão de motor desligado e o dado não é tocado", async () => {
+      const data = structuredClone(scene);
+      const view = await mountWith("cardinal", 100_000, data);
+      expect(textOf(view.tree)).toContain("Motor do Hades desligado");
+      expect(findAll(view.tree, (el) => el.type === "svg")).toHaveLength(0);
+      expect(data).toEqual(scene);
+    });
+
+    test("dado motor efetivo hades, então o desenho aparece como sempre", async () => {
+      const view = await mountWith("hades", 200_000);
+      expect(textOf(view.tree)).not.toContain("Motor do Hades desligado");
+      expect(findAll(view.tree, (el) => el.type === "rect")).not.toHaveLength(0);
+    });
+
+    test("dado o painel sem resposta, então vale o Hades (nada some)", async () => {
+      const def = Api.userTypeDefs({ ...deps({ fetch: () => Promise.reject(new Error("rede")), now: () => 300_000 }), model: drawingModel }).find((d) => d.type === "drawing") as TypeDef;
+      const tree = def.draw.render(input) as Tree;
+      const view = mount(tree.type as (p: unknown) => unknown, tree.props);
+      await flush(view);
+      expect(findAll(view.tree, (el) => el.type === "rect")).not.toHaveLength(0);
+    });
   });
 
   test("dado dado inválido (versão desconhecida), então avisa em vez de desenhar", () => {

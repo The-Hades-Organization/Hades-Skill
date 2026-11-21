@@ -18,15 +18,17 @@ export const DEFAULT_LINK_STYLE: LinkStyle = "rope";
  * O que cada ponta é para a conexão; tipo de nó fora desta tabela não conecta. `terminal` é o nó que a ferramenta
  * Terminal da barra cria (pane do herdr sem agente do loop): conecta como o `agent`.
  */
-export type LinkEnd = "terminal" | "note" | "drawing";
-const LINK_END_BY_TYPE: Readonly<Record<string, LinkEnd>> = { agent: "terminal", terminal: "terminal", [NOTE_TYPE]: "note", [DRAWING_TYPE]: "drawing" };
+/** Tipo do nó `cardinal` (o mesmo de `canvas-cardinal.ts`, que fica fora do pacote da UI). */
+const CARDINAL_TYPE = "cardinal";
+export type LinkEnd = "terminal" | "note" | "drawing" | "cardinal";
+const LINK_END_BY_TYPE: Readonly<Record<string, LinkEnd>> = { agent: "terminal", terminal: "terminal", [NOTE_TYPE]: "note", [DRAWING_TYPE]: "drawing", [CARDINAL_TYPE]: "cardinal" };
 
 /**
  * O que a conexão dá a quem lê: `note-access` (o agente do terminal lê e escreve a nota pela CLI do painel) e `chain`
  * (nota encadeada: quem lê a nota de entrada percorre a cadeia). Terminal com terminal não tem leitor nesta versão e é
  * recusado (D5: conexão só onde há leitor).
  */
-export type LinkMeaning = "note-access" | "chain" | "drawing-access" | "drawing-chain";
+export type LinkMeaning = "note-access" | "chain" | "drawing-access" | "drawing-chain" | "cardinal-access" | "cardinal-chain";
 const MEANING_BY_PAIR: Readonly<Record<`${LinkEnd}|${LinkEnd}`, LinkMeaning | undefined>> = {
   "terminal|terminal": undefined,
   "terminal|note": "note-access",
@@ -37,6 +39,13 @@ const MEANING_BY_PAIR: Readonly<Record<`${LinkEnd}|${LinkEnd}`, LinkMeaning | un
   "drawing|drawing": "drawing-chain",
   "note|drawing": undefined,
   "drawing|note": undefined,
+  "terminal|cardinal": "cardinal-access",
+  "cardinal|terminal": "cardinal-access",
+  "cardinal|cardinal": "cardinal-chain",
+  "note|cardinal": undefined,
+  "cardinal|note": undefined,
+  "drawing|cardinal": undefined,
+  "cardinal|drawing": undefined,
 };
 
 /** Códigos estáveis: só ganham valores. */
@@ -260,12 +269,14 @@ export function freshLinkId(doc: CanvasDoc, prefix: string, seed: string): strin
 
 // ---- popover de conexões ----
 
-export const LINK_END_TEXT: Readonly<Record<LinkEnd, string>> = { terminal: "Terminal", note: "Nota", drawing: "Desenho" };
+export const LINK_END_TEXT: Readonly<Record<LinkEnd, string>> = { terminal: "Terminal", note: "Nota", drawing: "Desenho", cardinal: "Diagrama" };
 export const LINK_MEANING_TEXT: Readonly<Record<LinkMeaning, string>> = {
   "note-access": "o agente lê e escreve a nota",
   chain: "nota encadeada: a leitura segue a cadeia",
   "drawing-access": "o agente lê e edita o desenho",
   "drawing-chain": "desenho encadeado: a leitura segue a cadeia",
+  "cardinal-access": "o agente lê e edita o diagrama",
+  "cardinal-chain": "diagrama encadeado: a leitura segue a cadeia",
 };
 export const LINK_STYLE_TEXT: Readonly<Record<LinkStyle, string>> = { rope: "Corda", circuit: "Circuito" };
 

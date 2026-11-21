@@ -1,6 +1,6 @@
 # Extensões
 
-Uma extensão é uma ferramenta externa da máquina, com binário próprio (herdr, Mark), que a Hades detecta e consome. Um plugin
+Uma extensão é uma ferramenta externa da máquina, com binário próprio (herdr, Mark, Cardinal), que a Hades detecta e consome. Um plugin
 é código do pacote de um projeto que roda no painel (`reference/projects.md` §Plugin do Hades); os dois não se misturam: a
 extensão não traz código para a Hades executar, só o manifesto que descreve o binário.
 
@@ -19,7 +19,7 @@ e um código estável (`ext.manifest.*`).
 | `binary.names` | lista de nomes | binários aceitos, o primeiro achado no PATH vale |
 | `binary.configKey` | chave ou ausente | chave de configuração que aponta o binário (ex.: `HADES_HERDR_BIN`) |
 | `version` | `{command, min}` ou `null` | comando de versão em argv (sem shell; o primeiro item é um de `binary.names`) e versão mínima `x.y.z`; `null` quando a ferramenta não tem como medir |
-| `capabilities` | lista fechada | `canvas.terminal`, `voice`, `window` (capacidade nova entra em `CAPABILITIES`, em `src/lib/extension-manifest.ts`, antes de qualquer manifesto) |
+| `capabilities` | lista fechada | `canvas.terminal`, `canvas.diagram`, `voice`, `window` (capacidade nova entra em `CAPABILITIES`, em `src/lib/extension-manifest.ts`, antes de qualquer manifesto) |
 | `install.text` | texto | instrução para o dono; a sessão nunca a executa |
 | `health` | `{command}` ou `null` | comando de saúde em argv; sai com 0 quando está bem |
 | `configKeys` | lista de chaves | chaves próprias do catálogo (`kit/config.tsv`) |
@@ -71,6 +71,111 @@ Rotas (`src/panel/routes-ext.ts`):
 
 O POST exige o token da sessão e o painel local. Recusas, com código estável: `ext.local-only` (403, acesso remoto),
 `ext.bad-request` (400, operação ou nome inválido), `ext.unknown` (404), `ext.config-invalid` (400, a configuração recusou o valor).
+
+## Cardinal
+
+`extensions/cardinal/extension.json`: editor de diagramas de dados. O Cardinal é GPL-3.0 e o Hades é MIT, então nada dele entra
+aqui: só se fala com ele por processo (o binário `cardinal`, por argv, sem shell) e, mais adiante, por iframe (o build web).
+O arquivo `.cardinal` é a fonte da verdade; o Hades nunca o converte para formato próprio.
+
+- **Manifesto:** capacidade `canvas.diagram`; `binary.configKey` `HADES_CARDINAL_BIN`; versão por `cardinal --version`
+  (saída `cardinal 0.1.0 (format 2)`, mínima `0.1.0`); saúde por `cardinal --check`.
+- **Chaves** (`kit/config.tsv`, grupo Extensões): `HADES_EXT_CARDINAL` (1), `HADES_CARDINAL_BIN` (vazio),
+  `HADES_CARDINAL_WEB` (vazio; pasta `dist/` do build web, fora do repositório) e `HADES_DRAWING_ENGINE` (`cardinal`).
+- **Dois pedaços independentes:** o binário serve às operações de agente; o build web serve ao editor embutido. Sem o binário
+  o usuário ainda edita (com o build web); sem o build web o agente ainda trabalha.
+- **Build web no doctor:** além da linha `ext-cardinal`, o `hades doctor` traz `ext-cardinal-web`: `ok` quando
+  `HADES_CARDINAL_WEB` está vazio ou aponta uma pasta com `index.html`; aviso quando aponta uma pasta sem ele. Se a pasta
+  traz `version.txt` (o Vite copia de `public/`; primeiro `x.y.z` do arquivo) e o binário informa a versão, o doctor avisa
+  quando as duas divergem. Sem `version.txt` não há comparação.
+
+### Executor do binário
+
+`src/panel/cardinal-runner.ts` roda `cardinal` por argv, sem shell, para as rotas de agente do nó (`describe`, `svg`, `edit`, `export`; `reference/argos.md` §Nó `cardinal`). Limites: 30 s, 8 MiB de entrada, 32 MiB de saída, ambiente mínimo, grupo de processos próprio (timeout mata o grupo). O binário vem de `HADES_CARDINAL_BIN` ou do PATH; com a extensão desligada ou sem binário, `cardinal_unavailable` (503). O `.cardinal` segue a fonte da verdade: o painel só repassa bytes.
+
+### Editor embutido: rota `/ext/cardinal/web/*`
+
+`src/panel/ext-cardinal-web.ts` serve os arquivos de `HADES_CARDINAL_WEB` (aceita `~`), lida a cada pedido. Só GET.
+
+- **Contenção:** o caminho é decodificado e recusado com `..`, `.`, `\` ou NUL; o arquivo é resolvido com `realpath` e tem de
+  ficar sob a pasta (symlink para fora dá 404). `/ext/cardinal/web` e `/ext/cardinal/web/` servem `index.html`.
+- **Erros:** `cardinal_web_missing` (404) quando a variável está vazia, a pasta não existe ou não tem `index.html`;
+  `cardinal_web_not_found` (404) para o arquivo.
+- **Cabeçalhos:** `Content-Type` por extensão (`.wasm` = `application/wasm`); `Cache-Control: public, max-age=31536000,
+  immutable` para nomes com hash do Vite (`nome-HASH.ext`) e `no-cache` para o resto (`index.html`, `icon.svg`); sem
+  `X-Frame-Options`, com `Content-Security-Policy: frame-ancestors 'self'`; `Access-Control-Allow-Origin: *` (o iframe tem
+  origem opaca); nenhum COOP/COEP (o build é de uma thread). O resto do painel segue com `X-Frame-Options: DENY`
+  (`send()` aceita a exceção por chamada, `SendExtras` em `src/panel/http.ts`).
+- **Compressão:** serve `<arquivo>.br` ou `<arquivo>.gz` ao lado quando o cliente aceita; sem eles, gzip na hora para
+  `.wasm/.js/.css/.html/.svg/.json` (cache em memória por arquivo, tamanho e mtime). Sempre com `Vary: Accept-Encoding`.
+- **Autenticação pelo túnel:** o acesso remoto autentica por cookie derivado de `remote.key` (`auth.authed`). Subrecurso de
+  iframe com origem opaca não manda cookie, então a rota responde **antes** da chave remota, depois do `hostOk` (host do
+  túnel continua obrigatório). Ela entrega só o build, nada do usuário; a API fica atrás da chave e só o pai fala com ela.
+
+### Editor embutido: ponte `postMessage` e componente do nó
+
+O nó `cardinal` do canvas monta o editor num iframe (`/ext/cardinal/web/index.html?host=1`, `sandbox="allow-scripts"` sem
+`allow-same-origin`: origem opaca, sem cookie nem acesso à API). Quem fala com as rotas é o pai (a página); o iframe só troca
+mensagens. Lógica em `src/lib/cardinal-bridge.ts` (sem DOM), componente em `kit/panel/ui/argos/node-cardinal.tsx`
+(`window.ArgosNodeCardinal.CardinalEditor`), montado por `types-user.tsx` só com o nó aberto.
+
+- **Envelope:** toda mensagem leva `cardinal: 1` (`BRIDGE_PROTOCOL`) e `type`; só se aceita mensagem vinda do `contentWindow`
+  do iframe do nó. `ready` com `protocol` diferente deixa o estado em `failed` (`protocol_mismatch`).
+- **Do editor ao painel:** `ready` (traz `protocol` e `format`), `dirty`, `save` (`baseRev` + `bytes`), `export-result`,
+  `merge-notice` (`conflicts[]`: `both-changed`, `deleted-vs-changed`, `dangling-reference`).
+- **Do painel ao editor:** `load` (`rev`, `readOnly`, bytes), `saved` (`rev`), `save-rejected` (`currentRev`, depois de um 409),
+  `external-change` (`rev` + bytes do arquivo atual; o editor é quem mescla), `set-readonly`, `request-export`.
+- **Somente leitura:** quando o `format` do arquivo é maior que o do `ready`, o `load` leva `readOnly: true`.
+- **Salvar:** `save` vira `PUT` com `rev: baseRev`; 409 vira `save-rejected` seguido de `external-change`. O painel nunca mescla.
+- **Exportar:** `request-export` (SVG ou PNG, escala 2 no PNG); o resultado é gravado ao lado pelo `POST …/artifact`
+  (`reference/argos.md` §Nó `cardinal`) só se o arquivo não tem edição pendente; senão a imagem é gerada sem gravar.
+- **Aviso de arquivo mudado:** o SSE `cardinal` (`onCardinal` em `canvas-live.ts`) alimenta `cardinalFeed`; o editor aberto do
+  mesmo nome recebe `fileChanged(rev)`. Revisão igual à que o editor já tem não gera `external-change`.
+- **Abrir e fechar:** o nó mostra título e **Abrir editor / Fechar editor**. Fechar passa `closing=true`, o editor salva o
+  pendente (teto `FLUSH_TIMEOUT_MS`, 5 s; o gatilho é tirar o foco do iframe) e o nó só desmonta no `onClosed`. Desmontagem
+  abrupta (fechar a aba) é best-effort.
+- **Cartão fechado e app nativo:** com o editor fechado o nó mostra a miniatura guardada e o aviso de defasagem ou de indisponível; no painel local, **Abrir no Cardinal** chama `POST …/open`, que roda `cardinal <arquivo>` solto do painel (`launchCardinalApp` em `cardinal-runner.ts`, ambiente enxuto, sem token). Detalhes em `reference/argos.md` §Nó `cardinal`.
+- **Limites:** até `EDITOR_MAX_LIVE` (2) editores vivos por página; o terceiro mostra o aviso de limite sem criar iframe.
+  Sem `ready` em `READY_TIMEOUT_MS` (20 s) o estado vai a `failed` (`ready_timeout`).
+
+### Teste de ponta a ponta e acesso remoto
+
+`loop/test/ts/cardinal-e2e.test.ts` sobe uma instância própria do painel (127.0.0.1, pasta de dados temporária, sem túnel) com o
+binário e o build web reais: `CARDINAL_E2E_BIN=<binário> CARDINAL_E2E_WEB=<dist/> bun test loop/test/ts/cardinal-e2e.test.ts`.
+Sem as variáveis só roda o caso sem binário e sem build web (motor cai para `hades`, `convert` dá 503, rota web 404). Cobre
+`convert`/`PUT` (new --from-text), `describe` (read), `edit` (apply), `export` svg e png, o editor no nó (ponte contra o painel
+real), mudança externa por rename (SSE `disk` → `external-change`), salvamento com base velha (`save-rejected` antes do
+`external-change`, sem perda) e o arquivo criado depois de o editor montar. O CLI `hades canvas cardinal` exige pane do herdr e
+não entra no teste; ele usa as mesmas rotas. O editor WASM só roda em navegador: foi conferido à mão no Firefox headless pela
+`host-test.html` do build (`ready`, `load`, export svg/png, `external-change`). O `merge-notice` do editor com edição suja
+não é automatizado.
+
+**Acesso remoto (descrito, não testado).** Pelo túnel o iframe carrega o build por `/ext/cardinal/web/*` (responde antes da
+chave remota, só com o host do túnel); a API do diagrama fica atrás da chave e só a página pai fala com ela. "Abrir no Cardinal"
+e `link` são só locais (403 `cardinal_local_only`).
+
+### Motor de desenho efetivo
+
+`HADES_DRAWING_ENGINE` é só o pedido. O motor efetivo (`src/lib/drawing-engine.ts`, `drawingEngine`) é calculado: `cardinal`
+vale quando a extensão está ligada **e** (o binário está saudável **ou** o build web existe). Senão o efetivo é `hades` e há uma
+razão com código estável:
+
+| Código | Quando |
+|---|---|
+| `engine.extension-off` | `HADES_EXT_CARDINAL=0` |
+| `engine.extension-missing` | o manifesto não está nesta instalação |
+| `ext.binary-missing`, `ext.version-unreadable`, `ext.version-below-min`, `ext.health-failed` | o primeiro problema do binário, sem build web que o supra |
+
+O padrão é `cardinal` desde a unidade 17: quem liga a extensão e tem o binário (ou o build web) ganha os diagramas do Cardinal no Desenho; sem isso o efetivo continua `hades` e nada muda. `HADES_DRAWING_ENGINE=hades` mantém o Desenho antigo. Os nós de desenho
+existentes seguem intactos; com o motor `cardinal` aparecem como "motor do Hades desligado" e a ferramenta **Desenho** do canvas
+cria nós `cardinal` (`reference/argos.md` §Nó cardinal, "Motor aplicado").
+
+Onde aparece: `GET /api/extensions` ganha `drawingEngine: {configured, effective, usable, reason, warn}`; `GET /api/config` ganha o
+mesmo em `engine` e **omite** o item `HADES_DRAWING_ENGINE` enquanto o Cardinal não está utilizável (o item continua visível se
+o dono já o mudou do padrão, para poder voltar). A página Extensões mostra o aviso quando `warn` é verdadeiro: se pediu `cardinal`, o efetivo é `hades` e a extensão
+está **ligada** (binário ou versão com problema). Com a extensão desligada ou ausente o aviso some, porque o seletor
+só faz sentido com ela ligada e nada ali está quebrado.
+O julgamento roda o binário, por isso fica em cache por 10 s.
 
 ## Extensão mínima de exemplo
 

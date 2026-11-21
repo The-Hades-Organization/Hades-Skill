@@ -64,6 +64,10 @@ interface UserTypesDeps {
   timeoutMs?: number;
   /** O `marked` do vendor/ (window.marked na página); sem ele a nota só tem o modo Raw. */
   marked?: unknown;
+  /** O host troca o tamanho do nó (um passo do desfazer, posição mantida): a ação Expandir do editor do nó `cardinal`. Ausente, a ação some. */
+  onResize?: (nodeId: string, size: { w: number; h: number }) => void;
+  /** Id do canvas aberto, lido a cada renderização (o editor do nó `cardinal` fala com as rotas dele). */
+  canvasId?: () => string;
 }
 
 type Child = ReactNode;
@@ -759,6 +763,18 @@ function makeArgosTypesUser() {
     const [error, setError] = React.useState<string | null>(null);
     const svgRef = React.useRef<SVGSVGElement | null>(null);
     const pressures = React.useRef<number[]>([]);
+    // motor efetivo `cardinal`: o nó fica no documento sem alteração e mostra só o aviso; antes de o painel responder (ou sem resposta) vale o Hades
+    const [engine, setEngine] = React.useState<"hades" | "cardinal">("hades");
+    React.useEffect(() => {
+      let alive = true;
+      void cardinalEnv(deps).then((next) => alive && setEngine(next.effective)).catch(() => undefined);
+      return () => { alive = false; };
+    }, []);
+    if (engine === "cardinal") {
+      return h("div", { role: "status", "data-drawing-off": "1", className: "flex h-full w-full flex-col items-center justify-center gap-1 p-3 text-center t-label text-muted-foreground" },
+        h("span", { className: "font-medium" }, "Motor do Hades desligado"),
+        h("span", null, "O desenho continua guardado no documento. Volte o motor de desenho para Hades, em Configurações, para abri-lo."));
+    }
     let scene: Scene | undefined;
     try {
       scene = dm.readDrawingData(props.data);
@@ -1027,6 +1043,153 @@ function makeArgosTypesUser() {
       error ? h("span", { role: "alert", className: "text-bad t-label" }, error) : null);
   }
 
+  // ---- nó cardinal: o editor (argos/node-cardinal.tsx) abre sozinho no zoom de perto e fecha ao se afastar ----
+
+  const CARDINAL_DEFAULT_CANVAS = "default";
+  /** Tamanho do nó expandido, em unidades de mundo: cabe o editor com folga, sem depender do tamanho que o usuário deu ao nó. */
+  const CARDINAL_EXPANDED = { w: 1280, h: 800 } as const;
+  /** Tamanho de antes do Expandir, por nó, para o Recolher voltar a ele (vale enquanto a página está aberta). */
+  const cardinalBefore = new Map<string, { w: number; h: number }>();
+
+  type CardinalBridgeApi = {
+    cardViews: { get(id: string): { kind: string; svg?: string } | undefined; refresh(id: string): Promise<void>; subscribe(l: () => void): () => void };
+    cardNotice(view: unknown, reason: { message: string } | null): string | null;
+    svgDataUrl(svg: string): string;
+    createCardinalClient(deps: { fetch: FetchLike; canvasId: string; nodeId: string }): { openNative(): Promise<{ ok: true } | { ok: false; code: string }> };
+  };
+  const cardinalBridgeOf = (): CardinalBridgeApi | undefined => (globalThis as unknown as { CanvasModel?: { cardinalBridge?: CardinalBridgeApi } }).CanvasModel?.cardinalBridge;
+
+  /** O que o cartão sabe do ambiente: por que o Cardinal não vale agora e se o painel é remoto (o app nativo só abre no local). */
+  type CardinalEnv = { reason: { message: string } | null; remote: boolean; effective: "hades" | "cardinal" };
+  const ENV_TTL_MS = 15_000;
+  let envCache: { at: number; value: Promise<CardinalEnv> } | undefined;
+  function cardinalEnv(deps: UserTypesDeps): Promise<CardinalEnv> {
+    if (envCache !== undefined && deps.now() - envCache.at < ENV_TTL_MS) return envCache.value;
+    const read = async (url: string): Promise<Record<string, unknown>> => {
+      const res = await deps.fetch(url, { method: "GET" });
+      const body = await res.json();
+      return typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
+    };
+    const value = Promise.all([read("/api/extensions").catch(() => ({})), read("/api/remote").catch(() => ({ remote: true }))]).then(([ext, remote]): CardinalEnv => {
+      const engine = ext.drawingEngine as { effective?: unknown; reason?: { message?: unknown } | null } | undefined;
+      const message = engine?.reason?.message;
+      return { reason: typeof message === "string" ? { message } : null, remote: remote.remote !== false, effective: engine?.effective === "cardinal" ? "cardinal" : "hades" };
+    });
+    envCache = { at: deps.now(), value };
+    return value;
+  }
+
+  /**
+   * O nó só é montado pelo motor no nível de perto, então nasce aberto. O motor avisa por `canvas-near` quando o nó deixa o
+   * nível de perto: o editor fecha com `closing`, salva o pendente e só no `onClosed` desmonta; até lá o `data-retain` segura o
+   * nó na camada HTML. Fechar pelo botão vale até se afastar e voltar.
+   */
+  function CardinalCardHost(props: { id: string; w: number; h: number; data: Readonly<Record<string, unknown>>; deps: UserTypesDeps }): Tree {
+    const [mounted, setMounted] = React.useState(true);
+    const [closing, setClosing] = React.useState(false);
+    const [near, setNear] = React.useState(true);
+    const [manualClosed, setManualClosed] = React.useState(false);
+    const root = React.useRef<HTMLDivElement | null>(null);
+    const name = typeof props.data.cardinal === "string" ? props.data.cardinal : "";
+    const title = typeof props.data.title === "string" && props.data.title !== "" ? props.data.title : name;
+    const editor = (globalThis as unknown as { ArgosNodeCardinal?: { CardinalEditor: (p: Record<string, unknown>) => Tree } }).ArgosNodeCardinal;
+    const wrapper = (): HTMLElement | null => root.current?.closest<HTMLElement>("[data-canvas-node]") ?? null;
+    const bridge = cardinalBridgeOf();
+    const [, setCardTick] = React.useState(0);
+    const [env, setEnv] = React.useState<CardinalEnv>({ reason: null, remote: true, effective: "hades" });
+    const [nativeNote, setNativeNote] = React.useState("");
+    React.useEffect(() => bridge?.cardViews.subscribe(() => setCardTick((t) => t + 1)), []);
+    React.useEffect(() => {
+      let alive = true;
+      void cardinalEnv(props.deps).then((next) => alive && setEnv(next));
+      return () => { alive = false; };
+    }, []);
+
+    React.useEffect(() => {
+      const el = wrapper();
+      if (!el) return undefined;
+      const onNear = (event: Event): void => {
+        const now = (event as CustomEvent<boolean>).detail;
+        setNear(now);
+        if (!now) setManualClosed(false);
+      };
+      el.addEventListener("canvas-near", onNear);
+      return () => el.removeEventListener("canvas-near", onNear);
+    }, []);
+
+    // perto abre, longe fecha (com salvamento); a decisão é uma só, para o botão e o zoom não brigarem
+    React.useEffect(() => {
+      const want = near && !manualClosed;
+      if (want && !mounted && !closing) setMounted(true);
+      else if (!want && mounted && !closing) setClosing(true);
+    }, [near, manualClosed, mounted, closing]);
+
+    React.useEffect(() => {
+      const el = wrapper();
+      if (!el) return;
+      const held = mounted || closing;
+      if ((el.dataset.retain === "1") === held) return;
+      el.dataset.retain = held ? "1" : "0";
+      el.dispatchEvent(new CustomEvent("canvas-retain"));
+    }, [mounted, closing]);
+
+    if (name === "") return h("p", { role: "alert", className: "p-2 text-bad t-label" }, "Diagrama inválido no documento.");
+    const toggle = (): void => {
+      if (closing) return;
+      if (mounted) {
+        setManualClosed(true);
+        setClosing(true);
+      } else {
+        setManualClosed(false);
+        setMounted(true);
+      }
+    };
+    const expand = (): void => {
+      const before = cardinalBefore.get(props.id);
+      if (before) {
+        cardinalBefore.delete(props.id);
+        props.deps.onResize?.(props.id, before);
+        return;
+      }
+      cardinalBefore.set(props.id, { w: props.w, h: props.h });
+      props.deps.onResize?.(props.id, { w: Math.max(props.w, CARDINAL_EXPANDED.w), h: Math.max(props.h, CARDINAL_EXPANDED.h) });
+    };
+    const live = mounted && editor !== undefined;
+    const view = bridge?.cardViews.get(props.id);
+    const notice = bridge ? bridge.cardNotice(view, env.reason) : null;
+    const openNative = (): void => {
+      if (!bridge) return;
+      const client = bridge.createCardinalClient({ fetch: props.deps.fetch, canvasId: props.deps.canvasId?.() ?? CARDINAL_DEFAULT_CANVAS, nodeId: props.id });
+      setNativeNote("Abrindo no Cardinal…");
+      void client.openNative().then((res) => setNativeNote(res.ok ? "Aberto no Cardinal." : res.code === "cardinal_unavailable" ? "Sem o binário do Cardinal: não deu para abrir o app." : "Não deu para abrir no Cardinal."));
+    };
+    return h("div", { ref: root, className: "flex h-full min-h-0 w-full flex-col", "data-cardinal-card": props.id },
+      live
+        ? null
+        : h("div", { className: "flex h-6 shrink-0 items-center gap-1 pl-1" },
+          h("span", { className: "t-label flex-1 truncate", title: name }, title),
+          h("button", {
+            type: "button", className: "h-full px-1.5 t-label hover:bg-hover focus-visible:bg-accent outline-none disabled:opacity-40", disabled: closing || editor === undefined,
+            "aria-expanded": false, "aria-label": `Abrir o editor de ${title}`, "data-cardinal-toggle": "", onClick: toggle,
+          }, "Abrir editor"),
+          env.remote ? null : h("button", {
+            type: "button", className: "h-full px-1.5 t-label hover:bg-hover focus-visible:bg-accent outline-none", "aria-label": `Abrir ${title} no app Cardinal`, "data-cardinal-native": "", onClick: openNative,
+          }, "Abrir no Cardinal")),
+      live
+        ? null
+        : h("div", { className: "flex min-h-0 flex-1 flex-col gap-1 px-1 pb-1", "data-cardinal-closed": view?.kind ?? "loading" },
+          view?.svg !== undefined && bridge ? h("img", { src: bridge.svgDataUrl(view.svg), alt: `Miniatura de ${title}`, draggable: false, className: "min-h-0 flex-1 bg-white object-contain" }) : h("div", { className: "min-h-0 flex-1", "aria-hidden": "true" }),
+          notice === null ? null : h("p", { role: "status", className: "t-label text-muted-foreground", "data-cardinal-notice": view?.kind ?? "loading" }, notice),
+          nativeNote === "" ? null : h("p", { role: "status", className: "t-label text-muted-foreground" }, nativeNote)),
+      live
+        ? h("div", { className: "min-h-0 flex-1" }, h(editor.CardinalEditor, {
+          key: props.id, canvasId: props.deps.canvasId?.() ?? CARDINAL_DEFAULT_CANVAS, nodeId: props.id, name, title, fetch: props.deps.fetch, closing, onToggle: toggle,
+          expanded: cardinalBefore.has(props.id), onExpand: props.deps.onResize ? expand : undefined,
+          onClosed: () => { setMounted(false); setClosing(false); void bridge?.cardViews.refresh(props.id); },
+        }))
+        : null);
+  }
+
   // ---- registro ----
 
   /** Comandos de menu de nó que os tipos citam; o registro de comandos da página os define (surface `node-menu`). */
@@ -1043,6 +1206,7 @@ function makeArgosTypesUser() {
     { type: "unit-sketch", label: "Esboço de unidade", icon: "DraftingCompass", size: { w: 320, h: 220 }, menu: [MENU.dock, MENU.undock, MENU.copyCommands, MENU.duplicate, MENU.blur, MENU.remove] },
     { type: "area", label: "Área", icon: "SquareDashed", size: { w: 480, h: 320 }, menu: [MENU.areaRename, MENU.areaColor, MENU.duplicate, MENU.remove], surface: "canvas" },
     { type: "drawing", label: "Desenho", icon: "PenTool", size: { w: 480, h: 320 }, menu: [MENU.dock, MENU.undock, MENU.duplicate, MENU.blur, MENU.remove] },
+    { type: "cardinal", label: "Diagrama Cardinal", icon: "PenTool", size: { w: 800, h: 560 }, menu: [MENU.dock, MENU.undock, MENU.duplicate, MENU.blur, MENU.remove] },
     { type: "band", label: "Banda", icon: "Users", size: { w: 260, h: 180 }, menu: [MENU.dock, MENU.undock, MENU.linkNote, MENU.remove] },
   ];
 
@@ -1066,6 +1230,7 @@ function makeArgosTypesUser() {
       // o desenho da área é do motor (canvas); isto só atende quem pede o conteúdo de um nó (acoplar), sem nada para mostrar
       area: () => h("div", { "aria-hidden": "true" }),
       drawing: (input) => (model.drawing ? h(DrawingBody, { key: input.id, id: input.id, w: input.w, h: input.h, data: input.data, dm: model.drawing, deps }) : h("div", { "aria-hidden": "true" })),
+      cardinal: (input) => h(CardinalCardHost, { key: input.id, id: input.id, w: input.w, h: input.h, data: input.data, deps }),
       band: (input) => h(BandBody, { key: input.id, data: input.data, model, source: deps.band }),
     };
     return ROWS.filter((row) => row.type !== "drawing" || model.drawing !== undefined).map((row) => ({

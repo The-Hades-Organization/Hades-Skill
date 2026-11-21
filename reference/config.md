@@ -169,7 +169,8 @@ Os padrões são o comportamento de antes: 8 GB, um pesado por vez, FIFO.
 ### Extensões
 | Chaves | Aplicar |
 |---|---|
-| `HADES_EXT_HERDR` (1), `HADES_EXT_MARK` (1) | próxima consulta: liga (1) ou desliga (0) a extensão; `hades ext enable\|disable <nome>` grava a chave. Padrão ligado: quem não configurou nada mantém o comportamento de antes (`reference/extensoes.md`) |
+| `HADES_EXT_HERDR` (1), `HADES_EXT_MARK` (1), `HADES_EXT_CARDINAL` (1) | próxima consulta: liga (1) ou desliga (0) a extensão; `hades ext enable\|disable <nome>` grava a chave. Padrão ligado: quem não configurou nada mantém o comportamento de antes (`reference/extensoes.md`) |
+| `HADES_CARDINAL_BIN` (vazio = `cardinal` do PATH), `HADES_CARDINAL_WEB` (vazio; a rota `/ext/cardinal/web/*` serve esta pasta), `HADES_DRAWING_ENGINE` (`cardinal`; `cardinal` ou `hades`) | próxima consulta. `HADES_DRAWING_ENGINE` só aparece em Configurações com a extensão cardinal ligada e saudável (ou já alterado do padrão, para poder voltar). O valor é só o pedido: o motor efetivo é calculado e cai para `hades` com a razão exibida (`reference/extensoes.md` §Cardinal). Com `cardinal` efetivo, a ferramenta Desenho do canvas cria nó `cardinal` e os nós `drawing` já existentes aparecem como "motor do Hades desligado" sem perder o dado (`reference/argos.md` §Nó cardinal) |
 
 ### Minos
 | Chaves | Aplicar |

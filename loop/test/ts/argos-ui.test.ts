@@ -371,7 +371,7 @@ describe("montagem do canvas na página", () => {
     new Function("globalThis", "React", transpiler.transpile(join(import.meta.dir, "../../../kit/panel/ui", rel)))(scope, scope.React);
   };
   const MENU_IDS = ["user:edit", "user:duplicate", "user:blur", "user:remove", "user:copy-commands", "user:link-note"];
-  const USER_TYPES = ["note", "text", "draw-rect", "draw-ellipse", "draw-arrow", "draw-stroke", "unit-sketch", "band"];
+  const USER_TYPES = ["note", "text", "draw-rect", "draw-ellipse", "draw-arrow", "draw-stroke", "unit-sketch", "cardinal", "band"];
   const LIVE_TYPES = ["portal", "terminal", "tree", "plan", "agent-file", "conversation"];
 
   interface Model { [key: string]: Record<string, unknown> }
@@ -3009,5 +3009,293 @@ describe("estados e textos: erro do grafo, selo de gravação, falha de ação",
     expect(hint("answer")).toContain("Equivale a: hades agent answer");
     expect(L.ACTIONS.map((a) => a.hint).join(" ")).not.toMatch(/send-keys|send-text/);
     expect(L.ACTIONS.find((a) => a.id === "free_prompt")?.label).toBe("Digitar e dar Enter");
+  });
+});
+
+// ---- editor do Cardinal no nó (argos/node-cardinal.tsx + o tipo `cardinal` de types-user.tsx, plano U15) ----
+// os scripts reais, com o modelo real (inclui cardinalBridge) e ganchos mínimos: o estado persiste por componente e os
+// efeitos não rodam (sem DOM); o que se confere é a árvore, o iframe isolado e o contrato abrir/fechar do nó.
+describe("editor do Cardinal no nó", () => {
+  const UI = join(import.meta.dir, "../../../kit/panel/ui");
+  type El = { type: unknown; props: Record<string, any>; children: unknown[] };
+  const isEl = (n: unknown): n is El => typeof n === "object" && n !== null && "type" in n;
+
+  async function rig(deps: object = {}) {
+    const js = await createCanvasModuleBundler(join(import.meta.dir, "../../../src/lib")).bundle(CANVAS_UI_BUNDLE);
+    const holder: Record<string, unknown> = {};
+    new Function("globalThis", js as string)(holder);
+    const model = holder.CanvasModel;
+    const state = new Map<unknown, { values: unknown[]; at: number }>();
+    let current: { values: unknown[]; at: number } | undefined;
+    const pending: (() => unknown)[] = [];
+    const flushEffects = (): void => { for (const fn of pending.splice(0)) fn(); };
+    const React = {
+      createElement: (type: unknown, props: Record<string, any> | null, ...children: unknown[]): El => ({ type, props: props ?? {}, children }),
+      useState: <T,>(initial: T | (() => T)) => {
+        const cell = current as { values: unknown[]; at: number };
+        const i = cell.at++;
+        if (!(i in cell.values)) cell.values[i] = typeof initial === "function" ? (initial as () => T)() : initial;
+        return [cell.values[i] as T, (v: T) => { cell.values[i] = v; }] as const;
+      },
+      useRef: (v: unknown) => {
+        const cell = current as { values: unknown[]; at: number };
+        const i = cell.at++;
+        return (cell.values[i] ??= { current: v });
+      },
+      // o efeito roda no `flushEffects` e só quando as dependências mudaram desde a última execução do componente
+      useEffect: (fn: () => unknown, deps?: unknown[]) => {
+        const cell = current as { values: unknown[]; at: number };
+        const i = cell.at++;
+        const prev = cell.values[i] as unknown[] | undefined;
+        if (prev !== undefined && deps !== undefined && deps.length === prev.length && deps.every((d, j) => Object.is(d, prev[j]))) return;
+        cell.values[i] = deps ?? [{}];
+        pending.push(fn);
+      },
+    };
+    const scope: Record<string, unknown> = { CanvasModel: model, React };
+    const tr = createUiTranspiler();
+    for (const rel of ["argos/node-cardinal.tsx", "argos/types-user.tsx"]) new Function("globalThis", "React", tr.transpile(join(UI, rel)))(scope, React);
+    // expande os componentes de função (cada um com o próprio estado) até restarem só elementos de DOM
+    const expand = (n: unknown): unknown => {
+      if (Array.isArray(n)) return n.map(expand);
+      if (!isEl(n)) return n;
+      if (typeof n.type === "function") {
+        const key = `${(n.type as { name: string }).name}:${n.props.key ?? ""}`;
+        const cell = state.get(key) ?? { values: [], at: 0 };
+        state.set(key, cell);
+        cell.at = 0;
+        current = cell;
+        const out = (n.type as (p: unknown) => unknown)(n.props);
+        return { type: `<${(n.type as { name: string }).name}>`, props: n.props, children: [expand(out)] };
+      }
+      return { ...n, children: n.children.map(expand) };
+    };
+    const flat = (n: unknown): El[] => (Array.isArray(n) ? n.flatMap(flat) : isEl(n) ? [n, ...n.children.flatMap(flat)] : []);
+    const types = (scope.ArgosTypesUser as { userTypeDefs(d: object): { type: string; draw: { render(i: object): unknown } }[] }).userTypeDefs({
+      fetch: () => Promise.reject(new Error("sem rede")), now: () => 0, canvasId: () => "meu-canvas", ...deps,
+    });
+    const def = types.find((t) => t.type === "cardinal");
+    const view = (data: object = { cardinal: "pagamentos", title: "Pagamentos" }) => expand(def?.draw.render({ id: "c1", data, w: 480, h: 360 }));
+    return { scope, def, view, flat, flushEffects };
+  }
+
+  test("o script registra window.ArgosNodeCardinal com o editor e a URL do build web", async () => {
+    const { scope } = await rig();
+    const api = scope.ArgosNodeCardinal as { CardinalEditor: unknown; WEB_URL: string };
+    expect(typeof api.CardinalEditor).toBe("function");
+    expect(api.WEB_URL).toBe("/ext/cardinal/web/index.html?host=1");
+  });
+
+  test("index.html carrega node-cardinal depois do node-note e antes do types-user", () => {
+    const html = readFileSync(join(UI, "index.html"), "utf8");
+    const at = (src: string): number => html.indexOf(`<script src="${src}"></script>`);
+    expect(at("/ui/argos/node-cardinal.js")).toBeGreaterThan(at("/ui/argos/node-note.js"));
+    expect(at("/ui/argos/node-cardinal.js")).toBeLessThan(at("/ui/argos/types-user.js"));
+  });
+
+  const toggleOf = (flat: (n: unknown) => El[], tree: unknown): El | undefined => flat(tree).find((e) => e.props["data-cardinal-toggle"] !== undefined);
+
+  /** Um elemento de DOM mínimo para o host: guarda os ouvintes e o `dataset`, como o `div[data-canvas-node]` do motor. */
+  function fakeWrapper() {
+    const listeners = new Map<string, ((e: unknown) => void)[]>();
+    const sent: string[] = [];
+    const el = {
+      dataset: {} as Record<string, string>,
+      closest: () => el,
+      addEventListener: (type: string, fn: (e: unknown) => void) => listeners.set(type, [...(listeners.get(type) ?? []), fn]),
+      removeEventListener: () => undefined,
+      dispatchEvent: (e: { type: string }) => { sent.push(e.type); return true; },
+    };
+    const fire = (type: string, detail: unknown): void => { for (const fn of listeners.get(type) ?? []) fn({ detail }); };
+    return { el, fire, sent };
+  }
+
+  test("o tipo cardinal está registrado e nasce aberto: o motor só o monta no nível de perto", async () => {
+    const { def, view, flat } = await rig();
+    expect(def).toBeDefined();
+    const tree = view();
+    const editor = flat(tree).find((e) => e.type === "<CardinalEditor>") as El;
+    expect(editor.props).toMatchObject({ canvasId: "meu-canvas", nodeId: "c1", name: "pagamentos", title: "Pagamentos", closing: false });
+    expect(typeof editor.props.fetch).toBe("function");
+    expect(flat(tree).some((e) => e.type === "iframe")).toBe(true);
+  });
+
+  test("o iframe fica isolado (allow-scripts, sem same-origin) e aponta para o build web", async () => {
+    const { view, flat } = await rig();
+    const frame = flat(view()).find((e) => e.type === "iframe") as El;
+    expect(frame.props.sandbox).toBe("allow-scripts");
+    expect(frame.props.sandbox).not.toContain("same-origin");
+    expect(frame.props.src).toBe("/ext/cardinal/web/index.html?host=1");
+  });
+
+  test("fechar pelo botão passa closing=true e mantém o editor montado até o onClosed; depois só resta a barra com Abrir editor", async () => {
+    const { view, flat } = await rig();
+    toggleOf(flat, view())?.props.onClick();
+    const closing = view();
+    const editor = flat(closing).find((e) => e.type === "<CardinalEditor>") as El;
+    expect(editor.props.closing).toBe(true);
+    expect(flat(closing).some((e) => e.type === "iframe")).toBe(true);
+    expect(toggleOf(flat, closing)?.props.disabled).toBe(true);
+    editor.props.onClosed(true);
+    const closed = view();
+    expect(flat(closed).some((e) => e.type === "<CardinalEditor>" || e.type === "iframe")).toBe(false);
+    expect(toggleOf(flat, closed)?.children).toEqual(["Abrir editor"]);
+    expect(flat(closed).some((e) => e.type === "span" && e.children[0] === "Pagamentos")).toBe(true);
+    toggleOf(flat, closed)?.props.onClick();
+    expect(flat(view()).some((e) => e.type === "<CardinalEditor>")).toBe(true);
+  });
+
+  describe("cartão fechado (miniatura, aviso, abrir no Cardinal)", () => {
+    const SVG = "<svg xmlns='http://www.w3.org/2000/svg'><rect/></svg>";
+    type Bridge = { bindCardLoader(load: (id: string) => Promise<unknown>): void; cardViews: { track(scope: string, nodes: { id: string; name: string }[]): void } };
+    const settle = async (): Promise<void> => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+
+    /** Monta o cartão, fecha o editor e devolve a árvore do cartão fechado, com a miniatura que o painel “respondeu”. */
+    async function closedCard(reply: unknown, deps: object = {}) {
+      const r = await rig(deps);
+      const bridge = (r.scope.CanvasModel as { cardinalBridge: Bridge }).cardinalBridge;
+      bridge.bindCardLoader(async () => reply);
+      bridge.cardViews.track("meu-canvas", [{ id: "c1", name: "pagamentos" }]);
+      await settle();
+      toggleOf(r.flat, r.view())?.props.onClick();
+      (r.flat(r.view()).find((e) => e.type === "<CardinalEditor>") as El).props.onClosed(true);
+      r.view();
+      r.flushEffects();
+      await settle();
+      return { ...r, closed: () => r.view() };
+    }
+    const noticeOf = (flat: (n: unknown) => El[], tree: unknown): El | undefined => flat(tree).find((e) => e.props["data-cardinal-notice"] !== undefined);
+    const imgOf = (flat: (n: unknown) => El[], tree: unknown): El | undefined => flat(tree).find((e) => e.type === "img");
+
+    test("em dia: miniatura como imagem de data URL (o SVG não executa) e nenhum aviso", async () => {
+      const { closed, flat } = await closedCard({ kind: "fresh", svg: SVG });
+      const tree = closed();
+      const img = imgOf(flat, tree) as El;
+      expect(img.props.src.startsWith("data:image/svg+xml;charset=utf-8,")).toBe(true);
+      expect(img.props.alt).toBe("Miniatura de Pagamentos");
+      expect(noticeOf(flat, tree)).toBeUndefined();
+      expect(flat(tree).find((e) => e.props["data-cardinal-closed"] !== undefined)?.props["data-cardinal-closed"]).toBe("fresh");
+    });
+
+    test("defasada: a miniatura fica e o aviso de defasagem aparece como status", async () => {
+      const { closed, flat } = await closedCard({ kind: "stale", svg: SVG });
+      const tree = closed();
+      expect(imgOf(flat, tree)).toBeDefined();
+      const notice = noticeOf(flat, tree) as El;
+      expect(notice.props.role).toBe("status");
+      expect(String(notice.children[0])).toContain("defasada");
+    });
+
+    test("indisponível (sem binário e sem miniatura): sem imagem e com o aviso", async () => {
+      const { closed, flat } = await closedCard({ kind: "unavailable", code: "cardinal_unavailable" });
+      const tree = closed();
+      expect(imgOf(flat, tree)).toBeUndefined();
+      expect(String((noticeOf(flat, tree) as El).children[0])).toContain("Indisponível");
+      expect(toggleOf(flat, tree)?.children).toEqual(["Abrir editor"]);
+    });
+
+    test("“Abrir no Cardinal” só no painel local e chama POST …/open do nó", async () => {
+      const calls: string[] = [];
+      const answer = (remote: boolean) => async (url: string, init: { method: string }) => {
+        calls.push(`${init.method} ${url}`);
+        return { status: 200, json: async () => (url === "/api/remote" ? { remote } : url === "/api/extensions" ? { drawingEngine: { reason: null } } : { opened: true }) };
+      };
+      const nativeBtn = (flat: (n: unknown) => El[], tree: unknown): El | undefined => flat(tree).find((e) => e.props["data-cardinal-native"] !== undefined);
+
+      const local = await closedCard({ kind: "fresh", svg: SVG }, { fetch: answer(false), now: () => 0 });
+      local.flushEffects();
+      await settle();
+      const tree = local.closed();
+      const btn = nativeBtn(local.flat, tree) as El;
+      expect(btn.children).toEqual(["Abrir no Cardinal"]);
+      btn.props.onClick();
+      await settle();
+      expect(calls).toContain("POST /api/canvas-cardinal/meu-canvas/c1/open");
+
+      const remote = await closedCard({ kind: "fresh", svg: SVG }, { fetch: answer(true), now: () => 0 });
+      remote.flushEffects();
+      await settle();
+      expect(nativeBtn(remote.flat, remote.closed())).toBeUndefined();
+    });
+  });
+
+  test("ao sair do nível de perto o editor fecha com closing, o nó fica retido até salvar e só depois é solto", async () => {
+    const { view, flat, flushEffects } = await rig();
+    const wrapper = fakeWrapper();
+    (flat(view()).find((e) => e.props.ref !== undefined)?.props.ref as { current: unknown }).current = wrapper.el;
+    flushEffects();
+    expect(wrapper.el.dataset.retain).toBe("1");
+    wrapper.fire("canvas-near", false);
+    view();
+    flushEffects();
+    const closing = view();
+    const editor = flat(closing).find((e) => e.type === "<CardinalEditor>") as El;
+    expect(editor.props.closing).toBe(true);
+    expect(wrapper.el.dataset.retain).toBe("1");
+    editor.props.onClosed(true);
+    view();
+    flushEffects();
+    expect(wrapper.el.dataset.retain).toBe("0");
+    expect(wrapper.sent).toContain("canvas-retain");
+    expect(flat(view()).some((e) => e.type === "<CardinalEditor>")).toBe(false);
+  });
+
+  test("ao voltar para perto o editor reabre; fechado à mão, só reabre depois de se afastar e voltar", async () => {
+    const { view, flat, flushEffects } = await rig();
+    const wrapper = fakeWrapper();
+    (flat(view()).find((e) => e.props.ref !== undefined)?.props.ref as { current: unknown }).current = wrapper.el;
+    flushEffects();
+    const cycle = (): void => { view(); flushEffects(); view(); flushEffects(); };
+    toggleOf(flat, view())?.props.onClick();
+    (flat(view()).find((e) => e.type === "<CardinalEditor>") as El).props.onClosed(true);
+    cycle();
+    expect(flat(view()).some((e) => e.type === "<CardinalEditor>")).toBe(false);
+    wrapper.fire("canvas-near", false);
+    cycle();
+    wrapper.fire("canvas-near", true);
+    cycle();
+    expect(flat(view()).some((e) => e.type === "<CardinalEditor>")).toBe(true);
+  });
+
+  test("a barra do nó tem a altura do cabeçalho dos outros nós (h-6), aberta ou fechada, e não repete o título", async () => {
+    const { view, flat } = await rig();
+    const open = flat(view());
+    const toolbar = open.find((e) => e.props.role === "toolbar") as El;
+    expect(toolbar.props.className).toContain("h-6");
+    expect(open.filter((e) => e.type === "span" && e.children[0] === "Pagamentos")).toHaveLength(1);
+    toggleOf(flat, view())?.props.onClick();
+    (flat(view()).find((e) => e.type === "<CardinalEditor>") as El).props.onClosed(true);
+    const bar = flat(view()).find((e) => e.type === "div" && String(e.props.className).includes("h-6") && e.props.role === undefined);
+    expect(bar).toBeDefined();
+  });
+
+  test("Expandir pede o tamanho grande e Recolher devolve o de antes; sem onResize a ação não aparece", async () => {
+    const sizes: unknown[] = [];
+    const { view, flat } = await rig({ onResize: (id: string, size: object) => sizes.push([id, size]) });
+    const expandBtn = (): El => flat(view()).find((e) => e.props["data-cardinal-expand"] !== undefined) as El;
+    expect(expandBtn().children).toEqual(["Expandir"]);
+    expandBtn().props.onClick();
+    expect(sizes).toEqual([["c1", { w: 1280, h: 800 }]]);
+    expect(expandBtn().children).toEqual(["Recolher"]);
+    expandBtn().props.onClick();
+    expect(sizes[1]).toEqual(["c1", { w: 480, h: 360 }]);
+    expect(expandBtn().children).toEqual(["Expandir"]);
+    const bare = await rig();
+    expect(bare.flat(bare.view()).some((e) => e.props["data-cardinal-expand"] !== undefined)).toBe(false);
+  });
+
+  test("o iframe leva por cima a alça de redimensionar do canvas, para o ponteiro chegar ao motor", async () => {
+    const { view, flat } = await rig();
+    const els = flat(view());
+    const corner = els.find((e) => e.props["data-cardinal-resize-corner"] !== undefined) as El;
+    expect(corner.props.style).toMatchObject({ width: 24, height: 24 });
+    expect(els.indexOf(corner)).toBeGreaterThan(els.findIndex((e) => e.type === "iframe"));
+  });
+
+  test("data sem nome de diagrama vira aviso, sem editor", async () => {
+    const { view, flat } = await rig();
+    const els = flat(view({ title: "x" }));
+    expect(els.find((e) => e.props.role === "alert")?.children).toEqual(["Diagrama inválido no documento."]);
+    expect(els.some((e) => e.type === "<CardinalEditor>")).toBe(false);
   });
 });

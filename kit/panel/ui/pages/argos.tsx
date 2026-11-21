@@ -496,9 +496,11 @@ function Argos() {
     };
     // texto dos nós do usuário: cada edição é um passo do desfazer (update) e o texto esvaziado apaga o nó (delete)
     const text = L.userTextHost({ note: M.note, history: M.history }, { doc: docNow, commit: call('commitOp'), fail: call('opFailed') });
-    const userDeps = { fetch: tokenFetch, now: () => Date.now(), copy: call('copyText'), onTextChange: text.onTextChange, onRemove: text.onRemove,
+    const userDeps = { fetch: tokenFetch, now: () => Date.now(), canvasId: () => canvasIdRef.current, copy: call('copyText'), onTextChange: text.onTextChange, onRemove: text.onRemove,
       // desenho: cada edição é um passo do desfazer (opSetDrawing); recusa do modelo vai ao aviso com o código
       onDrawingChange: (id, scene) => { const d = docNow(); if (!d) return; let op; try { op = M.drawing.opSetDrawing(d, id, scene); } catch (e) { if (!e || typeof e.code !== 'string') throw e; call('opFailed')(e.code); return; } if (op) call('commitOp')(op); },
+      // tamanho do nó (Expandir do editor `cardinal`): passo do desfazer que mantém a posição
+      onResize: (id, size) => { const d = docNow(); const n = d?.nodes.find((x) => x.id === id); if (!d || !n) return; let op; try { op = M.history.opResize(d, id, { x: n.x, y: n.y, w: size.w, h: size.h }); } catch (e) { if (!e || typeof e.code !== 'string') throw e; call('opFailed')(e.code); return; } call('commitOp')(op); },
       band: { doc: () => docNow() ?? undefined, live: call('bandLive'), focus: call('select') } };
     const liveDeps = { fetch: tokenFetch, now: () => Date.now(), get portalPolicy() { return portalPolicy.current; }, onOpen: call('openAgentFile') };
     // nó `terminal` (criado pela ferramenta Terminal): desenho do node-terminal; o menu são os comandos T2 de commands-canvas.
@@ -841,6 +843,10 @@ function Argos() {
       onCanvas: (n) => { if (alive && n.id === canvasIdRef.current) watch.observe({ serverRev: n.rev, hidden: document.hidden }).catch(swallow('releitura pelo aviso')); },
       // registro de terminais (argos/terminals.json) mudou: vive fora do documento, então o grafo se relê
       onRegistry: () => { if (alive) { reloadGraph.current(); reloadOrphans.current().catch(swallow('leitura dos órfãos')); } },
+      // diagrama Cardinal mudou no disco ou por agente: os editores embutidos abertos recebem como mudança externa
+      onCardinal: (n) => { if (alive) M.cardinalBridge.cardinalFeed.publish(n); },
+      // religou o stream: os avisos do intervalo se perderam, então cada editor aberto relê o arquivo
+      onOpen: () => { if (alive) M.cardinalBridge.cardinalFeed.resync(); },
       check, log: (message) => console.debug('canvas:', message),
     });
     link.start();
@@ -848,6 +854,14 @@ function Argos() {
   }, [watch]);
 
   // panes do herdr dos nós de agente: a visão geral só é lida com nó de agente no canvas
+  // miniaturas dos diagramas Cardinal: lidas por aqui (vale em qualquer zoom) e relidas a cada aviso do SSE
+  const cardinalKey = useMemo(() => JSON.stringify([canvasIdRef.current, cstate ? cstate.doc.nodes.filter((n) => n.type === 'cardinal' && typeof n.data.cardinal === 'string').map((n) => [n.id, n.data.cardinal]) : []]), [cstate]);
+  useEffect(() => {
+    const B = M.cardinalBridge;
+    B.bindCardLoader((nodeId) => B.createCardinalClient({ fetch: tokenFetch, canvasId: canvasIdRef.current, nodeId }).view());
+    const [scope, list] = JSON.parse(cardinalKey);
+    B.cardViews.track(scope, list.map(([id, name]) => ({ id, name })));
+  }, [cardinalKey]);
   const hasAgentNode = !!cstate && cstate.doc.nodes.some((n) => n.type === 'agent');
   const [herdrTargets, setHerdrTargets] = useState(null);
   useEffect(() => {
@@ -1459,8 +1473,38 @@ function Argos() {
     await saver.flush();
     await reloadOrphans.current();
   });
-  // ferramenta Desenho: o retângulo solto vira um nó `drawing` vazio, pronto para entrar e desenhar (duplo clique ou Enter)
-  const placeDrawing = (screenRect, cam) => {
+  // motor de desenho que vale agora (GET /api/extensions); sem resposta vale o Hades, o fluxo de sempre
+  const drawingEngineNow = async () => {
+    try { return M.cardinalBridge.engineChoiceOf(await (await tokenFetch('/api/extensions', { method: 'GET' })).json()).effective; } catch { return 'hades'; }
+  };
+  // motor `cardinal`: o retângulo solto vira um nó `cardinal` com o arquivo novo já gravado; o binário gera o texto inicial
+  // antes de o nó entrar no documento, então falha ali (sem binário) não deixa nó sem arquivo
+  const placeCardinal = async (screenRect, cam) => {
+    const type = types.get(M.canvasCardinal.CARDINAL_TYPE);
+    const before = cstateRef.current?.doc;
+    if (!before || !type) { opFailed(M.history.HISTORY_ERRORS.invalidOp); return; }
+    const title = 'Desenho';
+    const used = before.nodes.filter((n) => n.type === M.canvasCardinal.CARDINAL_TYPE && typeof n.data.cardinal === 'string').map((n) => n.data.cardinal);
+    const seed = await M.cardinalBridge.prepareDiagram(tokenFetch, used, title);
+    if (!seed.ok) { toast({ kind: 'bad', title: 'Não deu para criar o desenho', desc: L.errorText(seed.code, 'O Cardinal não respondeu.') }); return; }
+    const doc = cstateRef.current?.doc;
+    if (!doc) { opFailed(M.history.HISTORY_ERRORS.invalidOp); return; }
+    const rect = window.ArgosCanvasToolbar.rectToWorld(cam, screenRect, { size: type.defaultSize, min: { w: 240, h: 160 } });
+    const id = M.clipboard.sequentialIds(doc, 'cardinal')('node');
+    let made;
+    try { made = M.canvasCardinal.createCardinalNode(doc, { id, name: seed.name, title, x: rect.x, y: rect.y, w: rect.w, h: rect.h }); } catch (e) { if (!e || typeof e.code !== 'string') throw e; opFailed(e.code); return; }
+    if (!termCommit(() => made.op)) return;
+    await saver.flush();
+    const B = M.cardinalBridge;
+    const wrote = await B.createCardinalClient({ fetch: tokenFetch, canvasId: canvasIdRef.current, nodeId: id }).write(new TextEncoder().encode(seed.text), null);
+    if (!wrote.ok) toast({ kind: 'bad', title: 'O desenho nasceu sem arquivo', desc: L.errorText(wrote.code, 'Não deu para gravar o diagrama; desfaça e tente de novo.') });
+    else void B.cardViews.refresh(id);
+    host.current.selectIds([id]);
+    apiRef.current?.revealNode(id, true);
+  };
+  // ferramenta Desenho: com o motor `cardinal` nasce um nó `cardinal`; com `hades`, um nó `drawing` vazio, pronto para entrar e desenhar (duplo clique ou Enter)
+  const placeDrawing = async (screenRect, cam) => {
+    if (await drawingEngineNow() === 'cardinal') { await placeCardinal(screenRect, cam); return; }
     const doc = cstateRef.current?.doc;
     const type = types.get(M.drawing.DRAWING_TYPE);
     if (!doc || !type) { opFailed(M.history.HISTORY_ERRORS.invalidOp); return; }
@@ -2180,7 +2224,8 @@ function Argos() {
             terminal={{ id: composerNode.id, label: nodeLabel(composerNode.id) ?? composerNode.id, ...ttyHost.target(composerNode.id),
               orchestrator: NT.readTerminalData(composerNode.data).orchestrator === true }}
             drafts={composerDrafts} onDrafts={setComposerDrafts} doc={cstate.doc} terminals={composerTerminals}
-            sendInput={(id, input) => ttyHost.input(id, input)} fetch={tokenFetch} onFocusTerminal={(id) => ttyHost.focus(id)} onClose={() => setComposer(null)} /></div> : null}
+            sendInput={(id, input) => ttyHost.input(id, input)} fetch={tokenFetch}
+            cardinalText={async (nodeId) => { const r = await M.cardinalBridge.createCardinalClient({ fetch: tokenFetch, canvasId: canvasIdRef.current, nodeId }).text(); return r.ok ? r.text : undefined; }} onFocusTerminal={(id) => ttyHost.focus(id)} onClose={() => setComposer(null)} /></div> : null}
           {SUP && canvasApi && cstate ? <div className="pointer-events-auto"><SUP.SupervisorLayer open={supOpen} onOpen={() => setSupOpen(true)} onClose={() => setSupOpen(false)}
             host={ttyHost} terminals={cstate.doc.nodes.filter((n) => ttyHost.target(n.id) && !(n.type === NT.TERMINAL_TYPE && NT.readTerminalData(n.data).shell)).map((n) => ({ id: n.id, label: nodeLabel(n.id) ?? n.id }))}
             doc={cstate.doc} canvasId={canvasIdRef.current} commit={termCommit} center={host.current.viewCenter}

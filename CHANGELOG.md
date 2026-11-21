@@ -4,6 +4,29 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## Não lançado — extensão Cardinal — 2026-11-21
+
+Fecho da integração com o Cardinal (U17): o Desenho do canvas passa a criar diagramas do Cardinal.
+
+- `HADES_DRAWING_ENGINE` passa a `cardinal` por padrão (decisão do dono). O valor é só o pedido: sem a extensão ligada e
+  utilizável (binário ou build web) o motor efetivo continua `hades`, com a razão no painel; `hades` explícito mantém o Desenho
+  antigo. Valor desconhecido cai no padrão. Nós `drawing` existentes não são tocados.
+- Corrida corrigida: nó `cardinal` novo com o zoom já de perto montava o editor antes do `PUT` terminar e lia "arquivo
+  ausente". O aviso SSE já ressincronizava; faltava o caso do aviso chegar com a leitura inicial em voo, que era descartado e
+  deixava o editor em `failed`. A ponte agora relê ao terminar a leitura.
+- Teste de ponta a ponta com binário real (`cardinal-e2e.test.ts`, ver `reference/extensoes.md`). Achado: `cardinal` sem
+  argumentos abre a interface gráfica; nunca rode o binário sem subcomando em teste.
+- A página Extensões só avisa do motor de desenho quando a extensão Cardinal está ligada. Antes o aviso aparecia também com a
+  extensão desligada, onde o motor efetivo é sempre `hades` e não há o que explicar.
+- O nó `cardinal` mostra uma miniatura do diagrama no bloco de longe e no de médio do canvas, não só no zoom de perto.
+- `hades canvas cardinal read --file` imprime o caminho do `.cardinal` também quando o diagrama é o arquivo padrão do nó
+  (antes só o arquivo adotado tinha caminho). O teste cobre os dois casos.
+- O painel guarda as preferências do editor do Cardinal (tema, idioma, onboarding, larguras de painel) por painel, em
+  `GET` e `PUT /api/canvas-cardinal/settings`, e as manda ao editor no `load`. O iframe sandbox não tem `localStorage`, então
+  elas não sobreviviam à recarga. `settings` passa a nome reservado no lugar do id de um nó `cardinal`.
+- Nó `cardinal` criado por `hades canvas cardinal new|adopt` nasce dentro da área de quem o criou, como as notas e os
+  desenhos desde a 6.55.0.
+
 ## 6.55.0 — 2026-11-21
 
 Pedido do dono: o agente que entra no Argos ou nasce nele começa sabendo onde está, com as regras e as Configurações da

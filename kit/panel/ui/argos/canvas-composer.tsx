@@ -41,6 +41,8 @@ interface CanvasComposerProps {
   sendInput(id: string, input: TtyInput): void | Promise<void>;
   /** fetch com o token do painel */
   fetch: FetchLike;
+  /** Texto canônico do diagrama Cardinal do nó (`undefined` = indisponível); vai na mensagem no lugar de `@<id>`. */
+  cardinalText?(nodeId: string): Promise<string | undefined>;
   /** `/` com o campo vazio: o teclado vai ao terminal, para o menu de comandos da CLI. */
   onFocusTerminal?(id: string): void;
   onClose(): void;
@@ -166,6 +168,7 @@ function makeArgosCanvasComposer() {
       terminals: terminals.filter((t) => t.id !== terminal.id && linked.has(t.id)),
       notes: doc.nodes.filter((n) => n.type === "note").map((n) => ({ id: n.id, title: C.noteTitle(n) })),
       drawings: doc.nodes.filter((n) => n.type === "drawing").map((n) => ({ id: n.id, title: C.drawingTitle(n) })),
+      cardinals: doc.nodes.filter((n) => n.type === "cardinal").map((n) => ({ id: n.id, title: C.cardinalTitle(n) })),
       orchestrator: terminal.orchestrator === true,
     };
   }
@@ -358,7 +361,7 @@ function makeArgosCanvasComposer() {
         note: picker.error || (picker.loading ? "Procurando…" : fileItems.length === 0 ? "Nada aqui." : picker.truncated ? "Lista cortada: refine a busca." : ""),
         items: fileItems.map((f) => ({ key: `${f.type}:${f.path}:${f.name}`, label: f.type === "dir" ? `${f.name}/` : f.name, hint: f.name === ".." ? "voltar" : f.path })),
       }
-      : options.length === 0 ? null : { kind: "mention", active: Math.min(active, options.length - 1), note: "", items: options.map((o, i) => ({ key: `${o.kind}:${i}`, label: o.label, hint: o.kind === "terminal" ? "terminal" : o.kind === "note" ? "nota" : o.kind === "drawing" ? "desenho" : o.kind === "file" ? "busca no diretório" : "ação" })) };
+      : options.length === 0 ? null : { kind: "mention", active: Math.min(active, options.length - 1), note: "", items: options.map((o, i) => ({ key: `${o.kind}:${i}`, label: o.label, hint: o.kind === "terminal" ? "terminal" : o.kind === "note" ? "nota" : o.kind === "drawing" ? "desenho" : o.kind === "cardinal" ? "diagrama" : o.kind === "file" ? "busca no diretório" : "ação" })) };
 
     const choose = (index: number): void => {
       if (!mention) return;
@@ -387,15 +390,38 @@ function makeArgosCanvasComposer() {
       save(edit.draft, edit.caret);
     };
 
+    /** Texto canônico de cada diagrama citado; leitura que falha deixa o id de fora (a referência sai "indisponível"). */
+    const readCardinalTexts = async (ids: readonly string[]): Promise<Record<string, string>> => {
+      const read = props.cardinalText;
+      if (!read || ids.length === 0) return {};
+      const entries = await Promise.all(ids.map(async (id) => [id, await read(id).catch(() => undefined)] as const));
+      return Object.fromEntries(entries.filter((e): e is readonly [string, string] => typeof e[1] === "string"));
+    };
+
     const send = (): void => {
       if (status.kind === "busy") return;
-      let message: string;
-      try {
-        message = C.composerMessage(draft, props.doc);
-      } catch (error) {
-        setStatus({ kind: "error", text: modelErrorText(error) });
+      const sent = draft;
+      const ids = C.referencedCardinalIds(draft, props.doc);
+      if (ids.length === 0) {
+        deliver({});
         return;
       }
+      setStatus({ kind: "busy", text: "Lendo diagramas…" });
+      void readCardinalTexts(ids).then(deliver);
+
+      function deliver(cardinalTexts: Record<string, string>): void {
+        let message: string;
+        try {
+          message = C.composerMessage(sent, live.current.props.doc, { cardinalTexts });
+        } catch (error) {
+          setStatus({ kind: "error", text: modelErrorText(error) });
+          return;
+        }
+        dispatch(message);
+      }
+    };
+
+    const dispatch = (message: string): void => {
       const sent = draft;
       const done = (): void => {
         // só sai o rascunho que foi enviado: se ele mudou durante o envio, o novo texto continua

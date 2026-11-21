@@ -74,11 +74,11 @@ describe("manifestos embutidos", () => {
   const catalog = readFileSync(join(ROOT, "kit", "config.tsv"), "utf8").split("\n").map((l) => l.split("\t")[0]);
   test("herdr e Mark carregam sem erro", () => {
     expect(loaded.broken).toEqual([]);
-    expect(loaded.extensions.map((e) => e.manifest.name)).toEqual(["herdr", "mark"]);
+    expect(loaded.extensions.map((e) => e.manifest.name)).toEqual(["cardinal", "herdr", "mark"]);
   });
   test("capacidades declaradas", () => {
     const caps = Object.fromEntries(loaded.extensions.map((e) => [e.manifest.name, e.manifest.capabilities]));
-    expect(caps).toEqual({ herdr: ["canvas.terminal"], mark: ["voice", "window"] });
+    expect(caps).toEqual({ cardinal: ["canvas.diagram"], herdr: ["canvas.terminal"], mark: ["voice", "window"] });
   });
   test("chave de estado e chaves próprias existem no catálogo do kit", () => {
     for (const { manifest } of loaded.extensions) for (const key of [manifest.enableKey, ...manifest.configKeys]) expect(catalog).toContain(key);
@@ -156,7 +156,7 @@ describe("detecção, versão e saúde com binário falso", () => {
   });
   test("o doctor entrega uma linha por extensão embutida", () => {
     const items = extensionDoctorItems(depsFor());
-    expect(items.map((i) => i.id)).toEqual(["ext-herdr", "ext-mark"]);
+    expect(items.map((i) => i.id)).toEqual(["ext-cardinal", "ext-herdr", "ext-mark", "ext-cardinal-web"]);
     for (const i of items) expect(i.level).toBe("ok"); // ausente é opcional: não é aviso
   });
 });
@@ -168,7 +168,7 @@ describe("CLI hades ext", () => {
     const r = spawnSync(process.execPath, [CLI, "ext", ...args], {
       encoding: "utf8",
       // o ambiente vence o config.env: a release exporta HADES_EXT_* da instalação, então o teste as tira
-      env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("HADES_EXT_"))), HADES_DATA: data, PATH: `${bin}:${dirname(process.execPath)}`, HADES_HERDR_BIN: "" },
+      env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("HADES_EXT_"))), HADES_DATA: data, PATH: `${bin}:${dirname(process.execPath)}`, HADES_HERDR_BIN: "", HADES_CARDINAL_BIN: "" },
     });
     return { status: r.status ?? 1, out: r.stdout + r.stderr };
   };
@@ -183,11 +183,11 @@ describe("CLI hades ext", () => {
     rmSync(bin, { recursive: true, force: true });
   });
 
-  test("list --json: contrato versionado, herdr instalado e Mark ausente", () => {
+  test("list --json: contrato versionado, herdr instalado, Cardinal e Mark ausentes", () => {
     const r = hades(["list", "--json"]);
     const doc = JSON.parse(r.out) as { version: number; extensions: { name: string; installed: boolean; enabled: boolean; version: string | null }[] };
     expect(doc.version).toBe(1);
-    expect(doc.extensions.map((e) => [e.name, e.installed, e.enabled, e.version])).toEqual([["herdr", true, true, "0.9.5"], ["mark", false, true, null]]);
+    expect(doc.extensions.map((e) => [e.name, e.installed, e.enabled, e.version])).toEqual([["cardinal", false, true, null], ["herdr", true, true, "0.9.5"], ["mark", false, true, null]]);
   });
   test("disable e enable gravam em config.env e o list acompanha", () => {
     expect(hades(["disable", "mark"]).status).toBe(0);

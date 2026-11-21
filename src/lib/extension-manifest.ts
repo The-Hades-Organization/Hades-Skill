@@ -27,7 +27,7 @@ export interface ExtError {
 }
 
 /** Lista fechada; capacidade nova entra aqui (e na doc) antes de algum manifesto usá-la. */
-export const CAPABILITIES = ["canvas.terminal", "voice", "window"] as const;
+export const CAPABILITIES = ["canvas.terminal", "canvas.diagram", "voice", "window"] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 
 export const MANIFEST_SCHEMA = 1;

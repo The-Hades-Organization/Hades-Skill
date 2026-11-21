@@ -72,6 +72,7 @@ function rig(initial: Partial<FileRead> & { text?: string } = {}) {
     onDirty: (d) => events.push(`dirty:${d}`),
     onSaved: (rev) => events.push(`saved:${rev}`),
     onMergeNotice: (c) => events.push(`merge:${c.map((x) => x.kind).join(",")}`),
+    onMergeFailed: () => events.push("merge-failed"),
     onError: (code) => events.push(`error:${code}`),
     setTimer: (fn, ms) => { const t = { fn, ms, live: true }; timers.push(t); return t; },
     clearTimer: (h) => { (h as { live: boolean }).live = false; },
@@ -358,6 +359,15 @@ describe("cardinal-bridge: mudança externa (SSE)", () => {
     r.fromEditor({ type: "merge-notice", conflicts: [] });
     r.fromEditor({ type: "merge-notice", conflicts: [{ kind: "nope" }] });
     expect(r.events.filter((e) => e.startsWith("merge:"))).toEqual(["merge:both-changed"]);
+  });
+
+  test("merge-failed (error com esse code) chega como aviso próprio, não como erro; outro code segue erro", async () => {
+    const r = rig();
+    r.fromEditor(ready());
+    await r.tick();
+    r.fromEditor({ type: "error", code: "merge-failed", message: "invalid project" });
+    r.fromEditor({ type: "error", code: "save-failed", message: "x" });
+    expect(r.events.filter((e) => e.startsWith("merge-failed") || e.startsWith("error:"))).toEqual(["merge-failed", "error:save-failed"]);
   });
 });
 

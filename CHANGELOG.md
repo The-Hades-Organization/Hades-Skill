@@ -4,9 +4,16 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
-## Não lançado — extensão Cardinal — 2026-11-21
+## 6.56.0 — 2026-11-21
 
-Fecho da integração com o Cardinal (U17): o Desenho do canvas passa a criar diagramas do Cardinal.
+Extensão Cardinal (#144): o Desenho do canvas passa a criar diagramas do Cardinal, e o nó avisa quando o editor para de salvar.
+
+- O nó `cardinal` avisa que o editor parou de salvar quando o merge de uma mudança externa dá um projeto inválido. O Cardinal
+  manda essa falha como `{ cardinal: 1, type: "error", code: "merge-failed", message }` (não existe `type: "merge-failed"`;
+  conferido em `crates/cardinal/src/workspace/host.rs` e `crates/cardinal-core/src/save_sync.rs` da `main` do Cardinal). Antes
+  a ponte a entregava como erro comum e o nó mostrava só "erro do editor (merge-failed)", sem dizer que nada seria gravado. Agora
+  `onMergeFailed` separa esse código e o nó mostra um aviso fixo com o que fazer (fechar e abrir o editor, ou esperar a próxima
+  alteração do arquivo), até um `saved` ou um novo `load`. O texto não repete a `message` do editor: o código é o contrato.
 
 - `HADES_DRAWING_ENGINE` passa a `cardinal` por padrão (decisão do dono). O valor é só o pedido: sem a extensão ligada e
   utilizável (binário ou build web) o motor efetivo continua `hades`, com a razão no painel; `hades` explícito mantém o Desenho

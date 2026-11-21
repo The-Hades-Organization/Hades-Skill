@@ -3086,6 +3086,13 @@ describe("editor do Cardinal no nó", () => {
     expect(api.WEB_URL).toBe("/ext/cardinal/web/index.html?host=1");
   });
 
+  test("o aviso de merge-failed diz que o editor parou de salvar e o que fazer", async () => {
+    const { scope } = await rig();
+    const text = (scope.ArgosNodeCardinal as { MERGE_FAILED_TEXT: string }).MERGE_FAILED_TEXT;
+    expect(text).toContain("parou de salvar");
+    expect(text).toContain("feche o editor e abra de novo");
+  });
+
   test("index.html carrega node-cardinal depois do node-note e antes do types-user", () => {
     const html = readFileSync(join(UI, "index.html"), "utf8");
     const at = (src: string): number => html.indexOf(`<script src="${src}"></script>`);

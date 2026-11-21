@@ -228,8 +228,22 @@ describe.skipIf(!real)("cardinal e2e: binário real e build web", () => {
 });
 
 describe("cardinal e2e: sem binário e sem build web", () => {
-  beforeAll(() => boot(false));
-  afterAll(() => rig.panel.stop());
+  // o painel roda neste processo: um `cardinal` no PATH ou as chaves do Cardinal exportadas pela fila de gates (variável
+  // exportada vence o config) fariam o caso "sem binário" achar um
+  const KEYS = ["HADES_EXT_CARDINAL", "HADES_CARDINAL_BIN", "HADES_CARDINAL_WEB", "HADES_DRAWING_ENGINE"];
+  const before = Object.fromEntries([...KEYS, "PATH"].map((key) => [key, process.env[key]]));
+  beforeAll(async () => {
+    for (const key of KEYS) delete process.env[key];
+    process.env.PATH = (before.PATH ?? "").split(":").filter((dir) => dir !== "" && !existsSync(join(dir, "cardinal"))).join(":");
+    await boot(false);
+  });
+  afterAll(() => {
+    for (const [key, value] of Object.entries(before)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    rig.panel.stop();
+  });
 
   test("motor efetivo cai para hades, com a razão", async () => {
     const ext = (await (await fetch(`${rig.base}/api/extensions`, { headers: hdr() })).json()) as { drawingEngine: { configured: string; effective: string; reason: { code: string } | null } };

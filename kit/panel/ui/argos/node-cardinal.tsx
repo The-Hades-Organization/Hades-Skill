@@ -28,7 +28,9 @@ const REASON_TEXT: Readonly<Record<string, string>> = {
   cardinal_unreadable: "o arquivo não pôde ser lido",
   cardinal_format_too_new: "o arquivo é de um formato mais novo que o do editor",
 };
-const CONFLICT_TEXT: Readonly<Record<string, string>> = {
+/** `merge-failed`: o merge da mudança do arquivo deu um projeto inválido; o editor não salva para não perder essa mudança. */
+const MERGE_FAILED_TEXT = "O arquivo foi alterado por fora e o editor não conseguiu juntar essa mudança à sua edição, então parou de salvar. O que está na tela não será gravado. Para voltar a salvar, feche o editor e abra de novo (a edição não salva se perde), ou espere a próxima alteração do arquivo.";
+const CONFLICT_TEXT:Readonly<Record<string, string>> = {
   "both-changed": "alterado dos dois lados",
   "deleted-vs-changed": "apagado de um lado e alterado do outro",
   "dangling-reference": "referência sem destino",
@@ -82,6 +84,7 @@ function makeArgosNodeCardinal() {
     const [saved, setSaved] = React.useState<string | undefined>(undefined);
     const [notice, setNotice] = React.useState<BridgeModule.MergeConflict[] | null>(null);
     const [message, setMessage] = React.useState<string | undefined>(undefined);
+    const [mergeFailed, setMergeFailed] = React.useState(false);
     const [busy, setBusy] = React.useState(false);
     const frame = React.useRef<HTMLIFrameElement | null>(null);
     const bridge = React.useRef<BridgeModule.Bridge | null>(null);
@@ -102,10 +105,15 @@ function makeArgosNodeCardinal() {
         onState: (next, why) => {
           setState(next);
           setReason(why);
+          if (next === "loading") setMergeFailed(false);
         },
         onDirty: setDirty,
-        onSaved: (rev) => setSaved(rev),
+        onSaved: (rev) => {
+          setSaved(rev);
+          setMergeFailed(false);
+        },
         onMergeNotice: setNotice,
+        onMergeFailed: () => setMergeFailed(true),
         onError: (code) => setMessage(REASON_TEXT[code] ?? `erro do editor (${code})`),
       });
       bridge.current = instance;
@@ -180,6 +188,9 @@ function makeArgosNodeCardinal() {
           h("span", { className: "flex-1" }, `Alguém alterou o diagrama enquanto você editava. Sua versão ficou em ${notice.length} ${notice.length === 1 ? "ponto" : "pontos"}: ${[...new Set(notice.map((c) => CONFLICT_TEXT[c.kind] ?? c.kind))].join(", ")}.`),
           h("button", { type: "button", className: BTN, onClick: () => setNotice(null) }, "Entendi"))
         : null,
+      mergeFailed
+        ? h("div", { className: "bg-popover px-2 py-1 t-label", role: "alert", "data-cardinal-merge-failed": "" }, MERGE_FAILED_TEXT)
+        : null,
       hasSlot
         ? h("iframe", {
           ref: frame, src: props.webUrl ?? WEB_URL, title: `Editor do diagrama ${props.name}`, sandbox: "allow-scripts",
@@ -189,7 +200,7 @@ function makeArgosNodeCardinal() {
       hasSlot ? h("div", { className: "absolute bottom-0 right-0 z-10", style: { width: RESIZE_CORNER, height: RESIZE_CORNER, cursor: "nwse-resize" }, "aria-hidden": "true", "data-cardinal-resize-corner": "" }) : null);
   }
 
-  return { CardinalEditor, WEB_URL, STATE_TEXT, REASON_TEXT, CONFLICT_TEXT };
+  return { CardinalEditor, WEB_URL, STATE_TEXT, REASON_TEXT, CONFLICT_TEXT, MERGE_FAILED_TEXT };
 }
 
 type ArgosNodeCardinalApi = ReturnType<typeof makeArgosNodeCardinal>;

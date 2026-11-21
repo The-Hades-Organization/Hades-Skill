@@ -4,6 +4,29 @@ Formato: uma seção por versão, a mais nova no topo. Cada entrada diz **o que 
 caminho** (regra de negócio, armadilha, número medido). Versão: minor = capacidade nova; patch = correção ou armadilha;
 major = quebra de contrato do kit (`env.sh`, layout de `$D`, nomes de scripts).
 
+## 6.55.0 — 2026-11-21
+
+Pedido do dono: o agente que entra no Argos ou nasce nele começa sabendo onde está, com as regras e as Configurações da
+Hades, e o agente que mora numa área do canvas cria notas e terminais dentro dela, sem espalhar nós fora.
+
+- Todo terminal de agente criado ou reiniciado pelo canvas (modal, `recruit`, `reassign`, trocar papel) recebe no papel
+  `kit/panel/argos/argos-context.md`: o que é o Argos, a regra da área, os comandos de qualquer terminal e as regras da
+  Hades que valem ali. Entra depois das instruções do papel e antes das próprias e das de gerente. Só no agente com flag
+  de arquivo (`claude`); arquivo ausente não recusa a criação, só deixa aviso no log.
+- `hades canvas context [--rules]`: canvas, nó, papel, orquestrador ou recruta de quem, área e os outros membros, notas,
+  recrutas e o bloco "PR pronta" das Configurações. O `join` do próprio pane imprime o mesmo com as regras, porque o
+  processo que entra sozinho não nasceu com o papel. A identidade do recruta cita a área.
+- Áreas que crescem (`src/lib/canvas-area-grow.ts`, modo `grow` de `canvas-space.ts`): `recruit`, `note new`,
+  `drawing new` e `join --to` criam dentro da área de quem chama. A área do terminal passa a ser a da lista de membros,
+  e a geometria só vale sem lista. Cheia, a vaga sai abaixo do que ela tem, a área estica e o que está no caminho
+  (outra área com os membros, ou nó solto) desce ou vai para a direita em cascata, sem sobrepor. Nó travado ou vivo não
+  anda. Um passo só do desfazer.
+- Armadilha: `canvas-recruit.ts` também é carregado pela página do Argos, então todo módulo novo que ele importa tem de
+  entrar na lista de `src/panel/ui-transpile.ts`. Sem isso o pacote da página falha ("import fora da lista dos módulos
+  da UI") e a regressão da UI cai em 27 casos.
+- Fora desta versão: a sincronia de agentes (`hades agent new`, `canvas-sync.ts`) ainda não usa `grow`, então com a área
+  cheia o agente alocado entra fora dela. Terminais já abertos só recebem o texto fixo ao trocar de papel ou ser recriados.
+
 ## 6.54.0 — 2026-11-19
 
 Pedido do dono: o worker de gates declara o SO e o estado de disco, CPU e RAM. Antes o `status` trazia só disco livre,

@@ -6,6 +6,8 @@ releia estas instruções antes de responder.
 
 ## Como trabalhar
 
+0. Rode `hades canvas context`: se você está numa área, a equipe, as notas e os desenhos que você criar nascem nela (a
+   área cresce sozinha quando enche). Não crie nó por fora da CLI nem mexa em nó de outra área.
 1. Entenda o pedido e divida em partes que um terminal resolve sozinho. Trabalho pequeno, faça você mesmo.
 2. Crie o briefing você mesmo com `hades canvas note new <nome> --text <texto>` (ou o texto pela entrada padrão): a
    nota nasce perto de você e ligada a você, sem esperar o dono desenhá-la. Um briefing, escrito uma vez, serve a todos

@@ -630,3 +630,43 @@ describe("argos-terminals: escolha com as Configurações do papel", () => {
     expect([choice.model, choice.effort]).toEqual([undefined, undefined]);
   });
 });
+
+describe("contexto do Argos no papel", () => {
+  const CONTEXT = "# Você está no Argos\n\nrode hades canvas context\n";
+  const MULTI = "linha 1\n\nlinha 3";
+  const afterDashes = (r: ReturnType<typeof rig>): string[] => (startCall(r) ?? []).slice((startCall(r) ?? []).indexOf("--") + 1);
+  const withContext = (r: ReturnType<typeof rig>): void => {
+    mkdirSync(join(r.D, "panel/argos"), { recursive: true });
+    writeFileSync(join(r.D, "panel/argos/argos-context.md"), CONTEXT);
+  };
+
+  test("dado o contexto na instalação, quando cria terminal claude sem papel, então o arquivo do papel leva o contexto", async () => {
+    const r = rig();
+    withContext(r);
+    expect((await r.post("/api/argos/terminals", { name: "dev" })).status).toBe(200);
+    expect(afterDashes(r)).toEqual(["--append-system-prompt-file", promptFile(r)]);
+    expect(readFileSync(promptFile(r), "utf8")).toBe(CONTEXT);
+  });
+
+  test("dado papel e instruções próprias, então o contexto vem depois do papel e antes das instruções", async () => {
+    const r = rig();
+    withContext(r);
+    await r.post("/api/argos/roles", { role: { ...ROLE, instructions: MULTI } });
+    await r.post("/api/argos/terminals", { name: "dev", role: "revisor", instructions: "PROPRIAS" });
+    expect(readFileSync(promptFile(r), "utf8")).toBe(`${MULTI}\n\n${CONTEXT}\n\nPROPRIAS`);
+  });
+
+  test("dado agente sem flag de arquivo, então o contexto não entra e a criação não é recusada", async () => {
+    const r = rig();
+    withContext(r);
+    expect((await r.post("/api/argos/terminals", { name: "dev", agent: "codex" })).status).toBe(200);
+    expect(existsSync(promptFile(r))).toBe(false);
+  });
+
+  test("dado a instalação sem o arquivo, então o terminal sobe sem o contexto e o log avisa", async () => {
+    const r = rig();
+    expect((await r.post("/api/argos/terminals", { name: "dev" })).status).toBe(200);
+    expect(existsSync(promptFile(r))).toBe(false);
+    expect(r.logs.join("\n")).toContain("contexto do Argos ausente");
+  });
+});

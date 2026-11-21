@@ -8,6 +8,7 @@ import { argosContext } from "../../../src/lib/canvas-context";
 import { type CanvasDoc, type CanvasNode, emptyCanvasDoc, validateCanvasDoc } from "../../../src/lib/canvas-doc";
 import { applyOp, invert } from "../../../src/lib/canvas-history";
 import { identityPrompt, planNewNote, planRecruit } from "../../../src/lib/canvas-recruit";
+import { planNewCardinal } from "../../../src/lib/canvas-recruit-cardinal";
 
 const ORQ = "term-orq";
 const SIZE = { w: 400, h: 240 };
@@ -57,6 +58,28 @@ describe("área que cresce", () => {
     expect(inside(byId(next, "squad"), byId(next, plan.node.id))).toBe(true);
     expect(areaMembers(next, "squad").map((n) => n.id)).toContain(plan.node.id);
     expect(applyOp(next, invert(plan.op))).toEqual(doc);
+  });
+
+  test("dado o orquestrador numa área cheia, quando cria diagrama cardinal, então o nó entra na área, ela o cobre e o desfazer volta ao anterior", () => {
+    const doc = tight();
+    const plan = planNewCardinal(doc, { callerId: ORQ, name: "modelo", title: "Modelo" });
+    const next = applyOp(doc, plan.op);
+    expect(validateCanvasDoc(next)).toEqual(next);
+    const squad = byId(next, "squad");
+    expect(plan.node.type).toBe("cardinal");
+    expect(inside(squad, byId(next, plan.node.id))).toBe(true);
+    expect(areaMembers(next, "squad").map((n) => n.id)).toContain(plan.node.id);
+    expect(squad.h).toBeGreaterThan(320);
+    expect(overlap(squad, byId(next, "vizinha"))).toBe(false);
+    expect(byId(next, "longe")).toEqual(byId(doc, "longe"));
+    expect(next.edges.some((e) => e.from === ORQ && e.to === plan.node.id)).toBe(true);
+    expect(applyOp(next, invert(plan.op))).toEqual(doc);
+  });
+
+  test("dado o orquestrador fora de área, quando cria diagrama cardinal, então nenhuma área cresce", () => {
+    const doc: CanvasDoc = { ...emptyCanvasDoc(), nodes: [node(ORQ, 2000, 2000, { data: orq.data }), area("squad", 0, 0, 440, 320)] };
+    const next = applyOp(doc, planNewCardinal(doc, { callerId: ORQ, name: "modelo" }).op);
+    expect(byId(next, "squad")).toEqual(byId(doc, "squad"));
   });
 
   test("dado espaço livre na área, quando recruta, então a área não muda de tamanho", () => {

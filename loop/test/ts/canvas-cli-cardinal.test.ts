@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { CANVAS_CLI_ERRORS, type CanvasCliDeps, cardinalNameFrom, runCanvas } from "../../../src/commands/canvas";
 import { CARDINAL_FORMAT_MAX } from "../../../src/lib/canvas-cardinal";
 import { type CanvasDoc, type CanvasEdge, type CanvasNode, emptyCanvasDoc } from "../../../src/lib/canvas-doc";
+import { AREA_TYPE, areaDataOf, areaMembers } from "../../../src/lib/canvas-areas";
 import { LINK_EDGE_KIND } from "../../../src/lib/canvas-links";
 import { RECRUIT_EDGE_KIND } from "../../../src/lib/canvas-recruit";
 import { EXIT } from "../../../src/lib/output";
@@ -217,6 +218,53 @@ describe("canvas cardinal: link, unlink e adopt", () => {
     expect(await r.run("cardinal", "adopt", file)).toBe(EXIT.ok);
     expect(r.out.join("\n")).toContain("já tinha nó");
     expect((await r.current()).nodes.length).toBe(count);
+  });
+});
+
+describe("canvas cardinal: área do criador", () => {
+  /** A área `squad` cabe só o chefe; o nó de baixo é o que a área empurra ao crescer. */
+  const areaDoc = (): CanvasDoc => {
+    const doc = baseDoc();
+    const orq = doc.nodes.find((node) => node.id === "term-orq") as CanvasNode;
+    return {
+      ...doc,
+      nodes: [
+        ...doc.nodes.filter((node) => node.id !== "term-r1" && node.id !== "c-direto" && node.id !== "c-cadeia"),
+        { id: "squad", type: AREA_TYPE, x: 0, y: 0, w: 520, h: 340, z: -1000, data: areaDataOf({ title: "Squad", color: "chart-1", members: [orq.id] }), locked: false, blurred: false },
+        { id: "abaixo", type: "terminal", x: 0, y: 400, w: 400, h: 240, z: 1, data: { name: "abaixo" }, locked: false, blurred: false },
+      ],
+      edges: [],
+    };
+  };
+  const squadOf = (doc: CanvasDoc): CanvasNode => doc.nodes.find((node) => node.id === "squad") as CanvasNode;
+  const covers = (outer: CanvasNode, inner: CanvasNode): boolean => inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.w <= outer.x + outer.w && inner.y + inner.h <= outer.y + outer.h;
+
+  test("new: o nó nasce na área do chefe e a área cresce até cobri-lo", async () => {
+    const r = await rig(areaDoc());
+    expect(await r.run("cardinal", "new", "Meu Modelo", "--from-text", "-")).toBe(EXIT.ok);
+    const doc = await r.current();
+    const created = doc.nodes.find((node) => node.type === "cardinal") as CanvasNode;
+    expect(areaMembers(doc, "squad").map((node) => node.id)).toContain(created.id);
+    expect(covers(squadOf(doc), created)).toBe(true);
+    expect(squadOf(doc).h).toBeGreaterThan(340);
+  });
+
+  test("adopt: o nó nasce na área do chefe e a área cresce até cobri-lo", async () => {
+    const r = await rig(areaDoc());
+    const file = join(r.D, "externo.cardinal");
+    writeFileSync(file, `${envelope("ext")}\n`);
+    expect(await r.run("cardinal", "adopt", file)).toBe(EXIT.ok);
+    const doc = await r.current();
+    const created = doc.nodes.find((node) => node.type === "cardinal") as CanvasNode;
+    expect(areaMembers(doc, "squad").map((node) => node.id)).toContain(created.id);
+    expect(covers(squadOf(doc), created)).toBe(true);
+    expect(squadOf(doc).h).toBeGreaterThan(340);
+  });
+
+  test("new com o chefe fora de área não cria nem move área", async () => {
+    const r = await rig(baseDoc());
+    expect(await r.run("cardinal", "new", "Solto", "--from-text", "-")).toBe(EXIT.ok);
+    expect((await r.current()).nodes.some((node) => node.type === AREA_TYPE)).toBe(false);
   });
 });
 

@@ -152,7 +152,7 @@ describe("canvas-cardinal-route: a rota sobre a pasta de dados", () => {
     expect(statSync(file("estoque")).mode & 0o777).toBe(0o600);
     expect(readFileSync(file("estoque"), "utf8")).toBe(text);
     const read = await json(await get("default", "c2"));
-    expect(read).toMatchObject({ name: "estoque", text, rev: saved.rev, format: "cardinal", version: CARDINAL_FORMAT_MAX, app: "Cardinal 0.1.0", diagrams: 2, supported: true, valid: true, location: "default", path: null });
+    expect(read).toMatchObject({ name: "estoque", text, rev: saved.rev, format: "cardinal", version: CARDINAL_FORMAT_MAX, app: "Cardinal 0.1.0", diagrams: 2, supported: true, valid: true, location: "default", path: file("estoque") });
   });
 
   test("409 com duas gravações: a segunda com a revisão velha recebe a atual", async () => {

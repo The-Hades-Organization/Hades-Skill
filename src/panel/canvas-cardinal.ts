@@ -334,7 +334,7 @@ export function createCanvasCardinalRoutes(dir: string, deps: CardinalDeps): Car
       name, text: stored.text, rev: stored.rev, updatedAt: stored.updatedAt, bytes: stored.bytes,
       format: envelope?.format ?? null, version: envelope?.version ?? null, app: envelope?.app ?? null, diagrams: envelope?.diagrams ?? 0,
       supported: envelope?.supported ?? false, valid: envelope !== undefined,
-      location: place.custom ? "custom" : "default", path: place.custom ? place.file : null,
+      location: place.custom ? "custom" : "default", path: place.file,
     };
   }
 

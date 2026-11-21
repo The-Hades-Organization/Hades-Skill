@@ -512,7 +512,7 @@ Extensão `cardinal` (`reference/extensoes.md`). O nó `cardinal` é um tipo liv
 |---|---|
 | `GET /api/canvas-cardinal?limit=&after=` | arquivos conhecidos, por nome, em páginas (`files[]`, `next`); limite acima de 200 é 400 |
 | `GET /api/canvas-cardinal/<canvas>[?as=<agente>]` | os nós `cardinal` do canvas (`nodes[]`: `id`, `name`, `exists`, `rev`, `version`, `diagrams`) |
-| `GET /api/canvas-cardinal/<canvas>/<nó>[?as=<agente>]` | `{ name, text, rev, updatedAt, bytes, format, version, app, diagrams, supported, valid, location, path }` |
+| `GET /api/canvas-cardinal/<canvas>/<nó>[?as=<agente>]` | `{ name, text, rev, updatedAt, bytes, format, version, app, diagrams, supported, valid, location, path }` (`path` é o caminho absoluto do `.cardinal` no disco, do arquivo padrão ou do adotado; é o que `hades canvas cardinal read --file` imprime) |
 | `PUT /api/canvas-cardinal/<canvas>/<nó>` | corpo `{ "text": "<.cardinal>", "rev": null \| "<rev>", "as": { "agent": "<id>" } }`; `rev: null` cria; `{ ok, name, rev, bytes }` |
 | `POST /api/canvas-cardinal/link` | corpo `{ "path": "/abs/x.cardinal" }`; adota sem mover; `{ ok, name, path, created }`; só local |
 

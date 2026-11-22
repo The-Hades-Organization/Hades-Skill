@@ -115,6 +115,7 @@ const HELP = `hades <subcomando> [argumentos]
   ux-audit start|add|list|forward|resolve|done|reminder  auditoria de usabilidade do painel e do Argos com o Impeccable (reference/ux-audit.md)
   moirai history|estimate <plan.md>  histórico das unidades encerradas e estimativa de custo e duração por unidade do plano (hades moirai)
   provider print-argv [--role R] [--prompt T]  argv de print do provedor ativo em JSON, para binários Rust (hades provider)
+  provider start-argv [--role R]  argv interativo de start do provedor ativo em JSON, sem herdr nem registro (hades provider)
   caronte pack|unpack|brief      leva uma orquestração para outra sessão ou máquina: pacote cifrado com senha, abrir o pacote, ou o prompt de retomada (hades caronte)
   canvas note list|read|write | recruit|connect|reassign|dismiss|notify   o agente do terminal fala com o canvas: notas ligadas e equipe do orquestrador (hades canvas)
   minos list|schema|publish|link|open   publica as saídas da Hades fora do painel (orquestração, explicação de código, proposta): página do modelo, Cerberus, link estável (hades minos, reference/minos.md)

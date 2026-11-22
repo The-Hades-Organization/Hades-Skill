@@ -62,13 +62,18 @@ export function roleModelDefaults(role: string): { model?: string; effort?: stri
   return { ...(model && { model }), ...(effort && { effort }) };
 }
 
-/** O comando de start do dono, com modelo e esforço do papel (Configurações). */
-export function startCommand(name: string, pane: string, role: string): string {
+/** Provedor ativo do papel e o argv interativo de start, com modelo e esforço do papel (Configurações); sem herdr nem registro. */
+export function startArgv(role: string): { kind: string; args: string[] } {
   const readCfg = (key: string): string | undefined => configValue(key, "") || undefined;
   const provider = activeProvider(role, readCfg);
   const { model, effort } = roleModelDefaults(role);
-  const tail = provider.buildInteractiveArgv({ permissionMode: "auto", model, effort, readConfig: readCfg }).join(" ");
-  return `! herdr agent start ${name} --kind ${provider.herdrKind} --pane ${pane || "<pane>"} -- ${tail}`;
+  return { kind: provider.herdrKind, args: provider.buildInteractiveArgv({ permissionMode: "auto", model, effort, readConfig: readCfg }) };
+}
+
+/** O comando de start do dono, com modelo e esforço do papel (Configurações). */
+export function startCommand(name: string, pane: string, role: string): string {
+  const { kind, args } = startArgv(role);
+  return `! herdr agent start ${name} --kind ${kind} --pane ${pane || "<pane>"} -- ${args.join(" ")}`;
 }
 
 export function roleCard(skillRoot: string, role: string): string {

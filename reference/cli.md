@@ -19,6 +19,7 @@ Os subcomandos vêm agrupados por área. Coluna "Shim": `kit/<arquivo>` é um sh
 | `cerberus avaliar\|registrar\|guardas\|historico\|modos\|excecao\|estado …` | corpo do Cerberus (`reference/cerberus.md`) | — |
 | `cerberus-check porta/<guarda>\|limiar <guarda>\|vigilia/auditoria <guarda>\|vigilia/coerencia <guarda>` | os checks das guardas `exec` do Cerberus (uma linha JSON de veredito); o `cmd` do JSON da guarda chama este subcomando | — |
 | `provider print-argv [--role R] [--no-read-only] [--allow-tools "A B"] [--prompt T\|--prompt-stdin]` | argv de print do provedor ativo em JSON `{bin, args, cwd, timeout_s}`, montado por `buildPrintArgv` como o `--deep` do Moirai; padrões: ORCHESTRATOR, somente leitura, `Read Grep Glob` | — |
+| `provider start-argv [--role R]` | tipo herdr e argv interativo de start do provedor ativo em JSON `{kind, args}`, o mesmo de `startCommand` (modelo e esforço do papel); sem herdr e sem registro; padrão ORCHESTRATOR | — |
 | `models [--dry-run]` | aplica o mapa de modelos dos subagentes de review ao `model:` de `~/.claude/agents/review-*.md` | — |
 | `quality list\|on\|off\|packs\|validate\|reset\|inject\|conflicts\|state` | catálogo de qualidade (regras, pacotes, bloco dos briefs) | — |
 | `review --wt <worktree> --pr <n> --cmd review-pr\|review-agents --model <m> --effort <e> [--post] [--id <id>] [--dry-run]` | revisão de PR pelo painel: worktree descartável no head da PR, `claude -p`, registro em `~/.claude/hades/reviews/` | — |

@@ -177,6 +177,7 @@ HADES_THANATOS_SOURCE_TIMEOUT_S	60	int:1:600	Orquestração	Thanatos: tempo da f
 HADES_THANATOS_IO_TIMEOUT_S	60	int:1:600	Orquestração	Thanatos: tempo de cada git e gh (s)	next	Tempo máximo de cada chamada de git e gh do hades thanatos.
 HADES_THANATOS_MAX_PRS	30	int:1:200	Orquestração	Thanatos: PRs por intervalo ou card	next	Teto de PRs mergeadas que um post-mortem de intervalo ou de card lê.
 HADES_THANATOS_JOURNAL_MAX	40	int:1:500	Orquestração	Thanatos: eventos do diário na linha do tempo	next	Os eventos mais recentes do diário no período que entram na linha do tempo (sem o ruído de ferramenta).
+HADES_THANATOS_IMPL	ts	enum:ts,rust	Orquestração	Thanatos: implementação	next	`ts` é a implementação em TypeScript. `rust` faz o hades thanatos delegar ao binário thanatos (caminho em HADES_THANATOS_BIN ou no PATH); sem o binário o comando falha com código 69, sem voltar ao TS.
 HADES_MOIRAI_MIN_SAMPLE	5	int:1:100	Orquestração	Moirai: amostra mínima	next	Unidades parecidas (papel, modo, faixa de tamanho) exigidas para confiar na mediana. Abaixo disso a confiança é baixa e a estimativa usa só o tamanho.
 HADES_MOIRAI_HIGH_FACTOR	3	int:1:20	Orquestração	Moirai: múltiplo da amostra mínima para confiança alta	next	Amostra de mínima × este valor ou mais = confiança alta; entre a mínima e isso, média.
 HADES_MOIRAI_WINDOW_DAYS	90	int:0:3650	Orquestração	Moirai: janela do histórico (dias)	next	Só unidades encerradas nos últimos N dias entram no histórico e na estimativa. 0 = todo o histórico.

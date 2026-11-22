@@ -7,16 +7,17 @@ import { EXIT, HadesError, die } from "./lib/output.ts";
 
 type Command = (args: string[]) => number | Promise<number>;
 
-/** `HADES_MOIRAI_IMPL=rust`: o `hades moirai` vira o binário `moirai` (HADES_MOIRAI_BIN, senão o do PATH), com stdio e código repassados. */
-async function moiraiLoader(): Promise<Command> {
+/** `HADES_<NOME>_IMPL=rust`: o `hades <nome>` vira o binário `<nome>` (HADES_<NOME>_BIN, senão o do PATH), com stdio e código repassados. */
+async function delegateOr(name: string, ts: () => Promise<Command>): Promise<Command> {
+  const upper = name.toUpperCase();
   const { configValue } = await import("./lib/work.ts");
-  const impl = configValue("HADES_MOIRAI_IMPL", "ts");
-  if (impl === "ts") return (await import("./commands/moirai.ts")).moiraiCommand;
-  if (impl !== "rust") die(`HADES_MOIRAI_IMPL=${impl} inválido: use ts ou rust`, EXIT.usage);
+  const impl = configValue(`HADES_${upper}_IMPL`, "ts");
+  if (impl === "ts") return ts();
+  if (impl !== "rust") die(`HADES_${upper}_IMPL=${impl} inválido: use ts ou rust`, EXIT.usage);
   const { which } = await import("./lib/proc.ts");
-  const bin = configValue("HADES_MOIRAI_BIN", "") || which("moirai");
+  const bin = configValue(`HADES_${upper}_BIN`, "") || which(name);
   if (!bin) {
-    die("HADES_MOIRAI_IMPL=rust, mas o binário `moirai` não está no PATH nem em HADES_MOIRAI_BIN. Instale-o ou volte a HADES_MOIRAI_IMPL=ts.", EXIT.missingDependency);
+    die(`HADES_${upper}_IMPL=rust, mas o binário \`${name}\` não está no PATH nem em HADES_${upper}_BIN. Instale-o ou volte a HADES_${upper}_IMPL=ts.`, EXIT.missingDependency);
   }
   return (args) => {
     const r = spawnSync(bin, args, { stdio: "inherit" });
@@ -71,10 +72,10 @@ const commands: Record<string, () => Promise<Command>> = {
   "widget-apk": async () => (await import("./commands/widget-apk.ts")).widgetApkCommand,
   journal: async () => (await import("./commands/journal.ts")).journalCommand,
   contrib: async () => (await import("./commands/contrib.ts")).contribCommand,
-  thanatos: async () => (await import("./commands/thanatos.ts")).thanatosCommand,
+  thanatos: () => delegateOr("thanatos", async () => (await import("./commands/thanatos.ts")).thanatosCommand),
   "ux-audit": async () => (await import("./commands/ux-audit.ts")).uxAuditCommand,
   provider: async () => (await import("./commands/provider.ts")).providerCommand,
-  moirai: moiraiLoader,
+  moirai: () => delegateOr("moirai", async () => (await import("./commands/moirai.ts")).moiraiCommand),
   caronte: async () => (await import("./commands/caronte.ts")).caronteCommand,
   canvas: async () => (await import("./commands/canvas.ts")).canvasCommand,
   minos: async () => (await import("./commands/minos.ts")).minosCommand,

@@ -4,6 +4,13 @@ O Thanatos monta o post-mortem de um incidente **do projeto** (não da própria 
 diário de eventos (`reference/journal.md`) e, se o plugin do projeto fornecer, de logs e métricas externos. Vive **fora
 do repositório**: nada é escrito no clone.
 
+## Implementação em Rust (`HADES_THANATOS_IMPL`)
+
+Padrão `ts`: nada muda. Com `HADES_THANATOS_IMPL=rust` (Configurações, grupo Orquestração) o `hades thanatos ...` delega ao binário
+`thanatos`: o de `HADES_THANATOS_BIN`, senão o do PATH. Argumentos, stdin, stdout, stderr e código de saída passam sem mudança.
+Sem o binário o comando falha com a mensagem e o código 69 (dependência ausente), sem voltar ao TS em silêncio; valor fora de
+`ts|rust` sai com 2. A sugestão do watch e as rotas `/api/thanatos` do painel seguem com a lib TS; só o `hades thanatos` troca de implementação.
+
 ## Entradas
 
 `hades thanatos new <entrada> [--force] [--json]`

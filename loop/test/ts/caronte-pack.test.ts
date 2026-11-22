@@ -279,6 +279,28 @@ describe("caronte pack: o pacote real", () => {
   });
 });
 
+describe("caronte pack: HADES_NOW", () => {
+  test("dado HADES_NOW, quando sem --out, então o nome do pacote usa o instante fixo", () => {
+    rig("parked");
+    const r = hades(["caronte", "pack", PLAN], { HADES_NOW: "2026-11-20T12:00:00Z" });
+    expect(r.rc).toBe(0);
+    expect(/pacote gravado: (\S+\.caronte)/.exec(r.out)?.[1]?.endsWith("demo-20261120T120000Z.caronte")).toBe(true);
+  });
+
+  test("dado HADES_NOW, quando empacota, então o createdAt do manifesto é o instante fixo", () => {
+    rig("parked");
+    hades(["caronte", "pack", PLAN, "--out", outFile("now")], { HADES_NOW: "2026-11-20T12:00:00Z" });
+    expect(open(outFile("now")).manifest.createdAt).toBe("2026-11-20T12:00:00Z");
+  });
+
+  test("dado HADES_NOW inválido, quando empacota, então falha e não grava", () => {
+    rig("parked");
+    const r = hades(["caronte", "pack", PLAN, "--out", outFile("bad")], { HADES_NOW: "ontem", HADES_DEBUG: "1" });
+    expect(r.rc).not.toBe(0);
+    expect(r.err + r.out).toContain("HADES_NOW=ontem");
+  });
+});
+
 describe("caronte pack: worktrees", () => {
   test("dada worktree limpa e sem commit próprio, quando empacota, então leva só a referência da base", () => {
     rig("parked");

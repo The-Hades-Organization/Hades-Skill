@@ -3,6 +3,7 @@
 // projeto ativo e a fronteira (git, gh, plugin, relógio), que o teste troca por `ThanatosContext`.
 import { join } from "node:path";
 import { findStateDir } from "../lib/kit.ts";
+import { clockNow } from "../lib/clock.ts";
 import { readText } from "../lib/fs.ts";
 import { journalWorkRoot } from "../lib/journal.ts";
 import { envDir } from "../lib/plugins.ts";
@@ -104,7 +105,7 @@ function realContext(): ThanatosContext {
   const card = typeof profile.card === "object" && profile.card !== null && !Array.isArray(profile.card) ? (profile.card as JsonObject) : {};
   const state = findStateDir();
   return {
-    now: () => new Date(),
+    now: clockNow,
     exec,
     dir: join(work.work, "postmortems"),
     slug,

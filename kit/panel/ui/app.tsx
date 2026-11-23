@@ -155,8 +155,11 @@ const BTN_V = {
   'ghost-destructive': 'text-bad hover:bg-danger-soft',
   link: 'text-foreground underline underline-offset-4 decoration-line hover:decoration-primary',
 };
-// desabilitado: esmaece e ganha hachura diagonal (não depende só da cor); carregando mantém a cor e o cursor de espera
-const BTN_OFF = 'disabled:pointer-events-none disabled:opacity-60 disabled:bg-[image:repeating-linear-gradient(135deg,transparent_0_5px,color-mix(in_srgb,var(--foreground)_16%,transparent)_5px_6px)]';
+// desabilitado: hachura diagonal (não depende só da cor) e esmaece; carregando mantém a cor e o cursor de espera
+const BTN_STRIPE = 'disabled:pointer-events-none disabled:bg-[image:repeating-linear-gradient(135deg,transparent_0_5px,color-mix(in_srgb,var(--foreground)_16%,transparent)_5px_6px)]';
+const BTN_OFF = `${BTN_STRIPE} disabled:opacity-60`;
+// o primário não esmaece: o rosa a 60 % parecia um botão ativo apagado e apagava a hachura; vai para a superfície neutra
+const BTN_OFF_PRIMARY = `${BTN_STRIPE} disabled:bg-muted disabled:text-muted-foreground`;
 const BTN_BUSY = 'disabled:opacity-100 disabled:cursor-progress';
 const BTN_S = {
   default: 't-label h-8 px-3.5 has-[>svg]:px-3 max-md:h-11', sm: 't-label h-8 gap-1.5 px-3 has-[>svg]:px-2.5 max-md:h-11',
@@ -165,7 +168,7 @@ const BTN_S = {
 };
 function Button({ variant = 'default', size = 'default', icon: Icon, loading, className, children, ...p }) {
   // carregando não é desabilitado: mantém a cor, com o giro e aria-busy; só o desabilitado esmaece
-  return <button type="button" {...p} disabled={p.disabled || loading} aria-busy={loading || undefined} className={cn(loading ? BTN_BUSY : BTN_OFF, "inline-flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer select-none transition-[background-color,color,text-decoration-color] duration-150 active:translate-y-px [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 shrink-0 outline-none focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-ring", BTN_V[variant], BTN_S[size], className)}>
+  return <button type="button" {...p} disabled={p.disabled || loading} aria-busy={loading || undefined} className={cn(loading ? BTN_BUSY : variant === 'default' ? BTN_OFF_PRIMARY : BTN_OFF, "inline-flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer select-none transition-[background-color,color,text-decoration-color] duration-150 active:translate-y-px [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 shrink-0 outline-none focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-ring", BTN_V[variant], BTN_S[size], className)}>
     {loading ? <I.LoaderCircle className="animate-spin" /> : Icon ? <Icon /> : null}
     {children}
   </button>;

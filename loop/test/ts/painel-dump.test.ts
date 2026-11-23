@@ -1,6 +1,6 @@
 // `hades panel dump <rota>` e `HADES_PROC_ROOT`: $D fictício e um /proc de fixture, sem HTTP.
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bootEpoch, meminfo, procIds, uptime } from "../../../src/panel/system.ts";
@@ -86,6 +86,20 @@ describe("hades panel dump", () => {
     const prefixed = dump("/api/config/inherited");
     expect(plain.rc).toBe(0);
     expect(JSON.parse(plain.out)).toEqual(JSON.parse(prefixed.out));
+  });
+
+  test("config/export imprime o texto exportado, não os bytes, com a data de HADES_NOW", () => {
+    copyFileSync(join(import.meta.dir, "../../../kit/config.tsv"), join(D, "config.tsv"));
+    const r = Bun.spawnSync(["bun", CLI, "panel", "dump", "config/export"], {
+      env: { PATH: process.env.PATH ?? "", HOME: join(root, "home"), HADES_DATA: D, WORK_ROOT: join(root, "work"), HADES_NOW: "2026-01-02T03:04:00", TZ: "UTC" },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    expect(r.exitCode).toBe(0);
+    const text = r.stdout.toString();
+    expect(text).toStartWith("# Configurações do Hades — skill ");
+    expect(text).toContain("exportado em 2026-01-02 03:04\n");
+    expect(text).not.toContain('"0":');
   });
 
   test("gates lê a memória do /proc de fixture", () => {

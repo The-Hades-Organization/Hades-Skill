@@ -55,7 +55,7 @@ export function panelReads(dir: string): Record<string, Read> {
     gates,
     config: async () => core.configState(env),
     "config/inherited": async () => inheritedView(),
-    "config/export": async (q) => core.configExport(env, q, false),
+    "config/export": async (q) => new TextDecoder().decode(core.configExport(env, q, false)),
     doctor: async () => core.doctorState(env),
     quality: async () => core.qualityState(env),
     cerberus: async () => ({ ...core.cerberusState(env), remote: false }),

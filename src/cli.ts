@@ -7,8 +7,11 @@ import { EXIT, HadesError, die } from "./lib/output.ts";
 
 type Command = (args: string[]) => number | Promise<number>;
 
-/** `HADES_<NOME>_IMPL=rust`: o `hades <nome>` vira o binário `<nome>` (HADES_<NOME>_BIN, senão o do PATH), com stdio e código repassados. */
-async function delegateOr(name: string, ts: () => Promise<Command>): Promise<Command> {
+/**
+ * `HADES_<NOME>_IMPL=rust`: o `hades <nome>` vira o binário `<nome>` (HADES_<NOME>_BIN, senão o do PATH), com stdio e código repassados.
+ * `prefix` vai antes dos argumentos (`hades cerberus-check <alvo>` vira `cerberus check <alvo>`).
+ */
+async function delegateOr(name: string, ts: () => Promise<Command>, prefix: string[] = []): Promise<Command> {
   const upper = name.toUpperCase();
   const { configValue } = await import("./lib/work.ts");
   const impl = configValue(`HADES_${upper}_IMPL`, "ts");
@@ -20,7 +23,7 @@ async function delegateOr(name: string, ts: () => Promise<Command>): Promise<Com
     die(`HADES_${upper}_IMPL=rust, mas o binário \`${name}\` não está no PATH nem em HADES_${upper}_BIN. Instale-o ou volte a HADES_${upper}_IMPL=ts.`, EXIT.missingDependency);
   }
   return (args) => {
-    const r = spawnSync(bin, args, { stdio: "inherit" });
+    const r = spawnSync(bin, [...prefix, ...args], { stdio: "inherit" });
     if (r.error) die(`não consegui executar ${bin}: ${r.error.message}`, EXIT.missingDependency);
     return r.status ?? EXIT.fail;
   };
@@ -42,8 +45,12 @@ const commands: Record<string, () => Promise<Command>> = {
   "gate-lock": async () => (await import("./commands/gate-lock.ts")).gateLockCommand,
   worker: async () => (await import("./commands/worker.ts")).workerCommand,
   deps: async () => (await import("./commands/deps.ts")).depsCommand,
-  cerberus: async () => (await import("./commands/cerberus.ts")).cerberusCommand,
-  "cerberus-check": async () => (await import("./commands/cerberus-check.ts")).cerberusCheckCommand,
+  cerberus: async () => {
+    const ts = async () => (await import("./commands/cerberus.ts")).cerberusCommand;
+    // a ponte `rpc` do painel fica no TS até a F7
+    return async (args) => (await (args[0] === "rpc" ? ts() : delegateOr("cerberus", ts)))(args);
+  },
+  "cerberus-check": () => delegateOr("cerberus", async () => (await import("./commands/cerberus-check.ts")).cerberusCheckCommand, ["check"]),
   "json-merge3": async () => (await import("./commands/json-merge3.ts")).jsonMerge3Command,
   "keep-both": async () => (await import("./commands/keep-both.ts")).keepBothCommand,
   "pr-set": async () => (await import("./commands/pr-set.ts")).prSetCommand,

@@ -1,5 +1,6 @@
 // Cola do hook: lê o stdin, monta o ambiente real (relógio, perfil do projeto, Cerberus) e escreve a decisão.
 // O projeto e o Cerberus só carregam quando a decisão precisa deles (o caminho comum é só ler config e regras).
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { guardRules } from "./guard-rules.ts";
 import { contextOfDir, decide, type Cfg, type HookEnv, type HookInput, type HookResult } from "./guard-hook.ts";
@@ -44,13 +45,24 @@ function projectOf(cwd: string): string | undefined {
   }
 }
 
-/** O registro é acessório: sem o corpo, disco cheio ou configuração ilegível, o hook barra igual. */
+const CERBERUS_RECORD_TIMEOUT_MS = 5000;
+
+/** O registro é acessório (com HADES_CERBERUS_IMPL=rust, pelo `cerberus registrar` do binário): sem o corpo, disco cheio ou configuração ilegível, o hook barra igual. */
 async function cerberusEmit(guarda: string, conferido: string, d: HookInput): Promise<void> {
   try {
+    const onde = `${String(d.tool_name)} da sessão ${String(d.session_id || "?")}`;
+    const cwd = (d.cwd as string | undefined) || process.cwd();
+    const { configValue } = await import("./work.ts");
+    if (configValue("HADES_CERBERUS_IMPL", "ts") === "rust") {
+      const { which } = await import("./proc.ts");
+      const bin = configValue("HADES_CERBERUS_BIN", "") || which("cerberus");
+      if (!bin) return;
+      const argv = ["registrar", "--cabeca", "vigilia", "--guarda", guarda, "--momento", "continuo", "--resultado", "barra"];
+      spawnSync(bin, [...argv, "--evidencia", `${conferido}|${onde}`, "--dir", cwd], { stdio: "ignore", timeout: CERBERUS_RECORD_TIMEOUT_MS });
+      return;
+    }
     const { record } = await import("./cerberus.ts");
-    record("vigilia", guarda, "continuo", "barra", [{ conferido, onde: `${String(d.tool_name)} da sessão ${String(d.session_id || "?")}` }], {
-      cwd: (d.cwd as string | undefined) || process.cwd(),
-    });
+    record("vigilia", guarda, "continuo", "barra", [{ conferido, onde }], { cwd });
   } catch {
     // o histórico é acessório: a decisão de barrar já foi tomada
   }

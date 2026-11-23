@@ -2,6 +2,7 @@
 // se barrar) e só então os arquivos e o registro. Nada aqui fala com o claude.ai: publicar é da sessão (reference/minos.md).
 import { existsSync, statSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { clockNow } from "./clock.ts";
 import { collectOrchestration } from "./minos-collect.ts";
 import { guardPublication } from "./minos-guard.ts";
 import { activeProjectTerms } from "./release-guard.ts";
@@ -66,7 +67,7 @@ export function publish(request: PublishRequest): Published | Refusal {
   }
   const htmlProblem = request.htmlFile === undefined ? undefined : writableHtml(request.htmlFile);
   if (htmlProblem) return refuse("input", htmlProblem);
-  const now = request.now ?? new Date();
+  const now = request.now ?? clockNow();
   let data: MinosData;
   try {
     data = MODELS[request.model].source === "plan"

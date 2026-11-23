@@ -2,6 +2,7 @@
 // % das janelas de uso). Fonte ausente vira lista vazia ou null, nunca número inventado. `buildOrchestration` é pura; a
 // leitura do ambiente fica em `collectOrchestration`.
 import { join } from "node:path";
+import { clockNow } from "./clock.ts";
 import { readText } from "./fs.ts";
 import { janelaAtual } from "./minos-limits.ts";
 import {
@@ -129,7 +130,7 @@ function agentSource(record: Json, reportsDir: string): AgentSource {
 /** Onde estão os registros dos agentes; o painel (que não roda dentro de um clone) informa o dele, a CLI deixa o padrão. */
 export type AgentRegistry = Pick<WorkEnv, "orch" | "skillOrch" | "skillScope">;
 
-export function collectOrchestration(planPath: string, scope: Scope, now: Date = new Date(), registry?: AgentRegistry): OrchestrationData {
+export function collectOrchestration(planPath: string, scope: Scope, now: Date = clockNow(), registry?: AgentRegistry): OrchestrationData {
   const planText = readText(planPath);
   if (planText === undefined) throw new Error(`plano não encontrado: ${planPath}`);
   const work = registry ?? loadWorkEnv();

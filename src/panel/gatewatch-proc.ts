@@ -8,7 +8,7 @@ import { minDiskGbOf } from "../lib/gate-remote/warm.ts";
 import { parseRecursos, type WorkerRecursos } from "../lib/worker-recursos.ts";
 import { installedStacks } from "../lib/profile.ts";
 import { exec } from "./exec.ts";
-import { CGROUP_ROOT, meminfo, parsePsCommands, procIds, readLines } from "./system.ts";
+import { CGROUP_ROOT, meminfo, parsePsCommands, procIds, procPath, readLines } from "./system.ts";
 
 export { meminfo };
 
@@ -56,7 +56,7 @@ export interface InfraItem {
 export const clockTicks = (): number => 100;
 
 function readProc(pid: number): Proc | undefined {
-  const stat = readText(`/proc/${pid}/stat`);
+  const stat = readText(procPath(pid, "stat"));
   if (!stat) return undefined;
   const rp = stat.lastIndexOf(")");
   const open = stat.indexOf("(");
@@ -68,15 +68,15 @@ function readProc(pid: number): Proc | undefined {
   if ([ppid, cpu, start].some(Number.isNaN)) return undefined;
   let cmd = "";
   try {
-    cmd = readFileSync(`/proc/${pid}/cmdline`).toString("utf8").replaceAll("\0", " ").trim();
+    cmd = readFileSync(procPath(pid, "cmdline")).toString("utf8").replaceAll("\0", " ").trim();
   } catch {
     // processo que morreu entre o stat e o cmdline: segue com a linha vazia
   }
-  const statm = readText(`/proc/${pid}/statm`);
+  const statm = readText(procPath(pid, "statm"));
   const resident = statm ? Number.parseInt(statm.split(" ")[1] ?? "0", 10) : 0;
   let cwd = "";
   try {
-    cwd = readlinkSync(`/proc/${pid}/cwd`);
+    cwd = readlinkSync(procPath(pid, "cwd"));
   } catch {
     // sem permissão ou processo que saiu: cwd vazio, como no original
   }
@@ -186,7 +186,7 @@ export function gateScope(pid: number, children: Map<number, number[]>): string 
   // macOS: sem cgroup nem scope; quem chama cai na soma de RSS da árvore
   if (process.platform === "darwin") return undefined;
   for (const d of descendants(pid, children)) {
-    for (const line of readLines(`/proc/${d}/cgroup`)) {
+    for (const line of readLines(procPath(d, "cgroup"))) {
       const path = line.slice(line.lastIndexOf(":") + 1);
       if (SCOPE_RE.test(path)) {
         const cg = join(CGROUP_ROOT, path.replace(/^\/+/, ""));
@@ -248,7 +248,7 @@ export function cgroupUsage(cg: string): { mem: number | null; cpuSeconds: numbe
 
 export function pressure(): Record<string, number> {
   const out: Record<string, number> = {};
-  for (const line of readLines("/proc/pressure/memory")) {
+  for (const line of readLines(procPath("pressure", "memory"))) {
     const [kind, ...kv] = line.split(/\s+/);
     const avg = kv.map((x) => x.split("=")).find((pair) => pair[0] === "avg10");
     if (kind) out[kind] = avg ? Number.parseFloat(avg[1] ?? "0") : 0;
@@ -321,7 +321,7 @@ export async function infraUsage(table: ProcTable, hostPattern: RegExp, names: D
   }
   const byDaemon = new Map<string, number>();
   for (const p of table.procs.values()) {
-    if ((readText(`/proc/${p.pid}/cgroup`) ?? "").includes("docker-")) continue;
+    if ((readText(procPath(p.pid, "cgroup")) ?? "").includes("docker-")) continue;
     if (hostPattern.test(p.cmd.split(" ")[0] ?? "") || hostPattern.test(p.comm)) byDaemon.set(p.comm, (byDaemon.get(p.comm) ?? 0) + p.rss);
   }
   for (const [comm, rss] of byDaemon) items.push({ kind: "host", name: comm, detail: "daemon no host", rss, ephemeral: false });

@@ -85,7 +85,7 @@ const commands: Record<string, () => Promise<Command>> = {
   moirai: () => delegateOr("moirai", async () => (await import("./commands/moirai.ts")).moiraiCommand),
   caronte: () => delegateOr("caronte", async () => (await import("./commands/caronte.ts")).caronteCommand),
   canvas: async () => (await import("./commands/canvas.ts")).canvasCommand,
-  minos: async () => (await import("./commands/minos.ts")).minosCommand,
+  minos: () => delegateOr("minos", async () => (await import("./commands/minos.ts")).minosCommand),
   "write-check": async () => (await import("./commands/write-check.ts")).writeCheckCommand,
   memory: async () => (await import("./commands/memory.ts")).memoryCommand,
   explain: async () => (await import("./commands/explain.ts")).explainCommand,

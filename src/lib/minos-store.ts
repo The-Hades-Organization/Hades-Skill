@@ -2,6 +2,7 @@
 // estável de cada saída mora aqui: a próxima publicação atualiza no mesmo lugar.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { withFlock } from "./flock.ts";
 import { readJson, writeJsonAtomic } from "./work.ts";
 import { isModelId, SCOPES, type ModelId, type Scope } from "./minos-model.ts";
 
@@ -61,7 +62,7 @@ export function readOutputs(state: string): Record<string, OutputRecord> {
 
 export function saveOutput(state: string, id: string, rec: OutputRecord): void {
   mkdirSync(minosDir(state), { recursive: true });
-  writeJsonAtomic(registryFile(state), { outputs: { ...readOutputs(state), [id]: rec } });
+  withFlock(join(minosDir(state), ".lock"), () => writeJsonAtomic(registryFile(state), { outputs: { ...readOutputs(state), [id]: rec } }));
 }
 
 /** Grava a página e os dados da saída; devolve o caminho do index.html. */

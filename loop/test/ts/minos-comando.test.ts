@@ -128,3 +128,27 @@ describe("hades minos publish: saída, link e abertura", () => {
     expect(minos(["open", "orquestracao-nao-existe", "--print"]).rc).not.toBe(0);
   });
 });
+
+describe("hades minos publish: HADES_NOW", () => {
+  const AGORA = "2026-11-20T12:00:00Z";
+  const instantes = () => ({
+    generatedAt: JSON.parse(readFileSync(`${MINOS}/${SAIDA}/data.json`, "utf8")).generatedAt as string,
+    updatedAt: JSON.parse(readFileSync(`${MINOS}/outputs.json`, "utf8")).outputs[SAIDA].updatedAt as string,
+  });
+
+  test("dado HADES_NOW, quando publica, então generatedAt e updatedAt são o instante fixo", () => {
+    const a = minos(["publish", "orquestracao", PLANO], { HADES_NOW: AGORA });
+    expect(a.rc, a.out).toBe(0);
+    expect(instantes()).toEqual({ generatedAt: AGORA, updatedAt: AGORA });
+  });
+
+  test("dado sem HADES_NOW, quando publica, então os instantes são o relógio do sistema", () => {
+    const antes = Date.now();
+    const a = minos(["publish", "orquestracao", PLANO]);
+    expect(a.rc, a.out).toBe(0);
+    const { generatedAt, updatedAt } = instantes();
+    expect(generatedAt).not.toBe(AGORA);
+    expect(Date.parse(generatedAt)).toBeGreaterThanOrEqual(Math.floor(antes / 1000) * 1000);
+    expect(Date.parse(updatedAt)).toBeGreaterThanOrEqual(Math.floor(antes / 1000) * 1000);
+  });
+});

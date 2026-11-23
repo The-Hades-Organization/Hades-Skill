@@ -1,10 +1,14 @@
 // Leituras do sistema e dos arquivos de estado de $D que o amostrador e as rotas usam (/proc, cgroup, catálogo de serviços).
 import { closeSync, existsSync, openSync, readSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { clockNow } from "../lib/clock.ts";
 import { readText } from "../lib/fs.ts";
 import { memAvailableMb, memTotalMb, run } from "../lib/proc.ts";
 
-export const CGROUP_ROOT = "/sys/fs/cgroup";
+/** Raiz do cgroup v2 lido pelo painel; `HADES_CGROUP_ROOT` aponta um cgroup de fixture. */
+export const cgroupRoot = (): string => process.env.HADES_CGROUP_ROOT || "/sys/fs/cgroup";
+/** `HADES_PANEL_NO_INFRA=1`: sem systemd, docker, git, herdr, HTTP nem rede, como no dump da matriz de paridade. */
+export const infraOff = (): boolean => process.env.HADES_PANEL_NO_INFRA === "1";
 
 /** Raiz do /proc lido pelo painel; `HADES_PROC_ROOT` aponta um /proc de fixture. */
 export const procRoot = (): string => process.env.HADES_PROC_ROOT || "/proc";
@@ -96,7 +100,7 @@ export interface ProcCommand {
 export function uptime(): number {
   if (hasProc()) return Number.parseFloat((readText(procPath("uptime")) ?? "0").split(/\s+/)[0] ?? "0") || 0;
   const boot = parseBootTime(sysctl("kern.boottime"));
-  return boot > 0 ? Math.max(0, Date.now() / 1000 - boot) : 0;
+  return boot > 0 ? Math.max(0, clockNow().getTime() / 1000 - boot) : 0;
 }
 
 /** Carga média de 1, 5 e 15 minutos. */
@@ -139,6 +143,7 @@ export const cgHigh = (cg: string): number | null => digits(readText(join(cg, "m
 
 /** Código HTTP da URL local, ou null se não respondeu (a falha de rede não é erro aqui: o serviço só está fora). */
 export async function httpStatus(url: string, timeoutMs = HTTP_TIMEOUT_MS): Promise<number | null> {
+  if (infraOff()) return null;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), redirect: "follow" });
     await res.body?.cancel();

@@ -2,13 +2,14 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync, readlinkSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { clockNow } from "../lib/clock.ts";
 import { readText } from "../lib/fs.ts";
 import { WORKER_STATUS_COMMAND } from "../lib/gate-remote/transport.ts";
 import { minDiskGbOf } from "../lib/gate-remote/warm.ts";
 import { parseRecursos, type WorkerRecursos } from "../lib/worker-recursos.ts";
 import { installedStacks } from "../lib/profile.ts";
 import { exec } from "./exec.ts";
-import { CGROUP_ROOT, meminfo, parsePsCommands, procIds, procPath, readLines } from "./system.ts";
+import { cgroupRoot, infraOff, meminfo, parsePsCommands, procIds, procPath, readLines } from "./system.ts";
 
 export { meminfo };
 
@@ -145,7 +146,7 @@ function scanPsProcs(bootTime: number): Proc[] {
   const commands = new Map(full.status === 0 ? parsePsCommands(full.stdout ?? "").map((row) => [row.pid, row.cmd] as const) : []);
   const lsof = spawnSync("lsof", ["-a", "-d", "cwd", "-Fpn"], { encoding: "utf8", timeout: PS_PROBE_TIMEOUT_MS });
   const cwds = lsof.status === 0 || lsof.stdout ? parseLsofCwds(lsof.stdout ?? "") : new Map<number, string>();
-  return parsePsProcs(ps.stdout ?? "", { commands, cwds, clock: { boot: bootTime, now: Date.now() / 1000 } });
+  return parsePsProcs(ps.stdout ?? "", { commands, cwds, clock: { boot: bootTime, now: clockNow().getTime() / 1000 } });
 }
 
 /** `bootTime`: a referência com que `ageOf` do chamador converte `Proc.start` em idade; só o macOS a usa (o /proc já dá ticks desde o boot). */
@@ -189,7 +190,7 @@ export function gateScope(pid: number, children: Map<number, number[]>): string 
     for (const line of readLines(procPath(d, "cgroup"))) {
       const path = line.slice(line.lastIndexOf(":") + 1);
       if (SCOPE_RE.test(path)) {
-        const cg = join(CGROUP_ROOT, path.replace(/^\/+/, ""));
+        const cg = join(cgroupRoot(), path.replace(/^\/+/, ""));
         return isDirectory(cg) ? cg : undefined;
       }
     }
@@ -210,7 +211,7 @@ const digitsOf = (text: string | undefined): number | null => (text !== undefine
 /** Todo cgroup `run-p*.scope` vivo sob a sessão do usuário e o que ele ocupa: o daemon do NX sobrevive ao gate e mantém o scope de pé. */
 export function allGateScopes(uid: number): Map<string, number> {
   const out = new Map<string, number>();
-  const base = join(CGROUP_ROOT, "user.slice", `user-${uid}.slice`, `user@${uid}.service`);
+  const base = join(cgroupRoot(), "user.slice", `user-${uid}.slice`, `user@${uid}.service`);
   if (!isDirectory(base)) return out;
   const walk = (dir: string): void => {
     let entries: import("node:fs").Dirent[];
@@ -283,7 +284,7 @@ export function dockerNames(now: () => number): DockerNames {
   let cached = new Map<string, { name: string; image: string; ephemeral: boolean }>();
   return {
     async lookup() {
-      if (now() - at < DOCKER_NAMES_TTL_S) return cached;
+      if (infraOff() || now() - at < DOCKER_NAMES_TTL_S) return cached;
       const next = new Map<string, { name: string; image: string; ephemeral: boolean }>();
       try {
         const res = await exec(["docker", "ps", "--no-trunc", "--format", "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Labels}}"], { timeoutMs: DOCKER_PS_TIMEOUT_MS });
@@ -303,17 +304,18 @@ export function dockerNames(now: () => number): DockerNames {
 
 /** Bytes totais e itens da infraestrutura: containers (pelo cgroup) e daemons no host (por RSS, fora de container). */
 export async function infraUsage(table: ProcTable, hostPattern: RegExp, names: DockerNames): Promise<{ total: number; items: InfraItem[] }> {
+  if (infraOff()) return { total: 0, items: [] };
   const known = await names.lookup();
   const items: InfraItem[] = [];
   let scopes: string[] = [];
   try {
-    scopes = readdirSync(join(CGROUP_ROOT, "system.slice")).filter((n) => n.startsWith("docker-") && n.endsWith(".scope"));
+    scopes = readdirSync(join(cgroupRoot(), "system.slice")).filter((n) => n.startsWith("docker-") && n.endsWith(".scope"));
   } catch {
     // sem system.slice legível: sem containers pelo cgroup
   }
   for (const name of scopes) {
     const m = DOCKER_SCOPE_RE.exec(name);
-    const mem = digitsOf(readText(join(CGROUP_ROOT, "system.slice", name, "memory.current")));
+    const mem = digitsOf(readText(join(cgroupRoot(), "system.slice", name, "memory.current")));
     if (!m || mem === null) continue;
     const cid = (m[1] as string).slice(0, 12);
     const hit = known.get(cid);

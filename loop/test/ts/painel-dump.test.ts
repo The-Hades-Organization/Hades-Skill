@@ -47,8 +47,12 @@ afterEach(() => {
 });
 
 function dump(...args: string[]): { rc: number; out: string } {
+  return dumpWith({}, ...args);
+}
+
+function dumpWith(extra: Record<string, string>, ...args: string[]): { rc: number; out: string } {
   const r = Bun.spawnSync(["bun", CLI, "panel", "dump", ...args], {
-    env: { PATH: process.env.PATH ?? "", HOME: join(root, "home"), HADES_DATA: D, HADES_PROC_ROOT: proc, WORK_ROOT: join(root, "work") },
+    env: { PATH: process.env.PATH ?? "", HOME: join(root, "home"), HADES_DATA: D, HADES_PROC_ROOT: proc, WORK_ROOT: join(root, "work"), ...extra },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -109,5 +113,29 @@ describe("hades panel dump", () => {
     expect(body.available).toBe(true);
     expect(body.host.memTotal).toBe(MEM_TOTAL_KB * 1024);
     expect(body.host.memAvailable).toBe(MEM_AVAIL_KB * 1024);
+  });
+});
+
+describe("HADES_NOW, HADES_CGROUP_ROOT e HADES_PANEL_NO_INFRA", () => {
+  const NOW = "2026-11-23T15:04:05Z";
+  const fixed = (): Record<string, string> => ({ HADES_NOW: NOW, HADES_CGROUP_ROOT: join(root, "cgroup"), HADES_PANEL_NO_INFRA: "1" });
+
+  test("gates usa o relógio de HADES_NOW e repete a saída", () => {
+    const a = dumpWith(fixed(), "gates");
+    const b = dumpWith(fixed(), "gates");
+    expect(a.rc).toBe(0);
+    expect(JSON.parse(a.out).t).toBe(Date.parse(NOW) / 1000);
+    expect(b.out).toBe(a.out);
+  });
+
+  test("snapshot sem infra não consulta systemd, docker, git nem herdr", () => {
+    const a = dumpWith(fixed(), "snapshot");
+    const b = dumpWith(fixed(), "snapshot");
+    expect(a.rc).toBe(0);
+    const body = JSON.parse(a.out);
+    expect(body.t).toBe(Date.parse(NOW) / 1000);
+    expect(body.herdr).toBeNull();
+    expect(body.slice).toEqual({ used: 0, max: null, high: null });
+    expect(b.out).toBe(a.out);
   });
 });

@@ -3,19 +3,20 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { basename, isAbsolute, join, parse } from "node:path";
+import { clockNow } from "../lib/clock.ts";
 import { readText } from "../lib/fs.ts";
 import { launchdSliceUsage, launchdUnitProps } from "../lib/service-manager-launchd-stats.ts";
 import { LaunchdManager } from "../lib/service-manager-launchd.ts";
 import { managerKind } from "../lib/service-manager.ts";
 import { type Settings, localVersion, refresh, settings as versionSettings, status as versionStatus, updateCommand } from "../lib/version-check.ts";
 import type { PanelEnv } from "./env.ts";
-import { exec, out } from "./exec.ts";
+import { exec, out as run } from "./exec.ts";
 import type { Herdr } from "./herdr.ts";
 import type { Jobs } from "./jobs.ts";
 import { log } from "./log.ts";
 import type { Plugin } from "./plugin.ts";
 import {
-  CGROUP_ROOT, type LogCacheEntry, cgHigh, cgMax, cgMem, composeServices, fields, httpStatus, isoEpoch, listFile, logErrors, meminfo,
+  cgroupRoot, infraOff, type LogCacheEntry, cgHigh, cgMax, cgMem, composeServices, fields, httpStatus, isoEpoch, listFile, logErrors, meminfo,
   loadAverage, procCommands, readLines, serviceCatalog, uptime,
 } from "./system.ts";
 
@@ -67,6 +68,8 @@ export interface SkillProc {
   pid: number;
   cmd: string;
 }
+
+const out = (cmd: string[], timeoutMs?: number): Promise<string> => (infraOff() ? Promise.resolve("") : run(cmd, timeoutMs));
 
 export function createSampler(deps: SamplerDeps): Sampler {
   const { env, plugin, jobs, herdr } = deps;
@@ -135,7 +138,7 @@ export function createSampler(deps: SamplerDeps): Sampler {
     if (launchd !== undefined) return launchdSliceUsage(unitMap);
     const cg = (await out(["systemctl", "--user", "show", `${env.slice}.slice`, "-p", "ControlGroup", "--value"])).trim();
     if (!cg) return { used: 0, max: null, high: null };
-    const path = join(CGROUP_ROOT, cg.replace(/^\/+/, ""));
+    const path = join(cgroupRoot(), cg.replace(/^\/+/, ""));
     return { used: cgMem(path) ?? 0, max: cgMax(path), high: cgHigh(path) };
   }
 
@@ -150,7 +153,7 @@ export function createSampler(deps: SamplerDeps): Sampler {
       const f = line.split("\t");
       if (f.length < 5) continue;
       const [cid, name, state, status, svc] = f as [string, string, string, string, string];
-      const cg = join(CGROUP_ROOT, "system.slice", `docker-${cid}.scope`);
+      const cg = join(cgroupRoot(), "system.slice", `docker-${cid}.scope`);
       seen.add(svc);
       rows.push({
         service: svc, name, state, status, mem: state === "running" ? cgMem(cg) : null, max: state === "running" ? cgMax(cg) : null,
@@ -180,7 +183,7 @@ export function createSampler(deps: SamplerDeps): Sampler {
   }
 
   async function branch(): Promise<Dict> {
-    const now = Date.now() / 1000;
+    const now = clockNow().getTime() / 1000;
     if (now - git.t < BRANCH_TTL_S) return git.v;
     const head = (await gitOut(["log", "-1", "--format=%H%x09%cI%x09%s"])).trim().split("\t");
     const name = (await gitOut(["rev-parse", "--abbrev-ref", "HEAD"])).trim();
@@ -271,7 +274,7 @@ export function createSampler(deps: SamplerDeps): Sampler {
       return { enabled: false, access: false, update: false };
     }
     if (st.update) st.command = updateCommand({ ...cfg, W: env.worktree });
-    if (st.due && !versionRefreshing) {
+    if (st.due && !versionRefreshing && !infraOff()) {
       versionRefreshing = true;
       // a amostragem nunca espera a rede: a consulta corre à parte, uma por vez
       void refresh(vcfg, cache)
@@ -288,7 +291,7 @@ export function createSampler(deps: SamplerDeps): Sampler {
   }
 
   async function sample(): Promise<void> {
-    const now = Date.now() / 1000;
+    const now = clockNow().getTime() / 1000;
     const up = uptime();
     const catalog = serviceCatalog(env.dir);
     const names = [...catalog.keys()];
@@ -379,7 +382,7 @@ export function createSampler(deps: SamplerDeps): Sampler {
       tunnelUrl: (readText(join(env.dir, "tunnel.url")) ?? "").trim() || null,
       panelTunnel: { unit: unitView(`${hu}-panel-tunnel`).state, url: deps.publicUrl() ?? null },
       unitPrefix: hu, instance: { id: env.instanceId, unitPrefix: hu, slice: env.slice, project: env.project, tunnel: `hades${env.tunnelId}`, panelTunnel: `hades-panel${env.tunnelId}` },
-      branch: await branch(), gates: gateQueue(), jobs: jobList, skillProcs: procs, paths: { D: env.dir, W: env.worktree }, herdr: await herdr.badge(),
+      branch: await branch(), gates: gateQueue(), jobs: jobList, skillProcs: procs, paths: { D: env.dir, W: env.worktree }, herdr: infraOff() ? null : await herdr.badge(),
       versionCheck: await versionState(cfg),
     };
     history.push(point);

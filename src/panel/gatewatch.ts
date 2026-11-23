@@ -4,6 +4,7 @@ import { hostname, userInfo } from "node:os";
 import { type Dirent, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { AGENT_PROVIDER_IDS, providerOf } from "../lib/agent-provider.ts";
+import { clockNow } from "../lib/clock.ts";
 import { readText } from "../lib/fs.ts";
 import { log } from "./log.ts";
 import {
@@ -143,7 +144,7 @@ export interface GateWatch {
 }
 
 export function createGateWatch(opts: GateWatchOptions): GateWatch {
-  const now = opts.now ?? ((): number => Date.now() / 1000);
+  const now = opts.now ?? ((): number => clockNow().getTime() / 1000);
   const loadJson = jsonCache();
   const runsCache = new Map<string, { at: number; runs: Dict[] }>();
   const names = dockerNames(now);

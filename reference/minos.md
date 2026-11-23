@@ -5,6 +5,14 @@ Minos leva uma saída da Hades a quem não está com o painel aberto (o time, a 
 `STATUS` continuam `.md`) e não duplica o `renderMd` do painel. O que ele faz: a sessão gera **dados**, o Minos transforma
 em **página**, o Cerberus confere, e a sessão publica.
 
+## Implementação em Rust (`HADES_MINOS_IMPL`)
+
+Padrão `ts`: nada muda. Com `HADES_MINOS_IMPL=rust` (Configurações, grupo Minos) o `hades minos ...` delega ao binário
+`minos`: o de `HADES_MINOS_BIN`, senão o do PATH. Argumentos, stdin, stdout, stderr e código de saída passam sem mudança.
+Sem o binário o comando falha com a mensagem e o código 69 (dependência ausente), sem voltar ao TS em silêncio; valor fora de
+`ts|rust` sai com 2. A publicação pelo painel segue na lib TS. Os dois lados gravam o `$D/minos/outputs.json` sob flock de
+`$D/minos/.lock` (ler, mesclar e gravar), então publicações simultâneas pelo TS e pelo binário não perdem saída.
+
 ## Divisão de trabalho
 
 | Quem | Faz |

@@ -76,7 +76,7 @@ const commands: Record<string, () => Promise<Command>> = {
   "ux-audit": async () => (await import("./commands/ux-audit.ts")).uxAuditCommand,
   provider: async () => (await import("./commands/provider.ts")).providerCommand,
   moirai: () => delegateOr("moirai", async () => (await import("./commands/moirai.ts")).moiraiCommand),
-  caronte: async () => (await import("./commands/caronte.ts")).caronteCommand,
+  caronte: () => delegateOr("caronte", async () => (await import("./commands/caronte.ts")).caronteCommand),
   canvas: async () => (await import("./commands/canvas.ts")).canvasCommand,
   minos: async () => (await import("./commands/minos.ts")).minosCommand,
   "write-check": async () => (await import("./commands/write-check.ts")).writeCheckCommand,

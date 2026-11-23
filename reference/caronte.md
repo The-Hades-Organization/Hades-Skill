@@ -6,6 +6,13 @@ Claude ou em outra máquina: `hades caronte pack` empacota, `hades caronte unpac
 cifra, guarda, git), `src/lib/caronte-unpack.ts` (destinos, validação, aplicação com desfazer) e
 `src/commands/caronte.ts` (CLI).
 
+## Implementação em Rust (`HADES_CARONTE_IMPL`)
+
+Padrão `ts`: nada muda. Com `HADES_CARONTE_IMPL=rust` (Configurações, grupo Orquestração) o `hades caronte ...` delega ao binário
+`caronte`: o de `HADES_CARONTE_BIN`, senão o do PATH. Argumentos, stdin, stdout, stderr e código de saída passam sem mudança.
+Sem o binário o comando falha com a mensagem e o código 69 (dependência ausente), sem voltar ao TS em silêncio; valor fora de
+`ts|rust` sai com 2. As rotas `/api/caronte` do painel e o `hades agent park` seguem com a lib TS; só o `hades caronte` troca de implementação.
+
 ## Fluxo
 
 1. `hades agent park <agente>` em cada agente do plano e espere o `PARKED` do `hades watch`.

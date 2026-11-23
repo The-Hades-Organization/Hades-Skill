@@ -116,6 +116,7 @@ const HELP = `hades <subcomando> [argumentos]
   version-check status|doctor [--refresh] [--json]  checagem de versão da skill (hades version-check)
   panel serve [--port <porta>]   servidor do painel em TypeScript
   panel dump <rota> [k=v ...]    JSON de uma rota GET do painel sem HTTP (HADES_PROC_ROOT troca o /proc)
+  panel action <id> [k=v ...]    lança uma ação do painel sem HTTP, em JSON (--list lista as ações)
   usage [--days N] [--json] [--baseline]  consumo de tokens por papel de sessão (hades usage)
   guard [context <cwd>]          hook PreToolUse/PostToolUse da Hades, JSON no stdin (hades guard, src/hook.ts)
   skill-release drift|check|guard|release  evolução da própria skill: drift, check (regressão pela fila), guardas, release

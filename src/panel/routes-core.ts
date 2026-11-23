@@ -3,6 +3,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import * as cerberus from "../lib/cerberus.ts";
+import { clockNow } from "../lib/clock.ts";
 import { ConfigError, type ConfigStore, effective, exportText, plan, save } from "../lib/config-catalog.ts";
 import { ENGINE_KEY, drawingEngine, type EngineView } from "../lib/drawing-engine.ts";
 import { realDeps } from "../lib/extension.ts";
@@ -71,9 +72,9 @@ export const configState = (env: PanelEnv): Json => {
   return { items: visibleItems(effective(store(env)), engine), path: join(env.dir, "config.env"), engine };
 };
 
-export function configExport(env: PanelEnv, query: Record<string, string>, remote: boolean): Uint8Array {
+export function configExport(env: PanelEnv, query: Record<string, string>, remote: boolean, now: Date = clockNow()): Uint8Array {
   if (remote && query.identity === "1") throw new BadRequest("contas e caminhos desta máquina só se exportam pelo painel local");
-  return new TextEncoder().encode(exportText(store(env), query.all === "1", query.identity === "1"));
+  return new TextEncoder().encode(exportText(store(env), query.all === "1", query.identity === "1", now));
 }
 
 /** Chaves que só o painel local muda; o Cerberus inteiro entra pelo prefixo. */

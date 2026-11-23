@@ -5,6 +5,10 @@ import { readText } from "../lib/fs.ts";
 import { memAvailableMb, memTotalMb, run } from "../lib/proc.ts";
 
 export const CGROUP_ROOT = "/sys/fs/cgroup";
+
+/** Raiz do /proc lido pelo painel; `HADES_PROC_ROOT` aponta um /proc de fixture. */
+export const procRoot = (): string => process.env.HADES_PROC_ROOT || "/proc";
+export const procPath = (...parts: (string | number)[]): string => join(procRoot(), ...parts.map(String));
 const HTTP_TIMEOUT_MS = 1500;
 const SYSCTL = "/usr/sbin/sysctl";
 const PS = "/bin/ps";
@@ -41,7 +45,7 @@ export function isoEpoch(text: string): number | null {
 }
 
 /** O macOS não tem /proc: as leituras abaixo caem em sysctl e ps (nativos), com a mesma forma de retorno. */
-const hasProc = (): boolean => existsSync("/proc/self");
+const hasProc = (): boolean => existsSync(procPath("self"));
 
 const sysctl = (name: string): string => run(SYSCTL, ["-n", name], { timeoutMs: PROBE_TIMEOUT_MS }).stdout.trim();
 
@@ -52,7 +56,7 @@ export function parseBootTime(text: string): number {
 
 /** Epoch do boot da máquina: `btime` do /proc/stat ou `kern.boottime`; 0 se nenhum dos dois responde. */
 export function bootEpoch(): number {
-  if (hasProc()) return Number.parseInt((readText("/proc/stat") ?? "").split("\n").find((l) => l.startsWith("btime"))?.split(/\s+/)[1] ?? "", 10) || 0;
+  if (hasProc()) return Number.parseInt((readText(procPath("stat")) ?? "").split("\n").find((l) => l.startsWith("btime"))?.split(/\s+/)[1] ?? "", 10) || 0;
   return parseBootTime(sysctl("kern.boottime"));
 }
 
@@ -90,14 +94,14 @@ export interface ProcCommand {
 
 /** Segundos desde o boot. */
 export function uptime(): number {
-  if (hasProc()) return Number.parseFloat((readText("/proc/uptime") ?? "0").split(/\s+/)[0] ?? "0") || 0;
+  if (hasProc()) return Number.parseFloat((readText(procPath("uptime")) ?? "0").split(/\s+/)[0] ?? "0") || 0;
   const boot = parseBootTime(sysctl("kern.boottime"));
   return boot > 0 ? Math.max(0, Date.now() / 1000 - boot) : 0;
 }
 
 /** Carga média de 1, 5 e 15 minutos. */
 export function loadAverage(): number[] {
-  if (hasProc()) return (readText("/proc/loadavg") ?? "0 0 0").split(/\s+/).slice(0, LOAD_SAMPLES).map(Number);
+  if (hasProc()) return (readText(procPath("loadavg")) ?? "0 0 0").split(/\s+/).slice(0, LOAD_SAMPLES).map(Number);
   return parseLoadAverage(sysctl("vm.loadavg"));
 }
 
@@ -108,7 +112,7 @@ export function meminfo(): Record<string, number> {
     const swap = parseSwapUsage(sysctl("vm.swapusage"));
     return { MemTotal: memTotalMb() * BYTES_PER_MIB, MemAvailable: memAvailableMb() * BYTES_PER_MIB, SwapTotal: swap.total, SwapFree: swap.free };
   }
-  for (const line of readLines("/proc/meminfo")) {
+  for (const line of readLines(procPath("meminfo"))) {
     const colon = line.indexOf(":");
     if (colon < 0) continue;
     const value = line.slice(colon + 1).trim();
@@ -122,7 +126,7 @@ export function procCommands(): ProcCommand[] {
   if (!hasProc()) return parsePsCommands(run(PS, ["-axo", "pid=,command="], { timeoutMs: PROBE_TIMEOUT_MS }).stdout);
   const rows: ProcCommand[] = [];
   for (const id of procIds()) {
-    const raw = readText(join("/proc", id, "cmdline"));
+    const raw = readText(procPath(id, "cmdline"));
     if (raw !== undefined) rows.push({ pid: Number.parseInt(id, 10), cmd: raw.replaceAll("\0", " ").trim() });
   }
   return rows;
@@ -245,4 +249,4 @@ export function logErrors(dir: string, cache: Map<string, LogCacheEntry>, servic
 export type { LogCacheEntry };
 
 /** Pids de /proc; vazio onde não há /proc (macOS: o amostrador de cgroup não tem o que ler). */
-export const procIds = (): string[] => (hasProc() ? readdirSync("/proc").filter((d) => /^\d+$/.test(d)) : []);
+export const procIds = (): string[] => (hasProc() ? readdirSync(procRoot()).filter((d) => /^\d+$/.test(d)) : []);

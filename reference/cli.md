@@ -88,6 +88,7 @@ Notas do `agent`:
 | Subcomando | O que faz | Shim |
 |---|---|---|
 | `panel serve [--port <porta>]` | servidor do painel em TypeScript (`src/panel/`, `reference/panel.md`) | — |
+| `panel dump <rota> [k=v ...]` | imprime o JSON de uma rota GET de leitura do painel pelas mesmas funções, sem HTTP (`HADES_DATA`; `HADES_PROC_ROOT` troca o `/proc`); rota desconhecida sai com rc 2 e a lista | — |
 | `panel service start\|stop\|restart\|status\|url\|autostart` | o painel como serviço do usuário, pelo gerenciador da plataforma (systemd ou launchd; `HADES_SERVICE_MANAGER` força um) | `kit/panel.sh` |
 | `canvas area list` | lista as áreas do canvas e quem está em cada uma (somente leitura; `reference/argos.md` §Áreas) | — |
 | `canvas organize [--canvas <id>] [--dry-run]` | reorganiza o canvas em áreas por orquestrador (padrão `default`): recrutas na área do orquestrador, nota de andamento ao lado do recruta, nota compartilhada no cabeçalho, terminal do dono com nota em área própria, o resto no fim e listado em `FORA`; sub-áreas por `canvas-areas.json` em `$D`; segunda rodada sem mudança no grafo não grava; `--dry-run` imprime áreas, medidas e `FORA` sem gravar; `canvas-areas.json` inválido sai 1 (`organize_invalid_rules`) (`reference/argos.md` §Organizar em áreas) | — |

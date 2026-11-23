@@ -58,7 +58,7 @@ const WAIT_BY_COMMAND: { rx: RegExp; wait: string }[] = [
 
 // exceção e modo das cabeças só pelo dono (painel local ou `!`): vindo das ferramentas do Claude, barra
 const CERBERUS_OWNER_ONLY: { rx: RegExp; what: string }[] = [
-  { rx: /(?:hades[-_]cerberus\.(?:sh|py)|hades\s+cerberus)\b[^\n;&|]*\bexcecao\s+abrir\b/, what: "abrir exceção do Cerberus" },
+  { rx: /(?:hades[-_]cerberus\.(?:sh|py)|(?:^|[^\w.-])cerberus)\b[^\n;&|]*\bexcecao\s+abrir\b/, what: "abrir exceção do Cerberus" },
   { rx: /\/api\/cerberus\b/, what: "chamar a rota do Cerberus no painel" },
   { rx: /_maquina\/cerberus\b/, what: "mexer no diretório do Cerberus (histórico e exceções)" },
   { rx: /(?:hades\s+config\b|config\.(?:py|sh)\b|\/api\/config\b)[^\n;&|]*HADES_CERBERUS_/, what: "trocar o modo de uma cabeça do Cerberus" },

@@ -27,6 +27,17 @@ Peças do corpo:
 
 O corpo mora em TypeScript (Bun): `hades cerberus …` (sem Bun sai 69 com a instrução do registro de dependências). `gate-lock.sh` e `skill-release.sh` o chamam pela CLI (`hades cerberus registrar …`). Os arquivos de estado (histórico, exceções) e as chaves são os mesmos de sempre.
 
+## Implementação em Rust (`HADES_CERBERUS_IMPL`)
+
+Padrão `ts`: nada muda. Com `HADES_CERBERUS_IMPL=rust` (Configurações, grupo Cerberus) o `hades cerberus ...` delega ao
+binário `cerberus`: o de `HADES_CERBERUS_BIN`, senão o do PATH. `hades cerberus-check <alvo> ...` vira
+`cerberus check <alvo> ...`. Argumentos, stdin, stdout, stderr e código de saída passam sem mudança, e quem chama pela CLI
+(`gate-lock`, `agent-run`, as guardas `exec`) passa a usar o binário sem mudança. O hook registra o veredito pelo
+`cerberus registrar` do binário; sem o binário, o hook barra igual e só não registra. Sem o binário, `hades cerberus` e
+`hades cerberus-check` falham com a mensagem e o código 69 (dependência ausente), sem voltar ao TS em silêncio; valor fora
+de `ts|rust` sai com 2. Ficam na lib TS: a ponte `hades cerberus rpc`, a página do painel, o `skill-release`, os plugins,
+o minos-guard e o `hades watch`.
+
 ## Veredito
 
 Um veredito é um objeto JSON:
@@ -253,7 +264,7 @@ Dois pontos de entrada abrem, os dois só do dono:
   `! hades cerberus excecao abrir --cabeca <c> --guarda <id> --momento <m> --motivo "<por quê>" [--alvo k=v]...`
 
 **O que o hook barra.** O hook (`hades guard`) barra, em toda sessão do Claude Code, o que vier das ferramentas:
-`excecao abrir`, chamada a `/api/cerberus`, escrita no diretório do Cerberus e troca dos modos `HADES_CERBERUS_*`
+`excecao abrir` (pelo `hades cerberus` ou pelo binário `cerberus` direto), chamada a `/api/cerberus`, escrita no diretório do Cerberus e troca dos modos `HADES_CERBERUS_*`
 (`hades config set`, `/api/config`). O `!` do dono não passa pelo hook. O hook roda em Bun (`src/hook.ts`,
 `reference/cli.md` §Hook).
 

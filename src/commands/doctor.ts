@@ -23,6 +23,7 @@ import { judgeSlice, showSlice } from "../lib/doctor-slice.ts";
 import { belongsTo, otherInstances, type InstanceIdentity } from "../lib/doctor-instancias.ts";
 import { inheritedDefault, judgeSettings, readSettings, recentModelIds, roleSettings } from "../lib/settings-default.ts";
 import { configValue } from "../lib/work.ts";
+import { PANEL_APP, PANEL_APP_INSTALL, panelAppBin, panelAppVersion } from "../panel/app-launch.ts";
 import { judgeMark, judgeMarkVoice, parseVoiceProbe, VOICE_PROBE_SCRIPT, type MarkProbe, type MarkVoiceProbe } from "../lib/doctor-mark.ts";
 import { extensionDoctorItems } from "../lib/doctor-ext.ts";
 import { MARK_BRIDGE_KEY, bridgePathOf, markUrl, markWsUrl, parseState, readBridge, type Bridge } from "../lib/mark-bridge.ts";
@@ -532,6 +533,18 @@ function checkPanel(r: Report, ctx: Ctx): void {
     else r.ok(g, "painel", `início automático (${mode}) coerente com a unit`);
   } else r.warn(g, "painel", `HADES_PANEL_AUTOSTART com valor inesperado: ${mode}`, `${ctx.d}/config.sh set HADES_PANEL_AUTOSTART=off|login|boot`);
   checkHerdrServer(r, unit);
+  checkPanelApp(r);
+}
+
+/** Informativo: o app gpui é opcional (o web segue sendo o padrão), então ausente também é ok, com o comando de instalação. */
+function checkPanelApp(r: Report): void {
+  const bin = panelAppBin();
+  if (!bin) {
+    r.ok("Painel", "painel-app", `${PANEL_APP} não instalado (opcional; o painel web segue o padrão): ${PANEL_APP_INSTALL}`);
+    return;
+  }
+  const version = panelAppVersion(bin);
+  r.ok("Painel", "painel-app", `${PANEL_APP} instalado${version ? ` (${version})` : ""}: hades panel app abre o painel gpui`);
 }
 
 const WORKER_SSH_TIMEOUT_MS = 6000;

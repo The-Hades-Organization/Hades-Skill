@@ -17,7 +17,7 @@ A unit fica **fora** do slice `hades` (~40 MB): não conta no teto e segue no ar
 
 ## Índice
 
-**Usar o painel:** §Início automático · §Páginas (§Navegação lateral, §Topo) · §Ações · §Visão geral (§Versão nova, §Disco, §Serviços sob demanda) · §Seletor de PRs · §Loop · §Orquestração · §Revisões · §Fila de gates · §Consumo · §Claude · §Herdr · §Notificações · §Acesso remoto · §Cerberus · §Thanatos · §Tour por página · §Caronte · §Onboarding · §Página Plugins · §Instalar como app (PWA)
+**Usar o painel:** §Início automático · §App gpui (opcional) · §Páginas (§Navegação lateral, §Topo) · §Ações · §Visão geral (§Versão nova, §Disco, §Serviços sob demanda) · §Seletor de PRs · §Loop · §Orquestração · §Revisões · §Fila de gates · §Consumo · §Claude · §Herdr · §Notificações · §Acesso remoto · §Cerberus · §Thanatos · §Tour por página · §Caronte · §Onboarding · §Página Plugins · §Instalar como app (PWA)
 
 **APIs e contratos:** §API do diário · §API do Argos · §Terminal · §Widget Android (§Baixar o APK) · §Plugin: páginas, rotas e ações (§Host do plugin) · §Segurança local
 
@@ -38,6 +38,14 @@ A unit fica **fora** do slice `hades` (~40 MB): não conta no teto e segue no ar
 - O linger é do `linger.sh sync`, só do painel: liga se `HADES_PANEL_AUTOSTART=boot`, e só desliga se foi o Hades que ligou (marca `$D/linger.mine`, antes `panel-linger.mine`) e o painel não o pede mais; linger já ligado por outro motivo fica.
 - No boot só o painel sobe sozinho; o resto do Hades (infra, serviços) continua parado até alguém pedir pelo painel.
 - `panel.sh status` mostra o modo efetivo ("desligado", "no login do usuário", "com a máquina (linger)").
+
+## App gpui (opcional)
+
+`hades panel app` abre o app nativo do painel (`hades-panel-app`, repo Hades-Panel) desacoplado do terminal, com
+`HADES_DATA` (a instância) e o projeto atual (a pasta de onde foi chamado). O binário é `HADES_PANEL_APP_BIN`
+(Configurações → Painel → "Binário do app do painel"; vazio = `hades-panel-app` do PATH). Sem ele, sai 69 com o comando
+de instalação: `cargo install --git https://github.com/The-Hades-Organization/Hades-Panel hades-panel-app`. O painel web
+continua sendo o padrão; o doctor diz, sem aviso, se o app está instalado e a versão (`painel-app`).
 
 ## Páginas
 

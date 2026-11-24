@@ -48,6 +48,7 @@ HADES_TUNNEL_PORT		port	Túnel	Porta exposta pelo túnel	next	Porta local que o 
 HADES_TUNNEL_ANON_TTL	1d	ttl	Túnel	Validade do acesso anônimo ao front	next	Por quanto tempo a URL do front abre sem login para qualquer pessoa (ex.: 8h, 1d, 7d). Vencido o prazo, o front deixa de abrir até o acesso ser renovado.
 HADES_PANEL_PORT	21220	int:1024:65535	Painel	Porta do painel	panel	Porta local deste painel. Depois de reiniciar, abra o painel na porta nova. Com o acesso remoto publicado, publique de novo (Acesso remoto → Publicar de novo): a URL do túnel leva a porta e muda com ela.
 HADES_PANEL_AUTOSTART	off	enum:off,login,boot	Painel	Iniciar o painel automaticamente	autostart	off = só sobe com o run-hades ou panel.sh start; login = ao entrar na sessão; boot = com a máquina, sem login (liga o linger do systemd).
+HADES_PANEL_APP_BIN		path	Painel	Binário do app do painel	next	Caminho do `hades-panel-app` que o `hades panel app` abre (vazio = `hades-panel-app` do PATH). Opcional: o painel web segue sendo o padrão.
 HADES_ORCH_WORKTREE_ROOT		path	Orquestração	Pasta das worktrees dos agentes	next	Onde o hades agent cria cada worktree (vazio = ~/.herdr/worktrees/<repo>). Nunca no scratchpad nem no /tmp.
 HADES_ORCH_HERDR_WORKSPACE		id	Orquestração	Workspace do herdr dos agentes	next	Workspace onde a worktree de cada agente abre (vazio = um workspace por worktree, com o nome do agente).
 HADES_ORCH_NODE_MODULES		path	Orquestração	node_modules das worktrees novas	next	Ligado por symlink em cada worktree nova, sem instalar dependências (vazio = o do clone principal).
